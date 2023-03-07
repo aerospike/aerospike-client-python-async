@@ -252,7 +252,11 @@ def calculate_digest(key: Key) -> bytes:
         encoded_uk_type = BinType.AS_BYTES_STRING
     elif type(key.user_key) == int:
         encoded_uk_type = BinType.AS_BYTES_INTEGER
-    elif type(key.user_key) == bytes:
+    elif (
+        type(key.user_key) == bytes
+        or
+        type(key.user_key) == bytearray
+    ):
         encoded_uk_type = BinType.AS_BYTES_BLOB
     # TODO: throw error if key is not a valid type?
     encoded_uk_type = encoded_uk_type.value.to_bytes(1, byteorder='big')

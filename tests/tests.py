@@ -46,31 +46,36 @@ class TestAsyncClient(unittest.TestCase):
     @parameterized.expand(
         [
             (
-                "user key type = string",
+                "string",
                 Key("test", "demo", "1")
             ),
             (
-                "user key type = integer",
+                "integer",
                 Key("test", "demo", 1)
             ),
             (
-                "user key type = bytes",
+                "bytes",
                 # Arbitrary string of bytes
                 Key("test", "demo", bytes([12, 30, 20, 19]))
+            ),
+            (
+                "bytearray",
+                Key("test", "demo", bytearray([12, 30, 20, 19]))
             )
         ]
     )
-    def test_get_single_bin(self, _, key: Key):
+    # Ensure user-key types are encoded properly when calculating the digest
+    def test_get_uk_types(self, _, key: Key):
         self.key_tuple = (
             key.namespace,
             key.set,
+            # Old Python client accepts user-key blobs as bytearrays
+            # whereas AsyncClient accepts them as both bytes and bytearrays for ease of use
             key.user_key if type(key.user_key) != bytes else bytearray(key.user_key)
         )
         expected_results = {"bin": "value"}
         self.client.put(self.key_tuple, expected_results)
 
-        # AsyncClient should calculate the digest the same way as the old Python client
-        # meaning the former should encode different user-key types properly
         actual_results = asyncio.run(AsyncClient.get(key))
         self.assertEqual(actual_results, expected_results)
 
