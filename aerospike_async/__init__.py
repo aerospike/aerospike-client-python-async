@@ -1,6 +1,7 @@
 import asyncio
 from Crypto.Hash import RIPEMD160
 from enum import Enum, IntEnum
+from typing import Union
 
 from bitarray import bitarray
 
@@ -208,6 +209,8 @@ async def send_message(
     def slice_with_length(start, len):
         return response_msg[start:(start + len)]
 
+    results = {}
+
     for _ in range(n_ops):
         bin_name_len = slice_with_length(curr_op_offset + 7, 1)
         bin_name_len = int.from_bytes(bin_name_len, byteorder='big')
@@ -221,17 +224,20 @@ async def send_message(
         # Decode bin value
         bin_data_type = slice_with_length(curr_op_offset + 5, 1)
         bin_data_type = int.from_bytes(bin_data_type, byteorder='big')
-        if bin_data_type == BinType.AS_BYTES_STRING:
-            bin_value = str(bin_value, encoding='utf-8')
+        # TODO: support more bin value types
+        bin_value = str(bin_value, encoding='utf-8')
+
+        results[bin_name] = bin_value
 
     writer.close()
     await writer.wait_closed()
 
-    return {bin_name: bin_value}
+    return results
+
+UserKey = Union[str, int, bytes, bytearray]
 
 class Key:
-    # TODO: user_key needs to support int and bytearray
-    def __init__(self, namespace: str, set: str, user_key: str):
+    def __init__(self, namespace: str, set: str, user_key: UserKey):
         self.namespace = namespace
         self.set = set
         self.user_key = user_key
@@ -239,12 +245,27 @@ class Key:
 def calculate_digest(key: Key) -> bytes:
     h = RIPEMD160.new()
 
-    h.update(key.set.encode('utf-8'))
+    encoded_set = key.set.encode('utf-8')
+    h.update(encoded_set)
 
-    user_key_type = BinType.AS_BYTES_STRING.value.to_bytes(1, byteorder='big')
-    h.update(user_key_type)
+    if type(key.user_key) == str:
+        encoded_uk_type = BinType.AS_BYTES_STRING
+    elif type(key.user_key) == int:
+        encoded_uk_type = BinType.AS_BYTES_INTEGER
+    elif type(key.user_key) == bytes:
+        encoded_uk_type = BinType.AS_BYTES_BLOB
+    # TODO: throw error if key is not a valid type?
+    encoded_uk_type = encoded_uk_type.value.to_bytes(1, byteorder='big')
+    h.update(encoded_uk_type)
 
-    h.update(key.user_key.encode('utf-8'))
+    if type(key.user_key) == str:
+        encoded_uk = key.user_key.encode('utf-8')
+    elif type(key.user_key) == int:
+        # Integer takes up 8 bytes in Aerospike
+        encoded_uk = key.user_key.to_bytes(8, byteorder='big')
+    else:
+        encoded_uk = key.user_key
+    h.update(encoded_uk)
 
     digest = h.digest()
     return digest
