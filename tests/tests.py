@@ -64,8 +64,8 @@ class TestAsyncClient(unittest.TestCase):
             )
         ]
     )
-    # Ensure user-key types are encoded properly when calculating the digest
-    def test_get_uk_types(self, _, key: Key):
+    # User-key types should be encoded properly before calculating the digest
+    def test_get_user_key_types(self, _, key: Key):
         self.key_tuple = (
             key.namespace,
             key.set,
@@ -74,6 +74,38 @@ class TestAsyncClient(unittest.TestCase):
             key.user_key if type(key.user_key) != bytes else bytearray(key.user_key)
         )
         expected_results = {"bin": "value"}
+        self.client.put(self.key_tuple, expected_results)
+
+        actual_results = asyncio.run(AsyncClient.get(key))
+        self.assertEqual(actual_results, expected_results)
+
+    @parameterized.expand(
+        [
+            (
+                "string",
+                "gluon gun"
+            ),
+            (
+                "integer",
+                42
+            ),
+            (
+                "bytes",
+                # Arbitrary string of bytes
+                bytes([10, 20, 30])
+            ),
+        ]
+    )
+    # After fetching bin values from the server,
+    # they should be converted to Python native types properly
+    def test_get_bin_value_types(self, _, bin_value):
+        key = Key("test", "demo", "1")
+        self.key_tuple = (
+            key.namespace,
+            key.set,
+            key.user_key
+        )
+        expected_results = {"bin": bin_value}
         self.client.put(self.key_tuple, expected_results)
 
         actual_results = asyncio.run(AsyncClient.get(key))

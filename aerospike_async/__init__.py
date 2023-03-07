@@ -225,7 +225,10 @@ async def send_message(
         bin_data_type = slice_with_length(curr_op_offset + 5, 1)
         bin_data_type = int.from_bytes(bin_data_type, byteorder='big')
         # TODO: support more bin value types
-        bin_value = str(bin_value, encoding='utf-8')
+        if bin_data_type == BinType.AS_BYTES_STRING:
+            bin_value = str(bin_value, encoding='utf-8')
+        elif bin_data_type == BinType.AS_BYTES_INTEGER:
+            bin_value = int.from_bytes(bin_value, byteorder='big')
 
         results[bin_name] = bin_value
 
