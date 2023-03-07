@@ -1,0 +1,7 @@
+[tool.poetry]
+name = "aerospike_async"
+version = "0.1.0"
+description = "Async Pure Python Client"
+authors = [
+    "Julian Nguyen <jnguyen@aerospike.com>",
+]
