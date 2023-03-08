@@ -41,7 +41,7 @@ class TestAsyncClient(unittest.TestCase):
         cls.docker_client.close()
 
     def tearDown(self):
-        self.client.remove(self.key_tuple)
+        self.client.truncate("test", "demo", 0)
 
     @parameterized.expand(
         [
@@ -74,6 +74,19 @@ class TestAsyncClient(unittest.TestCase):
             key.user_key if type(key.user_key) != bytes else bytearray(key.user_key)
         )
         expected_results = {"bin": "value"}
+        self.client.put(self.key_tuple, expected_results)
+
+        actual_results = asyncio.run(AsyncClient.get(key))
+        self.assertEqual(actual_results, expected_results)
+
+    def test_get_multiple_bins(self):
+        key = Key("test", "demo", "1")
+        self.key_tuple = (
+            key.namespace,
+            key.set,
+            key.user_key
+        )
+        expected_results = {"bin1": "value1", "bin2": "value2"}
         self.client.put(self.key_tuple, expected_results)
 
         actual_results = asyncio.run(AsyncClient.get(key))

@@ -231,6 +231,7 @@ async def send_message(
             bin_value = int.from_bytes(bin_value, byteorder='big')
 
         results[bin_name] = bin_value
+        curr_op_offset += (4 + op_sz)
 
     writer.close()
     await writer.wait_closed()
