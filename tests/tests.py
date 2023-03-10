@@ -5,7 +5,7 @@ import time
 from parameterized import parameterized
 
 import aerospike
-from aerospike_async import AsyncClient, Key
+from aerospike_async import AsyncClient, Key, InvalidUserKeyTypeException, ServerException
 
 class TestGet(unittest.TestCase):
     @classmethod
@@ -42,8 +42,12 @@ class TestGet(unittest.TestCase):
 
         cls.docker_client.close()
 
+    def setUp(self):
+        self.key_tuple = None
+
     def tearDown(self):
-        self.old_client.remove(self.key_tuple)
+        if self.key_tuple:
+            self.old_client.remove(self.key_tuple)
 
     @parameterized.expand(
         [
@@ -148,6 +152,16 @@ class TestGet(unittest.TestCase):
         actual_results = asyncio.run(self.async_client.get(key))
         self.assertEqual(actual_results, expected_results)
 
+    def test_get_invalid_user_key_type(self):
+        key = Key("test", "demo", 4.4)
+        with self.assertRaisesRegex(InvalidUserKeyTypeException, expected_regex="User key must be either a str, int, bytes, or bytearray"):
+            asyncio.run(self.async_client.get(key))
+
+    def test_get_record_not_found(self):
+        key = Key("test", "demo", "1")
+        with self.assertRaisesRegex(ServerException, expected_regex="Server returned error code 2") as cm:
+            asyncio.run(self.async_client.get(key))
+        self.assertEqual(cm.exception.code, 2)
 
 if __name__ == '__main__':
     unittest.main()

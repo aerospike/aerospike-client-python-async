@@ -29,6 +29,17 @@ class ServerType(IntEnum):
     AS_BYTES_MAP = 19
     AS_BYTES_LIST = 20
 
+class InvalidUserKeyTypeException(Exception):
+    def __str__(self):
+        return "User key must be either a str, int, bytes, or bytearray"
+
+class ServerException(Exception):
+    def __init__(self, code):
+        self.code = code
+
+    def __str__(self):
+        return f"Server returned error code {self.code}"
+
 async def send_as_message(
     # info1
     AS_MSG_INFO1_COMPRESS_RESPONSE = 0,
@@ -176,6 +187,10 @@ async def send_as_message(
 
     response_msg = await reader.read(response_msg_sz)
 
+    result_code = response_msg[5]
+    if result_code != 0:
+        raise ServerException(code=result_code)
+
     def slice_msg_with_len(start: int, len: int):
         return response_msg[start:(start + len)]
 
@@ -262,9 +277,6 @@ class Key:
         self.set = set
         self.user_key = user_key
 
-class InvalidUserKeyTypeError(Exception):
-    pass
-
 def calculate_digest(key: Key) -> bytes:
     h = RIPEMD160.new()
 
@@ -282,7 +294,7 @@ def calculate_digest(key: Key) -> bytes:
     ):
         user_key_type = ServerType.AS_BYTES_BLOB
     else:
-        raise InvalidUserKeyTypeError
+        raise InvalidUserKeyTypeException
 
     user_key_type = user_key_type.to_bytes(1, byteorder='big')
     h.update(user_key_type)
