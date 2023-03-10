@@ -7,7 +7,7 @@ from parameterized import parameterized
 import aerospike
 from aerospike_async import AsyncClient, Key
 
-class TestAsyncClient(unittest.TestCase):
+class TestGet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.docker_client = docker.from_env()
@@ -107,6 +107,28 @@ class TestAsyncClient(unittest.TestCase):
                 # Arbitrary string of bytes
                 bytes([10, 20, 30])
             ),
+            (
+                "map",
+                {3: {2: 1}}
+            ),
+            # get() should properly decode strings and blobs inside maps
+            # since the msgpack library does not decode it for us
+            (
+                "maps with blobs",
+                {
+                    bytes([1, 2, 3]): {
+                        bytes([4, 5, 6]): bytes([7, 8, 9])
+                    }
+                }
+            ),
+            (
+                "maps with strings",
+                {"a": {"b": "c"}}
+            ),
+            (
+                "list",
+                ["a", "b", "c"]
+            ),
         ]
     )
     # After fetching bin values from the server,
@@ -123,6 +145,7 @@ class TestAsyncClient(unittest.TestCase):
 
         actual_results = asyncio.run(AsyncClient.get(key))
         self.assertEqual(actual_results, expected_results)
+
 
 if __name__ == '__main__':
     unittest.main()

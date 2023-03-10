@@ -2,7 +2,7 @@ import asyncio
 from Crypto.Hash import RIPEMD160
 from enum import Enum, IntEnum
 from typing import Union
-
+import msgpack
 from bitarray import bitarray
 
 SERVER_IP = "127.0.0.1"
@@ -229,6 +229,21 @@ async def send_message(
             bin_value = str(bin_value, encoding='utf-8')
         elif bin_data_type == BinType.AS_BYTES_INTEGER:
             bin_value = int.from_bytes(bin_value, byteorder='big')
+        elif (
+            bin_data_type == BinType.AS_BYTES_MAP
+            or
+            bin_data_type == BinType.AS_BYTES_LIST
+        ):
+            bin_value = msgpack.unpackb(
+                bin_value,
+                # Server stores strings encoded as bytes
+                # so we need to manually decode bytes to determine if it is a string
+                raw=True,
+                # Aerospike maps supports more than just the JSON key types
+                strict_map_key=False,
+                object_hook=object_hook,
+                list_hook=list_hook
+            )
 
         results[bin_name] = bin_value
         curr_op_offset += (4 + op_sz)
@@ -237,6 +252,31 @@ async def send_message(
     await writer.wait_closed()
 
     return results
+
+def unpack_strs_and_bytes(item):
+    if type(item) == bytes:
+        if item[0] == BinType.AS_BYTES_STRING:
+            item = str(item, encoding='utf-8')
+            item = item[1:]
+        elif item[0] == BinType.AS_BYTES_BLOB:
+            item = bytearray(item)
+            item = item[1:]
+            item = bytes(item)
+    return item
+
+def object_hook(obj: dict):
+    for key, value in obj.copy().items():
+        new_key = unpack_strs_and_bytes(key)
+        value = unpack_strs_and_bytes(value)
+        if new_key != key:
+            del obj[key]
+        obj[new_key] = value
+    return obj
+
+def list_hook(obj: list):
+    for idx, item in enumerate(obj):
+        obj[idx] = unpack_strs_and_bytes(item)
+    return obj
 
 UserKey = Union[str, int, bytes, bytearray]
 
@@ -279,7 +319,7 @@ def calculate_digest(key: Key) -> bytes:
     return digest
 
 class AsyncClient:
-    async def get(key: Key) -> bytes:
+    async def get(key: Key) -> dict:
         digest = calculate_digest(key)
         response = await send_message(
             AS_MSG_INFO1_READ = 1,
