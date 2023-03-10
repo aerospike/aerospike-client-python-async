@@ -10,9 +10,8 @@ SERVER_PORT = 3000
 
 # Wire protocol for Aerospike messages
 
-class FieldType(Enum):
+class FieldType(IntEnum):
     AS_MSG_FIELD_TYPE_NAMESPACE = 0
-    AS_MSG_FIELD_TYPE_SET = 1
     AS_MSG_FIELD_TYPE_DIGEST_RIPE = 4
 
 class Field:
@@ -20,43 +19,17 @@ class Field:
         self.field_type = field_type
         self.data = data
 
-# TODO: outdated
-class OperationType(Enum):
+class OperationType(IntEnum):
     AS_MSG_OP_READ = 1
-    AS_MSG_OP_WRITE = 2
-    AS_MSG_OP_INCR = 5
-    AS_MSG_OP_APPEND = 9
-    AS_MSG_OP_PREPEND = 10
-    AS_MSG_OP_TOUCH = 11
 
-# TODO: outdated
-class BinType(IntEnum):
-    AS_BYTES_UNDEF = 0
+class ServerType(IntEnum):
     AS_BYTES_INTEGER = 1
-    AS_BYTES_DOUBLE = 2
     AS_BYTES_STRING = 3
     AS_BYTES_BLOB = 4
-    AS_BYTES_JAVA = 7
-    AS_BYTES_CSHARP = 8
-    AS_BYTES_PYTHON = 9
-    AS_BYTES_RUBY = 10
-    AS_BYTES_PHP = 11
-    AS_BYTES_ERLANG = 12
-    AS_BYTES_BOOL = 17
-    AS_BYTES_HLL = 18
     AS_BYTES_MAP = 19
     AS_BYTES_LIST = 20
-    AS_BYTES_GEOJSON = 23
-    AS_BYTES_TYPE_MAX = 24
 
-class Operation:
-    def __init__(self, op: OperationType, bin_data_type: BinType, bin_name: str, bin_data: bytes):
-        self.op = op
-        self.bin_data_type = bin_data_type
-        self.bin_name = bin_name
-        self.bin_data = bin_data
-
-async def send_message(
+async def send_as_message(
     # info1
     AS_MSG_INFO1_COMPRESS_RESPONSE = 0,
     AS_MSG_INFO1_CONSISTENCY_LEVEL_ALL = 0,
@@ -83,8 +56,8 @@ async def send_message(
     AS_MSG_INFO3_PARTITION_DONE = 0,
     AS_MSG_INFO3_COMMIT_LEVEL_MASTER = 0,
     AS_MSG_INFO3_LAST = 0,
-    # header
-    # TODO: fix defaults
+    # message header
+    # TODO: not sure if these are the right defaults
     generation = 0,
     record_ttl = 0,
     transaction_ttl = 0,
@@ -170,7 +143,7 @@ async def send_message(
         size = size.to_bytes(4, byteorder='big')
         field_bytes += size
 
-        field_type = int(field.field_type.value).to_bytes(1, byteorder='big')
+        field_type = int(field.field_type).to_bytes(1, byteorder='big')
         field_bytes += field_type
 
         field_bytes += field.data
@@ -203,41 +176,44 @@ async def send_message(
 
     response_msg = await reader.read(response_msg_sz)
 
-    n_ops = int.from_bytes(response_msg[20:22], byteorder='big')
-    curr_op_offset = response_msg[0] # after response message header
-
-    def slice_with_length(start, len):
+    def slice_msg_with_len(start: int, len: int):
         return response_msg[start:(start + len)]
 
     results = {}
 
+    n_ops = int.from_bytes(response_msg[20:22], byteorder='big')
+    curr_op_offset = response_msg[0] # after response message header
     for _ in range(n_ops):
-        bin_name_len = slice_with_length(curr_op_offset + 7, 1)
+        bin_name_len = slice_msg_with_len(start=curr_op_offset + 7, len=1)
         bin_name_len = int.from_bytes(bin_name_len, byteorder='big')
-        bin_name = slice_with_length(curr_op_offset + 8, bin_name_len)
+
+        bin_name = slice_msg_with_len(start=curr_op_offset + 8, len=bin_name_len)
         bin_name = str(bin_name, encoding='utf-8')
 
-        op_sz = slice_with_length(curr_op_offset, 4)
-        op_sz = int.from_bytes(op_sz, byteorder='big')
-        bin_value = slice_with_length(curr_op_offset + 8 + bin_name_len, op_sz - (bin_name_len + 4))
-
         # Decode bin value
-        bin_data_type = slice_with_length(curr_op_offset + 5, 1)
+
+        bin_data_type = slice_msg_with_len(curr_op_offset + 5, 1)
         bin_data_type = int.from_bytes(bin_data_type, byteorder='big')
-        # TODO: support more bin value types
-        if bin_data_type == BinType.AS_BYTES_STRING:
+
+        op_sz = slice_msg_with_len(curr_op_offset, 4)
+        op_sz = int.from_bytes(op_sz, byteorder='big')
+        bin_value = slice_msg_with_len(
+            start=curr_op_offset + 8 + bin_name_len,
+            len=op_sz - (4 + bin_name_len)
+        )
+        if bin_data_type == ServerType.AS_BYTES_STRING:
             bin_value = str(bin_value, encoding='utf-8')
-        elif bin_data_type == BinType.AS_BYTES_INTEGER:
+        elif bin_data_type == ServerType.AS_BYTES_INTEGER:
             bin_value = int.from_bytes(bin_value, byteorder='big')
         elif (
-            bin_data_type == BinType.AS_BYTES_MAP
+            bin_data_type == ServerType.AS_BYTES_MAP
             or
-            bin_data_type == BinType.AS_BYTES_LIST
+            bin_data_type == ServerType.AS_BYTES_LIST
         ):
             bin_value = msgpack.unpackb(
                 bin_value,
-                # Server stores strings encoded as bytes
-                # so we need to manually decode bytes to determine if it is a string
+                # Server encodes strings as bytes with a type byte at the beginning
+                # so we need to manually decode bytes and check if it is a string
                 raw=True,
                 # Aerospike maps supports more than just the JSON key types
                 strict_map_key=False,
@@ -255,10 +231,10 @@ async def send_message(
 
 def unpack_strs_and_bytes(item):
     if type(item) == bytes:
-        if item[0] == BinType.AS_BYTES_STRING:
+        if item[0] == ServerType.AS_BYTES_STRING:
             item = str(item, encoding='utf-8')
             item = item[1:]
-        elif item[0] == BinType.AS_BYTES_BLOB:
+        elif item[0] == ServerType.AS_BYTES_BLOB:
             item = bytearray(item)
             item = item[1:]
             item = bytes(item)
@@ -286,6 +262,9 @@ class Key:
         self.set = set
         self.user_key = user_key
 
+class InvalidUserKeyTypeError(Exception):
+    pass
+
 def calculate_digest(key: Key) -> bytes:
     h = RIPEMD160.new()
 
@@ -293,46 +272,46 @@ def calculate_digest(key: Key) -> bytes:
     h.update(encoded_set)
 
     if type(key.user_key) == str:
-        encoded_uk_type = BinType.AS_BYTES_STRING
+        user_key_type = ServerType.AS_BYTES_STRING
     elif type(key.user_key) == int:
-        encoded_uk_type = BinType.AS_BYTES_INTEGER
+        user_key_type = ServerType.AS_BYTES_INTEGER
     elif (
         type(key.user_key) == bytes
         or
         type(key.user_key) == bytearray
     ):
-        encoded_uk_type = BinType.AS_BYTES_BLOB
-    # TODO: throw error if key is not a valid type?
-    encoded_uk_type = encoded_uk_type.value.to_bytes(1, byteorder='big')
-    h.update(encoded_uk_type)
+        user_key_type = ServerType.AS_BYTES_BLOB
+    else:
+        raise InvalidUserKeyTypeError
+
+    user_key_type = user_key_type.to_bytes(1, byteorder='big')
+    h.update(user_key_type)
 
     if type(key.user_key) == str:
-        encoded_uk = key.user_key.encode('utf-8')
+        encoded_user_key = key.user_key.encode('utf-8')
     elif type(key.user_key) == int:
         # Integer takes up 8 bytes in Aerospike
-        encoded_uk = key.user_key.to_bytes(8, byteorder='big')
+        encoded_user_key = key.user_key.to_bytes(8, byteorder='big')
     else:
-        encoded_uk = key.user_key
-    h.update(encoded_uk)
+        # user key is a bytes or bytearray object
+        encoded_user_key = key.user_key
+    h.update(encoded_user_key)
 
     digest = h.digest()
     return digest
 
 class AsyncClient:
-    async def get(key: Key) -> dict:
+    async def get(self, key: Key) -> dict:
         digest = calculate_digest(key)
-        response = await send_message(
+        response = await send_as_message(
             AS_MSG_INFO1_READ = 1,
             AS_MSG_INFO1_GET_ALL = 1,
             fields=[
-                # TODO: don't encode here
+                # Don't need to pass in the record's set
+                # digest already uniquely identifies record in a namespace
                 Field(
                     FieldType.AS_MSG_FIELD_TYPE_NAMESPACE,
                     key.namespace.encode('utf-8')
-                ),
-                Field(
-                    FieldType.AS_MSG_FIELD_TYPE_SET,
-                    key.set.encode('utf-8')
                 ),
                 Field(
                     FieldType.AS_MSG_FIELD_TYPE_DIGEST_RIPE,

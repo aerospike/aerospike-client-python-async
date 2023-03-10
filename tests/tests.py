@@ -28,12 +28,14 @@ class TestGet(unittest.TestCase):
         config = {
             "hosts": [("127.0.0.1", 3000)]
         }
-        cls.client = aerospike.client(config)
+        cls.old_client = aerospike.client(config)
+
+        cls.async_client = AsyncClient()
 
     @classmethod
     def tearDownClass(cls):
         print("Cleaning up...")
-        cls.client.close()
+        cls.old_client.close()
 
         cls.server_container.stop()
         cls.server_container.remove()
@@ -41,7 +43,7 @@ class TestGet(unittest.TestCase):
         cls.docker_client.close()
 
     def tearDown(self):
-        self.client.truncate("test", "demo", 0)
+        self.old_client.remove(self.key_tuple)
 
     @parameterized.expand(
         [
@@ -69,14 +71,14 @@ class TestGet(unittest.TestCase):
         self.key_tuple = (
             key.namespace,
             key.set,
-            # Old Python client accepts user-key blobs as bytearrays
+            # Old Python client only accepts user-key blobs as bytearrays
             # whereas AsyncClient accepts them as both bytes and bytearrays for ease of use
-            key.user_key if type(key.user_key) != bytes else bytearray(key.user_key)
+            bytearray(key.user_key) if type(key.user_key) == bytes else key.user_key
         )
         expected_results = {"bin": "value"}
-        self.client.put(self.key_tuple, expected_results)
+        self.old_client.put(self.key_tuple, expected_results)
 
-        actual_results = asyncio.run(AsyncClient.get(key))
+        actual_results = asyncio.run(self.async_client.get(key))
         self.assertEqual(actual_results, expected_results)
 
     def test_get_multiple_bins(self):
@@ -87,9 +89,9 @@ class TestGet(unittest.TestCase):
             key.user_key
         )
         expected_results = {"bin1": "value1", "bin2": "value2"}
-        self.client.put(self.key_tuple, expected_results)
+        self.old_client.put(self.key_tuple, expected_results)
 
-        actual_results = asyncio.run(AsyncClient.get(key))
+        actual_results = asyncio.run(self.async_client.get(key))
         self.assertEqual(actual_results, expected_results)
 
     @parameterized.expand(
@@ -141,9 +143,9 @@ class TestGet(unittest.TestCase):
             key.user_key
         )
         expected_results = {"bin": bin_value}
-        self.client.put(self.key_tuple, expected_results)
+        self.old_client.put(self.key_tuple, expected_results)
 
-        actual_results = asyncio.run(AsyncClient.get(key))
+        actual_results = asyncio.run(self.async_client.get(key))
         self.assertEqual(actual_results, expected_results)
 
 
