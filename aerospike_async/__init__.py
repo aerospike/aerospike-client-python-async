@@ -2,7 +2,6 @@ import asyncio
 from Crypto.Hash import RIPEMD160
 from enum import Enum, IntEnum
 from typing import Union
-import msgpack
 from bitarray import bitarray
 
 SERVER_IP = "127.0.0.1"
@@ -225,16 +224,7 @@ async def send_as_message(
             or
             bin_data_type == ServerType.AS_BYTES_LIST
         ):
-            bin_value = msgpack.unpackb(
-                bin_value,
-                # Server encodes strings as bytes with a type byte at the beginning
-                # so we need to manually decode bytes and check if it is a string
-                raw=True,
-                # Aerospike maps supports more than just the JSON key types
-                strict_map_key=False,
-                object_hook=object_hook,
-                list_hook=list_hook
-            )
+            bin_value, _ = unpack(bin_value)
 
         results[bin_name] = bin_value
         curr_op_offset += (4 + op_sz)
@@ -244,30 +234,153 @@ async def send_as_message(
 
     return results
 
-def unpack_strs_and_bytes(item):
-    if type(item) == bytes:
-        if item[0] == ServerType.AS_BYTES_STRING:
-            item = str(item, encoding='utf-8')
-            item = item[1:]
-        elif item[0] == ServerType.AS_BYTES_BLOB:
-            item = bytearray(item)
-            item = item[1:]
-            item = bytes(item)
-    return item
+class UnpackException(Exception):
+    pass
 
-def object_hook(obj: dict):
-    for key, value in obj.copy().items():
-        new_key = unpack_strs_and_bytes(key)
-        value = unpack_strs_and_bytes(value)
-        if new_key != key:
-            del obj[key]
-        obj[new_key] = value
-    return obj
+def unpack_str(blob: bytes):
+    blob_type = blob[0]
+    if blob_type == ServerType.AS_BYTES_BLOB:
+        return blob[1:]
+    elif blob_type == ServerType.AS_BYTES_STRING:
+        string = str(blob[1:], encoding='utf-8')
+        return string
+    raise UnpackException
 
-def list_hook(obj: list):
-    for idx, item in enumerate(obj):
-        obj[idx] = unpack_strs_and_bytes(item)
-    return obj
+def unpack(blob: bytes) -> tuple[any, int]:
+    if len(blob) == 0:
+        return
+
+    next_type = blob[0]
+    if next_type in range(0, 0x80) or next_type == 0xcc:
+        # fixint or uint 8
+        return next_type, 1
+    elif next_type in range(0x80, 0x90):
+        # fixmap
+        n = 0b1111 & next_type
+        blob_idx = 1
+        fixmap = {}
+        for _ in range(n):
+            key, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            value, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            fixmap[key] = value
+        return fixmap, blob_idx
+    elif next_type in range(0x90, 0xa0):
+        # fixarray
+        n = 0b1111 & next_type
+        blob_idx = 1
+        fixarray = []
+        for _ in range(n):
+            list_item, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            fixarray.append(list_item)
+        return fixarray, blob_idx
+    elif next_type in range(0xa0, 0xc0):
+        # fixstr
+        sz = 0b11111 & next_type
+        value = blob[1:(1 + sz)]
+        value = unpack_str(value)
+        return value, 1 + sz
+    elif next_type == 0xcd:
+        # uint 16
+        value = int.from_bytes(blob[1:3], byteorder='big')
+        return value, 3
+    elif next_type == 0xce:
+        # uint 32
+        value = int.from_bytes(blob[1:5], byteorder='big')
+        return value, 5
+    elif next_type == 0xcf:
+        # uint 64
+        value = int.from_bytes(blob[1:9], byteorder='big')
+        return value, 9
+    elif next_type == 0xd0:
+        # int 8
+        value = int.from_bytes(blob[1:2], byteorder='big', signed=True)
+        return value, 2
+    elif next_type == 0xd1:
+        # int 16
+        value = int.from_bytes(blob[1:3], byteorder='big', signed=True)
+        return value, 3
+    elif next_type == 0xd2:
+        # int 32
+        value = int.from_bytes(blob[1:5], byteorder='big', signed=True)
+        return value, 5
+    elif next_type == 0xd3:
+        # int 64
+        value = int.from_bytes(blob[1:9], byteorder='big', signed=True)
+        return value, 9
+    elif next_type == 0xd9:
+        # str 8
+        sz = blob[1]
+        value = blob[2:(2 + sz)]
+        value = str(value, encoding='utf-8')
+        value = unpack_str(value)
+        return value, 2 + sz
+    elif next_type == 0xda:
+        # str 16
+        sz = int.from_bytes(blob[1:3], byteorder='big')
+        value = blob[3:(3 + sz)]
+        value = str(value, encoding='utf-8')
+        value = unpack_str(value)
+        return value, 3 + sz
+    elif next_type == 0xdb:
+        # str 32
+        sz = int.from_bytes(blob[1:5], byteorder='big')
+        value = blob[5:(5 + sz)]
+        value = str(value, encoding='utf-8')
+        value = unpack_str(value)
+        return value, 5 + sz
+    elif next_type == 0xdc:
+        # array 16
+        n = int.from_bytes(blob[1:3], byteorder='big')
+        blob_idx = 3
+        array = []
+        for _ in range(n):
+            list_item, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            array.append(list_item)
+        return array, blob_idx
+    elif next_type == 0xdd:
+        # array 32
+        n = int.from_bytes(blob[1:5], byteorder='big')
+        blob_idx = 5
+        array = []
+        for _ in range(n):
+            list_item, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            array.append(list_item)
+        return array, blob_idx
+    elif next_type == 0xde:
+        # map 16
+        n = int.from_bytes(blob[1:3], byteorder='big')
+        blob_idx = 3
+        map16 = {}
+        for _ in range(n):
+            key, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            value, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            map16[key] = value
+        return map16, blob_idx
+    elif next_type == 0xdf:
+        # map 32
+        n = int.from_bytes(blob[1:5], byteorder='big')
+        blob_idx = 5
+        map32 = {}
+        for _ in range(n):
+            key, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            value, encoded_sz = unpack(blob[blob_idx:])
+            blob_idx += encoded_sz
+            map32[key] = value
+        return map32, blob_idx
+    elif next_type in range(0xe0, 0x100):
+        # negative fixint
+        value = 0b11111 & blob[1]
+        value = int.from_bytes(value, byteorder='big', signed=True)
+        return value, 1
+    raise UnpackException
 
 UserKey = Union[str, int, bytes, bytearray]
 
