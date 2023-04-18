@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 
 from .host import Host
@@ -7,8 +8,15 @@ from .exceptions import InvalidNodeException, AerospikeException
 
 # TODO
 class Node:
-    def __init__(self):
-        pass
+    def __init__(self, cluster: Cluster, nv: NodeValidator):
+        self.cluster = cluster
+        self.pool = []
+        self.address = nv.primary_address
+
+    def create_min_connections(self):
+        for _ in range(self.cluster.min_conns_per_node):
+            conn = Connection(self.address[0], self.address[1])
+            self.pool.append(conn)
 
 @dataclass
 class NodeFeatures:
@@ -18,7 +26,7 @@ class NodeFeatures:
     has_partition_query: bool = False
 
 class NodeValidator:
-    def seed_node(self, seed: Host):
+    def seed_node(self, cluster: Cluster, seed: Host):
         conn = Connection(seed.name, seed.port)
         commands = [
             "node",
@@ -32,6 +40,7 @@ class NodeValidator:
 
         self.name = responses["node"]
         self.primary_host = seed
+        self.primary_address = (seed.name, seed.port)
 
         try:
             gen_str = responses.get("partition-generation")
@@ -48,7 +57,7 @@ class NodeValidator:
 
         self.set_features(responses)
 
-        return Node()
+        return Node(cluster, self)
 
     def set_features(self, responses: dict[str, str]):
         # TODO: What happens if features doesn't exist in node?
@@ -70,13 +79,11 @@ class NodeValidator:
             raise AerospikeException("Node {self.name} {self.primary_host} version < 4.9. " \
                                      "This client requires server version >= 4.9")
 
-@dataclass
 class Cluster:
     def __init__(self, seeds: list[Host]):
         self.seeds = seeds
         self.nodes = []
-        # TODO: for testing
-        self.tend()
+        self.min_conns_per_node = 10
 
     def tend(self):
         if len(self.nodes) == 0:
@@ -86,4 +93,5 @@ class Cluster:
         # TODO: does it make more sense to make the node validator a class obj?
         nv = NodeValidator()
         for seed in self.seeds:
-            node = nv.seed_node(seed)
+            node = nv.seed_node(self, seed)
+            node.create_min_connections()
