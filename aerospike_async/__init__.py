@@ -21,6 +21,15 @@ class AsyncClient:
     def __init__(self, hosts: list[Host], config: ClientConfig = None):
         pass
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.close()
+
+    def close(self):
+        pass
+
     # TODO: exists?
 
     def get(self, key: Key, bin_names: list[str] = None):
@@ -32,7 +41,7 @@ class AsyncClient:
     def delete(self, key: Key, bin_names: list[str] = None):
         pass
 
-    def operate(self, key: list[Key], ops: list[Operation]):
+    def operate(self, key: Key, ops: list[Operation]):
         pass
 
     def touch(self, key: Key):
