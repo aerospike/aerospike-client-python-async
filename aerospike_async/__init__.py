@@ -6,9 +6,10 @@ from .host import Host
 class Key:
     pass
 
-MapKey=Union[str, bytes, bytearray, int, float]
-BinValue=Union[bool, bytes, bytearray, float, int, str, list["BinValue"], dict[MapKey, "BinValue"]]
-Bins=dict[str, BinValue]
+MapKey = Union[str, bytes, bytearray, int, float]
+BinName = str
+BinValue = Union[bool, bytes, bytearray, float, int, str, list["BinValue"], dict[MapKey, "BinValue"]]
+Bins = dict[BinName, BinValue]
 
 @dataclass
 class ClientConfig:
