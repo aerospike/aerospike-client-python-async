@@ -31,7 +31,8 @@ class AsyncClient:
     def close(self):
         pass
 
-    # TODO: exists?
+    def exists(self, key: Key) -> bool:
+        pass
 
     def get(self, key: Key, bin_names: list[str] = None):
         pass
