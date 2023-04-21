@@ -4,9 +4,6 @@ from enum import BinDataType
 
 from .host import Host
 
-class Key:
-    pass
-
 MapKey = Union[str, bytes, bytearray, int, float]
 BinName = str
 BinValue = Union[bool, bytes, bytearray, float, int, str, list["BinValue"], dict[MapKey, "BinValue"]]
@@ -38,36 +35,28 @@ class BinValueBetween(Condition):
     min_val: int
     max_val: int
 
-class AsyncClient:
-    def __init__(self, hosts: list[Host], config: ClientConfig = None):
+UserKey = Union[int, str, bytes, bytearray]
+
+class RecordInterface:
+    def get(user_key: UserKey):
         pass
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self):
-        self.close()
-
-    def close(self):
+    def exists(self, user_key: UserKey) -> bool:
         pass
 
-    def exists(self, key: Key) -> bool:
+    def get(self, user_key: UserKey, bin_names: list[str] = None):
         pass
 
-    def get(self, key: Key, bin_names: list[str] = None):
+    def put(self, user_key: UserKey, bins: Bins):
         pass
 
-    def put(self, key: Key, bins: Bins):
+    def delete(self, user_key: UserKey, bin_names: list[str] = None):
         pass
 
-    def delete(self, key: Key, bin_names: list[str] = None):
+    def operate(self, user_key: UserKey, ops: list[Operation]):
         pass
 
-    # TODO
-    def operate(self, key: Key, ops: list[Operation]):
-        pass
-
-    def touch(self, key: Key):
+    def touch(self, user_key: UserKey):
         pass
 
     # TODO:
@@ -75,14 +64,20 @@ class AsyncClient:
         pass
 
     # TODO
-    def truncate(self, namespace: str, set_name: str):
+    def truncate(self):
         pass
 
-    # TODO: should be for devops?
+    # Query
+
+    def find(self, condition: Condition):
+        pass
+
+@dataclass
+class Set(RecordInterface):
+    set_name: str
+
     def create_index(
         self,
-        namespace: str,
-        set_name: str,
         bin_name: str,
         bin_datatype: type,
         index_name: str
@@ -92,9 +87,32 @@ class AsyncClient:
     def index_remove(self):
         pass
 
-    # Query
+@dataclass
+class Namespace(RecordInterface):
+    def __init__(self, namespace: str):
+        self.namespace = namespace
+        self.sets = {}
 
-    def find(self, condition: Condition):
+    def __getattr__(self, set_name: str):
+        if set_name not in self.sets:
+            self.sets[set_name] = Set()
+
+class AsyncClient:
+    def __init__(self, hosts: list[Host], config: ClientConfig = None):
+        self.namespaces = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.close()
+
+    def __getattr__(self, namespace: str):
+        if namespace not in self.namespaces:
+            self.namespaces[namespace] = Namespace(namespace)
+        return self.namespaces[namespace]
+
+    def close(self):
         pass
 
     def set_config(self):
