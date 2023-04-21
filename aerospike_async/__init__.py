@@ -37,14 +37,19 @@ class BinValueBetween(Condition):
 
 UserKey = Union[int, str, bytes, bytearray]
 
+@dataclass
+class Metadata:
+    ttl: int
+    gen: int
+
 class RecordInterface:
-    def get(user_key: UserKey):
+    def get_metadata(self, user_key: UserKey) -> Metadata:
         pass
 
     def exists(self, user_key: UserKey) -> bool:
         pass
 
-    def get(self, user_key: UserKey, bin_names: list[str] = None):
+    def get(self, user_key: UserKey, bin_names: list[str] = None) -> Bins:
         pass
 
     def put(self, user_key: UserKey, bins: Bins):
