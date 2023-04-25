@@ -44,6 +44,13 @@ class Metadata:
 class BatchOperation:
     pass
 
+class QueryResults:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return None
+
 class RecordInterface:
     def get_metadata(self, user_key: UserKey) -> Metadata:
         pass
@@ -76,7 +83,7 @@ class RecordInterface:
 
     # Query
 
-    def find(self, condition: Condition):
+    def find(self, condition: Condition) -> QueryResults:
         pass
 
 @dataclass
