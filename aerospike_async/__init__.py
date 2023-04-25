@@ -65,25 +65,40 @@ class QueryResults:
         return None
 
 class RecordInterface:
-    def exists(self, user_key: UserKey) -> bool:
+    def does_record_exist(self, user_key: UserKey) -> bool:
         pass
 
     def get_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Record:
         pass
 
+    def get_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[Record]:
+        pass
+
     def put_record(self, user_key: UserKey, bins: Bins):
+        pass
+
+    def put_records(self, user_keys: list[UserKey], bins: Bins):
         pass
 
     def delete_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
         pass
 
+    def delete_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None):
+        pass
+
     def operate_on_record(self, user_key: UserKey, ops: list[Operation]):
+        pass
+
+    def operate_on_records(self, user_keys: list[UserKey], ops: list[Operation]):
         pass
 
     def touch_record(self, user_key: UserKey):
         pass
 
-    def batch_perform_on_record(self, ops: list[BatchOperation]):
+    def touch_records(self, user_key: list[UserKey]):
+        pass
+
+    def batch_perform_on_records(self, ops: list[BatchOperation]):
         pass
 
     # TODO
