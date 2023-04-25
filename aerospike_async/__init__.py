@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
-from enum import BinDataType
+from typing import Union, Optional
 
 from .host import Host
 
@@ -11,9 +10,8 @@ Bins = dict[BinName, BinValue]
 
 @dataclass
 class ClientConfig:
-    file_path: str = None
-    # TODO: better default?
-    local_udf_path: str = None
+    config_file_path: Optional[str] = None
+    local_udf_dir: Optional[str] = "~/.python_client_udfs"
 
 class Operation:
     pass
@@ -42,6 +40,10 @@ class Metadata:
     ttl: int
     gen: int
 
+@dataclass
+class BatchOperation:
+    pass    
+
 class RecordInterface:
     def get_metadata(self, user_key: UserKey) -> Metadata:
         pass
@@ -49,13 +51,13 @@ class RecordInterface:
     def exists(self, user_key: UserKey) -> bool:
         pass
 
-    def get(self, user_key: UserKey, bin_names: list[str] = None) -> Bins:
+    def get(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Bins:
         pass
 
     def put(self, user_key: UserKey, bins: Bins):
         pass
 
-    def delete(self, user_key: UserKey, bin_names: list[str] = None):
+    def delete(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
         pass
 
     def operate(self, user_key: UserKey, ops: list[Operation]):
@@ -92,30 +94,40 @@ class Set(RecordInterface):
     def index_remove(self):
         pass
 
-@dataclass
 class Namespace(RecordInterface):
     def __init__(self, namespace: str):
         self.namespace = namespace
         self.sets = {}
 
-    def __getattr__(self, set_name: str):
+    def __getitem__(self, set_name: str) -> Set:
+        return self.__getattr__(set_name)
+
+    def __getattr__(self, set_name: str) -> Set:
+        if type(set_name) != str:
+            raise TypeError("Set name {set_name} given. Set name must be a string!")
         if set_name not in self.sets:
-            self.sets[set_name] = Set()
+            self.sets[set_name] = Set(set_name)
+        return self.sets[set_name]
 
 class AsyncClient:
-    def __init__(self, hosts: list[Host], config: ClientConfig = None):
-        self.namespaces = {}
+    def __init__(self, hosts: list[Host], config: Optional[ClientConfig] = None):
+        self.__namespaces = {}
 
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, exception_type, exception_value, traceback):
         self.close()
 
-    def __getattr__(self, namespace: str):
-        if namespace not in self.namespaces:
-            self.namespaces[namespace] = Namespace(namespace)
-        return self.namespaces[namespace]
+    def __getitem__(self, namespace) -> Namespace:
+        return self.__getattr__(namespace)
+
+    def __getattr__(self, namespace) -> Namespace:
+        if type(namespace) != str:
+            raise TypeError(f"Namespace {namespace} given. Namespace must be a string!")
+        if namespace not in self.__namespaces:
+            self.__namespaces[namespace] = Namespace(namespace)
+        return self.__namespaces[namespace]
 
     def close(self):
         pass
