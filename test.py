@@ -18,5 +18,5 @@ with AsyncClient(hosts) as client:
     bins = {
         "a": 4
     }
-    demo_set.put("userkey1", bins)
-    demo_set.get("userkey1")
+    demo_set.put_record("userkey1", bins)
+    demo_set.get_record("userkey1").bins["bin_name"]["map_key"]

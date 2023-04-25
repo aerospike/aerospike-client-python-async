@@ -41,6 +41,18 @@ class Metadata:
     gen: int
 
 @dataclass
+class RecordKey:
+    namespace: str
+    set_name: str
+    user_key: UserKey
+
+@dataclass
+class Record:
+    key: RecordKey
+    metadata: Metadata
+    bins: Bins
+
+@dataclass
 class BatchOperation:
     function: Callable
     args: dict[str, Any]
@@ -49,32 +61,29 @@ class QueryResults:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> Record:
         return None
 
 class RecordInterface:
-    def get_metadata(self, user_key: UserKey) -> Metadata:
-        pass
-
     def exists(self, user_key: UserKey) -> bool:
         pass
 
-    def get(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Bins:
+    def get_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Record:
         pass
 
-    def put(self, user_key: UserKey, bins: Bins):
+    def put_record(self, user_key: UserKey, bins: Bins):
         pass
 
-    def delete(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
+    def delete_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
         pass
 
-    def operate(self, user_key: UserKey, ops: list[Operation]):
+    def operate_on_record(self, user_key: UserKey, ops: list[Operation]):
         pass
 
-    def touch(self, user_key: UserKey):
+    def touch_record(self, user_key: UserKey):
         pass
 
-    def batch(self, ops: list[BatchOperation]):
+    def batch_perform_on_record(self, ops: list[BatchOperation]):
         pass
 
     # TODO
