@@ -112,6 +112,7 @@ class Namespace(RecordInterface):
 class AsyncClient:
     def __init__(self, hosts: list[Host], config: Optional[ClientConfig] = None):
         self.__namespaces = {}
+        self.config = config
 
     def __enter__(self):
         return self
@@ -132,5 +133,5 @@ class AsyncClient:
     def close(self):
         pass
 
-    def set_config(self):
+    def download_udf(self, udf_name: str):
         pass
