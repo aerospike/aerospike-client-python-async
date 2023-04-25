@@ -5,8 +5,15 @@ hosts = [
 ]
 
 with AsyncClient(hosts) as client:
+    try:
+        client[0]
+    except TypeError:
+        pass
+
     test_ns = client["test"]
+    test_ns = client.test
     demo_set = test_ns["demo"]
+    demo_set = test_ns.demo
 
     bins = {
         "a": 4

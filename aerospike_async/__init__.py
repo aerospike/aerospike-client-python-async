@@ -42,7 +42,7 @@ class Metadata:
 
 @dataclass
 class BatchOperation:
-    pass    
+    pass
 
 class RecordInterface:
     def get_metadata(self, user_key: UserKey) -> Metadata:
@@ -96,8 +96,8 @@ class Set(RecordInterface):
 
 class Namespace(RecordInterface):
     def __init__(self, namespace: str):
-        self.namespace = namespace
-        self.sets = {}
+        self._namespace = namespace
+        self._sets = {}
 
     def __getitem__(self, set_name: str) -> Set:
         return self.__getattr__(set_name)
@@ -105,13 +105,14 @@ class Namespace(RecordInterface):
     def __getattr__(self, set_name: str) -> Set:
         if type(set_name) != str:
             raise TypeError("Set name {set_name} given. Set name must be a string!")
-        if set_name not in self.sets:
-            self.sets[set_name] = Set(set_name)
-        return self.sets[set_name]
+
+        if set_name not in self._sets:
+            self._sets[set_name] = Set(set_name)
+        return self._sets[set_name]
 
 class AsyncClient:
     def __init__(self, hosts: list[Host], config: Optional[ClientConfig] = None):
-        self.__namespaces = {}
+        self._namespaces = {}
         self.config = config
 
     def __enter__(self):
@@ -126,9 +127,9 @@ class AsyncClient:
     def __getattr__(self, namespace) -> Namespace:
         if type(namespace) != str:
             raise TypeError(f"Namespace {namespace} given. Namespace must be a string!")
-        if namespace not in self.__namespaces:
-            self.__namespaces[namespace] = Namespace(namespace)
-        return self.__namespaces[namespace]
+        if namespace not in self._namespaces:
+            self._namespaces[namespace] = Namespace(namespace)
+        return self._namespaces[namespace]
 
     def close(self):
         pass
