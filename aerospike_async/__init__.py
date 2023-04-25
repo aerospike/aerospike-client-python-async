@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union, Optional
+from typing import Union, Optional, Any, Callable
 
 from .host import Host
 
@@ -42,7 +42,8 @@ class Metadata:
 
 @dataclass
 class BatchOperation:
-    pass
+    function: Callable
+    args: dict[str, Any]
 
 class QueryResults:
     def __iter__(self):
@@ -73,8 +74,7 @@ class RecordInterface:
     def touch(self, user_key: UserKey):
         pass
 
-    # TODO:
-    def batch(self):
+    def batch(self, ops: list[BatchOperation]):
         pass
 
     # TODO
