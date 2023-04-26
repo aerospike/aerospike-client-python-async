@@ -56,8 +56,8 @@ with AsyncClient(hosts) as client:
 
     # Queries
 
-    demo_set.find_equals("bin1", 4)
-    results = test_ns.find_between("bin1", 4, 6)
+    demo_set.find_records_with_bin_value_equal_to("bin1", 4)
+    results = test_ns.find_records_with_bin_value_between("bin1", 4, 6)
     for record in results:
         print(record.bins)
 
@@ -72,3 +72,11 @@ with AsyncClient(hosts) as client:
     )
     for record in records:
         print(record.bins)
+
+    # UDF functions
+
+    client.download_udf("documentapi.lua")
+    args = ["$.key1"]
+    results = test_ns.apply_udf_to_record("key1", "documentapi.lua", "get", args)
+    print(results)
+

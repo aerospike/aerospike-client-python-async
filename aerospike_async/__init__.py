@@ -103,16 +103,21 @@ class RecordInterface:
     def batch_perform_on_records(self, ops: list[partial]) -> list[Record]:
         pass
 
+    # UDFs
+
+    def apply_udf_to_record(self, user_key: UserKey, file_name: str, function_name: str, args: list):
+        pass
+
     # TODO
     def truncate(self):
         pass
 
     # Query
 
-    def find_equals(self, bin_name: str, value: Union[str, int]) -> QueryResults:
+    def find_records_with_bin_value_equal_to(self, bin_name: str, value: Union[str, int]) -> QueryResults:
         pass
 
-    def find_between(self, bin_name: str, min: int, max: int) -> QueryResults:
+    def find_records_with_bin_value_between(self, bin_name: str, min: int, max: int) -> QueryResults:
         pass
 
 @dataclass
