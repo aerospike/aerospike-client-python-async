@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Union, Optional, Any, Callable
+from functools import partial
 
 from .host import Host
 
@@ -15,6 +16,12 @@ class ClientConfig:
 
 class Operation:
     pass
+
+@dataclass
+class ListAppend(Operation):
+    bin_name: str
+    # TODO: fix type
+    value: Any
 
 class Expression:
     pass
@@ -51,11 +58,6 @@ class Record:
     key: RecordKey
     metadata: Metadata
     bins: Bins
-
-@dataclass
-class BatchOperation:
-    function: Callable
-    args: dict[str, Any]
 
 class QueryResults:
     def __iter__(self):
@@ -98,7 +100,7 @@ class RecordInterface:
     def touch_records(self, user_key: list[UserKey]):
         pass
 
-    def batch_perform_on_records(self, ops: list[BatchOperation]):
+    def batch_perform_on_records(self, ops: list[partial]) -> list[Record]:
         pass
 
     # TODO
@@ -107,7 +109,10 @@ class RecordInterface:
 
     # Query
 
-    def find(self, condition: Condition) -> QueryResults:
+    def find_equals(self, bin_name: str, value: Union[str, int]) -> QueryResults:
+        pass
+
+    def find_between(self, bin_name: str, min: int, max: int) -> QueryResults:
         pass
 
 @dataclass
