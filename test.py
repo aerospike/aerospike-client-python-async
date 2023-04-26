@@ -1,4 +1,4 @@
-from aerospike_async import AsyncClient, Host, ListAppend, BatchOperation
+from aerospike_async import AsyncClient, Host, ListAppend, UDFCall
 
 from functools import partial
 
@@ -56,8 +56,8 @@ with AsyncClient(hosts) as client:
 
     # Queries
 
-    demo_set.find_records_with_bin_value_equal_to("bin1", 4)
-    results = test_ns.find_records_with_bin_value_between("bin1", 4, 6)
+    demo_set.find_records("bin1", bin_value_equals = "test")
+    results = test_ns.find_records("bin1", bin_value_min = 2, bin_value_max = 5)
     for record in results:
         print(record.bins)
 
@@ -76,7 +76,18 @@ with AsyncClient(hosts) as client:
     # UDF functions
 
     client.download_udf("documentapi.lua")
-    args = ["$.key1"]
-    results = test_ns.apply_udf_to_record("key1", "documentapi.lua", "get", args)
+
+    record_udf_func=UDFCall(
+        module_name="test.lua",
+        function_name="test1",
+        arguments = ["$.key1"]
+    )
+    results = test_ns.apply_udf_to_record("key1", record_udf_func)
     print(results)
 
+    stream_udf_func=UDFCall(
+        module_name="aggregate.lua",
+        function_name="results",
+    )
+    demo_set.find_records_and_apply_record_udf(record_udf_func, bin_name="a", bin_value_equals="asdf")
+    demo_set.find_and_aggregate_records(stream_udf_func)

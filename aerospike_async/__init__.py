@@ -66,6 +66,12 @@ class QueryResults:
     def __next__(self) -> Record:
         return None
 
+@dataclass
+class UDFCall:
+    module_name: str
+    function_name: str
+    arguments: list[Any] = []
+
 class RecordInterface:
     def does_record_exist(self, user_key: UserKey) -> bool:
         pass
@@ -105,7 +111,7 @@ class RecordInterface:
 
     # UDFs
 
-    def apply_udf_to_record(self, user_key: UserKey, file_name: str, function_name: str, args: list):
+    def apply_udf_to_record(self, user_key: UserKey, record_udf_function: UDFCall):
         pass
 
     # TODO
@@ -114,10 +120,31 @@ class RecordInterface:
 
     # Query
 
-    def find_records_with_bin_value_equal_to(self, bin_name: str, value: Union[str, int]) -> QueryResults:
+    def find_records(self,
+                    bin_name: Optional[str] = None,
+                    bin_value_equals: Optional[Union[str, int]] = None,
+                    bin_value_min: Optional[int] = None,
+                    bin_value_max: Optional[int] = None,
+                    ) -> QueryResults:
         pass
 
-    def find_records_with_bin_value_between(self, bin_name: str, min: int, max: int) -> QueryResults:
+    def find_records_and_apply_record_udf(
+                                        self,
+                                        record_udf_function: UDFCall,
+                                        bin_name: Optional[str] = None,
+                                        bin_value_equals: Optional[Union[str, int]] = None,
+                                        bin_value_min: Optional[int] = None,
+                                        bin_value_max: Optional[int] = None,
+                                        ) -> Any:
+        pass
+
+    def find_and_aggregate_records(self,
+                                   stream_udf_function: UDFCall,
+                                   bin_name: Optional[str] = None,
+                                   bin_value_equals: Optional[Union[str, int]] = None,
+                                   bin_value_min: Optional[int] = None,
+                                   bin_value_max: Optional[int] = None,
+                                   ) -> Any:
         pass
 
 @dataclass
