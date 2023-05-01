@@ -71,6 +71,9 @@ with AsyncClient(hosts) as client:
         batch_ops
     )
     for record in records:
+        if record.exception != None:
+            # Batch operation threw an exception
+            print(record.exception)
         print(record.bins)
 
     # UDF functions

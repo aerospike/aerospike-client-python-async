@@ -58,6 +58,7 @@ class Record:
     key: RecordKey
     metadata: Metadata
     bins: Bins
+    exception: Optional[Exception] = None
 
 class QueryResults:
     def __iter__(self):
