@@ -67,14 +67,14 @@ with AsyncClient(hosts) as client:
         partial(demo_set.get_record, user_key="key1"),
         partial(demo_set.put_record, user_key="key2", bins=bins)
     ]
-    records = test_ns.batch_perform_on_records(
+    op_results = test_ns.batch_perform_on_records(
         batch_ops
     )
-    for record in records:
-        if record.exception != None:
-            # Batch operation threw an exception
-            print(record.exception)
-        print(record.bins)
+    for op_result in op_results:
+        if op_result.exception != None:
+            print(op_result.exception)
+        else:
+            print(op_result.record.bins)
 
     # UDF functions
 

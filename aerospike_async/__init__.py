@@ -58,6 +58,9 @@ class Record:
     key: RecordKey
     metadata: Metadata
     bins: Bins
+
+class BatchOpResult:
+    record: Optional[Record] = None
     exception: Optional[Exception] = None
 
 class QueryResults:
@@ -80,34 +83,34 @@ class RecordInterface:
     def get_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Record:
         pass
 
-    def get_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[Record]:
+    def get_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
         pass
 
     def put_record(self, user_key: UserKey, bins: Bins):
         pass
 
-    def put_records(self, user_keys: list[UserKey], bins: Bins):
+    def put_records(self, user_keys: list[UserKey], bins: Bins) -> list[BatchOpResult]:
         pass
 
     def delete_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
         pass
 
-    def delete_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None):
+    def delete_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
         pass
 
     def operate_on_record(self, user_key: UserKey, ops: list[Operation]):
         pass
 
-    def operate_on_records(self, user_keys: list[UserKey], ops: list[Operation]):
+    def operate_on_records(self, user_keys: list[UserKey], ops: list[Operation]) -> list[BatchOpResult]:
         pass
 
     def touch_record(self, user_key: UserKey):
         pass
 
-    def touch_records(self, user_key: list[UserKey]):
+    def touch_records(self, user_key: list[UserKey]) -> list[BatchOpResult]:
         pass
 
-    def batch_perform_on_records(self, ops: list[partial]) -> list[Record]:
+    def batch_perform_on_records(self, batch_ops: list[partial]) -> list[BatchOpResult]:
         pass
 
     # UDFs
