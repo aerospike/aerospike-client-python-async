@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union, Optional, Any, Callable
 from functools import partial
 
@@ -64,67 +64,67 @@ class BatchOpResult:
     exception: Optional[Exception] = None
 
 class QueryResults:
-    def __iter__(self):
+    def __aiter__(self):
         return self
 
-    def __next__(self) -> Record:
+    async def __anext__(self) -> Record:
         return None
 
 @dataclass
 class UDFCall:
     module_name: str
     function_name: str
-    arguments: list[Any] = []
+    arguments: list[Any] = field(default_factory=list)
 
 class RecordInterface:
-    def does_record_exist(self, user_key: UserKey) -> bool:
+    async def record_exists(self, user_key: UserKey) -> bool:
         pass
 
-    def get_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Record:
+    async def get_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None) -> Record:
         pass
 
-    def get_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
+    async def get_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
         pass
 
-    def put_record(self, user_key: UserKey, bins: Bins):
+    async def put_record(self, user_key: UserKey, bins: Bins):
         pass
 
-    def put_records(self, user_keys: list[UserKey], bins: Bins) -> list[BatchOpResult]:
+    async def put_records(self, user_keys: list[UserKey], bins: Bins) -> list[BatchOpResult]:
         pass
 
-    def delete_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
+    async def delete_record(self, user_key: UserKey, bin_names: Optional[list[str]] = None):
         pass
 
-    def delete_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
+    async def delete_records(self, user_keys: list[UserKey], bin_names: Optional[list[str]] = None) -> list[BatchOpResult]:
         pass
 
-    def operate_on_record(self, user_key: UserKey, ops: list[Operation]):
+    async def operate_on_record(self, user_key: UserKey, ops: list[Operation]):
         pass
 
-    def operate_on_records(self, user_keys: list[UserKey], ops: list[Operation]) -> list[BatchOpResult]:
+    async def operate_on_records(self, user_keys: list[UserKey], ops: list[Operation]) -> list[BatchOpResult]:
         pass
 
-    def touch_record(self, user_key: UserKey):
+    async def touch_record(self, user_key: UserKey):
         pass
 
-    def touch_records(self, user_key: list[UserKey]) -> list[BatchOpResult]:
+    async def touch_records(self, user_key: list[UserKey]) -> list[BatchOpResult]:
         pass
 
-    def batch_perform_on_records(self, batch_ops: list[partial]) -> list[BatchOpResult]:
+    async def batch_perform_on_records(self, batch_ops: list[partial]) -> list[BatchOpResult]:
         pass
 
     # UDFs
 
-    def apply_udf_to_record(self, user_key: UserKey, record_udf_function: UDFCall):
+    async def apply_udf_to_record(self, user_key: UserKey, record_udf_function: UDFCall):
         pass
 
     # TODO
-    def truncate(self):
+    async def truncate(self):
         pass
 
     # Query
 
-    def find_records(self,
+    async def find_records(self,
                     bin_name: Optional[str] = None,
                     bin_value_equals: Optional[Union[str, int]] = None,
                     bin_value_min: Optional[int] = None,
@@ -132,7 +132,7 @@ class RecordInterface:
                     ) -> QueryResults:
         pass
 
-    def find_records_and_apply_record_udf(
+    async def find_records_and_apply_record_udf(
                                         self,
                                         record_udf_function: UDFCall,
                                         bin_name: Optional[str] = None,
@@ -142,7 +142,7 @@ class RecordInterface:
                                         ) -> Any:
         pass
 
-    def find_and_aggregate_records(self,
+    async def find_and_aggregate_records(self,
                                    stream_udf_function: UDFCall,
                                    bin_name: Optional[str] = None,
                                    bin_value_equals: Optional[Union[str, int]] = None,
@@ -155,7 +155,7 @@ class RecordInterface:
 class Set(RecordInterface):
     set_name: str
 
-    def create_index(
+    async def create_index(
         self,
         bin_name: str,
         bin_datatype: type,
@@ -163,7 +163,7 @@ class Set(RecordInterface):
     ):
         pass
 
-    def index_remove(self):
+    async def index_remove(self):
         pass
 
 class Namespace(RecordInterface):
@@ -187,11 +187,11 @@ class AsyncClient:
         self._namespaces = {}
         self.config = config
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exception_type, exception_value, traceback):
-        self.close()
+    async def __aexit__(self, exception_type, exception_value, traceback):
+        await self.close()
 
     def __getitem__(self, namespace) -> Namespace:
         return self.__getattr__(namespace)
@@ -203,8 +203,8 @@ class AsyncClient:
             self._namespaces[namespace] = Namespace(namespace)
         return self._namespaces[namespace]
 
-    def close(self):
+    async def close(self):
         pass
 
-    def download_udf(self, udf_name: str):
+    async def download_udf(self, udf_name: str):
         pass
