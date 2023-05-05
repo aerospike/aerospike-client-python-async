@@ -1,20 +1,19 @@
 import asyncio
 from functools import partial
+import time
 
-from aerospike_async import AsyncClient, Host, ListAppend, UDFCall, Operation, UserKey, Bins
+from aerospike_async import AsyncClient, Host, UDFCall, Operation
+from aerospike_async.operations import ListAppend, ListGetByIndex
 
 async def main():
     hosts = [
         Host("127.0.0.1", 3000)
     ]
     async with AsyncClient(hosts) as client:
-        # Can fetch namespaces from client directly
-        # This is a lazy operation. Nothing is sent to the server yet
+        # Showing different types of ways to access namespaces and sets
         test_ns = client["test"]
         test_ns = client.test
 
-        # Can fetch sets from namespaces
-        # Also a lazy operation
         demo_set = test_ns["demo"]
         demo_set = test_ns.demo
 
@@ -22,7 +21,7 @@ async def main():
 
         # Can store and fetch records from set
         # Bins are still dictionaries, but type aliases make functions easy to read
-        bins: Bins = {
+        bins = {
             "a": 4
         }
         await demo_set.put_record("userkey1", bins)
@@ -30,14 +29,16 @@ async def main():
         print(record.bins["bin_name"]["map_key"])
 
         ops: list[Operation] = [
-            ListAppend("bin_list", 4)
+            ListAppend("bin_list", 4),
+            ListGetByIndex("bin_list", 0)
         ]
-        await demo_set.operate_on_record("userkey1", ops)
+        record = await demo_set.operate_on_record("userkey1", ops)
+        print(record)
 
         # Multi-key API calls
 
         # Store and fetch multiple records with the same bins
-        user_keys: list[UserKey] = [
+        user_keys = [
             "key1",
             "key2",
             "key3"
@@ -102,8 +103,8 @@ async def main():
         print(results)
 
         # You can apply a record udf to every matching record in a query
-        await demo_set.find_records_and_apply_record_udf(documentapi_udf_call, bin_name="a", bin_value_equals="asdf")
-        await demo_set.find_records_and_apply_record_udf(documentapi_udf_call, bin_name="b", bin_value_min=2, bin_value_max=4)
+        await demo_set.find_records(record_udf_function=documentapi_udf_call, bin_name="a", bin_value_equals="asdf")
+        await demo_set.find_records(record_udf_function=documentapi_udf_call, bin_name="b", bin_value_min=2, bin_value_max=4)
 
         # Find records and aggregate into a single value
         stream_udf_func=UDFCall(
@@ -112,5 +113,13 @@ async def main():
         )
         value = await demo_set.find_and_aggregate_records(stream_udf_func)
         print(value)
+
+        # Truncate
+
+        await demo_set.truncate()
+
+        # Remove all records that haven't been updated for 30 days
+        thirty_days_ago_ns = time.time_ns() - (60 * 60 * 24 * 30 * 10**9)
+        await test_ns.truncate(nanos=thirty_days_ago_ns)
 
 asyncio.run(main())
