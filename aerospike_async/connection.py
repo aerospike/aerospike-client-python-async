@@ -37,3 +37,7 @@ class Connection:
         self.s_writer.write(buf)
         await self.s_writer.drain()
         self.last_time_used = time.time_ns()
+
+    async def close(self):
+        self.s_writer.close()
+        await self.s_writer.wait_closed()
