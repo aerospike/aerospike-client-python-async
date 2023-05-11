@@ -140,17 +140,17 @@ class NodeValidator:
         # TODO: What happens if features doesn't exist in node?
         features = features.split(";")
         # TODO: node features must be assigned to node
-        node_fts = NodeFeatures()
+        self.node_fts = NodeFeatures()
         if "pscans" in features:
-            node_fts.has_partition_scan = True
+            self.node_fts.has_partition_scan = True
         if "query-show" in features:
-            node_fts.has_query_show = True
+            self.node_fts.has_query_show = True
         if "batch-any" in features:
-            node_fts.has_batch_any = True
+            self.node_fts.has_batch_any = True
         if "pquery" in features:
-            node_fts.has_partition_query = True
+            self.node_fts.has_partition_query = True
 
-        if node_fts.has_partition_scan is False:
+        if self.node_fts.has_partition_scan is False:
             # TODO: assuming this is a client exception?
             raise AerospikeException("Node {self.name} {self.primary_host} version < 4.9. " \
                                      "This client requires server version >= 4.9")
