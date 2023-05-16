@@ -10,6 +10,66 @@ from .exceptions import InvalidNodeException, AerospikeException
 
 # TODO
 
+class Cluster:
+    def __init__(self, hosts: list[Host]):
+        self.seeds = hosts
+        self.nodes: list[Node] = []
+
+    async def tend(self):
+        await self.refresh_nodes()
+
+    async def refresh_nodes(self):
+        if len(self.nodes) == 0:
+            await self.seed_nodes()
+
+        # Reset all node's ref counts
+        for node in self.nodes:
+            node.ref_count = 0
+
+        # TODO: leave off
+        for node in self.nodes:
+            node.refresh()
+
+    async def seed_nodes(self):
+        self.nodes = []
+        for seed in self.seeds:
+            # Get peers of this seed
+            try:
+                seed_nv = await NodeValidator.new(seed)
+            except Exception as e:
+                # TODO: why aren't we throwing an error if seeding the node fails?
+                print(f"Failed to seed node: {e}")
+                continue
+
+            seed_node = Node(seed_nv)
+            self.nodes.append(seed_node)
+
+            # Validate each peer
+            for peer in seed_nv.peers:
+                try:
+                    peer_nv = await NodeValidator.new(peer)
+                except Exception as e:
+                    print(f"Failed to seed node: {e}")
+                    continue
+
+                node_names = [node.name for node in self.nodes]
+                if peer_nv.name in node_names:
+                    # We already found this node before
+                    continue
+
+                peer_node = Node(peer_nv)
+                self.nodes.append(peer_node)
+
+class Node:
+    def __init__(self, nv: NodeValidator):
+        self.host = nv.host
+        self.name = nv.name
+        self.features = nv.features
+        self.peers = nv.peers
+        self.ref_count = 0
+        # TODO: leave off
+        self.conn_pool = 
+
 @dataclass
 class NodeFeatures:
     has_partition_scan: bool = False
@@ -17,128 +77,52 @@ class NodeFeatures:
     has_batch_any: bool = False
     has_partition_query: bool = False
 
-class Cluster:
-    def __init__(self, hosts: list[Host]):
-        self.seeds = hosts
-        self.nodes = []
-
-    def tend(self):
-        self.refresh_nodes()
-
-    def refresh_nodes(self):
-        if len(self.nodes) == 0:
-            self.seed_nodes()
-
-    async def seed_nodes(self):
-        nodes = []
-        for seed in self.seeds:
-            try:
-                seed_nv = NodeValidator()
-                await seed_nv.seed_node(self, seed)
-            except Exception as e:
-                print(f"Failed to seed node: {e}")
-                continue
-
-            for alias in seed_nv.aliases:
-                if alias == seed:
-                    nv = seed_nv
-                else:
-                    try:
-                        nv = NodeValidator()
-                        await nv.seed_node(self, alias)
-                    except Exception as e:
-                        print(f"Failed to seed node: {e}")
-                        continue
-
-                node_names = [node.name for node in nodes]
-                if nv.name in node_names:
-                    # We already found this node before
-                    continue
-
-                # TODO: leave off for later
-                node = Node()
-
-class Node:
-    pass
-
+@dataclass
 class NodeValidator:
+    host: Host
+    features: NodeFeatures = NodeFeatures()
+    peers: list[Host] = []
+
     @staticmethod
-    def is_ip(hostname: str) -> bool:
+    async def new(host: Host):
+        nv = NodeValidator(host)
+        nv.peers = await nv.get_peers()
+        return nv
+
+    async def get_peers(self) -> list[Host]:
+        # TODO: what should the timeout be?
+        conn = await Connection.new(self.host.name, self.host.port, 1)
+        commands = [
+            "node",
+            "features",
+            "service-clear-std"
+        ]
         try:
-            ipaddress.IPv4Address(hostname)
-            ipaddress.IPv6Address(hostname)
-        except ValueError:
-            # Failed to parse IP
-            return False
-        return True
+            info_map = await Info.request(conn, commands)
 
-    # Find all ip addresses under this host name
-    @staticmethod
-    def resolve(hostname: str) -> list[str]:
-        if NodeValidator.is_ip(hostname):
-            return [hostname]
-
-        # DNS resolution
-        _, _, ip_addrs = socket.gethostbyname_ex(hostname)
-        return ip_addrs
-
-    @staticmethod
-    def is_loopback(address: str) -> bool:
-        ip_addr = ipaddress.ip_address(address)
-        return ip_addr.is_loopback
-
-    async def get_hosts(self, address: str) -> list[Host]:
-        # Include this host itself
-        # TODO: why set this as the default?
-        aliases = [Host(address, self.host.port)]
-
-        # TODO: just reuse connection class for now
-        # Not sure if this is the right way though
-        conn = await Connection.new(None, address, self.host.port)
-        try:
-            commands = [
-                "node",
-                "features"
-            ]
-            if self.is_loopback(address) is False:
-                # TODO: doesn't check if cluster tls is enabled
-                service_cmd = commands.append("service-clear-std")
-
-            # TODO: need to create default info policy
-            policy = InfoPolicy(1)
-            info_map = await Info.request(policy, conn, commands)
-
+            # A valid Aerospike node must return a response for "node" and "features"
             if "node" not in info_map:
-                raise InvalidNodeException("Node name is null")
+                raise InvalidNodeException(f"Host {self.host} did not return a node name!")
             self.name = info_map["node"]
 
             self.set_features(info_map)
 
-            # This assumes a loopback address only points to a one node cluster
-            if self.is_loopback(address) is False:
-                # Converts peers string to list of hosts
-                peers = info_map[service_cmd].split(",")
-                peers = [peer.split(":") for peer in peers]
-                aliases = [Host(peer[0], int(peer[1])) for peer in peers]
+            # Converts peers string to list of hosts
+            peers = info_map["service-clear-std"].split(",")
+            peers = [peer.split(":") for peer in peers]
+            peers = [Host(peer[0], int(peer[1])) for peer in peers]
+        # TODO: in Ruby code, the exception is eaten
         except:
-            # TODO: why eat the exception
+            raise
+        finally:
             await conn.close()
-        return aliases
-
-    async def seed_node(self, cluster: Cluster, host: Host):
-        self.cluster = cluster
-        self.host = host
-        self.aliases = []
-
-        addresses = self.resolve(host.name)
-        for address in addresses:
-            aliases = await self.get_hosts(address)
-            self.aliases.extend(aliases)
+        return peers
 
     def set_features(self, responses: dict[str, str]):
-        features = responses.get("features")
-        # TODO: What happens if features doesn't exist in node?
-        features = features.split(";")
+        if "features" not in responses:
+            raise InvalidNodeException(f"Host {self.host} did not return a list of features!")
+
+        features = responses["features"].split(";")
         # TODO: node features must be assigned to node
         self.node_fts = NodeFeatures()
         if "pscans" in features:
