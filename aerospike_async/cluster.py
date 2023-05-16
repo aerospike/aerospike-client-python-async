@@ -10,6 +10,10 @@ from .exceptions import InvalidNodeException, AerospikeException
 
 # TODO
 
+@dataclass
+class Peers:
+    generation_changed = False
+
 class Cluster:
     def __init__(self, hosts: list[Host]):
         self.seeds = hosts
@@ -26,9 +30,18 @@ class Cluster:
         for node in self.nodes:
             node.ref_count = 0
 
-        # TODO: leave off
+        peers = Peers()
+
         for node in self.nodes:
-            node.refresh()
+            await node.refresh()
+
+        if peers.generation_changed:
+            pass
+
+        for node in self.nodes:
+            if node.partition_generation.changed:
+                node.refresh_partitions(peers)
+
 
     async def seed_nodes(self):
         self.nodes = []
@@ -60,15 +73,48 @@ class Cluster:
                 peer_node = Node(peer_nv)
                 self.nodes.append(peer_node)
 
+class Generation:
+    number: int = -1
+    changed: bool = False
+
 class Node:
+    tend_connection: Connection
     def __init__(self, nv: NodeValidator):
         self.host = nv.host
         self.name = nv.name
         self.features = nv.features
         self.peers = nv.peers
         self.ref_count = 0
+        self.peers_generation = Generation()
+        self.partition_generation = Generation()
         # TODO: leave off
-        self.conn_pool = 
+        # self.conn_pool = 
+
+    async def get_tend_connection(self) -> Connection:
+        if self.tend_connection is None:
+            # TODO: fix delay
+            self.tend_connection = await Connection.new(self.host.name, self.host.port, 1)
+        return self.tend_connection
+
+    async def refresh(self):
+        PEERS_GEN_COMMAND = "peers-generation"
+        commands = [
+            PEERS_GEN_COMMAND
+        ]
+        conn = await self.get_tend_connection()
+        response = await Info.request(conn, commands)
+        if PEERS_GEN_COMMAND not in response:
+            # TODO: should this be a server error or client error?
+            raise AerospikeException("peers-generation was not returned from host")
+
+        peers_gen = int(response[PEERS_GEN_COMMAND])
+        if peers_gen == self.peers_generation.number:
+            return
+
+        print(f"Node's peers generation changed from {self.peers_generation.number}to {peers_gen}")
+        self.peers_generation.changed = True
+
+    def should_refresh()
 
 @dataclass
 class NodeFeatures:
