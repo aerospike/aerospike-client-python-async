@@ -3,40 +3,33 @@ import socket
 import asyncio
 
 class Connection:
-    last_time_used: int # TODO
-    timeout: float
+    lut_ns: int  # last used time
+    timeout_secs: float
     s_reader: asyncio.StreamReader
     s_writer: asyncio.StreamWriter
 
-    def __init__(self, s_reader, s_writer):
+    def __init__(self, s_reader, s_writer, timeout_secs: float):
         self.s_reader = s_reader
         self.s_writer = s_writer
+        self.timeout_secs = timeout_secs
 
     @staticmethod
-    async def new(policy, address: str, port: int):
+    async def new(address: str, port: int, timeout_secs: float):
         s_reader, s_writer = await asyncio.open_connection(address, port)
-        conn = Connection(s_reader, s_writer)
-        socket_address = (address, port)
-        # TODO: set timeout for connect
+        conn = Connection(s_reader, s_writer, timeout_secs)
         return conn
 
-    def set_timeout(self, timeout: float):
-        self.timeout = timeout
-
     async def read(self, num_bytes: int) -> bytes:
-        # TODO: handle exceptions here
-        # TODO: take care of setting timeout
-        # self.stream.socket.settimeout(self.timeout)
-        res = await self.s_reader.readexactly(num_bytes)
-        self.last_time_used = time.time_ns()
+        read_call = self.s_reader.readexactly(num_bytes)
+        res = await asyncio.wait_for(read_call, timeout=self.timeout_secs)
+        self.lut_ns = time.time_ns()
         return res
 
     async def write(self, buf: bytes):
-        # TODO: take care of setting timeout
-        # self.stream.socket.settimeout(self.timeout)
         self.s_writer.write(buf)
-        await self.s_writer.drain()
-        self.last_time_used = time.time_ns()
+        write_call = self.s_writer.drain()
+        await asyncio.wait_for(write_call, timeout=self.timeout_secs)
+        self.lut_ns = time.time_ns()
 
     async def close(self):
         self.s_writer.close()

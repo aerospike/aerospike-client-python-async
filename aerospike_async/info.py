@@ -15,32 +15,24 @@ class Info:
             request += command
             request += "\n"
 
-        # TODO: use buffer pool (preferably without a library)
-        # print(len(request.encode("utf-8")))
-        # print(request)
         size = len(request.encode("utf-8"))
         self.buffer = bytearray(8 + size)
-        # TODO: 
+        # Aerospike protocol header and info message
         self.buffer[:2] = bytes([PROTOCOL_VERSION, AS_INFO])
         self.buffer[2:8] = size.to_bytes(length=6, byteorder='big')
         self.buffer[8:] = bytearray(request, encoding="utf-8")
-        # print(self.buffer)
 
-    async def send_command(self, policy: InfoPolicy, conn: Connection) -> bytes:
-        conn.set_timeout(policy.timeout)
+    async def send_command(self, conn: Connection) -> bytes:
         await conn.write(self.buffer)
         buf = await conn.read(8)
-        # print(buf)
         size = int.from_bytes(buf[2:8], byteorder='big')
-        # print("Results size:", size)
         buf = await conn.read(size)
-        # print("Results:", buf)
         return buf
 
     @staticmethod
-    async def request(policy: InfoPolicy, conn: Connection, commands: list[str]):
+    async def request(conn: Connection, commands: list[str]):
         info = Info(commands)
-        buf = await info.send_command(policy, conn)
+        buf = await info.send_command(conn)
         return info.parse_multi_response(buf)
 
     def parse_multi_response(self, buf: bytes) -> dict[str, str]:
