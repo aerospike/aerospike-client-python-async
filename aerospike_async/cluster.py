@@ -1,66 +1,82 @@
 from __future__ import annotations
 from dataclasses import dataclass
-import ipaddress
-import socket
+from typing import ClassVar
 
 from .host import Host
 from .connection import Connection
-from .info import Info, InfoPolicy
+from .info import Info
 from .exceptions import InvalidNodeException, AerospikeException
 
-# TODO
-
 @dataclass
-class Peers:
-    generation_changed = False
+class PartitionParser:
+    conn: Connection
+    node: Node
+    PARTITION_GENERATION_CMD: ClassVar[str] = "partition-generation"
+    REPLICAS_ALL_CMD: ClassVar[str] = "replicas-all"
+
+    async def update_partitions(self):
+        commands = [
+            self.PARTITION_GENERATION_CMD,
+            self.REPLICAS_ALL_CMD
+        ]
+        info_map = await Info.request(self.conn, commands)
+
+        partition_generation = int(info_map[self.PARTITION_GENERATION_CMD])
+
+        if self.REPLICAS_ALL_CMD not in info_map:
+            raise AerospikeException(f"{self.REPLICAS_ALL_CMD} was not returned from node {self.node}")
+
+        replicas_all_response = info_map[self.REPLICAS_ALL_CMD]
+        rows = replicas_all_response.split(";")
+        for row in rows:
+            entries = row.split(":,")
+            namespace = entries[0]
+            replica_count = int(entries[1])
+
+            for i in range(replica_count):
+
 
 class Cluster:
     def __init__(self, hosts: list[Host]):
         self.seeds = hosts
         self.nodes: list[Node] = []
+        self.partition_map = {}
+
+        self.min_conns_per_node = 10 # for testing
+        self.conn_timeout = 3 # for testing
 
     async def tend(self):
-        await self.refresh_nodes()
-
-    async def refresh_nodes(self):
-        if len(self.nodes) == 0:
-            await self.seed_nodes()
-
-        # Reset all node's ref counts
+        # Clear node reference counts
         for node in self.nodes:
             node.ref_count = 0
+            node.partition_changed = False
 
-        peers = Peers()
-
-        for node in self.nodes:
-            await node.refresh()
-
-        if peers.generation_changed:
-            pass
+        if len(self.nodes) == 0:
+            # No active nodes
+            await self.seed_nodes()
 
         for node in self.nodes:
-            if node.partition_generation.changed:
-                node.refresh_partitions(peers)
-
+            if node.partition_changed:
+                node.refresh_partitions()
 
     async def seed_nodes(self):
         self.nodes = []
         for seed in self.seeds:
             # Get peers of this seed
             try:
-                seed_nv = await NodeValidator.new(seed)
+                seed_nv = await NodeValidator.new(self, seed)
             except Exception as e:
-                # TODO: why aren't we throwing an error if seeding the node fails?
+                # If this seed fails, try another seed
                 print(f"Failed to seed node: {e}")
                 continue
 
-            seed_node = Node(seed_nv)
+            seed_node = await Node.new(self, seed_nv)
             self.nodes.append(seed_node)
 
             # Validate each peer
             for peer in seed_nv.peers:
                 try:
-                    peer_nv = await NodeValidator.new(peer)
+                    peer_nv = await NodeValidator.new(self, peer)
                 except Exception as e:
                     print(f"Failed to seed node: {e}")
                     continue
@@ -70,74 +86,56 @@ class Cluster:
                     # We already found this node before
                     continue
 
-                peer_node = Node(peer_nv)
+                peer_node = Node(self, peer_nv)
                 self.nodes.append(peer_node)
 
-class Generation:
-    number: int = -1
-    changed: bool = False
-
 class Node:
-    tend_connection: Connection
-    def __init__(self, nv: NodeValidator):
-        self.host = nv.host
+    def __init__(self, cluster: Cluster, nv: NodeValidator):
+        self.conns = []
+        # The cluster this node belongs to
+        self.cluster = cluster
+        # Actually create a node from the data that NodeValidator collected from the ip address
         self.name = nv.name
-        self.features = nv.features
         self.peers = nv.peers
+        self.features = nv.features
+        self.host = nv.host
+
         self.ref_count = 0
-        self.peers_generation = Generation()
-        self.partition_generation = Generation()
-        # TODO: leave off
-        # self.conn_pool = 
+        self.partition_changed = True
 
-    async def get_tend_connection(self) -> Connection:
-        if self.tend_connection is None:
-            # TODO: fix delay
-            self.tend_connection = await Connection.new(self.host.name, self.host.port, 1)
-        return self.tend_connection
+    @staticmethod
+    async def new(cluster: Cluster, nv: NodeValidator):
+        node = Node(cluster, nv)
+        await node.create_min_connections()
+        return node
 
-    async def refresh(self):
-        PEERS_GEN_COMMAND = "peers-generation"
-        commands = [
-            PEERS_GEN_COMMAND
-        ]
-        conn = await self.get_tend_connection()
-        response = await Info.request(conn, commands)
-        if PEERS_GEN_COMMAND not in response:
-            # TODO: should this be a server error or client error?
-            raise AerospikeException("peers-generation was not returned from host")
-
-        peers_gen = int(response[PEERS_GEN_COMMAND])
-        if peers_gen == self.peers_generation.number:
-            return
-
-        print(f"Node's peers generation changed from {self.peers_generation.number}to {peers_gen}")
-        self.peers_generation.changed = True
-
-    def should_refresh()
-
-@dataclass
-class NodeFeatures:
-    has_partition_scan: bool = False
-    has_query_show: bool = False
-    has_batch_any: bool = False
-    has_partition_query: bool = False
+    async def create_min_connections(self):
+        for _ in range(self.cluster.min_conns_per_node):
+            conn = Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
+            self.conns.append(conn)
 
 @dataclass
 class NodeValidator:
+    # The cluster class stores the connection timeout to use here
+    # The timeout can be updated, so we need the cluster object to get the latest timeout dynamically
+    cluster: Cluster
     host: Host
-    features: NodeFeatures = NodeFeatures()
+    features: dict[str, bool] = dict.fromkeys([
+        "pscan",
+        "query-show",
+        "batch-any",
+        "pquery"
+    ], False)
     peers: list[Host] = []
 
     @staticmethod
-    async def new(host: Host):
-        nv = NodeValidator(host)
-        nv.peers = await nv.get_peers()
+    async def new(cluster: Cluster, host: Host):
+        nv = NodeValidator(cluster, host)
+        nv.peers = await nv.validate_and_get_peers()
         return nv
 
-    async def get_peers(self) -> list[Host]:
-        # TODO: what should the timeout be?
-        conn = await Connection.new(self.host.name, self.host.port, 1)
+    async def validate_and_get_peers(self) -> list[Host]:
+        conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
         commands = [
             "node",
             "features",
@@ -157,7 +155,6 @@ class NodeValidator:
             peers = info_map["service-clear-std"].split(",")
             peers = [peer.split(":") for peer in peers]
             peers = [Host(peer[0], int(peer[1])) for peer in peers]
-        # TODO: in Ruby code, the exception is eaten
         except:
             raise
         finally:
@@ -165,22 +162,12 @@ class NodeValidator:
         return peers
 
     def set_features(self, responses: dict[str, str]):
-        if "features" not in responses:
-            raise InvalidNodeException(f"Host {self.host} did not return a list of features!")
+        # TODO: what if features isn't in response?
+        features_response = responses["features"].split(";")
+        for feature in self.features:
+            if feature in features_response:
+                self.features[feature] = True
 
-        features = responses["features"].split(";")
-        # TODO: node features must be assigned to node
-        self.node_fts = NodeFeatures()
-        if "pscans" in features:
-            self.node_fts.has_partition_scan = True
-        if "query-show" in features:
-            self.node_fts.has_query_show = True
-        if "batch-any" in features:
-            self.node_fts.has_batch_any = True
-        if "pquery" in features:
-            self.node_fts.has_partition_query = True
-
-        if self.node_fts.has_partition_scan is False:
-            # TODO: assuming this is a client exception?
-            raise AerospikeException("Node {self.name} {self.primary_host} version < 4.9. " \
+        if self.features["has_partition_scan"] is False:
+            raise AerospikeException(f"Node {self.name} {self.host} version < 4.9. " \
                                      "This client requires server version >= 4.9")
