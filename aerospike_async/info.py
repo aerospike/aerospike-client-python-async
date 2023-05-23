@@ -1,7 +1,4 @@
-import time
-
 from .connection import Connection
-from .policies.info import InfoPolicy
 
 PROTOCOL_VERSION = 2
 AS_INFO = 1
