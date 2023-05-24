@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
+import base64
 
 from .host import Host
 from .connection import Connection
@@ -14,7 +15,7 @@ class PartitionParser:
     PARTITION_GENERATION_CMD: ClassVar[str] = "partition-generation"
     REPLICAS_ALL_CMD: ClassVar[str] = "replicas-all"
 
-    async def update_partitions(self):
+    async def update_partitions(self, partitions: dict):
         commands = [
             self.PARTITION_GENERATION_CMD,
             self.REPLICAS_ALL_CMD
@@ -33,8 +34,12 @@ class PartitionParser:
             namespace = entries[0]
             replica_count = int(entries[1])
 
-            for i in range(replica_count):
+            if namespace not in partitions:
+                partitions[namespace] = {}
 
+            for i in range(replica_count):
+                bitmap = entries[2 + i]
+                bitmap = base64.b64decode(bitmap)
 
 class Cluster:
     def __init__(self, hosts: list[Host]):
