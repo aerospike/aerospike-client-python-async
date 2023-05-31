@@ -120,8 +120,18 @@ class Cluster:
             for node in self.nodes:
                 node.error_count = 0
 
-    def refresh_peers(self, peers: Peers):
-        pass
+    async def refresh_peers(self, peers: Peers):
+        while True:
+            nodes = list(peers.nodes.values()).copy()
+            peers.nodes.clear()
+
+            for node in nodes:
+                await node.refresh_peers(peers)
+
+            if len(peers.nodes) > 0:
+                self.add_nodes(peers.nodes)
+            else:
+                break
 
     def find_nodes_to_remove(self, refresh_count: int):
         nodes_to_remove = []
