@@ -64,6 +64,7 @@ class Cluster:
     def __init__(self, hosts: list[Host]):
         self.seeds = hosts
         self.nodes: list[Node] = []
+        self.nodes_map: dict[str, Node] = {}
         self.partition_map = {}
         self.tend_count = 0
 
@@ -134,19 +135,24 @@ class Cluster:
             #     self.nodes.append(peer_node)
 
 class PeerParser:
-    @staticmethod
-    def parse(info_response: str):
-        RESPONSE_REGEX = re.compile(r"(\d+), (\d+), [(.*)]")
+    def parse(self, info_response: str) -> list[Peer]:
+        RESPONSE_REGEX = re.compile(r"(\d+), (\d+), (.*)")
         match = RESPONSE_REGEX.search(info_response)
         if match is None:
             raise AerospikeException("Unable to parse peers")
-        peers_generation, default_port, peers = match.groups()
+        self.peers_generation, default_port, peers = match.groups()
+        default_port = int(default_port)
 
-        PEERS_REGEX = re.compile(r"[\[(.*)\],?]+")
-        peers = PEERS_REGEX.findall(peers)
-        for peer in peers:
-            pass
-            # TODO
+        PEER_REGEX = re.compile(r"\[(\d*), (\d*), \[(?:[\d\.]+(?:, )?)+\]\]")
+        peer_matches = PEER_REGEX.finditer(peers)
+        peers = []
+        for peer_match in peer_matches:
+            node_name, _, peer_ips = peer_match.groups()
+            peer_ips = peer_ips.split(",")
+            hosts = [Host(ip, default_port, None) for ip in peer_ips]
+            peer = Peer(node_name, hosts)
+            peers.append(peer)
+        return peers
 
 class Node:
     def __init__(self, cluster: Cluster, nv: NodeValidator):
@@ -252,13 +258,67 @@ class Node:
         commands = [
             "peers-clear-std"
         ]
-        info_map = await Info.request(self.tend_conn, commands)
-        if len(info_map) == 0:
-            raise AerospikeException(f"Unable to fetch peers from node {self.name}")
 
-        response = info_map["peers-clear-std"]
-        peers.peers.clear()
-        PeerParser.parse(response)
+        try:
+            info_map = await Info.request(self.tend_conn, commands)
+            if len(info_map) == 0:
+                raise AerospikeException(f"Unable to fetch peers from node {self.name}")
+
+            response = info_map["peers-clear-std"]
+            peers.peers.clear()
+            parser = PeerParser()
+            peers.peers = parser.parse(response)
+
+            peers_validated = True
+            for peer in peers.peers:
+                if self.peer_node_exists(peers, peer.node_name) is False:
+                    continue
+
+                node_validated = False
+                for host in peer.hosts:
+                    if host in peers.invalid_hosts:
+                        continue
+
+                    try:
+                        nv = await NodeValidator.new(host, cluster.conn_timeout)
+                        if peer.node_name != nv.name:
+                            print(f"For host {host}, peer node {peer.node_name} is different from actual node {nv.name}")
+                            if self.peer_node_exists(peers, nv.name):
+                                await nv.tend_conn.close()
+                                node_validated = True
+                                break
+
+                        node = await Node.new(cluster, nv)
+                        peers.nodes[nv.name] = node
+                        node_validated = True
+                        break
+                    except Exception as e:
+                        peers.invalid_hosts.add(host)
+                        print(f"Add host {host} failed: {e}")
+
+                if node_validated == False:
+                    peers_validated = False
+
+            if peers_validated:
+                self.peers_generation = parser.peers_generation
+            peers.refresh_count += 1
+        except Exception as e:
+            self.failures += 1
+            await self.tend_conn.close()
+            print(f"Node {self.name} refresh failed: {e}")
+
+    def peer_node_exists(self, peers: Peers, node_name: str) -> bool:
+        node = self.cluster.nodes_map.get(node_name)
+        if node != None:
+            node.ref_count += 1
+            return True
+
+        node = peers.nodes.get(node_name)
+        if node != None:
+            node.ref_count += 1
+            return True
+
+        return False
 
     def should_refresh(self):
         return self.failures == 0 and self.active

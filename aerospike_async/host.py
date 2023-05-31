@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 import ipaddress
 import socket
 
@@ -8,7 +9,7 @@ import socket
 class Host:
     name: str
     port: int
-    tls_name: str
+    tls_name: Optional[str]
 
     async def resolve(self) -> list[Host]:
         addrs = socket.getaddrinfo(self.name, self.port, family=socket.AF_INET, proto=socket.IPPROTO_TCP)
