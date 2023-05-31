@@ -95,6 +95,14 @@ class Cluster:
             for node in self.nodes:
                 await node.refresh_peers(peers)
 
+            remove_list = self.find_nodes_to_remove(peers.refresh_count)
+
+            if len(remove_list) > 0:
+                await self.remove_nodes(remove_list)
+
+        if len(peers.nodes) > 0:
+            pass
+
         for node in self.nodes:
             if node.partition_changed:
                 await node.refresh_partitions()
@@ -104,6 +112,34 @@ class Cluster:
         for node in self.nodes:
             await node.balance_connections()
 
+    def find_nodes_to_remove(self, refresh_count: int):
+        nodes_to_remove = []
+        for node in self.nodes:
+            if not node.active:
+                nodes_to_remove.append(node)
+
+            if refresh_count == 0 and node.failures >= 5:
+                nodes_to_remove.append(node)
+
+            if len(self.nodes) > 1 and refresh_count >= 1 and node.ref_count == 0:
+                if node.failures == 0:
+                    if self.node_in_partition_map(node) is False:
+                        nodes_to_remove.append(node)
+                else:
+                    nodes_to_remove.append(node)
+        return nodes_to_remove
+
+    async def remove_nodes(self, nodes: list[Node]):
+        for node in nodes:
+            del self.nodes_map[node.name]
+            await node.close()
+
+    def node_in_partition_map(self, node: Node) -> bool:
+        for ns_partition_map in self.partition_map.values():
+            for node_list in ns_partition_map.values():
+                if node in node_list:
+                    return True
+        return False
 
     async def seed_nodes(self):
         self.nodes = []
@@ -330,6 +366,12 @@ class Node:
 
     # async def refresh_partitions(self):
     #     parser = PartitionParser()
+
+    async def close(self):
+        self.active = False
+        await self.tend_conn.close()
+        for conn in self.conns:
+            await conn.close()
 
 class NodeValidator:
     name: str
