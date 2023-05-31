@@ -70,21 +70,24 @@ class Cluster:
 
         self.min_conns_per_node = 10 # for testing
         self.conn_timeout = 3 # for testing
+        self.max_error_rate = 100
+        self.error_rate_window = 1
 
     async def tend(self):
+        peers = Peers()
+
         # Clear node reference counts
         for node in self.nodes:
             node.ref_count = 0
             node.partition_changed = False
+            node.rebalance_changed = False
 
         if len(self.nodes) == 0:
             # No active nodes
-            await self.seed_nodes()
+            await self.seed_nodes(peers)
 
         for node in self.nodes:
             node.reset()
-
-        peers = Peers()
 
         for node in self.nodes:
             await node.refresh(peers)
@@ -101,16 +104,27 @@ class Cluster:
                 await self.remove_nodes(remove_list)
 
         if len(peers.nodes) > 0:
-            pass
+            self.add_nodes(peers.nodes)
+            self.refresh_peers(peers)
+
+        invalid_node_count = len(peers.invalid_hosts)
 
         for node in self.nodes:
             if node.partition_changed:
-                await node.refresh_partitions()
+                await node.refresh_partitions(peers)
 
         self.tend_count += 1
 
-        for node in self.nodes:
-            await node.balance_connections()
+        if self.tend_count % 30 == 0:
+            for node in self.nodes:
+                await node.balance_connections()
+
+        if self.max_error_rate > 0 and self.tend_count % self.error_rate_window == 0:
+            for node in self.nodes:
+                node.error_count = 0
+
+    def refresh_peers(self, peers: Peers):
+        pass
 
     def find_nodes_to_remove(self, refresh_count: int):
         nodes_to_remove = []
@@ -134,6 +148,9 @@ class Cluster:
             del self.nodes_map[node.name]
             await node.close()
 
+    def add_nodes(self, nodes: dict[str, Node]):
+        pass
+
     def node_in_partition_map(self, node: Node) -> bool:
         for ns_partition_map in self.partition_map.values():
             for node_list in ns_partition_map.values():
@@ -141,11 +158,12 @@ class Cluster:
                     return True
         return False
 
-    async def seed_nodes(self):
+    async def seed_nodes(self, peers: Peers):
         self.nodes = []
         for seed in self.seeds:
             try:
-                seed_nv = await NodeValidator.new(seed, self.conn_timeout)
+                seed_nv = NodeValidator()
+                node = await seed_nv.seed_node(seed, self, peers)
             except Exception as e:
                 # If this seed fails, try another seed
                 print(f"Failed to seed node: {e}")
@@ -208,10 +226,13 @@ class Node:
         self.partition_changed = True
         self.rebalance_changed = False
 
+        self.peers_count = 0
+
         self.health = 100
         self.active = True
         self.responded = False
         self.failures = 0
+        self.error_count = 0
 
     @staticmethod
     async def new(cluster: Cluster, nv: NodeValidator):
@@ -364,8 +385,8 @@ class Node:
             conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
             self.conns.append(conn)
 
-    # async def refresh_partitions(self):
-    #     parser = PartitionParser()
+    async def refresh_partitions(self):
+        parser = PartitionParser()
 
     async def close(self):
         self.active = False
@@ -373,50 +394,77 @@ class Node:
         for conn in self.conns:
             await conn.close()
 
+    async def balance_connections(self):
+        pass
+
 class NodeValidator:
-    name: str
-    features: list[str]
     peers: list[Host]
     host: Host
     timeout_secs: float
-    tend_conn: Connection
 
-    def __init__(self, name: str, features: list[str], tend_conn: Connection):
-        self.name = name
-        self.features = features
-        self.tend_conn = tend_conn
-
-    @staticmethod
-    async def new(host: Host, timeout_secs: float) -> NodeValidator:
+    async def seed_node(self, host: Host, cluster: Cluster, peers: Peers) -> Node:
         is_ip = host.is_ip()
         if not is_ip:
             raise AerospikeException("Invalid host passed to node validator")
 
-        conn = await Connection.new(host.name, host.port, timeout_secs)
-
         try:
-            commands = [
-                "node",
-                "features",
-            ]
-            if host.is_loopback() is False:
-                commands.append("service-clear-std")
-
-            info_map = await Info.request(conn, commands)
-
-            # A valid Aerospike node must return a response for "node" and "features"
-
-            if "node" not in info_map:
-                raise InvalidNodeException(f"Host {host} did not return a node name!")
-            name = info_map["node"]
-
-            if "features" not in info_map:
-                raise InvalidNodeException(f"Host {host} did not return a list of features!")
-            features = info_map["features"]
-            features = features.split(";")
+            await self.validate_address(cluster, host)
+            node = Node(cluster, self)
+            res = await self.validate_peers(node, peers)
+            if res == True:
+                return node
         except:
             raise
         finally:
             await conn.close()
 
-        return NodeValidator(name, features, conn)
+        Node(name, features)
+
+    async def validate_address(self, cluster, host: Host):
+            self.conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
+            commands = [
+                "node",
+                "partition-generation",
+                "features",
+            ]
+            if host.is_loopback() is False:
+                commands.append("service-clear-std")
+
+            info_map = await Info.request(self.conn, commands)
+
+            # A valid Aerospike node must return a response for "node" and "features"
+
+            if "node" not in info_map:
+                raise InvalidNodeException(f"Host {host} did not return a node name!")
+            self.name = info_map["node"]
+
+            if "features" not in info_map:
+                raise InvalidNodeException(f"Host {host} did not return a list of features!")
+            features = info_map["features"]
+            self.features = features.split(";")
+
+    async def validate_peers(self, node: Node, peers: Peers) -> bool:
+        if peers is None:
+            return True
+
+        # Get node's peers for the first time
+        peers.refresh_count = 0
+        try:
+            await node.refresh_peers(peers)
+        except Exception as e:
+            await node.close()
+            raise e
+
+        if node.peers_count == 0:
+            if self.fallback == None:
+                self.fallback = node
+            else:
+                await node.close()
+            return False
+
+        if self.fallback != None:
+            print("Skip orphan node")
+            self.fallback.close()
+            self.fallback = None
+
+        return True
