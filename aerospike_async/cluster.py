@@ -145,7 +145,8 @@ class PeerParser:
         PEERS_REGEX = re.compile(r"[\[(.*)\],?]+")
         peers = PEERS_REGEX.findall(peers)
         for peer in peers:
-            match.
+            pass
+            # TODO
 
 class Node:
     def __init__(self, cluster: Cluster, nv: NodeValidator):
@@ -262,10 +263,10 @@ class Node:
     def should_refresh(self):
         return self.failures == 0 and self.active
 
-    # async def create_min_connections(self):
-    #     for _ in range(self.cluster.min_conns_per_node):
-    #         conn = Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
-    #         self.conns.append(conn)
+    async def create_min_connections(self):
+        for _ in range(self.cluster.min_conns_per_node):
+            conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
+            self.conns.append(conn)
 
     # async def refresh_partitions(self):
     #     parser = PartitionParser()
