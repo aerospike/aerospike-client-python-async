@@ -158,35 +158,40 @@ class Cluster:
                     return True
         return False
 
-    async def seed_nodes(self, peers: Peers):
+    async def seed_nodes(self, peers: Peers) -> bool:
         self.nodes = []
+        nv = NodeValidator()
         for seed in self.seeds:
             try:
-                seed_nv = NodeValidator()
-                node = await seed_nv.seed_node(seed, self, peers)
+                node = await nv.seed_node(seed, self, peers)
+                if node != None:
+                    await self.add_seed_and_peers(node, peers)
+                    return True
             except Exception as e:
+                peers.invalid_hosts.add(seed)
                 # If this seed fails, try another seed
                 print(f"Failed to seed node: {e}")
                 continue
 
-            seed_node = await Node.new(self, seed_nv)
-            self.nodes.append(seed_node)
+        if nv.fallback != None:
+            peers.refresh_count = 1
+            await self.add_seed_and_peers(nv.fallback, peers)
 
-            # # Validate each peer
-            # for peer in seed_nv.peers:
-            #     try:
-            #         peer_nv = await NodeValidator.new(peer, self.conn_timeout)
-            #     except Exception as e:
-            #         print(f"Failed to seed node: {e}")
-            #         continue
+        return False
 
-            #     node_names = [node.name for node in self.nodes]
-            #     if peer_nv.name in node_names:
-            #         # We already found this node before
-            #         continue
+    async def add_seed_and_peers(self, seed: Node, peers: Peers):
+        await seed.create_min_connections()
+        self.nodes_map.clear()
+        node_array = []
 
-            #     peer_node = Node(self, peer_nv)
-            #     self.nodes.append(peer_node)
+        self.nodes_map[seed.name] = seed
+        node_array.append(seed)
+
+        for peer in peers.nodes.values():
+            self.nodes_map[peer.name] = peer
+            node_array.append(peer)
+
+        self.nodes = node_array
 
 class PeerParser:
     def parse(self, info_response: str) -> list[Peer]:
@@ -216,7 +221,7 @@ class Node:
         self.name = nv.name
         self.features = nv.features
         self.host = nv.host
-        self.tend_conn = nv.tend_conn
+        self.tend_conn = nv.conn
 
         self.ref_count = 0
         self.peers_generation = -1
@@ -233,12 +238,6 @@ class Node:
         self.responded = False
         self.failures = 0
         self.error_count = 0
-
-    @staticmethod
-    async def new(cluster: Cluster, nv: NodeValidator):
-        node = Node(cluster, nv)
-        await node.create_min_connections()
-        return node
 
     def reset(self):
         self.ref_count = 0
@@ -401,6 +400,7 @@ class NodeValidator:
     peers: list[Host]
     host: Host
     timeout_secs: float
+    fallback: Node
 
     async def seed_node(self, host: Host, cluster: Cluster, peers: Peers) -> Node:
         is_ip = host.is_ip()
@@ -417,8 +417,6 @@ class NodeValidator:
             raise
         finally:
             await conn.close()
-
-        Node(name, features)
 
     async def validate_address(self, cluster, host: Host):
             self.conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
