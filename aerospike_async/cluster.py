@@ -85,29 +85,26 @@ class Cluster:
         if len(self.nodes) == 0:
             # No active nodes
             await self.seed_nodes(peers)
-
-        for node in self.nodes:
-            node.reset()
-
-        for node in self.nodes:
-            await node.refresh(peers)
-
-        if peers.generation_changed:
-            peers.refresh_count = 0
-
+        else:
             for node in self.nodes:
-                await node.refresh_peers(peers)
+                await node.refresh(peers)
 
-            remove_list = self.find_nodes_to_remove(peers.refresh_count)
+            if peers.generation_changed:
+                peers.refresh_count = 0
 
-            if len(remove_list) > 0:
-                await self.remove_nodes(remove_list)
+                for node in self.nodes:
+                    await node.refresh_peers(peers)
 
-        if len(peers.nodes) > 0:
-            self.add_nodes(peers.nodes)
-            self.refresh_peers(peers)
+                remove_list = self.find_nodes_to_remove(peers.refresh_count)
 
-        invalid_node_count = len(peers.invalid_hosts)
+                if len(remove_list) > 0:
+                    await self.remove_nodes(remove_list)
+
+            if len(peers.nodes) > 0:
+                self.add_nodes(peers.nodes)
+                self.refresh_peers(peers)
+
+        self.invalid_node_count = len(peers.invalid_hosts)
 
         for node in self.nodes:
             if node.partition_changed:
@@ -158,6 +155,7 @@ class Cluster:
                     return True
         return False
 
+    # TODO: result is not used
     async def seed_nodes(self, peers: Peers) -> bool:
         self.nodes = []
         nv = NodeValidator()
@@ -384,7 +382,7 @@ class Node:
             conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
             self.conns.append(conn)
 
-    async def refresh_partitions(self):
+    async def refresh_partitions(self, peers: Peers):
         parser = PartitionParser()
 
     async def close(self):
