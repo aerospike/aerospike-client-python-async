@@ -1,8 +1,10 @@
 from __future__ import annotations
+import logging
 from dataclasses import dataclass, field
 from typing import ClassVar
 import base64
 import re
+from typing import Optional
 
 from .host import Host
 from .connection import Connection
@@ -41,11 +43,12 @@ class PartitionParser:
             for i in range(replica_count):
                 bitmap = entries[2 + i]
                 bitmap = base64.b64decode(bitmap)
+                print(bitmap)
 
-                for byte in bitmap:
-                    for i in range(8):
-                        contains_partition = byte & (0b10000000 >> i) != 0
-                        if contains_partition
+#                for byte in bitmap:
+#                    for i in range(8):
+#                        contains_partition = byte & (0b10000000 >> i) != 0
+#                        if contains_partition
 
 @dataclass
 class Peer:
@@ -61,12 +64,15 @@ class Peers:
     generation_changed = False
 
 class Cluster:
+    cluster_name: Optional[str]
+
     def __init__(self, hosts: list[Host]):
         self.seeds = hosts
         self.nodes: list[Node] = []
         self.nodes_map: dict[str, Node] = {}
         self.partition_map = {}
         self.tend_count = 0
+        self.cluster_name = None
 
         self.min_conns_per_node = 10 # for testing
         self.conn_timeout = 3 # for testing
@@ -74,18 +80,24 @@ class Cluster:
         self.error_rate_window = 1
 
     async def tend(self):
+        # Pass this to each node
+        # so every node sees changes
+        # From client's perspective, every node knows about the changes in the whole cluster
+        # even if some nodes don't actually know about the change (e.g due to network latency)
         peers = Peers()
 
         # Clear node reference counts
         for node in self.nodes:
-            node.ref_count = 0
+            node.reference_count = 0
             node.partition_changed = False
             node.rebalance_changed = False
 
         if len(self.nodes) == 0:
             # No active nodes
+            # TODO: implement fail_if_not_connected
             await self.seed_nodes(peers)
         else:
+            # Check if there were any changes in the cluster
             for node in self.nodes:
                 await node.refresh(peers)
 
@@ -102,7 +114,7 @@ class Cluster:
 
             if len(peers.nodes) > 0:
                 self.add_nodes(peers.nodes)
-                self.refresh_peers(peers)
+                await self.refresh_peers(peers)
 
         self.invalid_node_count = len(peers.invalid_hosts)
 
@@ -142,7 +154,7 @@ class Cluster:
             if refresh_count == 0 and node.failures >= 5:
                 nodes_to_remove.append(node)
 
-            if len(self.nodes) > 1 and refresh_count >= 1 and node.ref_count == 0:
+            if len(self.nodes) > 1 and refresh_count >= 1 and node.reference_count == 0:
                 if node.failures == 0:
                     if self.node_in_partition_map(node) is False:
                         nodes_to_remove.append(node)
@@ -169,9 +181,10 @@ class Cluster:
     async def seed_nodes(self, peers: Peers) -> bool:
         self.nodes = []
         nv = NodeValidator()
+
         for seed in self.seeds:
             try:
-                node = await nv.seed_node(seed, self, peers)
+                node = await nv.seed_node(self, seed, peers)
                 if node != None:
                     await self.add_seed_and_peers(node, peers)
                     return True
@@ -221,34 +234,55 @@ class PeerParser:
             peers.append(peer)
         return peers
 
+class Pool:
+    conns: list[Connection]
+    head: int
+    tail: int
+    min_size: int
+    max_size: int
+    total: int # total connections
+
+    def __init__(self, min_size: int, max_size: int):
+        self.min_size = min_size
+        self.conns = []
+        self.total = 0
+
 class Node:
     def __init__(self, cluster: Cluster, nv: NodeValidator):
         self.cluster = cluster
-        self.conns = []
-        # Actually create a node from the data that NodeValidator collected from the ip address
         self.name = nv.name
-        self.features = nv.features
-        self.host = nv.host
+        # self.aliases = nv.aliases
+        self.host = nv.primary_host
+        # self.address = nv.primary_address
+        # Reserve one connection for tending in case connection pool is empty
+        # i.e node is busy
         self.tend_conn = nv.conn
-
-        self.ref_count = 0
+        self.connection_pool: list[Connection] = []
+        # self.session_token = nv.session_token
+        # self.session_expiration = nv.session_expiration
+        self.features = nv.features
+        # TODO: following 3 vars need to be atomic
+        # self.conns_opened = 1
+        # self.conns_closed = 0
+        # self.error_count = 0
         self.peers_generation = -1
         self.partition_generation = -1
         self.rebalance_generation = -1
-        self.generation_changed = True
         self.partition_changed = True
+        # TODO: check if cluster is rack aware
         self.rebalance_changed = False
+        # self.racks = ...
+        self.active = True
 
         self.peers_count = 0
-
-        self.health = 100
-        self.active = True
-        self.responded = False
+        self.reference_count = 0
         self.failures = 0
-        self.error_count = 0
+
+        # TODO: initialize multiple connection pools properly
+        self.pool = Pool(10, 20)
 
     def reset(self):
-        self.ref_count = 0
+        self.reference_count = 0
         self.partition_changed = False
 
     async def refresh(self, peers: Peers):
@@ -291,14 +325,16 @@ class Node:
     def refresh_peers_generation(self, info_map: dict[str, str], peers: Peers):
         if "peers-generation" not in info_map:
             raise AerospikeException("peers-generation is empty")
+
         peers_gen = int(info_map["peers-generation"])
         if peers_gen != self.peers_generation:
             peers.generation_changed = True
-
+            # TODO
 
     def refresh_rebalance_generation(self, info_map: dict[str, str]):
         if "rebalance-generation" not in info_map:
             raise AerospikeException("rebalance-generation is empty")
+
         rebalance_gen = int(info_map["rebalance-generation"])
         if rebalance_gen != self.rebalance_generation:
             self.rebalance_changed = True
@@ -327,8 +363,10 @@ class Node:
             info_map = await Info.request(self.tend_conn, commands)
             if len(info_map) == 0:
                 raise AerospikeException(f"Unable to fetch peers from node {self.name}")
-
             response = info_map["peers-clear-std"]
+
+            # Peers object is peers for this node
+            # TODO: follow java implementation of PeerParser
             peers.peers.clear()
             parser = PeerParser()
             peers.peers = parser.parse(response)
@@ -344,7 +382,8 @@ class Node:
                         continue
 
                     try:
-                        nv = await NodeValidator.new(host, cluster.conn_timeout)
+                        nv = NodeValidator()
+                        await nv.seed_node(host, cluster, peers)
                         if peer.node_name != nv.name:
                             print(f"For host {host}, peer node {peer.node_name} is different from actual node {nv.name}")
                             if self.peer_node_exists(peers, nv.name):
@@ -374,12 +413,12 @@ class Node:
     def peer_node_exists(self, peers: Peers, node_name: str) -> bool:
         node = self.cluster.nodes_map.get(node_name)
         if node != None:
-            node.ref_count += 1
+            node.reference_count += 1
             return True
 
         node = peers.nodes.get(node_name)
         if node != None:
-            node.ref_count += 1
+            node.reference_count += 1
             return True
 
         return False
@@ -388,9 +427,18 @@ class Node:
         return self.failures == 0 and self.active
 
     async def create_min_connections(self):
-        for _ in range(self.cluster.min_conns_per_node):
-            conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
-            self.conns.append(conn)
+        # TODO: use multiple connection pools
+        if self.pool.min_size > 0:
+            await self.create_connections(self.pool, self.pool.min_size)
+
+        # for _ in range(self.cluster.min_conns_per_node):
+        #     self.connection_pool.append(conn)
+
+    async def create_connections(self, pool: Pool, count: int):
+        while count > 0:
+            try:
+                conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
+                # TODO: leave off from here
 
     async def refresh_partitions(self, peers: Peers):
         parser = PartitionParser()
@@ -398,7 +446,7 @@ class Node:
     async def close(self):
         self.active = False
         await self.tend_conn.close()
-        for conn in self.conns:
+        for conn in self.connection_pool:
             await conn.close()
 
     async def balance_connections(self):
@@ -406,56 +454,114 @@ class Node:
 
 class NodeValidator:
     peers: list[Host]
-    host: Host
+    primary_host: Host
     timeout_secs: float
-    fallback: Node
+    fallback: Optional[Node]
+    name: str
+    features: list[str]
 
-    async def seed_node(self, host: Host, cluster: Cluster, peers: Peers) -> Node:
+    async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Node:
+        # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
+        try:
+            await self.validate_address(cluster, host)
+
+            # TODO: set aliases when not set by load balancer detection logic
+
+            node = Node(cluster, self)
+
+            if await self.validate_peers(peers, node) == True:
+                return node
+        except Exception as e:
+            # Log exception and continue to next alias
+            logging.debug(f"Address {host.name} {host.port} failed: {e}")
+
+            # TODO: exception logic
+            exception = e
+        finally:
+            await self.conn.close()
+
+        if self.fallback != None:
+            return None
+
+        raise exception
+
+    async def validate_address(self, cluster: Cluster, host: Host):
         is_ip = host.is_ip()
         if not is_ip:
             raise AerospikeException("Invalid host passed to node validator")
 
-        try:
-            await self.validate_address(cluster, host)
-            node = Node(cluster, self)
-            res = await self.validate_peers(node, peers)
-            if res == True:
-                return node
-        except:
-            raise
-        finally:
-            await conn.close()
+        # TODO: also check for tls policy when creating connection
+        self.conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
 
-    async def validate_address(self, cluster, host: Host):
-            self.conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
+        try:
+            # TODO: check if cluster has authentication enabled
+
             commands = [
                 "node",
                 "partition-generation",
                 "features",
             ]
+
+            has_cluster_name = cluster.cluster_name != None and len(cluster.cluster_name) > 0
+            if has_cluster_name:
+                commands.append("cluster-name")
+
+            # TODO: check for load balancer when determining service command
             if host.is_loopback() is False:
                 commands.append("service-clear-std")
 
             info_map = await Info.request(self.conn, commands)
 
-            # A valid Aerospike node must return a response for "node" and "features"
+            self.validate_node(info_map)
+            self.validate_partition_generation(info_map)
+            self.set_features(info_map)
 
-            if "node" not in info_map:
-                raise InvalidNodeException(f"Host {host} did not return a node name!")
-            self.name = info_map["node"]
+            if has_cluster_name:
+                self.validate_cluster_name(cluster, info_map)
 
-            if "features" not in info_map:
-                raise InvalidNodeException(f"Host {host} did not return a list of features!")
+            # TODO: address command logic
+        except Exception as e:
+            await self.conn.close()
+            raise e
+
+    def validate_node(self, info_map: dict[str, str]):
+        if "node" not in info_map:
+            raise InvalidNodeException(f"Node name is null")
+
+        self.name = info_map["node"]
+
+    def validate_partition_generation(self, info_map: dict[str, str]):
+        gen_string = info_map.get("partition-generation")
+        if gen_string == None:
+            raise AerospikeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
+
+        try:
+            gen = int(gen_string)
+        except:
+            raise AerospikeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
+
+        if gen == -1:
+            raise AerospikeException(f"Node {self.name} {self.primary_host} is not yet fully initialized")
+
+    def set_features(self, info_map: dict[str, str]):
+        # TODO: actually set features in a class like the Java client
+        try:
             features = info_map["features"]
             self.features = features.split(";")
+        except:
+            pass
 
-    async def validate_peers(self, node: Node, peers: Peers) -> bool:
+    def validate_cluster_name(self, cluster: Cluster, info_map: dict[str, str]):
+        id = info_map.get("cluster_name")
+        if id == None or cluster.cluster_name != id:
+            raise AerospikeException(f"Node {self.name} {self.primary_host} expected cluster name '{cluster.cluster_name}' received '{id}'")
+
+    async def validate_peers(self, peers: Peers, node: Node) -> bool:
         if peers is None:
             return True
 
-        # Get node's peers for the first time
-        peers.refresh_count = 0
         try:
+            peers.refresh_count = 0
             await node.refresh_peers(peers)
         except Exception as e:
             await node.close()
@@ -469,8 +575,8 @@ class NodeValidator:
             return False
 
         if self.fallback != None:
-            print("Skip orphan node")
-            self.fallback.close()
+            logging.info("Skip orphan node")
+            await self.fallback.close()
             self.fallback = None
 
         return True
