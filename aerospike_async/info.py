@@ -22,8 +22,10 @@ class Info:
     async def send_command(self, conn: Connection) -> bytes:
         await conn.write(self.buffer)
         buf = await conn.read(8)
-        size = int.from_bytes(buf[2:8], byteorder='big')
-        buf = await conn.read(size)
+        self.length = int.from_bytes(buf[2:8], byteorder='big')
+        buf = await conn.read(self.length)
+
+        self.offset = 0
         return buf
 
     @staticmethod
@@ -31,6 +33,13 @@ class Info:
         info = Info(commands)
         buf = await info.send_command(conn)
         return info.parse_multi_response(buf)
+
+    @staticmethod
+    async def new(conn: Connection, command: str):
+        # TODO: use buffer
+        info = Info([command])
+        await info.send_command(conn)
+        return info
 
     def parse_multi_response(self, buf: bytes) -> dict[str, str]:
         # If command is invalid, the command and value for it will not be returned from the server (in the buffer)
@@ -40,3 +49,18 @@ class Info:
         for i in range(0, len(res), 2):
             responses[res[i]] = res[i + 1]
         return responses
+
+    # def skip_to_value(self):
+    #     while self.offset < self.length:
+    #         b = self.buffer[self.offset]
+
+    #         if b == '\t':
+    #             self.offset += 1
+    #             break
+
+    #         if b == '\n':
+    #             break
+
+    #         self.offset += 1
+
+    # def parse_int(self):

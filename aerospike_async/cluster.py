@@ -203,28 +203,52 @@ class Cluster:
     async def add_seed_and_peers(self, seed: Node, peers: Peers):
         await seed.create_min_connections()
         self.nodes_map.clear()
-        node_array = []
 
+        # TODO: addNodes(seed, peers) is this code block
         self.nodes_map[seed.name] = seed
+        node_array = []
         node_array.append(seed)
-
         for peer in peers.nodes.values():
             self.nodes_map[peer.name] = peer
             node_array.append(peer)
-
         self.nodes = node_array
 
+        if len(peers.nodes) > 0:
+            await self.refresh_peers(peers)
+
 class PeerParser:
-    def parse(self, info_response: str) -> list[Peer]:
-        RESPONSE_REGEX = re.compile(r"(\d+), (\d+), (.*)")
-        match = RESPONSE_REGEX.search(info_response)
+    cluster: Cluster
+    port_default: int
+    generation: int
+
+    def __init__(self, cluster: Cluster):
+        self.cluster = cluster
+
+    @staticmethod
+    async def new(cluster: Cluster, conn: Connection, peers: list[Peer]):
+        peer_parser = PeerParser(cluster)
+
+        command = "peers-clear-std"
+        parser = await Info.new(conn, command)
+        if parser.length == 0:
+            raise AerospikeException(f"{command} response is empty")
+
+        # TODO
+        # parser.skip_to_value()
+        # generation = parser.parse_int()
+        # parser.expect(',')
+        # port_default = parser.parse_int()
+        # parser.expect(',')
+        # parser.expect('[')
+
+        RESPONSE_REGEX = re.compile(r"(\d+),(\d+),\[(.*)\]")
+        match = RESPONSE_REGEX.search(str(parser.buffer))
         if match is None:
             raise AerospikeException("Unable to parse peers")
-        self.peers_generation, default_port, peers = match.groups()
-        default_port = int(default_port)
+        generation, port_default, nodes = match.groups()
+        port_default = int(port_default)
 
-        PEER_REGEX = re.compile(r"\[(\d*), (\d*), \[(?:[\d\.]+(?:, )?)+\]\]")
-        peer_matches = PEER_REGEX.finditer(peers)
+        peer_matches = NODE_REGEX.finditer(peers)
         peers = []
         for peer_match in peer_matches:
             node_name, _, peer_ips = peer_match.groups()
@@ -234,8 +258,9 @@ class PeerParser:
             peers.append(peer)
         return peers
 
+
 class Pool:
-    conns: list[Connection]
+    conns: list[Optional[Connection]]
     head: int
     tail: int
     size: int
@@ -368,25 +393,18 @@ class Node:
             self.partition_generation = partition_gen
 
     async def refresh_peers(self, peers: Peers):
-        if self.should_refresh() is False:
+        if self.failures > 0 or not self.active:
             return
-        print(f"Update peers for node {self.name}")
 
         cluster = self.cluster
-        commands = [
-            "peers-clear-std"
-        ]
-
         try:
-            info_map = await Info.request(self.tend_conn, commands)
-            if len(info_map) == 0:
-                raise AerospikeException(f"Unable to fetch peers from node {self.name}")
-            response = info_map["peers-clear-std"]
+            logging.debug(f"Update peers for node {self.name}")
+
+            parser = PeerParser()
 
             # Peers object is peers for this node
             # TODO: follow java implementation of PeerParser
             peers.peers.clear()
-            parser = PeerParser()
             peers.peers = parser.parse(response)
 
             peers_validated = True
@@ -441,9 +459,6 @@ class Node:
 
         return False
 
-    def should_refresh(self):
-        return self.failures == 0 and self.active
-
     async def create_min_connections(self):
         # TODO: use multiple connection pools
         if self.pool.min_size > 0:
@@ -497,7 +512,7 @@ class NodeValidator:
     name: str
     features: list[str]
 
-    async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Node:
+    async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Optional[Node]:
         # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
         try:
             await self.validate_address(cluster, host)
