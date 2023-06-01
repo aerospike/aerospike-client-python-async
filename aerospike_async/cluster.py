@@ -238,14 +238,30 @@ class Pool:
     conns: list[Connection]
     head: int
     tail: int
+    size: int
     min_size: int
     max_size: int
     total: int # total connections
 
     def __init__(self, min_size: int, max_size: int):
         self.min_size = min_size
-        self.conns = []
+        self.size = 0
+        self.conns = [None for _ in range(max_size)]
         self.total = 0
+
+    def offer(self, conn: Connection):
+        if conn == None:
+            # TODO: use Python equivalent
+            raise AerospikeException("NullPointerException")
+
+        if len(self.conns) == self.max_size:
+            return False
+
+        self.conns[self.head] = conn
+        if self.head + 1 == len(self.conns):
+            self.head = 0
+        self.size += 1
+        return True
 
 class Node:
     def __init__(self, cluster: Cluster, nv: NodeValidator):
@@ -262,7 +278,7 @@ class Node:
         # self.session_expiration = nv.session_expiration
         self.features = nv.features
         # TODO: following 3 vars need to be atomic
-        # self.conns_opened = 1
+        self.conns_opened = 1
         # self.conns_closed = 0
         # self.error_count = 0
         self.peers_generation = -1
@@ -280,6 +296,8 @@ class Node:
 
         # TODO: initialize multiple connection pools properly
         self.pool = Pool(10, 20)
+        self.conns_opened = 1
+        self.conns_closed = 0
 
     def reset(self):
         self.reference_count = 0
@@ -431,14 +449,33 @@ class Node:
         if self.pool.min_size > 0:
             await self.create_connections(self.pool, self.pool.min_size)
 
-        # for _ in range(self.cluster.min_conns_per_node):
-        #     self.connection_pool.append(conn)
+        # TODO: create async connections
 
     async def create_connections(self, pool: Pool, count: int):
         while count > 0:
             try:
-                conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
-                # TODO: leave off from here
+                conn = await self.create_connection(pool)
+            except Exception as e:
+                logging.debug(f"Failed to create connection: {e}")
+                return
+
+            if self.pool.offer(conn):
+                pool.total += 1
+            else:
+                await self.close_idle_connection(conn)
+                break
+            count -= 1
+
+    # Close connection without incrementing error count
+    async def close_idle_connection(self, conn: Connection):
+        self.conns_closed += 1
+        await conn.close()
+
+    async def create_connection(self, pool: Pool) -> Connection
+        conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
+        self.conns_opened += 1
+        # TODO: check if auth enabled
+        return conn
 
     async def refresh_partitions(self, peers: Peers):
         parser = PartitionParser()
