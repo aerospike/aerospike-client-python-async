@@ -3,6 +3,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 import base64
+import time
 from typing import Optional
 from enum import IntEnum
 
@@ -228,6 +229,7 @@ class Cluster:
         self.conn_timeout = 3 # for testing
         self.max_error_rate = 100
         self.error_rate_window = 1
+        self.max_socket_idle_nanos_trim = 55 * 10**9
 
         self.has_partition_query = False
 
@@ -274,15 +276,24 @@ class Cluster:
             if node.partition_changed:
                 await node.refresh_partitions(peers)
 
+            # TODO
+            # if node.rebalance_changed:
+            #     node.refresh_racks()
+
         self.tend_count += 1
 
+        # Balance connections every 30 tend iterations
         if self.tend_count % 30 == 0:
             for node in self.nodes:
                 await node.balance_connections()
 
+                # TODO: balance async connections
+
         if self.max_error_rate > 0 and self.tend_count % self.error_rate_window == 0:
             for node in self.nodes:
                 node.error_count = 0
+
+        # TODO: process recover queue
 
     async def refresh_peers(self, peers: Peers):
         while True:
@@ -413,6 +424,9 @@ class Cluster:
 
         if len(peers.nodes) > 0:
             await self.refresh_peers(peers)
+
+    def is_conn_current_trim(self, last_used: int) -> bool:
+        return (time.time_ns() - last_used) <= self.max_socket_idle_nanos_trim
 
 class PeerParser:
     cluster: Cluster
@@ -547,6 +561,32 @@ class Pool:
             self.head = 0
         self.size += 1
         return True
+
+    # Return number of connections that might be closed
+    def excess(self) -> int:
+        return self.total - self.min_size
+
+    def close_idle(self, node: Node, count: int):
+        cluster = node.cluster
+
+        while count > 0:
+            # TODO: lock might be important?
+            if self.size == 0:
+                return
+            
+            conn = self.conns[self.tail]
+
+            if cluster.is_conn_current_trim(conn.last_used_time_ns):
+                return
+
+            self.conns[self.tail] = None
+            self.tail += 1
+            if self.tail == len(self.conns):
+                self.tail = 0
+            self.size -= 1
+
+            self.close_idle(node, conn)
+            count -= 1
 
 class Node:
     PARTITIONS = 4096
@@ -803,7 +843,18 @@ class Node:
             await conn.close()
 
     async def balance_connections(self):
-        pass
+        # TODO: balance multiple conn pools
+        pool = self.pool
+        excess = pool.excess()
+
+        if excess > 0:
+            pool.close_idle(self, excess)
+        elif excess < 0 and self.error_count_within_limit():
+            # We are below min number of connections
+            await self.create_connections(pool, -excess)
+
+    def error_count_within_limit(self):
+        return self.cluster.max_error_rate <= 0 or self.error_count <= self.cluster.max_error_rate
 
     def has_partition_query(self):
         return "pquery" in self.features
