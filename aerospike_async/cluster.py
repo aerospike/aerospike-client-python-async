@@ -82,6 +82,8 @@ class Cluster:
         self.max_error_rate = 100
         self.error_rate_window = 1
 
+        self.has_partition_query = False
+
     async def tend(self):
         # Pass this to each node
         # so every node sees changes
@@ -154,29 +156,70 @@ class Cluster:
         return node
 
     def find_nodes_to_remove(self, refresh_count: int):
-        nodes_to_remove = []
+        remove_list = []
+
         for node in self.nodes:
             if not node.active:
-                nodes_to_remove.append(node)
+                # Inactive nodes must be removed
+                remove_list.append(node)
+                continue
 
             if refresh_count == 0 and node.failures >= 5:
-                nodes_to_remove.append(node)
+				# All node info requests failed and this node had 5 consecutive failures.
+				# Remove node.  If no nodes are left, seeds will be tried in next cluster
+				# tend iteration.
+                remove_list.append(node)
+                continue
 
             if len(self.nodes) > 1 and refresh_count >= 1 and node.reference_count == 0:
+				# Node is not referenced by other nodes.
+				# Check if node responded to info request.
                 if node.failures == 0:
+                    # Node is alive, but not referenced by other nodes.  Check if mapped.
                     if self.node_in_partition_map(node) is False:
-                        nodes_to_remove.append(node)
+						# Node doesn't have any partitions mapped to it.
+						# There is no point in keeping it in the cluster.
+                        remove_list.append(node)
                 else:
-                    nodes_to_remove.append(node)
-        return nodes_to_remove
+                    # Node is not responding. remove it
+                    remove_list.append(node)
+
+        return remove_list
 
     async def remove_nodes(self, nodes: list[Node]):
         for node in nodes:
             del self.nodes_map[node.name]
+            # TODO: remove aliases
             await node.close()
+        # TODO: remove nodes copy
 
-    def add_nodes(self, nodes: dict[str, Node]):
-        pass
+    def add_nodes(self, nodes_to_add: dict[str, Node]):
+        node_array = []
+        for node in self.nodes:
+            node_array.append(node)
+
+        for node in nodes_to_add.values():
+            node_array.append(node)
+            self.add_node(node)
+
+        self.has_partition_query = self.supports_partition_query(node_array)
+
+        self.nodes = node_array
+
+    @staticmethod
+    def supports_partition_query(nodes: list[Node]):
+        if len(nodes) == 0:
+            return False
+
+        for node in nodes:
+            if node.has_partition_query() is False:
+                return False
+        return True
+
+    def add_node(self, node: Node):
+        logging.info(f"Add node {node}")
+        self.nodes_map[node.name] = node
+        # TODO: add node's aliases
 
     def node_in_partition_map(self, node: Node) -> bool:
         for ns_partition_map in self.partition_map.values():
@@ -601,6 +644,9 @@ class Node:
 
     async def balance_connections(self):
         pass
+
+    def has_partition_query(self):
+        return "pquery" in self.features
 
 class NodeValidator:
     peers: list[Host]
