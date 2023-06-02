@@ -72,6 +72,9 @@ class Cluster:
         self.nodes_map: dict[str, Node] = {}
         self.partition_map = {}
         self.tend_count = 0
+        # TODO: properly initialize tend thread
+        self.tend_valid = True
+
         self.cluster_name = None
 
         self.min_conns_per_node = 10 # for testing
@@ -144,6 +147,11 @@ class Cluster:
                 self.add_nodes(peers.nodes)
             else:
                 break
+
+    async def create_node(self, nv: NodeValidator):
+        node = Node(self, nv)
+        await node.create_min_connections()
+        return node
 
     def find_nodes_to_remove(self, refresh_count: int):
         nodes_to_remove = []
@@ -359,7 +367,7 @@ class Node:
         # self.address = nv.primary_address
         # Reserve one connection for tending in case connection pool is empty
         # i.e node is busy
-        self.tend_conn = nv.conn
+        self.tend_connection = nv.primary_conn
         self.connection_pool: list[Connection] = []
         # self.session_token = nv.session_token
         # self.session_expiration = nv.session_expiration
@@ -367,6 +375,7 @@ class Node:
         # TODO: following 3 vars need to be atomic
         self.conns_opened = 1
         # self.conns_closed = 0
+        self.error_count = 0
         # self.error_count = 0
         self.peers_generation = -1
         self.partition_generation = -1
@@ -391,7 +400,7 @@ class Node:
         self.partition_changed = False
 
     async def refresh(self, peers: Peers):
-        conn = self.tend_conn
+        conn = self.tend_connection
         try:
             commands = [
                 "node",
@@ -462,57 +471,86 @@ class Node:
         try:
             logging.debug(f"Update peers for node {self.name}")
 
-            parser = await PeerParser.new(self.cluster, self.tend_conn, peers.peers)
+            # Get peer hosts for this node
+            parser = await PeerParser.new(self.cluster, self.tend_connection, peers.peers)
             self.peers_count = len(peers.peers)
 
             peers_validated = True
 
-            # TODO: continue from here
             for peer in peers.peers:
-                if self.peer_node_exists(peers, peer.node_name) is False:
+                if self.find_peer_node(peers, peer.node_name) is False:
+                    # Node already exists
                     continue
 
                 node_validated = False
+
+                # Find first host that connects
                 for host in peer.hosts:
+					# Do not attempt to add a peer if it has already failed in this cluster tend iteration.
                     if host in peers.invalid_hosts:
                         continue
 
                     try:
+                        # Attempt connection to host
                         nv = NodeValidator()
-                        await nv.seed_node(host, cluster, peers)
+                        await nv.validate_node(cluster, host)
+
+                        # If node name doesn't match, just create node with node validator's node name
                         if peer.node_name != nv.name:
-                            print(f"For host {host}, peer node {peer.node_name} is different from actual node {nv.name}")
-                            if self.peer_node_exists(peers, nv.name):
-                                await nv.tend_conn.close()
+							# Must look for new node name in the unlikely event that node names do not agree.
+                            logging.warn(f"Peer node {peer.node_name} is different from actual node {nv.name} for host {host}")
+
+                            if self.find_peer_node(peers, nv.name):
+								# Node already exists. Do not even try to connect to hosts.
+                                await nv.primary_conn.close()
                                 node_validated = True
                                 break
 
-                        node = await Node.new(cluster, nv)
+                        node = await self.cluster.create_node(nv)
                         peers.nodes[nv.name] = node
                         node_validated = True
                         break
                     except Exception as e:
                         peers.invalid_hosts.add(host)
-                        print(f"Add host {host} failed: {e}")
+                        logging.warn(f"Add node {host} failed: {e}")
 
                 if node_validated == False:
                     peers_validated = False
 
             if peers_validated:
-                self.peers_generation = parser.peers_generation
+                self.peers_generation = parser.generation
             peers.refresh_count += 1
         except Exception as e:
-            self.failures += 1
-            await self.tend_conn.close()
-            print(f"Node {self.name} refresh failed: {e}")
+            await self.refresh_failed(e)
 
-    def peer_node_exists(self, peers: Peers, node_name: str) -> bool:
+    async def refresh_failed(self, e: Exception):
+        self.failures += 1
+        if self.tend_connection.is_closed() is False:
+            await self.close_connection_on_error(self.tend_connection)
+
+		# Only log message if cluster is still active.
+        if self.cluster.tend_valid:
+            logging.warn(f"Node {self.name} refresh failed: {e}")
+
+    async def close_connection_on_error(self, conn: Connection):
+        self.conns_closed += 1
+        self.incr_error_count()
+        await conn.close()
+
+    def incr_error_count(self):
+        if self.cluster.max_error_rate > 0:
+            self.error_count += 1
+
+    def find_peer_node(self, peers: Peers, node_name: str) -> bool:
         node = self.cluster.nodes_map.get(node_name)
+
         if node != None:
             node.reference_count += 1
             return True
 
+        # Check local node map for this tend iteration
         node = peers.nodes.get(node_name)
+
         if node != None:
             node.reference_count += 1
             return True
@@ -557,7 +595,7 @@ class Node:
 
     async def close(self):
         self.active = False
-        await self.tend_conn.close()
+        await self.tend_connection.close()
         for conn in self.connection_pool:
             await conn.close()
 
@@ -590,12 +628,22 @@ class NodeValidator:
             # TODO: exception logic
             exception = e
         finally:
-            await self.conn.close()
+            await self.primary_conn.close()
 
         if self.fallback != None:
             return None
 
         raise exception
+
+    async def validate_node(self, cluster: Cluster, host: Host):
+        # TODO: check if host has multiple addresses
+        try:
+            await self.validate_address(cluster, host)
+            # TODO: set aliases
+            return
+        except Exception as e:
+            logging.debug(f"Address {host.name} {host.port} failed: {e}")
+            raise e
 
     async def validate_address(self, cluster: Cluster, host: Host):
         is_ip = host.is_ip()
@@ -603,7 +651,7 @@ class NodeValidator:
             raise AerospikeException("Invalid host passed to node validator")
 
         # TODO: also check for tls policy when creating connection
-        self.conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
+        self.primary_conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
 
         try:
             # TODO: check if cluster has authentication enabled
@@ -622,9 +670,9 @@ class NodeValidator:
             if host.is_loopback() is False:
                 commands.append("service-clear-std")
 
-            info_map = await Info.request(self.conn, commands)
+            info_map = await Info.request(self.primary_conn, commands)
 
-            self.validate_node(info_map)
+            self._validate_node(info_map)
             self.validate_partition_generation(info_map)
             self.set_features(info_map)
 
@@ -633,10 +681,10 @@ class NodeValidator:
 
             # TODO: address command logic
         except Exception as e:
-            await self.conn.close()
+            await self.primary_conn.close()
             raise e
 
-    def validate_node(self, info_map: dict[str, str]):
+    def _validate_node(self, info_map: dict[str, str]):
         if "node" not in info_map:
             raise InvalidNodeException(f"Node name is null")
 

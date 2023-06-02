@@ -31,3 +31,7 @@ class Connection:
     async def close(self):
         self.s_writer.close()
         await self.s_writer.wait_closed()
+
+    # TODO: different from java implementation
+    async def is_closed(self):
+        return self.s_writer.is_closing()
