@@ -1,11 +1,11 @@
 from __future__ import annotations
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 import base64
+import asyncio
 import time
 from typing import Optional
-from enum import IntEnum
 
 from .host import Host
 from .connection import Connection
@@ -205,9 +205,9 @@ class Peer:
 
 @dataclass
 class Peers:
-    peers: list[Peer] = []
-    nodes: dict[str, Node] = {}
-    invalid_hosts: set[Host] = set()
+    peers: list[Peer] = field(default_factory=list)
+    nodes: dict[str, Node] = field(default_factory=dict)
+    invalid_hosts: set[Host] = field(default_factory=set)
     refresh_count = 0
     generation_changed = False
 
@@ -230,8 +230,69 @@ class Cluster:
         self.max_error_rate = 100
         self.error_rate_window = 1
         self.max_socket_idle_nanos_trim = 55 * 10**9
+        self.tend_interval = 1
 
         self.has_partition_query = False
+
+    @staticmethod
+    async def new(hosts: list[Host]):
+        cluster = Cluster(hosts)
+        await cluster.init_tend_thread()
+
+    async def init_tend_thread(self):
+        await self.wait_till_stabilized()
+
+        for host in self.seeds:
+            logging.debug(f"Add seed {host}")
+
+        # Add other nodes as seeds if they don't already exist
+        seeds_to_add = []
+        for node in self.nodes:
+            host = node.host
+            if self.find_seed(host) is False:
+                seeds_to_add.append(host)
+
+        if len(seeds_to_add) > 0:
+            self.add_seeds(seeds_to_add)
+
+        # Run cluster tend coroutine
+        self.tend_valid = True
+        tend = self.tend_coroutine()
+        self.tend_thread = asyncio.create_task(tend)
+        self.tend_thread.set_name("tend")
+        await self.tend_thread
+
+    async def tend_coroutine(self):
+        while self.tend_valid:
+            try:
+                await self.tend()
+            except Exception as e:
+                logging.warn(f"Cluster tend failed: {e}")
+            await asyncio.sleep(self.tend_interval)
+
+    def add_seeds(self, hosts: list[Host]):
+        seed_array = []
+
+        for host in hosts:
+            logging.debug(f"Add seed {host}")
+            seed_array.append(host)
+
+        self.seeds = seed_array
+
+    def find_seed(self, search: Host):
+        for seed in self.seeds:
+            if seed == search:
+                return True
+        return False
+
+    async def wait_till_stabilized(self):
+        # TODO: pass in fail_if_not_connected, is_init
+        await self.tend()
+
+        if len(self.nodes) == 0:
+            # TODO: fail_if_not_connected
+            message = "Cluster seed(s) failed"
+            logging.warn(message)
 
     async def tend(self):
         # Pass this to each node
@@ -862,10 +923,15 @@ class Node:
 class NodeValidator:
     peers: list[Host]
     primary_host: Host
+    primary_conn: Optional[Connection]
     timeout_secs: float
     fallback: Optional[Node]
     name: str
     features: list[str]
+
+    def __init__(self):
+        self.fallback = None
+        self.primary_conn = None
 
     async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Optional[Node]:
         # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
@@ -997,6 +1063,3 @@ class NodeValidator:
             self.fallback = None
 
         return True
-
-class ResultCode(IntEnum):
-    SERVER_ERROR = 1

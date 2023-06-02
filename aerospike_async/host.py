@@ -5,7 +5,7 @@ from typing import Optional
 import ipaddress
 import socket
 
-@dataclass
+@dataclass(frozen=True)
 class Host:
     name: str
     port: int

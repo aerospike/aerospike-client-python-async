@@ -1,8 +1,8 @@
 from typing import Optional
 
 from .connection import Connection
-from .cluster import ResultCode
-from exceptions import AerospikeException
+from enum import IntEnum
+from .exceptions import AerospikeException
 
 PROTOCOL_VERSION = 2
 AS_INFO = 1
@@ -151,3 +151,5 @@ class Info:
             if b == stop:
                 break
 
+class ResultCode(IntEnum):
+    SERVER_ERROR = 1
