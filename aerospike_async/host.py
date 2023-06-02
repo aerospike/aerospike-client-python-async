@@ -9,7 +9,7 @@ import socket
 class Host:
     name: str
     port: int
-    tls_name: Optional[str]
+    tls_name: Optional[str] = None
 
     async def resolve(self) -> list[Host]:
         addrs = socket.getaddrinfo(self.name, self.port, family=socket.AF_INET, proto=socket.IPPROTO_TCP)

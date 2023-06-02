@@ -1,3 +1,5 @@
+from typing import Optional
+
 from .connection import Connection
 from exceptions import AerospikeException
 
@@ -64,7 +66,7 @@ class Info:
 
             self.offset += 1
 
-    def parse_int(self):
+    def parse_int(self) -> int:
         begin = self.offset
         end = self.offset
         while self.offset < self.length:
@@ -74,6 +76,7 @@ class Info:
                 end = self.offset
                 break
             self.offset += 1
+        # If integer doesn't exist, 0 is returned
         val = int.from_bytes(self.buffer[begin:end], byteorder='big')
         return val
 
@@ -82,11 +85,14 @@ class Info:
             raise AerospikeException(f"Expected {expected} Received: {self.buffer[self.offset]}")
         self.offset += 1
 
-    def parse_string(self, stop: str):
+    def parse_string(self, stop1: str, stop2: Optional[str] = None, stop3: Optional[str] = None) -> str:
         begin = self.offset
         while self.offset < self.length:
             b = self.buffer[self.offset]
-            if b == stop:
+            if b == stop1:
+                break
+            if (stop2 != None and b == stop2) or (stop3 != None and b == stop3):
                 break
             self.offset += 1
-        return str(self.buffer[begin:self.offset])
+        # If string doesn't exist, an empty string is returned
+        return str(self.buffer[begin:self.offset], encoding='utf-8')

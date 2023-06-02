@@ -222,53 +222,41 @@ class PeerParser:
     port_default: int
     generation: int
 
-    def __init__(self, cluster: Cluster):
+    def __init__(self, cluster: Cluster, peers: list[Peer], parser: Info, command: str):
         self.cluster = cluster
-
-    @staticmethod
-    async def new(cluster: Cluster, conn: Connection, peers: list[Peer]) -> PeerParser:
-        peer_parser = PeerParser(cluster)
-
-        command = "peers-clear-std"
-        parser = await Info.new(conn, command)
-        peer_parser.parser = parser
+        self.parser = parser
 
         if parser.length == 0:
             raise AerospikeException(f"{command} response is empty")
 
-        # TODO
         parser.skip_to_value()
         generation = parser.parse_int()
         parser.expect(',')
-        port_default = parser.parse_int()
+        self.port_default = parser.parse_int()
         parser.expect(',')
         parser.expect('[')
 
         peers.clear()
 
         if parser.buffer[parser.offset] == ']':
-            return peer_parser
+            return
 
         while True:
-            peer = peer_parser.parse_peer()
+            peer = self.parse_peer()
             peers.append(peer)
 
-        # RESPONSE_REGEX = re.compile(r"(\d+),(\d+),\[(.*)\]")
-        # match = RESPONSE_REGEX.search(str(parser.buffer))
-        # if match is None:
-        #     raise AerospikeException("Unable to parse peers")
-        # generation, port_default, nodes = match.groups()
-        # port_default = int(port_default)
+            if parser.offset < parser.length and parser.buffer[parser.offset] == ',':
+                parser.offset += 1
+            else:
+                break
 
-        # peer_matches = NODE_REGEX.finditer(peers)
-        # peers = []
-        # for peer_match in peer_matches:
-        #     node_name, _, peer_ips = peer_match.groups()
-        #     peer_ips = peer_ips.split(",")
-        #     hosts = [Host(ip, default_port, None) for ip in peer_ips]
-        #     peer = Peer(node_name, hosts)
-        #     peers.append(peer)
-        # return peers
+    @staticmethod
+    async def new(cluster: Cluster, conn: Connection, peers: list[Peer]) -> PeerParser:
+        command = "peers-clear-std"
+        parser = await Info.new(conn, command)
+
+        peer_parser = PeerParser(cluster, peers, parser, command)
+        return peer_parser
 
     def parse_peer(self):
         self.parser.expect('[')
@@ -277,11 +265,61 @@ class PeerParser:
         # TODO: ignore tls name for now
         _ = self.parser.parse_string(',')
         self.parser.offset += 1
-        # TODO: leave off
         hosts = self.parse_hosts()
+        self.parser.expect(']')
 
-    def parse_hosts(self):
-        pass
+        peer = Peer(node_name, hosts)
+        return peer
+
+    def parse_hosts(self) -> list[Host]:
+        hosts = []
+        self.parser.expect('[')
+        if self.parser.buffer[self.parser.offset] == ']':
+            return hosts
+
+        while True:
+            host = self.parse_host()
+            hosts.append(host)
+
+            if self.parser.buffer[self.parser.offset] == ']':
+                self.parser.offset += 1
+                return hosts
+
+            self.parser.offset += 1
+
+    def parse_host(self) -> Host:
+        if self.parser.buffer[self.parser.offset] == '[':
+            # Parse IPv6 address
+            self.parser.offset += 1
+            host = self.parser.parse_string(']')
+            self.parser.offset += 1
+        else:
+            # Parse IPv4 address
+            # Stop at : because there is a port after the address
+            # Stop at , because there is another address
+            # Stop at ] because this is the last address for this node
+            host = self.parser.parse_string(':', ',', ']')
+
+        # TODO: check for ip map
+
+        if self.parser.offset < self.parser.length:
+            b = self.parser.buffer[self.parser.offset]
+
+            if b == ':':
+                self.parser.offset += 1
+                port = self.parser.parse_int()
+                return Host(host, port)
+
+            if b == ',' or b == ']':
+                return Host(host, self.port_default)
+
+        # The response is truncated if:
+        # 1. We stopped at :, and there was no port
+        # 2. We stopped at , and there was another expected host
+        # 3. We stopped at ], and the response ends here without a closing ] for the list of nodes
+        # TODO: return truncated response
+        response = str(self.parser.buffer, encoding='utf-8')
+        raise AerospikeException(f"Unterminated host in response: {response}")
 
 class Pool:
     conns: list[Optional[Connection]]
@@ -424,14 +462,12 @@ class Node:
         try:
             logging.debug(f"Update peers for node {self.name}")
 
-            parser = await PeerParser.new()
-
-            # Peers object is peers for this node
-            # TODO: follow java implementation of PeerParser
-            peers.peers.clear()
-            peers.peers = parser.parse(response)
+            parser = await PeerParser.new(self.cluster, self.tend_conn, peers.peers)
+            self.peers_count = len(peers.peers)
 
             peers_validated = True
+
+            # TODO: continue from here
             for peer in peers.peers:
                 if self.peer_node_exists(peers, peer.node_name) is False:
                     continue
