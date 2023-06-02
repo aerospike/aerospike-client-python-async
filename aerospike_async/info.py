@@ -1,6 +1,7 @@
 from typing import Optional
 
 from .connection import Connection
+from .cluster import ResultCode
 from exceptions import AerospikeException
 
 PROTOCOL_VERSION = 2
@@ -38,9 +39,10 @@ class Info:
         return info.parse_multi_response(buf)
 
     @staticmethod
-    async def new(conn: Connection, command: str):
+    async def new(conn: Connection, commands: list[str]):
         # TODO: use buffer
-        info = Info([command])
+        info = Info(commands)
+
         await info.send_command(conn)
         return info
 
@@ -96,3 +98,56 @@ class Info:
             self.offset += 1
         # If string doesn't exist, an empty string is returned
         return str(self.buffer[begin:self.offset], encoding='utf-8')
+
+    def parse_name(self, name: str):
+        begin = self.offset
+        while self.offset < self.length:
+            if self.buffer[self.offset] == '\t':
+                s = str(self.buffer[begin:self.offset], encoding='utf-8')
+                if name == s:
+                    self.offset += 1
+                    # Check for error message after request name
+                    # <request>\t<error>\n
+                    self.check_error()
+                    return
+                break
+            self.offset += 1
+
+            raise AerospikeException(f"Failed to find {name}")
+
+	# Check if the info command returned an error.
+	# If so, include the error code and string in the exception.
+    def check_error(self):
+        if self.offset + 4 >= self.length:
+            return
+
+        if self.buffer[self.offset:self.offset + 5] != "ERROR":
+            return
+
+        self.offset += 5
+        self.skip_delimiter(':')
+
+        begin = self.offset
+        code = self.parse_int()
+
+        if code == 0:
+            code = ResultCode.SERVER_ERROR
+
+        if self.offset > begin:
+            self.skip_delimiter(':')
+        elif self.buffer[self.offset] == ':':
+            # TODO: ERROR:: is possible?
+            self.offset += 1
+
+        message = self.parse_string('\n')
+
+        raise AerospikeException(code, message)
+
+    # Find next delimiter and skip over it
+    def skip_delimiter(self, stop: str):
+        while self.offset < self.length:
+            b = self.buffer[self.offset]
+            self.offset += 1
+            if b == stop:
+                break
+

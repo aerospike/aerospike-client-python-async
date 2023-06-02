@@ -1,54 +1,201 @@
 from __future__ import annotations
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
 import base64
-import re
 from typing import Optional
+from enum import IntEnum
 
 from .host import Host
 from .connection import Connection
 from .info import Info
 from .exceptions import InvalidNodeException, AerospikeException
 
-@dataclass
+class Partitions:
+    replicas: list[list[Optional[Node]]]
+    regimes: list[int]
+
+    # TODO: missing sc mode
+    def __init__(self, partition_count: int, replica_count: int):
+        self.replicas = []
+        for _ in range(replica_count):
+            # Insert partition array for each replica
+            self.replicas.append([None for _ in range(partition_count)])
+        self.regimes = [0 for _ in range(partition_count)]
+
+    @staticmethod
+    def resize(other: Partitions, replica_count: int) -> Partitions:
+        replicas = []
+
+        if len(other.replicas) < replica_count:
+            # Copy existing entries
+            for i in range(len(other.replicas)):
+                replicas.append(other.replicas[i])
+
+            # Create new entries
+            for i in range(len(other.replicas), replica_count):
+                replicas.append([None for _ in range(len(other.regimes))])
+        else:
+            # Copy existing entries
+            for i in range(replica_count):
+                replicas.append(other.replicas[i])
+
+        # TODO: create another constructor
+        partitions = Partitions(len(other.regimes), replica_count)
+        partitions.replicas = replicas
+        partitions.regimes = other.regimes
+        return partitions
+
 class PartitionParser:
     conn: Connection
     node: Node
-    PARTITION_GENERATION_CMD: ClassVar[str] = "partition-generation"
-    REPLICAS_ALL_CMD: ClassVar[str] = "replicas-all"
+    partition_map: dict[str, Partitions]
+    partition_count: int
+    generation: int
+    info: Info
 
-    async def update_partitions(self, partitions: dict):
+    PARTITION_GENERATION_COMMAND: ClassVar[str] = "partition-generation"
+    REPLICAS_ALL_COMMAND: ClassVar[str] = "replicas"
+
+    def __init__(self, partition_map: dict[str, Partitions], partition_count: int):
+        self.partition_count = partition_count
+        self.partition_map = partition_map
+        self.copied = False
+        self.regime_error = False
+
+    @classmethod
+    async def new(cls, conn: Connection, node: Node, partition_map: dict[str, Partitions], partition_count: int) -> PartitionParser:
+        pp = PartitionParser(partition_map, partition_count)
         commands = [
-            self.PARTITION_GENERATION_CMD,
-            self.REPLICAS_ALL_CMD
+            cls.PARTITION_GENERATION_COMMAND,
+            cls.REPLICAS_ALL_COMMAND
         ]
-        info_map = await Info.request(self.conn, commands)
+        pp.info = await Info.new(conn, commands)
 
-        partition_generation = int(info_map[self.PARTITION_GENERATION_CMD])
+        if pp.info.length == 0:
+            raise AerospikeException("Partition info is empty")
 
-        if self.REPLICAS_ALL_CMD not in info_map:
-            raise AerospikeException(f"{self.REPLICAS_ALL_CMD} was not returned from node {self.node}")
+        pp.generation = pp.parse_generation()
+        pp.parse_replicas_all(node, cls.REPLICAS_ALL_COMMAND)
+        return pp
 
-        replicas_all_response = info_map[self.REPLICAS_ALL_CMD]
-        rows = replicas_all_response.split(";")
-        for row in rows:
-            entries = row.split(":,")
-            namespace = entries[0]
-            replica_count = int(entries[1])
+    def parse_generation(self) -> int:
+        self.info.parse_name(self.PARTITION_GENERATION_COMMAND)
+        gen = self.info.parse_int()
+        self.info.expect('\n')
+        return gen
 
-            if namespace not in partitions:
-                partitions[namespace] = {}
+    def parse_replicas_all(self, node: Node, command: str):
+        info = self.info
+        self.info.parse_name(command)
 
-            for i in range(replica_count):
-                bitmap = entries[2 + i]
-                bitmap = base64.b64decode(bitmap)
-                print(bitmap)
+        begin = info.offset
+        regime = 0
 
-#                for byte in bitmap:
-#                    for i in range(8):
-#                        contains_partition = byte & (0b10000000 >> i) != 0
-#                        if contains_partition
+        while info.offset < info.length:
+            if info.buffer[info.offset] == ':':
+                # Parse namespace
+                namespace = str(info.buffer[begin:info.offset], encoding='utf-8').strip()
+                if len(namespace) <= 0 or len(namespace) >= 32:
+                    # TODO: get truncated response
+                    response = str(info.buffer, encoding='utf-8')
+                    raise AerospikeException(f"Invalid partition namespace {namespace}. Response={response}")
+
+                info.offset += 1
+                begin = info.offset
+
+                # Parse regime
+                if command == self.REPLICAS_ALL_COMMAND:
+                    while info.offset < info.length:
+                        b = info.buffer[info.offset]
+
+                        if b == ',':
+                            break
+                        info.offset += 1
+                    regime = int.from_bytes(info.buffer[begin:info.offset], byteorder='big')
+                    info.offset += 1
+                    begin = info.offset
+
+                # Parse replica count
+                while info.offset < info.length:
+                    b = info.buffer[info.offset]
+
+                    if b == ',':
+                        break
+                    info.offset += 1
+                replica_count = int.from_bytes(info.buffer[begin:info.offset], byteorder='big')
+
+                partitions = self.partition_map.get(namespace)
+
+                if partitions == None:
+                    # Create new replica array
+                    partitions = Partitions(self.partition_count, replica_count)
+                    # TODO: not sure what this is for?
+                    self.copy_partition_map()
+                    self.partition_map[namespace] = partitions
+                elif len(partitions.replicas) != replica_count:
+                    logging.info(f"Namespace {namespace} replication factor changed from {len(partitions.replicas)} to {replica_count}")
+
+                    tmp = Partitions.resize(partitions, replica_count)
+                    self.copy_partition_map()
+                    partitions = tmp
+                    self.partition_map[namespace] = partitions
+
+                # Parse partition bitmaps
+                for i in range(replica_count):
+                    info.offset += 1
+                    begin = info.offset
+
+                    # Find bitmap endpoint
+                    while info.offset < info.length:
+                        b = info.buffer[info.offset]
+
+                        if b == ',' or b == ';':
+                            break
+
+                        info.offset += 1
+
+                    if info.offset == begin:
+                        response = str(info.buffer, encoding='utf-8')
+                        raise AerospikeException(f"Empty partition id for namespace {namespace}. Response={response}")
+
+                    self.decode_bitmap(node, partitions, i, regime, begin)
+                info.offset += 1
+                begin = info.offset
+            else:
+                info.offset += 1
+
+    def decode_bitmap(self, node: Node, partitions: Partitions, index: int, regime: int, begin: int):
+        node_array = partitions.replicas[index]
+        regimes = partitions.regimes
+
+        info = self.info
+        restore_buffer = base64.decodebytes(info.buffer[begin:info.offset])
+
+        for i in range(self.partition_count):
+            node_old = node_array[i]
+            # TODO: how does this work?
+            if restore_buffer[i >> 3] & (0x80 >> (i & 7)) != 0:
+                # Node owns this partition
+                regime_old = regimes[i]
+                if regime >= regime_old:
+                    if regime > regime_old:
+                        regimes[i] = regime
+
+                    if node_old != None and node_old != node:
+						# Force previously mapped node to refresh it's partition map on next cluster tend.
+                        node_old.partition_generation = -1
+
+                    node_array[i] = node
+                else:
+                    if self.regime_error is False:
+                        logging.info(f"{str(node)} regime({regime}) < old regime({regime_old})")
+                        self.regime_error = True
+
+    def copy_partition_map(self):
+        if self.copied is False:
+            self.partition_map = self.partition_map.copy()
+            self.copied = True
 
 @dataclass
 class Peer:
@@ -304,7 +451,7 @@ class PeerParser:
     @staticmethod
     async def new(cluster: Cluster, conn: Connection, peers: list[Peer]) -> PeerParser:
         command = "peers-clear-std"
-        parser = await Info.new(conn, command)
+        parser = await Info.new(conn, [command])
 
         peer_parser = PeerParser(cluster, peers, parser, command)
         return peer_parser
@@ -402,6 +549,7 @@ class Pool:
         return True
 
 class Node:
+    PARTITIONS = 4096
     def __init__(self, cluster: Cluster, nv: NodeValidator):
         self.cluster = cluster
         self.name = nv.name
@@ -627,14 +775,26 @@ class Node:
         self.conns_closed += 1
         await conn.close()
 
-    async def create_connection(self, pool: Pool) -> Connection
+    async def create_connection(self, pool: Pool) -> Connection:
         conn = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
         self.conns_opened += 1
         # TODO: check if auth enabled
         return conn
 
     async def refresh_partitions(self, peers: Peers):
-        parser = PartitionParser()
+        if self.failures > 0 or self.active is False or (self.peers_count == 0 and peers.refresh_count > 1):
+            return
+
+        try:
+            logging.debug(f"Update partition map for node {self}")
+            parser = await PartitionParser.new(self.tend_connection, self, self.cluster.partition_map, Node.PARTITIONS)
+
+            if parser.copied:
+                self.cluster.partition_map = parser.partition_map
+
+            partition_generation = parser.generation
+        except Exception as e:
+            await self.refresh_failed(e)
 
     async def close(self):
         self.active = False
@@ -786,3 +946,6 @@ class NodeValidator:
             self.fallback = None
 
         return True
+
+class ResultCode(IntEnum):
+    SERVER_ERROR = 1
