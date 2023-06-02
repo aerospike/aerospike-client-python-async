@@ -1,4 +1,5 @@
 from .connection import Connection
+from exceptions import AerospikeException
 
 PROTOCOL_VERSION = 2
 AS_INFO = 1
@@ -50,17 +51,42 @@ class Info:
             responses[res[i]] = res[i + 1]
         return responses
 
-    # def skip_to_value(self):
-    #     while self.offset < self.length:
-    #         b = self.buffer[self.offset]
+    def skip_to_value(self):
+        while self.offset < self.length:
+            b = self.buffer[self.offset]
 
-    #         if b == '\t':
-    #             self.offset += 1
-    #             break
+            if b == '\t':
+                self.offset += 1
+                break
 
-    #         if b == '\n':
-    #             break
+            if b == '\n':
+                break
 
-    #         self.offset += 1
+            self.offset += 1
 
-    # def parse_int(self):
+    def parse_int(self):
+        begin = self.offset
+        end = self.offset
+        while self.offset < self.length:
+            b = self.buffer[self.offset]
+            if b < 48 or b > 57:
+                # Encountered end of integer
+                end = self.offset
+                break
+            self.offset += 1
+        val = int.from_bytes(self.buffer[begin:end], byteorder='big')
+        return val
+
+    def expect(self, expected: str):
+        if expected != self.buffer[self.offset]:
+            raise AerospikeException(f"Expected {expected} Received: {self.buffer[self.offset]}")
+        self.offset += 1
+
+    def parse_string(self, stop: str):
+        begin = self.offset
+        while self.offset < self.length:
+            b = self.buffer[self.offset]
+            if b == stop:
+                break
+            self.offset += 1
+        return str(self.buffer[begin:self.offset])

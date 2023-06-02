@@ -218,6 +218,7 @@ class Cluster:
 
 class PeerParser:
     cluster: Cluster
+    parser: Info
     port_default: int
     generation: int
 
@@ -225,39 +226,62 @@ class PeerParser:
         self.cluster = cluster
 
     @staticmethod
-    async def new(cluster: Cluster, conn: Connection, peers: list[Peer]):
+    async def new(cluster: Cluster, conn: Connection, peers: list[Peer]) -> PeerParser:
         peer_parser = PeerParser(cluster)
 
         command = "peers-clear-std"
         parser = await Info.new(conn, command)
+        peer_parser.parser = parser
+
         if parser.length == 0:
             raise AerospikeException(f"{command} response is empty")
 
         # TODO
-        # parser.skip_to_value()
-        # generation = parser.parse_int()
-        # parser.expect(',')
-        # port_default = parser.parse_int()
-        # parser.expect(',')
-        # parser.expect('[')
+        parser.skip_to_value()
+        generation = parser.parse_int()
+        parser.expect(',')
+        port_default = parser.parse_int()
+        parser.expect(',')
+        parser.expect('[')
 
-        RESPONSE_REGEX = re.compile(r"(\d+),(\d+),\[(.*)\]")
-        match = RESPONSE_REGEX.search(str(parser.buffer))
-        if match is None:
-            raise AerospikeException("Unable to parse peers")
-        generation, port_default, nodes = match.groups()
-        port_default = int(port_default)
+        peers.clear()
 
-        peer_matches = NODE_REGEX.finditer(peers)
-        peers = []
-        for peer_match in peer_matches:
-            node_name, _, peer_ips = peer_match.groups()
-            peer_ips = peer_ips.split(",")
-            hosts = [Host(ip, default_port, None) for ip in peer_ips]
-            peer = Peer(node_name, hosts)
+        if parser.buffer[parser.offset] == ']':
+            return peer_parser
+
+        while True:
+            peer = peer_parser.parse_peer()
             peers.append(peer)
-        return peers
 
+        # RESPONSE_REGEX = re.compile(r"(\d+),(\d+),\[(.*)\]")
+        # match = RESPONSE_REGEX.search(str(parser.buffer))
+        # if match is None:
+        #     raise AerospikeException("Unable to parse peers")
+        # generation, port_default, nodes = match.groups()
+        # port_default = int(port_default)
+
+        # peer_matches = NODE_REGEX.finditer(peers)
+        # peers = []
+        # for peer_match in peer_matches:
+        #     node_name, _, peer_ips = peer_match.groups()
+        #     peer_ips = peer_ips.split(",")
+        #     hosts = [Host(ip, default_port, None) for ip in peer_ips]
+        #     peer = Peer(node_name, hosts)
+        #     peers.append(peer)
+        # return peers
+
+    def parse_peer(self):
+        self.parser.expect('[')
+        node_name = self.parser.parse_string(',')
+        self.parser.offset += 1
+        # TODO: ignore tls name for now
+        _ = self.parser.parse_string(',')
+        self.parser.offset += 1
+        # TODO: leave off
+        hosts = self.parse_hosts()
+
+    def parse_hosts(self):
+        pass
 
 class Pool:
     conns: list[Optional[Connection]]
@@ -400,7 +424,7 @@ class Node:
         try:
             logging.debug(f"Update peers for node {self.name}")
 
-            parser = PeerParser()
+            parser = await PeerParser.new()
 
             # Peers object is peers for this node
             # TODO: follow java implementation of PeerParser
