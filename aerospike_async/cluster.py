@@ -215,23 +215,36 @@ class Cluster:
     cluster_name: Optional[str]
 
     def __init__(self, hosts: list[Host]):
+        # Initial host nodes specified by user
         self.seeds = hosts
+        # Active nodes in cluster
         self.nodes: list[Node] = []
+        # Map of active nodes in cluster
+        # Only accessed within cluster tend thread
         self.nodes_map: dict[str, Node] = {}
+        # Hints for best node for a partition
         self.partition_map = {}
+        # Cluster tend counter
         self.tend_count = 0
-        # TODO: properly initialize tend thread
         self.tend_valid = True
 
+        # Expected cluster name
         self.cluster_name = None
 
-        self.min_conns_per_node = 10 # for testing
-        self.conn_timeout = 3 # for testing
+        # Minimum sync connections per node
+        self.min_conns_per_node = 10
+        # Initial connection timeout
+        self.conn_timeout = 3
+        # Max errors per node per error_rate_window
         self.max_error_rate = 100
+        # Number of tend iterations defining window for max_error_rate
         self.error_rate_window = 1
+        # Maximum socket idle to trim peak connections to min connections.
+        # 55 seconds
         self.max_socket_idle_nanos_trim = 55 * 10**9
+        # Interval in seconds between cluster tends
         self.tend_interval = 1
-
+        # Does cluster support query by partition
         self.has_partition_query = False
 
     @staticmethod
@@ -239,6 +252,7 @@ class Cluster:
         cluster = Cluster(hosts)
         await cluster.init_tend_thread()
 
+    # TODO: add fail if not connected parameter
     async def init_tend_thread(self):
         await self.wait_till_stabilized()
 
@@ -285,8 +299,11 @@ class Cluster:
                 return True
         return False
 
+    # Tend the cluster until it has stabilized and return control.
+    # This helps avoid initial database request timeout issues when
+    # a large number of threads are initiated at client startup.
     async def wait_till_stabilized(self):
-        # TODO: pass in fail_if_not_connected, is_init
+        # TODO: pass in fail_if_not_connected and is_init
         await self.tend()
 
         if len(self.nodes) == 0:
@@ -295,10 +312,14 @@ class Cluster:
             logging.warn(message)
 
     async def tend(self):
+        # My notes:
         # Pass this to each node
         # so every node sees changes
         # From client's perspective, every node knows about the changes in the whole cluster
         # even if some nodes don't actually know about the change (e.g due to network latency)
+        # Java:
+        # All node additions/deletions are performed in tend thread.
+        # Initialize tend iteration node statistics.
         peers = Peers()
 
         # Clear node reference counts
@@ -307,6 +328,7 @@ class Cluster:
             node.partition_changed = False
             node.rebalance_changed = False
 
+        # If active nodes don't exist, seed cluster.
         if len(self.nodes) == 0:
             # No active nodes
             # TODO: implement fail_if_not_connected
@@ -509,8 +531,10 @@ class PeerParser:
         parser.expect(',')
         parser.expect('[')
 
+        # Reset peers
         peers.clear()
 
+        # No peers for this node
         if parser.buffer[parser.offset] == ']':
             return
 
@@ -525,6 +549,7 @@ class PeerParser:
 
     @staticmethod
     async def new(cluster: Cluster, conn: Connection, peers: list[Peer]) -> PeerParser:
+        # TODO: check for tls policy and services alternate
         command = "peers-clear-std"
         parser = await Info.new(conn, [command])
 
@@ -756,14 +781,15 @@ class Node:
             self.partition_generation = partition_gen
 
     async def refresh_peers(self, peers: Peers):
+		# Do not refresh peers when node connection has already failed during this cluster tend iteration.
         if self.failures > 0 or not self.active:
             return
 
         cluster = self.cluster
         try:
+            # TODO: check if logging debug is enabled?
             logging.debug(f"Update peers for node {self.name}")
 
-            # Get peer hosts for this node
             parser = await PeerParser.new(self.cluster, self.tend_connection, peers.peers)
             self.peers_count = len(peers.peers)
 
@@ -771,7 +797,7 @@ class Node:
 
             for peer in peers.peers:
                 if self.find_peer_node(peers, peer.node_name) is False:
-                    # Node already exists
+                    # Node already exists. Do not even try to connect to hosts.
                     continue
 
                 node_validated = False
@@ -787,7 +813,6 @@ class Node:
                         nv = NodeValidator()
                         await nv.validate_node(cluster, host)
 
-                        # If node name doesn't match, just create node with node validator's node name
                         if peer.node_name != nv.name:
 							# Must look for new node name in the unlikely event that node names do not agree.
                             logging.warn(f"Peer node {peer.node_name} is different from actual node {nv.name} for host {host}")
@@ -798,17 +823,20 @@ class Node:
                                 node_validated = True
                                 break
 
+                        # Create new node
                         node = await self.cluster.create_node(nv)
                         peers.nodes[nv.name] = node
                         node_validated = True
                         break
                     except Exception as e:
+                        # TODO: use peers.fail(host)
                         peers.invalid_hosts.add(host)
                         logging.warn(f"Add node {host} failed: {e}")
 
                 if node_validated == False:
                     peers_validated = False
 
+            # Only set new peers generation if all referenced peers are added to the cluster.
             if peers_validated:
                 self.peers_generation = parser.generation
             peers.refresh_count += 1
@@ -834,6 +862,7 @@ class Node:
             self.error_count += 1
 
     def find_peer_node(self, peers: Peers, node_name: str) -> bool:
+        # Check global node map for existing cluster
         node = self.cluster.nodes_map.get(node_name)
 
         if node != None:
@@ -933,8 +962,8 @@ class NodeValidator:
         self.fallback = None
         self.primary_conn = None
 
+    # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
     async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Optional[Node]:
-        # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
         try:
             await self.validate_address(cluster, host)
 
@@ -990,9 +1019,10 @@ class NodeValidator:
                 commands.append("cluster-name")
 
             # TODO: check for load balancer when determining service command
-            if host.is_loopback() is False:
-                commands.append("service-clear-std")
+            # if host.is_loopback() is False:
+            #     commands.append("service-clear-std")
 
+            # Issue commands
             info_map = await Info.request(self.primary_conn, commands)
 
             self._validate_node(info_map)
@@ -1032,7 +1062,14 @@ class NodeValidator:
             features = info_map["features"]
             self.features = features.split(";")
         except:
+            # Unexpected exception. Use defaults.
             pass
+
+		# This client requires partition scan support. Partition scans were first
+		# supported in server version 4.9. Do not allow any server node into the
+		# cluster that is running server version < 4.9.
+        if self.features and "pscans" not in self.features:
+            raise AerospikeException(f"Node {self.name} {self.primary_host} version < 4.9. This client requires server version >= 4.9")
 
     def validate_cluster_name(self, cluster: Cluster, info_map: dict[str, str]):
         id = info_map.get("cluster_name")
@@ -1051,7 +1088,9 @@ class NodeValidator:
             raise e
 
         if node.peers_count == 0:
+			# Node is suspect because multiple seeds are used and node does not have any peers.
             if self.fallback == None:
+                # TODO: leave off from here
                 self.fallback = node
             else:
                 await node.close()
