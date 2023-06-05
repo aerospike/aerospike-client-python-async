@@ -625,7 +625,6 @@ class Pool:
     tail: int
     size: int
     min_size: int
-    max_size: int
     total: int # total connections
 
     def __init__(self, min_size: int, max_size: int):
@@ -633,13 +632,15 @@ class Pool:
         self.size = 0
         self.conns = [None for _ in range(max_size)]
         self.total = 0
+        self.head = 0
+        self.tail = 0
 
     def offer(self, conn: Connection):
         if conn == None:
             # TODO: use Python equivalent
             raise AerospikeException("NullPointerException")
 
-        if len(self.conns) == self.max_size:
+        if len(self.conns) == self.size:
             return False
 
         self.conns[self.head] = conn
@@ -659,7 +660,7 @@ class Pool:
             # TODO: lock might be important?
             if self.size == 0:
                 return
-            
+
             conn = self.conns[self.tail]
 
             if cluster.is_conn_current_trim(conn.last_used_time_ns):
@@ -979,8 +980,6 @@ class NodeValidator:
 
             # TODO: exception logic
             exception = e
-        finally:
-            await self.primary_conn.close()
 
         if self.fallback != None:
             return None
@@ -1003,7 +1002,7 @@ class NodeValidator:
             raise AerospikeException("Invalid host passed to node validator")
 
         # TODO: also check for tls policy when creating connection
-        self.primary_conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
+        conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
 
         try:
             # TODO: check if cluster has authentication enabled
@@ -1023,7 +1022,10 @@ class NodeValidator:
             #     commands.append("service-clear-std")
 
             # Issue commands
-            info_map = await Info.request(self.primary_conn, commands)
+            info_map = await Info.request(conn, commands)
+
+            self.primary_host = host
+            self.primary_conn = conn
 
             self._validate_node(info_map)
             self.validate_partition_generation(info_map)
