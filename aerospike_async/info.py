@@ -28,6 +28,7 @@ class Info:
         buf = await conn.read(8)
         self.length = int.from_bytes(buf[2:8], byteorder='big')
         buf = await conn.read(self.length)
+        self.buffer = bytearray(buf)
 
         self.offset = 0
         return buf
@@ -47,23 +48,53 @@ class Info:
         return info
 
     def parse_multi_response(self, buf: bytes) -> dict[str, str]:
-        # If command is invalid, the command and value for it will not be returned from the server (in the buffer)
+        offset = 0
+        begin = 0
         responses = {}
-        res = str(buf, encoding="utf-8")
-        res = res.split()
-        for i in range(0, len(res), 2):
-            responses[res[i]] = res[i + 1]
+        while offset < self.length:
+            b = self.buffer[offset]
+            if b == ord('\t'):
+                name = str(self.buffer[begin:offset], encoding='utf-8')
+                offset += 1
+                self.check_error()
+                begin = offset
+
+                # Parse field value
+                while offset < self.length:
+                    if self.buffer[offset] == ord('\n'):
+                        break
+                    offset += 1
+
+                if offset > begin:
+                    # Non-empty value for this field was returned
+                    value = str(self.buffer[begin:offset], encoding='utf-8')
+                    responses[name] = value
+                else:
+                    # No value was returned for this field
+                    responses[name] = None
+            elif b == ord('\n'):
+                if offset > begin:
+                    name = str(self.buffer[begin:offset], encoding='utf-8')
+                    responses[name] = None
+                offset += 1
+                begin = offset
+            else:
+                offset += 1
+
+        # TODO: If only one field was returned with no value?
+        if offset > begin:
+            name = str(self.buffer[begin:offset], encoding='utf-8')
+            responses[name] = None
         return responses
 
     def skip_to_value(self):
         while self.offset < self.length:
             b = self.buffer[self.offset]
-
-            if b == '\t':
+            if b == ord('\t'):
                 self.offset += 1
                 break
 
-            if b == '\n':
+            if b == ord('\n'):
                 break
 
             self.offset += 1
@@ -83,17 +114,17 @@ class Info:
         return val
 
     def expect(self, expected: str):
-        if expected != self.buffer[self.offset]:
-            raise AerospikeException(f"Expected {expected} Received: {self.buffer[self.offset]}")
+        if ord(expected) != self.buffer[self.offset]:
+            raise AerospikeException(f"Expected {expected} Received: {chr(self.buffer[self.offset])}")
         self.offset += 1
 
     def parse_string(self, stop1: str, stop2: Optional[str] = None, stop3: Optional[str] = None) -> str:
         begin = self.offset
         while self.offset < self.length:
             b = self.buffer[self.offset]
-            if b == stop1:
+            if b == ord(stop1):
                 break
-            if (stop2 != None and b == stop2) or (stop3 != None and b == stop3):
+            if (stop2 != None and b == ord(stop2)) or (stop3 != None and b == ord(stop3)):
                 break
             self.offset += 1
         # If string doesn't exist, an empty string is returned
@@ -102,7 +133,7 @@ class Info:
     def parse_name(self, name: str):
         begin = self.offset
         while self.offset < self.length:
-            if self.buffer[self.offset] == '\t':
+            if self.buffer[self.offset] == ord('\t'):
                 s = str(self.buffer[begin:self.offset], encoding='utf-8')
                 if name == s:
                     self.offset += 1
@@ -113,7 +144,7 @@ class Info:
                 break
             self.offset += 1
 
-            raise AerospikeException(f"Failed to find {name}")
+        raise AerospikeException(f"Failed to find {name}")
 
 	# Check if the info command returned an error.
 	# If so, include the error code and string in the exception.
@@ -121,7 +152,7 @@ class Info:
         if self.offset + 4 >= self.length:
             return
 
-        if self.buffer[self.offset:self.offset + 5] != "ERROR":
+        if str(self.buffer[self.offset:self.offset + 5], encoding='utf-8') != "ERROR":
             return
 
         self.offset += 5
@@ -135,7 +166,7 @@ class Info:
 
         if self.offset > begin:
             self.skip_delimiter(':')
-        elif self.buffer[self.offset] == ':':
+        elif self.buffer[self.offset] == ord(':'):
             # TODO: ERROR:: is possible?
             self.offset += 1
 
@@ -148,7 +179,7 @@ class Info:
         while self.offset < self.length:
             b = self.buffer[self.offset]
             self.offset += 1
-            if b == stop:
+            if b == ord(stop):
                 break
 
 class ResultCode(IntEnum):

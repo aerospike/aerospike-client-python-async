@@ -525,7 +525,7 @@ class PeerParser:
             raise AerospikeException(f"{command} response is empty")
 
         parser.skip_to_value()
-        generation = parser.parse_int()
+        self.generation = parser.parse_int()
         parser.expect(',')
         self.port_default = parser.parse_int()
         parser.expect(',')
@@ -535,14 +535,14 @@ class PeerParser:
         peers.clear()
 
         # No peers for this node
-        if parser.buffer[parser.offset] == ']':
+        if parser.buffer[parser.offset] == ord(']'):
             return
 
         while True:
             peer = self.parse_peer()
             peers.append(peer)
 
-            if parser.offset < parser.length and parser.buffer[parser.offset] == ',':
+            if parser.offset < parser.length and parser.buffer[parser.offset] == ord(','):
                 parser.offset += 1
             else:
                 break
@@ -572,21 +572,21 @@ class PeerParser:
     def parse_hosts(self) -> list[Host]:
         hosts = []
         self.parser.expect('[')
-        if self.parser.buffer[self.parser.offset] == ']':
+        if self.parser.buffer[self.parser.offset] == ord(']'):
             return hosts
 
         while True:
             host = self.parse_host()
             hosts.append(host)
 
-            if self.parser.buffer[self.parser.offset] == ']':
+            if self.parser.buffer[self.parser.offset] == ord(']'):
                 self.parser.offset += 1
                 return hosts
 
             self.parser.offset += 1
 
     def parse_host(self) -> Host:
-        if self.parser.buffer[self.parser.offset] == '[':
+        if self.parser.buffer[self.parser.offset] == ord('['):
             # Parse IPv6 address
             self.parser.offset += 1
             host = self.parser.parse_string(']')
@@ -603,12 +603,12 @@ class PeerParser:
         if self.parser.offset < self.parser.length:
             b = self.parser.buffer[self.parser.offset]
 
-            if b == ':':
+            if b == ord(':'):
                 self.parser.offset += 1
                 port = self.parser.parse_int()
                 return Host(host, port)
 
-            if b == ',' or b == ']':
+            if b == ord(',') or b == ord(']'):
                 return Host(host, self.port_default)
 
         # The response is truncated if:
@@ -735,21 +735,18 @@ class Node:
             self.refresh_rebalance_generation(info_map)
 
             if "node" not in info_map:
-                self.health -= 1
                 raise AerospikeException("Node name is empty")
 
             if info_map["node"] != self.name:
                 self.active = False
                 raise AerospikeException(f"Node name changed from {self.name} to {info_map['node']}")
 
-            self.health = 100
             self.responded = True
 
             peers.refresh_count += 1
             self.failures = 0
         except Exception as e:
             await conn.close()
-            self.health -= 1
             peers.generation_changed = True
             print(f"Node {self.name} refresh failed: {e}")
             self.failures += 1
@@ -911,6 +908,9 @@ class Node:
         self.conns_opened += 1
         # TODO: check if auth enabled
         return conn
+
+    def __repr__(self):
+        return repr(f"{self.name} {self.host}")
 
     async def refresh_partitions(self, peers: Peers):
         if self.failures > 0 or self.active is False or (self.peers_count == 0 and peers.refresh_count > 1):

@@ -14,9 +14,12 @@ async def main():
     # res = await Info.request(conn, ["statisticss"])
     # print(res)
 
-    hosts = [Host("172.17.0.2", 3000)]
+    hosts = [Host("172.17.0.3", 3000)]
     c = await Cluster.new(hosts)
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.DEBUG,
+    datefmt='%Y-%m-%d %H:%M:%S')
 asyncio.run(main())
