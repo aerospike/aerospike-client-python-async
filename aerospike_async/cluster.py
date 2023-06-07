@@ -434,7 +434,13 @@ class Cluster:
             del self.nodes_map[node.name]
             # TODO: remove aliases
             await node.close()
-        # TODO: remove nodes copy
+
+        self.remove_nodes_copy(nodes)
+
+    def remove_nodes_copy(self, nodes_to_remove: list[Node]):
+		# TODO: do this properly
+        for node in nodes_to_remove:
+            self.nodes.remove(node)
 
     def add_nodes(self, nodes_to_add: dict[str, Node]):
         node_array = []
