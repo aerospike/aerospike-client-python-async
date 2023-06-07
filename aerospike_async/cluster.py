@@ -225,7 +225,7 @@ class Cluster:
         # Only accessed within cluster tend thread
         self.nodes_map: dict[str, Node] = {}
         # Hints for best node for a partition
-        self.partition_map = {}
+        self.partition_map: dict[str, Partitions] = {}
         # Cluster tend counter
         self.tend_count = 0
         self.tend_valid = True
@@ -419,7 +419,7 @@ class Cluster:
 				# Check if node responded to info request.
                 if node.failures == 0:
                     # Node is alive, but not referenced by other nodes.  Check if mapped.
-                    if self.node_in_partition_map(node) is False:
+                    if self.find_node_in_partition_map(node) is False:
 						# Node doesn't have any partitions mapped to it.
 						# There is no point in keeping it in the cluster.
                         remove_list.append(node)
@@ -438,7 +438,7 @@ class Cluster:
         self.remove_nodes_copy(nodes)
 
     def remove_nodes_copy(self, nodes_to_remove: list[Node]):
-		# TODO: do this properly
+        # TODO: do this properly
         for node in nodes_to_remove:
             self.nodes.remove(node)
 
@@ -470,9 +470,9 @@ class Cluster:
         self.nodes_map[node.name] = node
         # TODO: add node's aliases
 
-    def node_in_partition_map(self, node: Node) -> bool:
-        for ns_partition_map in self.partition_map.values():
-            for node_list in ns_partition_map.values():
+    def find_node_in_partition_map(self, node: Node) -> bool:
+        for partitions in self.partition_map.values():
+            for node_list in partitions.replicas:
                 if node in node_list:
                     return True
         return False
