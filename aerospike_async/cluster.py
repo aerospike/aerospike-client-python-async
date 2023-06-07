@@ -94,7 +94,7 @@ class PartitionParser:
         regime = 0
 
         while info.offset < info.length:
-            if info.buffer[info.offset] == ':':
+            if info.buffer[info.offset] == ord(':'):
                 # Parse namespace
                 namespace = str(info.buffer[begin:info.offset], encoding='utf-8').strip()
                 if len(namespace) <= 0 or len(namespace) >= 32:
@@ -110,10 +110,10 @@ class PartitionParser:
                     while info.offset < info.length:
                         b = info.buffer[info.offset]
 
-                        if b == ',':
+                        if b == ord(','):
                             break
                         info.offset += 1
-                    regime = int.from_bytes(info.buffer[begin:info.offset], byteorder='big')
+                    regime = int(info.buffer[begin:info.offset])
                     info.offset += 1
                     begin = info.offset
 
@@ -121,10 +121,10 @@ class PartitionParser:
                 while info.offset < info.length:
                     b = info.buffer[info.offset]
 
-                    if b == ',':
+                    if b == ord(','):
                         break
                     info.offset += 1
-                replica_count = int.from_bytes(info.buffer[begin:info.offset], byteorder='big')
+                replica_count = int(info.buffer[begin:info.offset])
 
                 partitions = self.partition_map.get(namespace)
 
@@ -151,7 +151,7 @@ class PartitionParser:
                     while info.offset < info.length:
                         b = info.buffer[info.offset]
 
-                        if b == ',' or b == ';':
+                        if b == ord(',') or b == ord(';'):
                             break
 
                         info.offset += 1
@@ -160,6 +160,7 @@ class PartitionParser:
                         response = str(info.buffer, encoding='utf-8')
                         raise AerospikeException(f"Empty partition id for namespace {namespace}. Response={response}")
 
+                    # logging.info(f"Map: {namespace} [{i}] , {node}")
                     self.decode_bitmap(node, partitions, i, regime, begin)
                 info.offset += 1
                 begin = info.offset
@@ -179,6 +180,7 @@ class PartitionParser:
             if restore_buffer[i >> 3] & (0x80 >> (i & 7)) != 0:
                 # Node owns this partition
                 regime_old = regimes[i]
+
                 if regime >= regime_old:
                     if regime > regime_old:
                         regimes[i] = regime
@@ -794,7 +796,7 @@ class Node:
             peers_validated = True
 
             for peer in peers.peers:
-                if self.find_peer_node(peers, peer.node_name) is False:
+                if self.find_peer_node(peers, peer.node_name):
                     # Node already exists. Do not even try to connect to hosts.
                     continue
 
@@ -923,7 +925,7 @@ class Node:
             if parser.copied:
                 self.cluster.partition_map = parser.partition_map
 
-            partition_generation = parser.generation
+            self.partition_generation = parser.generation
         except Exception as e:
             await self.refresh_failed(e)
 

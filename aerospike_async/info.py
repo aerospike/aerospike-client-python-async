@@ -110,7 +110,7 @@ class Info:
                 break
             self.offset += 1
         # If integer doesn't exist, 0 is returned
-        val = int.from_bytes(self.buffer[begin:end], byteorder='big')
+        val = int(self.buffer[begin:end])
         return val
 
     def expect(self, expected: str):
