@@ -491,7 +491,7 @@ class Cluster:
             except Exception as e:
                 peers.invalid_hosts.add(seed)
                 # If this seed fails, try another seed
-                print(f"Failed to seed node: {e}")
+                logging.warn(f"Seed {seed} failed: {e}")
                 continue
 
         if nv.fallback != None:
@@ -756,7 +756,7 @@ class Node:
         except Exception as e:
             await conn.close()
             peers.generation_changed = True
-            print(f"Node {self.name} refresh failed: {e}")
+            logging.warn(f"Node {self.name} refresh failed: {e}")
             self.failures += 1
 
     def refresh_peers_generation(self, info_map: dict[str, str], peers: Peers):
