@@ -13,6 +13,8 @@ from .info import Info
 from .exceptions import InvalidNodeException, AerospikeException
 
 class Partitions:
+    # Array for each replica
+    # Each replica holds a list of partitions and which node owns it
     replicas: list[list[Optional[Node]]]
     regimes: list[int]
 
@@ -87,8 +89,12 @@ class PartitionParser:
         return gen
 
     def parse_replicas_all(self, node: Node, command: str):
+		# Use low-level info methods and parse byte array directly for maximum performance.
+		# Receive format: replicas-all\t
+		#                 <ns1>:[regime],<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;
+		#                 <ns2>:[regime],<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;\n
         info = self.info
-        self.info.parse_name(command)
+        info.parse_name(command)
 
         begin = info.offset
         regime = 0
@@ -97,6 +103,7 @@ class PartitionParser:
             if info.buffer[info.offset] == ord(':'):
                 # Parse namespace
                 namespace = str(info.buffer[begin:info.offset], encoding='utf-8').strip()
+
                 if len(namespace) <= 0 or len(namespace) >= 32:
                     # TODO: get truncated response
                     response = str(info.buffer, encoding='utf-8')
@@ -126,10 +133,12 @@ class PartitionParser:
                     info.offset += 1
                 replica_count = int(info.buffer[begin:info.offset])
 
+                # Ensure replica_count is uniform
                 partitions = self.partition_map.get(namespace)
 
                 if partitions == None:
                     # Create new replica array
+                    # TODO: support sc mode
                     partitions = Partitions(self.partition_count, replica_count)
                     # TODO: not sure what this is for?
                     self.copy_partition_map()
@@ -189,6 +198,7 @@ class PartitionParser:
 						# Force previously mapped node to refresh it's partition map on next cluster tend.
                         node_old.partition_generation = -1
 
+                    # TODO: use lazy set?
                     node_array[i] = node
                 else:
                     if self.regime_error is False:
@@ -332,31 +342,36 @@ class Cluster:
 
         # If active nodes don't exist, seed cluster.
         if len(self.nodes) == 0:
-            # No active nodes
             # TODO: implement fail_if_not_connected
             await self.seed_nodes(peers)
         else:
-            # Check if there were any changes in the cluster
+            # Refresh all known nodes
             for node in self.nodes:
                 await node.refresh(peers)
 
+            # Refresh peers when necessary
             if peers.generation_changed:
+                # Refresh peers for all nodes that responded the first time even if one node's peers changed.
                 peers.refresh_count = 0
 
                 for node in self.nodes:
                     await node.refresh_peers(peers)
 
+                # Handle node changes determined from refreshes.
                 remove_list = self.find_nodes_to_remove(peers.refresh_count)
 
+                # TODO: Remove nodes in a batch?
                 if len(remove_list) > 0:
                     await self.remove_nodes(remove_list)
 
+            # Add peer nodes to cluster.
             if len(peers.nodes) > 0:
                 self.add_nodes(peers.nodes)
                 await self.refresh_peers(peers)
 
         self.invalid_node_count = len(peers.invalid_hosts)
 
+        # Refresh partition map when necessary
         for node in self.nodes:
             if node.partition_changed:
                 await node.refresh_partitions(peers)
@@ -430,6 +445,9 @@ class Cluster:
         return remove_list
 
     async def remove_nodes(self, nodes: list[Node]):
+		# There is no need to delete nodes from partition map? because the nodes
+		# have already been set to inactive. Further connection requests will result
+		# in an exception and a different node will be tried.
         for node in nodes:
             del self.nodes_map[node.name]
             # TODO: remove aliases
@@ -726,47 +744,83 @@ class Node:
         self.partition_changed = False
 
     async def refresh(self, peers: Peers):
-        conn = self.tend_connection
+        if not self.active:
+            return
+
         try:
+            if self.tend_connection.is_closed():
+                # TODO: check for tls policy
+                self.tend_connection = await Connection.new(self.host.name, self.host.port, self.cluster.conn_timeout)
+                self.conns_opened += 1
+
+                # TODO: check if auth enabled
+
+            # TODO: check if rack aware
             commands = [
                 "node",
                 "partition-generation",
-                "cluster-name",
                 "peers-generation",
-                "services",
-                "rebalance-generation"
+                # TODO: "rebalance-generation"
             ]
-            info_map = await Info.request(conn, commands)
+            info_map = await Info.request(self.tend_connection, commands)
 
-            self.refresh_peers_generation(info_map, peers)
-            self.refresh_partition_generation(info_map)
-            self.refresh_rebalance_generation(info_map)
-
-            if "node" not in info_map:
-                raise AerospikeException("Node name is empty")
-
-            if info_map["node"] != self.name:
-                self.active = False
-                raise AerospikeException(f"Node name changed from {self.name} to {info_map['node']}")
-
-            self.responded = True
-
+            self.verify_node_name(info_map)
+            await self.verify_peers_generation(info_map, peers)
+            self.verify_partition_generation(info_map)
+            # TODO: self.refresh_rebalance_generation(info_map)
             peers.refresh_count += 1
+
+            # Reload peers, partitions, and racks if there were failures on previous tend
+            if self.failures > 0:
+                peers.generation_changed = True
+                self.partition_changed = True
+                # TODO: self.rebalance_changed
             self.failures = 0
         except Exception as e:
-            await conn.close()
             peers.generation_changed = True
-            logging.warn(f"Node {self.name} refresh failed: {e}")
-            self.failures += 1
+            await self.refresh_failed(e)
 
-    def refresh_peers_generation(self, info_map: dict[str, str], peers: Peers):
-        if "peers-generation" not in info_map:
+    def verify_node_name(self, info_map: dict[str, str]):
+		# If the node name has changed, remove node from cluster and hope one of the other host
+		# aliases is still valid.  Round-robbin DNS may result in a hostname that resolves to a
+		# new address.
+        # TODO: this may not be implemented yet?
+        info_name = info_map.get("node")
+        if info_name == None or len(info_name) == 0:
+            # TODO: throw Parse exception
+            raise AerospikeException("Node name is empty")
+
+        if self.name != info_name:
+            # Set node to inactive immediately
+            self.active = False
+            raise AerospikeException(f"Node name has changed. Old={self.name} New={info_name}")
+
+    async def verify_peers_generation(self, info_map: dict[str, str], peers: Peers):
+        gen_string = info_map.get("peers-generation")
+        if gen_string == None or len(gen_string) == 0:
             raise AerospikeException("peers-generation is empty")
 
-        peers_gen = int(info_map["peers-generation"])
-        if peers_gen != self.peers_generation:
+        gen = int(gen_string)
+        if gen != self.peers_generation:
             peers.generation_changed = True
-            # TODO
+            if self.peers_generation > gen:
+                logging.info(f"Quick node restart detected: node={self} oldgen={self.peers_generation} newgen={gen}")
+                await self.restart()
+
+    async def restart(self):
+        try:
+            if self.cluster.max_error_rate > 0:
+                self.reset_error_count()
+
+            # TODO: login when user authentication is enabled
+
+            # Balance connections
+            await self.balance_connections()
+        except Exception as e:
+            logging.warn(f"Node restart failed: {self} {e}")
+
+    def reset_error_count(self):
+        self.error_count = 0
 
     def refresh_rebalance_generation(self, info_map: dict[str, str]):
         if "rebalance-generation" not in info_map:
@@ -777,14 +831,14 @@ class Node:
             self.rebalance_changed = True
             self.rebalance_generation = rebalance_gen
 
-    def refresh_partition_generation(self, info_map: dict[str, str]):
-        if "partition-generation" not in info_map:
+    def verify_partition_generation(self, info_map: dict[str, str]):
+        gen_string = info_map.get("partition-generation")
+        if gen_string == None or len(gen_string) == 0:
             raise AerospikeException("partition-generation is empty")
 
-        partition_gen = int(info_map["partition-generation"])
-        if partition_gen != self.partition_generation:
+        gen = int(gen_string)
+        if gen != self.partition_generation:
             self.partition_changed = True
-            self.partition_generation = partition_gen
 
     async def refresh_peers(self, peers: Peers):
 		# Do not refresh peers when node connection has already failed during this cluster tend iteration.
@@ -921,6 +975,10 @@ class Node:
         return repr(f"{self.name} {self.host}")
 
     async def refresh_partitions(self, peers: Peers):
+		# Do not refresh partitions when node connection has already failed during this cluster tend iteration.
+		# Also, avoid "split cluster" case where this node thinks it's a 1-node cluster.
+		# Unchecked, such a node can dominate the partition map and cause all other
+		# nodes to be dropped.
         if self.failures > 0 or self.active is False or (self.peers_count == 0 and peers.refresh_count > 1):
             return
 
@@ -960,11 +1018,11 @@ class Node:
 
 class NodeValidator:
     peers: list[Host]
-    primary_host: Host
+    primary_host: Optional[Host]
     primary_conn: Optional[Connection]
     timeout_secs: float
     fallback: Optional[Node]
-    name: str
+    name: Optional[str]
     features: list[str]
 
     def __init__(self):
@@ -973,6 +1031,11 @@ class NodeValidator:
 
     # TODO: check if host is a DNS name / load balancer that can hold multiple addresses
     async def seed_node(self, cluster: Cluster, host: Host, peers: Peers) -> Optional[Node]:
+        self.name = None
+        self.primary_host = None
+        self.primary_conn = None
+        self.features = []
+
         try:
             await self.validate_address(cluster, host)
 
@@ -1044,7 +1107,7 @@ class NodeValidator:
 
             # TODO: address command logic
         except Exception as e:
-            await self.primary_conn.close()
+            await conn.close()
             raise e
 
     def _validate_node(self, info_map: dict[str, str]):
@@ -1100,7 +1163,6 @@ class NodeValidator:
         if node.peers_count == 0:
 			# Node is suspect because multiple seeds are used and node does not have any peers.
             if self.fallback == None:
-                # TODO: leave off from here
                 self.fallback = node
             else:
                 await node.close()
