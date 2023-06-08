@@ -12,7 +12,9 @@ class Connection:
 
     @staticmethod
     async def new(address: str, port: int, conn_timeout_secs: float):
-        s_reader, s_writer = await asyncio.open_connection(address, port)
+        # TODO: assign pool
+        open_conn = asyncio.open_connection(address, port)
+        s_reader, s_writer = await asyncio.wait_for(open_conn, timeout=conn_timeout_secs)
         conn = Connection(s_reader, s_writer, conn_timeout_secs)
         return conn
 

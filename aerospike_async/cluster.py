@@ -246,7 +246,7 @@ class Cluster:
         # Minimum sync connections per node
         self.min_conns_per_node = 10
         # Initial connection timeout
-        self.conn_timeout = 3
+        self.conn_timeout = 1
         # Max errors per node per error_rate_window
         self.max_error_rate = 100
         # Number of tend iterations defining window for max_error_rate
