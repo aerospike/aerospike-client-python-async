@@ -37,3 +37,6 @@ class Connection:
     # TODO: different from java implementation
     def is_closed(self):
         return self.s_writer.is_closing()
+
+    def set_timeout(self, timeout: int):
+        self.conn_timeout_secs = timeout

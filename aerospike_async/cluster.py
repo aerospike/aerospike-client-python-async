@@ -11,6 +11,7 @@ from .host import Host
 from .connection import Connection
 from .info import Info
 from .exceptions import InvalidNodeException, AerospikeException
+from .command import AsyncCommand
 
 class Partitions:
     # Array for each replica
@@ -252,8 +253,11 @@ class Cluster:
         # Number of tend iterations defining window for max_error_rate
         self.error_rate_window = 1
         # Maximum socket idle to trim peak connections to min connections.
+        # TODO: fix defaults
         # 55 seconds
         self.max_socket_idle_nanos_trim = 55 * 10**9
+	    # Maximum socket idle to validate connections in transactions.
+        self.max_socket_idle_nanos_tran = 0
         # Interval in seconds between cluster tends
         self.tend_interval = 1
         # Does cluster support query by partition
@@ -263,6 +267,12 @@ class Cluster:
     async def new(hosts: list[Host]):
         cluster = Cluster(hosts)
         await cluster.init_tend_thread()
+
+    def is_active(self) -> bool:
+        return self.tend_valid
+
+    def is_conn_current_tran(self, last_used: int):
+        return self.max_socket_idle_nanos_tran == 0 or (time.time_ns() - last_used) <= self.max_socket_idle_nanos_tran
 
     # TODO: add fail if not connected parameter
     async def init_tend_thread(self):
@@ -537,6 +547,11 @@ class Cluster:
     def is_conn_current_trim(self, last_used: int) -> bool:
         return (time.time_ns() - last_used) <= self.max_socket_idle_nanos_trim
 
+    def get_nodes(self) -> list[Node]:
+        # Must copy array reference for copy on write semantics to work.
+        node_array = self.nodes.copy()
+        return node_array
+
 class PeerParser:
     cluster: Cluster
     parser: Info
@@ -661,6 +676,9 @@ class Pool:
         self.head = 0
         self.tail = 0
 
+    def capacity(self) ->int:
+        return len(self.conns)
+
     def offer(self, conn: Connection):
         if conn == None:
             # TODO: use Python equivalent
@@ -675,11 +693,25 @@ class Pool:
         self.size += 1
         return True
 
+    def poll(self) -> Optional[Connection]:
+        if self.size == 0:
+            return None
+
+        if self.head == 0:
+            self.head = len(self.conns) - 1
+        else:
+            self.head -= 1
+        self.size -= 1
+
+        conn = self.conns[self.head]
+        self.conns[self.head] = None
+        return conn
+
     # Return number of connections that might be closed
     def excess(self) -> int:
         return self.total - self.min_size
 
-    def close_idle(self, node: Node, count: int):
+    async def close_idle(self, node: Node, count: int):
         cluster = node.cluster
 
         while count > 0:
@@ -698,8 +730,12 @@ class Pool:
                 self.tail = 0
             self.size -= 1
 
-            self.close_idle(node, conn)
+            await self.close_idle_conn(node, conn)
             count -= 1
+
+    async def close_idle_conn(self, node: Node, conn: Connection):
+        self.total -= 1
+        await node.close_idle_connection(conn)
 
 class Node:
     PARTITIONS = 4096
@@ -742,6 +778,56 @@ class Node:
     def reset(self):
         self.reference_count = 0
         self.partition_changed = False
+
+    def validate_error_count(self):
+        if self.error_count_within_limit is False:
+            # TODO: be specific
+            raise AerospikeException(f"Backoff")
+
+    # TODO: socket_timeout, timeout delay
+    async def get_connection(self, cmd: AsyncCommand, connect_timeout: int) -> Connection:
+        # TODO: check for multiple conn pools
+        initial_index = 0
+        backward = False
+
+        pool = self.pool
+        queue_index = initial_index
+
+        while True:
+            conn = pool.poll()
+
+            if conn != None:
+                # Found socket
+                # Verify that socket is active
+                if self.cluster.is_conn_current_tran(conn.last_used_time_ns):
+                    # TODO: set socket timeout
+                    return conn
+
+                await pool.close_idle_conn(self, conn)
+            elif pool.total < pool.capacity():
+                # Socket not found and queue has available slot.
+                # Create new connection
+                # TODO: check if connection timeout > 0
+                timeout = connect_timeout
+                start_time = time.time_ns()
+
+                # TODO: check tls
+                try:
+                    conn = await Connection.new(self.host.name, self.host.port, timeout)
+                    self.conns_opened += 1
+                except RuntimeError as re:
+                    pool.total -= 1
+                    raise re
+
+                # TODO: check if auth enabled
+
+                # TODO: compare timeout with socket timeout
+
+                if connect_timeout > 0 and cmd != None:
+                    # Adjust deadline for socket connect time when connect_timeout defined
+                    cmd.reset_deadline(start_time)
+
+                return conn
 
     async def refresh(self, peers: Peers):
         if not self.active:
