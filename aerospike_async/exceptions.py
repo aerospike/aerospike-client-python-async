@@ -3,3 +3,6 @@ class AerospikeException(Exception):
 
 class InvalidNodeException(AerospikeException):
     pass
+
+class InvalidQueryException(Exception):
+    pass
