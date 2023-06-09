@@ -267,6 +267,7 @@ class Cluster:
     async def new(hosts: list[Host]):
         cluster = Cluster(hosts)
         await cluster.init_tend_thread()
+        return cluster
 
     def is_active(self) -> bool:
         return self.tend_valid

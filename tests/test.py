@@ -2,8 +2,7 @@ import asyncio
 
 from aerospike_async.cluster import Cluster
 from aerospike_async.host import Host
-from aerospike_async import Info
-from aerospike_async import Connection
+from aerospike_async import AsyncClient
 
 async def main():
     # conn = await Connection.new("localhost", 3000, 1)
@@ -18,7 +17,10 @@ async def main():
         Host("172.17.0.3", 3000),
         Host("172.17.0.4", 3000)
     ]
-    c = await Cluster.new(hosts)
+    client = await AsyncClient.new(hosts)
+    test = client["test"]
+    demo = test["demo"]
+    await demo.put_record(1, {"a": 1})
 
 import logging
 logging.basicConfig(

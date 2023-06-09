@@ -1,18 +1,16 @@
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Union, Optional, Any
 from functools import partial
 
 from .operations import Operation
+from .command import AsyncWrite
+from .cluster import Cluster, Host
 
 MapKey = Union[str, bytes, bytearray, int, float]
 # Recursively define allowed bin values
 BinValue = Union[bool, bytes, bytearray, float, int, str, list["BinValue"], dict[MapKey, "BinValue"]]
 Bins = dict[str, BinValue]
-
-@dataclass
-class Host:
-    name: str
-    port: int
 
 # Only file-based configs
 @dataclass
@@ -30,7 +28,7 @@ class Metadata:
 UserKey = Union[int, str, bytes, bytearray]
 
 @dataclass
-class RecordKey:
+class Key:
     namespace: str
     set_name: str
     user_key: UserKey
@@ -38,7 +36,7 @@ class RecordKey:
 # Record data that is returned from the server
 @dataclass
 class Record:
-    key: RecordKey
+    key: Key
     metadata: Metadata
     bins: Bins
 
@@ -99,7 +97,8 @@ class RecordInterface:
         :param Bins bins: The bins to insert into the record. \
             If the bins already exist, update its values.
         '''
-        pass
+        key = Key()
+        command = AsyncWrite(self.cluster, )
 
     async def put_records(self, user_keys: list[UserKey], bins: Bins) -> list[BatchOpResult]:
         '''
@@ -256,6 +255,8 @@ class RecordInterface:
 
 @dataclass
 class Set(RecordInterface):
+    # Namespace this set belongs to
+    namespace: str
     set_name: str
 
     async def create_index(
@@ -306,20 +307,17 @@ class Namespace(RecordInterface):
         return self._sets[set_name]
 
 class AsyncClient:
+    cluster: Cluster
     def __init__(self, hosts: list[Host], config: Optional[ClientConfig] = None):
         self._namespaces = {}
         self.config = config
 
-    async def __aenter__(self):
-        '''
-        This makes the AsyncClient object a context manager.
-        Users can use the "async with" keywords so they won't forget to close the client connection \
-        once they are done using it.
-        '''
-        return self
-
-    async def __aexit__(self, exception_type, exception_value, traceback):
-        await self.close()
+    @staticmethod
+    async def new(hosts: list[Host], config: Optional[ClientConfig] = None):
+        client = AsyncClient(hosts)
+        cluster = await Cluster.new(hosts)
+        client.cluster = cluster
+        return client
 
     def __getitem__(self, namespace) -> Namespace:
         '''
@@ -353,4 +351,3 @@ class AsyncClient:
         Download a stream UDF from the server.
         '''
         pass
->>>>>>> strawman

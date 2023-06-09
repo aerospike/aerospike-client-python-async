@@ -5,15 +5,7 @@ import time
 from dataclasses import dataclass
 from .cluster import Cluster, Partitions, Node
 from .exceptions import AerospikeException, InvalidNodeException
-
-# TODO: move to client module because public facing
-@dataclass
-class Key:
-    namespace: str
-    set_name: str
-    # TODO: digest
-    user_key: Union[int, str, bytes, bytearray]
-    digest: bytes
+from . import Key, Bins, BinValue
 
 # Partition to read from
 class Partition:
@@ -67,30 +59,79 @@ class Operation:
 
 class Command:
     MSG_TOTAL_HEADER_SIZE = 30
+    MSG_REMAINING_HEADER_SIZE = 22
     FIELD_HEADER_SIZE = 5
     OPERATION_HEADER_SIZE = 8
 
-    def __init__(self):
-        self.data_offset = 0
+    INFO2_WRITE = 1
 
-    def set_write(self, operation: Operation, key: Key, bins: dict):
+    def __init__(self, socket_timeout: int, total_timeout: int, max_retries: int):
+        self.data_offset = 0
+        self.max_retries = max_retries
+        self.total_timeout = total_timeout
+
+        if total_timeout > 0:
+            self.socket_timeout = (socket_timeout < total_timeout)
+            # TODO: leave off from here
+
+    def set_write(self, operation: Operation, key: Key, bins: Bins):
         self.begin()
         # TODO: pass in policy
         field_count = self.estimate_key_size(key)
 
         # TODO: check for policy filter exp
 
-        for bin in bins.items():
-            self.estimate_operation_size(bin)
+        for bin_name, bin_value in bins.items():
+            # TODO: does not match java implementation
+            self.estimate_operation_size(bin_name, bin_value)
+
+        # TODO: sizeBuffer()
+        self.data_buffer = bytearray(30)
+        self.write_header_write(self.INFO2_WRITE, field_count, len(bins))
+
+    def write_header_write(self, write_attr: int, field_count: int, operation_count: int):
+        generation = 0
+        read_attr = 0
+        info_attr = 0
+
+        # TODO: check record exists policy option
+        # TODO: check generation policy
+        # TODO: check commit level
+        # TODO: check durable delete
+        # TODO: check xdr
+
+		# Write all header data except total size which must be written last.
+        self.data_buffer[8] = self.MSG_REMAINING_HEADER_SIZE # Message header length
+        self.data_buffer[9] = read_attr
+        self.data_buffer[10] = write_attr
+        self.data_buffer[11] = info_attr
+        # TODO: don't need to clear result code and set unused buffer to 0
+        # already done by initializing bytearray
+        self.data_buffer[14:18] = int.to_bytes(generation, length=4, byteorder='big')
+        # TODO: check policy expiration
+        self.data_buffer[18:22] = int.to_bytes(0, length=4, byteorder='big')
+        self.data_buffer[22:26] = int.to_bytes(self.ser, length=4, byteorder='big')
 
     # Command sizing
 
     # TODO: check if tuple is right type
-    def estimate_operation_size(self, bin: tuple):
-        self.data_offset += len(bin[0].encode("utf-8")) + self.OPERATION_HEADER_SIZE
-        self.data_offset += bin[1]
+    def estimate_operation_size(self, bin_name: str, bin_value: BinValue):
+        self.data_offset += len(bin_name.encode("utf-8")) + self.OPERATION_HEADER_SIZE
+        self.data_offset += self.estimate_bin_value_size(bin_value)
 
-    def estimate_key_size(self, key: Key):
+    @staticmethod
+    def estimate_bin_value_size(bin_value: BinValue) -> int:
+        if type(bin_value) == str:
+            return len(bin_value.encode(encoding='utf-8'))
+        elif type(bin_value)== int:
+            return 8
+        elif type(bin_value) == bytearray or type(bin_value) == bytes:
+            return len(bin_value)
+        else:
+            # TODO
+            raise AerospikeException("Unsupported bin value type")
+
+    def estimate_key_size(self, key: Key) -> int:
         field_count = 0
 
         if key.namespace != None:
@@ -160,7 +201,7 @@ class AsyncCommand(ABC):
 class AsyncWrite(AsyncCommand):
     # TODO: listener, write policy
     # TODO: use bins type, not dict
-    def __init__(self, cluster: Cluster, key: Key, bins: dict, operation: Operation.Type):
+    def __init__(self, cluster: Cluster, key: Key, bins: Bins, operation: Operation.Type):
         super().__init__(cluster)
         self.key = key
         self.partition: Partition = Partition.write(cluster, key)
