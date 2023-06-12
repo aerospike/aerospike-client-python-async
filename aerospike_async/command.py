@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass
 from .cluster import Cluster, Partitions, Node
-from .exceptions import AerospikeException, InvalidNodeException
-from . import Key, Bins, BinValue
+from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException
+from . import Key, Bins, BinValue, WritePolicy, Policy
 
 # Partition to read from
 class Partition:
@@ -27,11 +27,12 @@ class Partition:
     @staticmethod
     # TODO: add policy
     def write(cluster: Cluster, key: Key):
-        partition_map = cluster.partition_map
+		# Must copy hashmap reference for copy on write semantics to work.
+        partition_map = cluster.partition_map.copy()
         partitions = partition_map.get(key.namespace)
         if partitions == None:
             # TODO: be specific about exception
-            raise AerospikeException(f"Invalid namespace {key.namespace}")
+            raise InvalidNamespaceException(f"Invalid namespace {key.namespace}")
 
         return Partition(partitions, key)
 
@@ -53,9 +54,26 @@ class Partition:
         # node_array = cluster.get_nodes()
         raise InvalidNodeException()
 
-class Operation:
-    class Type(IntEnum):
-        WRITE = auto()
+class OperationType(IntEnum):
+    WRITE = auto()
+
+class FieldType(IntEnum):
+    NAMESPACE = 0
+
+class Buffer:
+    @staticmethod
+    def int_to_bytes(v: int, buf: bytearray, offset: int):
+        buf[offset:offset + 4] = int.to_bytes(v, length=4, byteorder='big')
+
+    @staticmethod
+    def short_to_bytes(v: int, buf: bytearray, offset: int):
+        buf[offset:offset + 2] = int.to_bytes(v, length=2, byteorder='big')
+
+    @staticmethod
+    def string_to_utf8(s: str, buf: bytearray, offset: int) -> int:
+        # TODO: not doing it the java way
+        encoded = bytes(s, encoding='utf-8')
+        buf[offset:offset + len(encoded)] = encoded
 
 class Command:
     MSG_TOTAL_HEADER_SIZE = 30
@@ -74,7 +92,7 @@ class Command:
             self.socket_timeout = (socket_timeout < total_timeout)
             # TODO: leave off from here
 
-    def set_write(self, operation: Operation, key: Key, bins: Bins):
+    def set_write(self, operation: OperationType, key: Key, bins: Bins):
         self.begin()
         # TODO: pass in policy
         field_count = self.estimate_key_size(key)
@@ -88,6 +106,38 @@ class Command:
         # TODO: sizeBuffer()
         self.data_buffer = bytearray(30)
         self.write_header_write(self.INFO2_WRITE, field_count, len(bins))
+        # TODO: set policy
+        self.write_key(key)
+
+        # TODO: check filter expression
+
+        for bin in bins.items():
+            self.write_operation(bin, operation)
+
+    def write_operation(self, bin: tuple[str, BinValue], operation: OperationType):
+        bin_name = bin[0]
+        bin_value = bin[1]
+        name_length = Buffer.string_to_utf8(bin_name, self.data_buffer, self.data_offset + self.OPERATION_HEADER_SIZE)
+        value_length = self.write_bin_value()
+
+    def write_bin_value(self):
+        # TODO: leave off from here
+
+    def write_key(self, key: Key):
+        # Write key into buffer
+        if key.namespace != None:
+            self.write_field(key.namespace, FieldType.NAMESPACE)
+
+    def write_field(self, string: str, field_type: int):
+        length = Buffer.string_to_utf8(string, self.data_buffer, self.data_offset + self.FIELD_HEADER_SIZE)
+        self.write_field_header(length, field_type)
+        self.data_offset += length
+
+    def write_field_header(self, size: int, field_type: int):
+        Buffer.int_to_bytes(size + 1, self.data_buffer, self.data_offset)
+        self.data_offset += 4
+        self.data_buffer[self.data_offset] = field_type
+        self.data_offset += 1
 
     def write_header_write(self, write_attr: int, field_count: int, operation_count: int):
         generation = 0
@@ -107,10 +157,14 @@ class Command:
         self.data_buffer[11] = info_attr
         # TODO: don't need to clear result code and set unused buffer to 0
         # already done by initializing bytearray
-        self.data_buffer[14:18] = int.to_bytes(generation, length=4, byteorder='big')
+        Buffer.int_to_bytes(generation, self.data_buffer, 14)
         # TODO: check policy expiration
-        self.data_buffer[18:22] = int.to_bytes(0, length=4, byteorder='big')
-        self.data_buffer[22:26] = int.to_bytes(self.ser, length=4, byteorder='big')
+        Buffer.int_to_bytes(0, self.data_buffer, 18)
+        # TODO: properly set server timeout
+        Buffer.int_to_bytes(0, self.data_buffer, 22)
+        Buffer.short_to_bytes(field_count, self.data_buffer, 26)
+        Buffer.short_to_bytes(operation_count, self.data_buffer, 28)
+        self.data_offset = self.MSG_TOTAL_HEADER_SIZE
 
     # Command sizing
 
@@ -152,12 +206,14 @@ class Command:
     def begin(self):
         self.data_offset = self.MSG_TOTAL_HEADER_SIZE
 
-class AsyncCommand(ABC):
+class AsyncCommand(Command, ABC):
     cluster: Cluster
 
     # TODO: policy
-    def __init__(self, cluster: Cluster):
+    def __init__(self, cluster: Cluster, policy: Policy):
+        super().__init__(policy.socket_timeout, policy.total_timeout, policy.max_retries)
         self.cluster = cluster
+        self.policy = policy
         self.deadline = 0
 
     # NOTE: execute() from this class's instance instead of event loop
@@ -198,11 +254,11 @@ class AsyncCommand(ABC):
     def write_buffer(self):
         return None
 
-class AsyncWrite(AsyncCommand):
+class WriteCommand(AsyncCommand):
     # TODO: listener, write policy
-    # TODO: use bins type, not dict
-    def __init__(self, cluster: Cluster, key: Key, bins: Bins, operation: Operation.Type):
-        super().__init__(cluster)
+    def __init__(self, cluster: Cluster, write_policy: WritePolicy, key: Key, bins: Bins, operation: OperationType):
+        super().__init__(cluster, write_policy)
+        self.write_policy = write_policy
         self.key = key
         self.partition: Partition = Partition.write(cluster, key)
         self.bins = bins

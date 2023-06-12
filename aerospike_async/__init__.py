@@ -2,10 +2,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Union, Optional, Any
 from functools import partial
+from Crypto.Hash import RIPEMD160
 
 from .operations import Operation
-from .command import AsyncWrite
+from .command import WriteCommand, OperationType
 from .cluster import Cluster, Host
+from .exceptions import InvalidUserKeyTypeException
 
 MapKey = Union[str, bytes, bytearray, int, float]
 # Recursively define allowed bin values
@@ -27,11 +29,49 @@ class Metadata:
 
 UserKey = Union[int, str, bytes, bytearray]
 
-@dataclass
 class Key:
     namespace: str
-    set_name: str
+    set_name: Optional[str]
     user_key: UserKey
+    digest: bytes
+
+    def __init__(self, namespace: str, set_name: Optional[str], user_key: UserKey):
+        self.namespace = namespace
+        self.set_name = set_name
+        self.user_key = user_key
+        # Compute digest
+        h = RIPEMD160.new()
+        # TODO: check if encoding without set is correct
+        if set_name != None:
+            encoded_set = set_name.encode('utf-8')
+            h.update(encoded_set)
+
+        AS_BYTES_INTEGER = 1
+        AS_BYTES_STRING = 3
+        AS_BYTES_BLOB = 4
+
+        if type(user_key) == str:
+            user_key_type = AS_BYTES_STRING
+            user_key = user_key.encode('utf-8')
+        elif type(user_key) == int:
+            user_key_type = AS_BYTES_INTEGER
+            # Integer takes up 8 bytes in Aerospike
+            user_key = user_key.to_bytes(8, byteorder='big')
+        elif (
+            type(user_key) == bytes
+            or
+            type(user_key) == bytearray
+        ):
+            user_key_type = AS_BYTES_BLOB
+        else:
+            # TODO: not in java client?
+            raise InvalidUserKeyTypeException
+
+        user_key_type = user_key_type.to_bytes(1, byteorder='big')
+        h.update(user_key_type)
+        h.update(user_key)
+
+        self.digest = h.digest()
 
 # Record data that is returned from the server
 @dataclass
@@ -60,7 +100,23 @@ class UDFCall:
     # Default is empty list
     arguments: list[Any] = field(default_factory=list)
 
+@dataclass
+class Policy:
+    # TODO: docstrings
+    total_timeout: int
+    socket_timeout: int
+    max_retries: int
+
+@dataclass
+class WritePolicy(Policy):
+    pass
+
+@dataclass
 class RecordInterface:
+    cluster: Cluster
+    namespace: str
+    set_name: Optional[str]
+
     async def record_exists(self, user_key: UserKey) -> bool:
         '''
         :param UserKey user_key: The user key of the record.
@@ -89,7 +145,7 @@ class RecordInterface:
         '''
         return []
 
-    async def put_record(self, user_key: UserKey, bins: Bins):
+    async def put_record(self, policy: WritePolicy, user_key: UserKey, bins: Bins):
         '''
         Put a new record in the server. If the record already exists, update its bins.
 
@@ -97,8 +153,9 @@ class RecordInterface:
         :param Bins bins: The bins to insert into the record. \
             If the bins already exist, update its values.
         '''
-        key = Key()
-        command = AsyncWrite(self.cluster, )
+        key = Key(self.namespace, self.set_name, user_key)
+        command = WriteCommand(self.cluster, policy, key, bins, OperationType.WRITE)
+        await command.execute()
 
     async def put_records(self, user_keys: list[UserKey], bins: Bins) -> list[BatchOpResult]:
         '''
@@ -255,10 +312,6 @@ class RecordInterface:
 
 @dataclass
 class Set(RecordInterface):
-    # Namespace this set belongs to
-    namespace: str
-    set_name: str
-
     async def create_index(
         self,
         bin_name: str,
@@ -283,8 +336,8 @@ class Set(RecordInterface):
         pass
 
 class Namespace(RecordInterface):
-    def __init__(self, namespace: str):
-        self._namespace = namespace
+    def __init__(self, cluster: Cluster, namespace: str):
+        super().__init__(cluster, namespace, None)
         self._sets = {}
 
     def __getitem__(self, set_name: str) -> Set:
@@ -303,7 +356,7 @@ class Namespace(RecordInterface):
             raise TypeError("Set name {set_name} given. Set name must be a string!")
 
         if set_name not in self._sets:
-            self._sets[set_name] = Set(set_name)
+            self._sets[set_name] = Set(self.cluster, self.namespace, set_name)
         return self._sets[set_name]
 
 class AsyncClient:
@@ -335,7 +388,7 @@ class AsyncClient:
         if type(namespace) != str:
             raise TypeError(f"Namespace {namespace} given. Namespace must be a string!")
         if namespace not in self._namespaces:
-            self._namespaces[namespace] = Namespace(namespace)
+            self._namespaces[namespace] = Namespace(self.cluster, namespace)
         return self._namespaces[namespace]
 
     async def close(self):
