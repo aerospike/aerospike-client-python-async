@@ -22,7 +22,10 @@ class Connection:
 
     async def read(self, num_bytes: int) -> bytes:
         read_cour = self.s_reader.readexactly(num_bytes)
-        res = await asyncio.wait_for(read_cour, timeout=self.conn_timeout_secs)
+        try:
+            res = await asyncio.wait_for(read_cour, timeout=self.conn_timeout_secs)
+        except TimeoutError as e:
+            raise ReadTimeoutException()
         self.last_used_time_ns = time.time_ns()
         return res
 
@@ -42,3 +45,8 @@ class Connection:
 
     def set_timeout(self, timeout: int):
         self.conn_timeout_secs = timeout
+
+class ReadTimeoutException(RuntimeError):
+    # TODO: missing a bunch of arguments
+    def __init__(self):
+        super().__init__("timeout")

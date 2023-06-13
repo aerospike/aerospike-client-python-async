@@ -10,7 +10,7 @@ from typing import Optional
 from .host import Host
 from .connection import Connection
 from .info import Info
-from .exceptions import InvalidNodeException, AerospikeException, ParseException
+from .exceptions import InvalidNodeException, AerospikeException, ParseException, ConnectionException
 from .command import AsyncCommand
 
 class Partitions:
@@ -659,7 +659,7 @@ class PeerParser:
         # 3. We stopped at ], and the response ends here without a closing ] for the list of nodes
         # TODO: return truncated response
         response = str(self.parser.buffer, encoding='utf-8')
-        raise AerospikeException(f"Unterminated host in response: {response}")
+        raise ParseException(f"Unterminated host in response: {response}")
 
 class Pool:
     conns: list[Optional[Connection]]
@@ -884,7 +884,7 @@ class Node:
         info_name = info_map.get("node")
         if info_name == None or len(info_name) == 0:
             # TODO: throw Parse exception
-            raise AerospikeException("Node name is empty")
+            raise ParseException("Node name is empty")
 
         if self.name != info_name:
             # Set node to inactive immediately
@@ -894,7 +894,7 @@ class Node:
     async def verify_peers_generation(self, info_map: dict[str, str], peers: Peers):
         gen_string = info_map.get("peers-generation")
         if gen_string == None or len(gen_string) == 0:
-            raise AerospikeException("peers-generation is empty")
+            raise ParseException("peers-generation is empty")
 
         gen = int(gen_string)
         if gen != self.peers_generation:
@@ -920,7 +920,7 @@ class Node:
 
     def refresh_rebalance_generation(self, info_map: dict[str, str]):
         if "rebalance-generation" not in info_map:
-            raise AerospikeException("rebalance-generation is empty")
+            raise ParseException("rebalance-generation is empty")
 
         rebalance_gen = int(info_map["rebalance-generation"])
         if rebalance_gen != self.rebalance_generation:
@@ -930,7 +930,7 @@ class Node:
     def verify_partition_generation(self, info_map: dict[str, str]):
         gen_string = info_map.get("partition-generation")
         if gen_string == None or len(gen_string) == 0:
-            raise AerospikeException("partition-generation is empty")
+            raise ParseException("partition-generation is empty")
 
         gen = int(gen_string)
         if gen != self.partition_generation:
@@ -1101,7 +1101,7 @@ class Node:
         excess = pool.excess()
 
         if excess > 0:
-            pool.close_idle(self, excess)
+            await pool.close_idle(self, excess)
         elif excess < 0 and self.error_count_within_limit():
             # We are below min number of connections
             await self.create_connections(pool, -excess)
@@ -1166,10 +1166,10 @@ class NodeValidator:
     async def validate_address(self, cluster: Cluster, host: Host):
         is_ip = host.is_ip()
         if not is_ip:
-            raise AerospikeException("Invalid host passed to node validator")
+            raise ConnectionException(f"Invalid host: {host}")
 
         # TODO: also check for tls policy when creating connection
-        conn = await Connection.new(host.name, host.port, cluster.conn_timeout)
+        conn = await Connection.new(host.name, host.port, cluster.conn_timeout, None)
 
         try:
             # TODO: check if cluster has authentication enabled
@@ -1215,15 +1215,15 @@ class NodeValidator:
     def validate_partition_generation(self, info_map: dict[str, str]):
         gen_string = info_map.get("partition-generation")
         if gen_string == None:
-            raise AerospikeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
+            raise InvalidNodeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
 
         try:
             gen = int(gen_string)
         except:
-            raise AerospikeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
+            raise InvalidNodeException(f"Node {self.name} {self.primary_host} returned invalid partition-generation {gen_string}")
 
         if gen == -1:
-            raise AerospikeException(f"Node {self.name} {self.primary_host} is not yet fully initialized")
+            raise InvalidNodeException(f"Node {self.name} {self.primary_host} is not yet fully initialized")
 
     def set_features(self, info_map: dict[str, str]):
         # TODO: actually set features in a class like the Java client
@@ -1243,7 +1243,7 @@ class NodeValidator:
     def validate_cluster_name(self, cluster: Cluster, info_map: dict[str, str]):
         id = info_map.get("cluster_name")
         if id == None or cluster.cluster_name != id:
-            raise AerospikeException(f"Node {self.name} {self.primary_host} expected cluster name '{cluster.cluster_name}' received '{id}'")
+            raise InvalidNodeException(f"Node {self.name} {self.primary_host} expected cluster name '{cluster.cluster_name}' received '{id}'")
 
     async def validate_peers(self, peers: Peers, node: Node) -> bool:
         if peers is None:

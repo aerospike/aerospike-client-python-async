@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass
 from .cluster import Cluster, Partitions, Node
-from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException, TimeoutException
+from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException, TimeoutException, ConnectionException
 from . import Key, Bins, BinValue, WritePolicy, Policy
-from .connection import Connection
+from .connection import Connection, ReadTimeoutException
 
 # Partition to read from
 class Partition:
@@ -52,8 +52,8 @@ class Partition:
                 return node
             self.sequence += 1
         # TODO: be specific about exception
-        # node_array = cluster.get_nodes()
-        raise InvalidNodeException()
+        node_array = cluster.get_nodes()
+        raise InvalidNodeException(cluster_size=len(node_array), partition=self)
 
 class OperationType:
     WRITE = (2, True)
@@ -279,6 +279,7 @@ class Command:
         self.data_offset = self.MSG_TOTAL_HEADER_SIZE
 
 class ResultCode(IntEnum):
+    SERVER_NOT_AVAILABLE = -8
     INVALID_NODE_ERROR = -3
     PARSE_ERROR = -2
     CLIENT_ERROR = -1
@@ -306,6 +307,7 @@ class AsyncCommand(Command, ABC):
         self.policy = policy
         self.deadline = 0
         self.command_sent_counter = 0
+        self.iteration = 1
 
     # NOTE: execute() from this class's instance instead of event loop
     async def execute(self):
@@ -363,10 +365,73 @@ class AsyncCommand(Command, ABC):
                     # TODO: check for device overload
                     else:
                         raise ae
-                # TODO: read timeout, runtime exception, socket timeout exception, ioexception
-            except:
-                # TODO: leave off from here
-                pass
+                except ReadTimeoutException as rte:
+                    # TODO: policy timeout delay
+                    await node.close_connection(conn)
+                    is_client_timeout = True
+                except RuntimeError as re:
+					# All runtime exceptions are considered fatal.  Do not retry.
+					# Close socket to flush out possible garbage.  Do not put back in pool.
+                    await node.close_connection(conn)
+                    raise re
+                # TODO: socket timeout exception?
+                except IOError as ioe:
+					# IO errors are considered temporary anomalies.  Retry.
+                    await node.close_connection(conn)
+                    # TODO: create a ConnectionException instead
+                    exception = ioe
+                    is_client_timeout = False
+            except ReadTimeoutException as rte:
+                # Connection already handled
+                is_client_timeout = True
+            # Check for ConnectionException instead as above
+            except IOError as ioe:
+                # Socket connection error has occurred. Retry.
+                exception = ioe
+                is_client_timeout = False
+            # TODO: check if node is in backoff state
+            except AerospikeException as ae:
+                ae.set_node(node)
+                ae.set_policy(self.policy)
+                ae.set_iteration(self.iteration)
+                # TODO: set in doubt
+                raise ae
+
+            if self.iteration > self.max_retries:
+                break
+
+            if self.total_timeout > 0:
+                # Check for total timeout
+                # TODO: check for sleep between retries
+                remaining = self.deadline - time.time_ns()
+
+                if remaining <= 0:
+                    break
+
+                # Convert back to milliseconds for remaining check.
+                remaining = remaining * 10**3 // 10**9
+
+                if remaining < self.total_timeout:
+                    self.total_timeout = remaining
+
+                    if self.socket_timeout > self.total_timeout:
+                        self.socket_timeout = self.total_timeout
+
+                # TODO: check for sleep between retries
+
+                self.iteration += 1
+
+                # TODO: retry batch
+
+        # Retries have been exhausted. Throw last exception.
+        if is_client_timeout:
+            exception = TimeoutException(self.policy, True)
+
+        exception.set_node(node)
+        exception.set_policy(self.policy)
+        exception.set_iteration(self.iteration)
+        # TODO: set in doubt
+        raise exception
 
     @abstractmethod
     def get_node(self) -> Node:
@@ -378,6 +443,10 @@ class AsyncCommand(Command, ABC):
 
     @abstractmethod
     def write_buffer(self):
+        pass
+
+    @abstractmethod
+    def prepare_retry(self, timeout: bool):
         pass
 
     @abstractmethod
@@ -393,7 +462,7 @@ class AsyncCommand(Command, ABC):
 
         # TODO: check fail on filtered out in policy
 
-        raise AerospikeException(result_code)
+        raise AerospikeException(result_code=result_code)
 
 class WriteCommand(AsyncCommand):
     # TODO: listener, write policy
