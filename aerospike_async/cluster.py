@@ -776,6 +776,15 @@ class Node:
         self.conns_opened = 1
         self.conns_closed = 0
 
+    # Put connection back into connection pool
+    async def put_connection(self, conn: Connection):
+        if self.active is False and conn.pool.offer(conn) is False:
+            await self.close_connection(conn)
+
+    async def close_connection(self, conn: Connection):
+        conn.pool.total -= 1
+        await self.close_connection_on_error(conn)
+
     def reset(self):
         self.reference_count = 0
         self.partition_changed = False
@@ -814,7 +823,7 @@ class Node:
 
                 # TODO: check tls
                 try:
-                    conn = await Connection.new(self.host.name, self.host.port, timeout)
+                    conn = await Connection.new(self.host.name, self.host.port, timeout, pool)
                     self.conns_opened += 1
                 except RuntimeError as re:
                     pool.total -= 1

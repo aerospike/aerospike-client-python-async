@@ -5,7 +5,7 @@ from functools import partial
 from Crypto.Hash import RIPEMD160
 
 from .operations import Operation
-from .command import WriteCommand, OperationType
+from .command import WriteCommand, OperationType, ParticleType
 from .cluster import Cluster, Host
 from .exceptions import InvalidUserKeyTypeException
 
@@ -46,15 +46,11 @@ class Key:
             encoded_set = set_name.encode('utf-8')
             h.update(encoded_set)
 
-        AS_BYTES_INTEGER = 1
-        AS_BYTES_STRING = 3
-        AS_BYTES_BLOB = 4
-
         if type(user_key) == str:
-            user_key_type = AS_BYTES_STRING
+            user_key_type = ParticleType.AS_BYTES_STRING
             user_key = user_key.encode('utf-8')
         elif type(user_key) == int:
-            user_key_type = AS_BYTES_INTEGER
+            user_key_type = ParticleType.AS_BYTES_INTEGER
             # Integer takes up 8 bytes in Aerospike
             user_key = user_key.to_bytes(8, byteorder='big')
         elif (
@@ -62,7 +58,7 @@ class Key:
             or
             type(user_key) == bytearray
         ):
-            user_key_type = AS_BYTES_BLOB
+            user_key_type = ParticleType.AS_BYTES_BLOB
         else:
             # TODO: not in java client?
             raise InvalidUserKeyTypeException

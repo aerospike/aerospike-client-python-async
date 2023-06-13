@@ -4,8 +4,9 @@ from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass
 from .cluster import Cluster, Partitions, Node
-from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException
+from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException, Timeout
 from . import Key, Bins, BinValue, WritePolicy, Policy
+from .connection import Connection
 
 # Partition to read from
 class Partition:
@@ -54,13 +55,23 @@ class Partition:
         # node_array = cluster.get_nodes()
         raise InvalidNodeException()
 
-class OperationType(IntEnum):
-    WRITE = auto()
+class OperationType:
+    WRITE = (2, True)
+
+    def __init__(self, protocol_type: int, is_write: bool):
+        self.protocol_type = protocol_type
+        self.is_write = is_write
 
 class FieldType(IntEnum):
     NAMESPACE = 0
+    TABLE = 1
+    DIGEST_RIPE = 4
 
 class Buffer:
+    @staticmethod
+    def long_to_bytes(v: int, buf: bytearray, offset: int):
+        buf[offset:offset + 8] = int.to_bytes(v, length=8, byteorder='big')
+
     @staticmethod
     def int_to_bytes(v: int, buf: bytearray, offset: int):
         buf[offset:offset + 4] = int.to_bytes(v, length=4, byteorder='big')
@@ -75,11 +86,20 @@ class Buffer:
         encoded = bytes(s, encoding='utf-8')
         buf[offset:offset + len(encoded)] = encoded
 
+class ParticleType(IntEnum):
+    INTEGER = 1
+    STRING = 3
+    BLOB = 4
+
 class Command:
+    STATE_READ_HEADER = 2
+
     MSG_TOTAL_HEADER_SIZE = 30
     MSG_REMAINING_HEADER_SIZE = 22
     FIELD_HEADER_SIZE = 5
     OPERATION_HEADER_SIZE = 8
+    CL_MSG_VERSION = 2
+    AS_MSG_TYPE = 3
 
     INFO2_WRITE = 1
 
@@ -89,8 +109,14 @@ class Command:
         self.total_timeout = total_timeout
 
         if total_timeout > 0:
-            self.socket_timeout = (socket_timeout < total_timeout)
-            # TODO: leave off from here
+            if socket_timeout < total_timeout and socket_timeout > 0:
+                self.socket_timeout = socket_timeout
+            else:
+                self.socket_timeout = total_timeout
+            self.server_timeout = self.socket_timeout
+        else:
+            self.socket_timeout = socket_timeout
+            self.server_timeout = 0
 
     def set_write(self, operation: OperationType, key: Key, bins: Bins):
         self.begin()
@@ -114,21 +140,69 @@ class Command:
         for bin in bins.items():
             self.write_operation(bin, operation)
 
+        self.end()
+        # TODO: compress
+
+    def end(self):
+        # Write total size of message which is the current offset.
+        proto = (self.data_offset - 8) | (self.CL_MSG_VERSION << 56) | (self.AS_MSG_TYPE << 48)
+        Buffer.long_to_bytes(proto, self.data_buffer, 0)
+
     def write_operation(self, bin: tuple[str, BinValue], operation: OperationType):
         bin_name = bin[0]
         bin_value = bin[1]
         name_length = Buffer.string_to_utf8(bin_name, self.data_buffer, self.data_offset + self.OPERATION_HEADER_SIZE)
-        value_length = self.write_bin_value()
+        value_length = self.write_bin_value(bin_value, self.data_buffer, self.data_offset + self.OPERATION_HEADER_SIZE + name_length)
 
-    def write_bin_value(self):
-        # TODO: leave off from here
+        Buffer.int_to_bytes(name_length + value_length + 4, self.data_buffer, self.data_offset)
+        self.data_offset += 4
+        self.data_buffer[self.data_offset] = operation.protocol_type
+        self.data_offset += 1
+        self.data_buffer[self.data_offset] = self.get_bin_value_type(bin_value)
+        self.data_offset += 1
+        self.data_buffer[self.data_offset] = 0
+        self.data_offset += 1
+        self.data_buffer[self.data_offset] = name_length
+        self.data_offset += 1
+        self.data_offset += name_length + value_length
+
+    @staticmethod
+    def get_bin_value_type(bin_value: BinValue) -> int:
+        type_to_int = {
+            int: ParticleType.INTEGER,
+            str: ParticleType.STRING,
+            bytearray: ParticleType.BLOB
+            # TODO: support other particle types
+        }
+        return type_to_int[type(bin_value)]
+
+    def write_bin_value(self, bin_value: BinValue, buffer: bytearray, offset: int) -> int:
+        if type(bin_value) == str:
+            return Buffer.string_to_utf8(bin_value, buffer, offset)
+        elif type(bin_value) == int:
+            Buffer.long_to_bytes(bin_value, buffer, offset)
+            return 8
 
     def write_key(self, key: Key):
         # Write key into buffer
         if key.namespace != None:
-            self.write_field(key.namespace, FieldType.NAMESPACE)
+            self.write_str_field(key.namespace, FieldType.NAMESPACE)
 
-    def write_field(self, string: str, field_type: int):
+        if key.set_name != None:
+            self.write_str_field(key.set_name, FieldType.TABLE)
+
+        self.write_bytes_field(key.digest, FieldType.DIGEST_RIPE)
+
+        # TODO: check for policy send key
+
+    def write_bytes_field(self, b: bytes, field_type: int):
+        start = self.data_offset + self.FIELD_HEADER_SIZE
+        end = start + len(b)
+        self.data_buffer[start:end] = b
+        self.write_field_header(len(b), field_type)
+        self.data_offset += len(b)
+
+    def write_str_field(self, string: str, field_type: int):
         length = Buffer.string_to_utf8(string, self.data_buffer, self.data_offset + self.FIELD_HEADER_SIZE)
         self.write_field_header(length, field_type)
         self.data_offset += length
@@ -155,13 +229,11 @@ class Command:
         self.data_buffer[9] = read_attr
         self.data_buffer[10] = write_attr
         self.data_buffer[11] = info_attr
-        # TODO: don't need to clear result code and set unused buffer to 0
-        # already done by initializing bytearray
+        # Unused buffer and result code are already 0 by initializing bytearray
         Buffer.int_to_bytes(generation, self.data_buffer, 14)
         # TODO: check policy expiration
         Buffer.int_to_bytes(0, self.data_buffer, 18)
-        # TODO: properly set server timeout
-        Buffer.int_to_bytes(0, self.data_buffer, 22)
+        Buffer.int_to_bytes(self.server_timeout, self.data_buffer, 22)
         Buffer.short_to_bytes(field_count, self.data_buffer, 26)
         Buffer.short_to_bytes(operation_count, self.data_buffer, 28)
         self.data_offset = self.MSG_TOTAL_HEADER_SIZE
@@ -206,6 +278,20 @@ class Command:
     def begin(self):
         self.data_offset = self.MSG_TOTAL_HEADER_SIZE
 
+class ResultCode(IntEnum):
+    TIMEOUT = 9
+    FILTERED_OUT = 27
+
+    # Shold connection be put back into pool
+    @staticmethod
+    def keep_connection(result_code: int):
+        if result_code <= 0:
+            # Do not keep connection on client errors.
+            return False
+
+        # TODO: check for certain result codes
+        return True
+
 class AsyncCommand(Command, ABC):
     cluster: Cluster
 
@@ -215,6 +301,7 @@ class AsyncCommand(Command, ABC):
         self.cluster = cluster
         self.policy = policy
         self.deadline = 0
+        self.command_sent_counter = 0
 
     # NOTE: execute() from this class's instance instead of event loop
     async def execute(self):
@@ -223,6 +310,7 @@ class AsyncCommand(Command, ABC):
 
     async def execute_command(self):
         # TODO: declare vars
+        is_client_timeout = False
 		# Execute command until successful, timed out or maximum iterations have been reached.
         while True:
             try:
@@ -236,15 +324,49 @@ class AsyncCommand(Command, ABC):
 
             try:
                 node.validate_error_count()
-                conn = await node.get_connection()
+                # TODO: properly get connection timeout from policy
+                conn = await node.get_connection(self, 10)
 
                 try:
                     # Set command buffer
                     self.write_buffer()
 
+                    # Send command
+                    await conn.write(self.data_buffer)
+                    self.command_sent_counter += 1
+
+                    # Parse results
+                    await self.parse_result(conn)
+
+                    # Put connection back in pool.
+                    await node.put_connection(conn)
+
+                    # Command has completed successfully. Exit method.
+                    return
+                except AerospikeException as ae:
+                    if ae.keep_connection():
+                        # Put connection back in pool
+                        await node.put_connection(conn)
+                    else:
+                        # Close socket to flush out possible garbage. Do not put back in pool
+                        await node.close_connection(conn)
+
+                    if ae.get_result_code() == ResultCode.TIMEOUT:
+                        # Retry on server timeout
+                        exception = Timeout(client=False)
+                        is_client_timeout = False
+                        node.incr_error_count()
+                    # TODO: check for device overload
+                    else:
+                        raise ae
+                # TODO: read timeout, runtime exception, socket timeout exception, ioexception
+            except:
+                # TODO: leave off from here
+                pass
+
     @abstractmethod
-    def get_node(self):
-        return None
+    def get_node(self) -> Node:
+        pass
 
     def reset_deadline(self, start_time: int):
         elapsed = time.time_ns() - start_time
@@ -252,7 +374,22 @@ class AsyncCommand(Command, ABC):
 
     @abstractmethod
     def write_buffer(self):
-        return None
+        pass
+
+    @abstractmethod
+    async def parse_result(self, conn: Connection):
+        # Read header.
+        # TODO: use read fully instead of just read?
+        header = await conn.read(Command.MSG_TOTAL_HEADER_SIZE)
+
+        result_code = self.data_buffer[13] & 0xFF
+
+        if result_code == 0:
+            return
+
+        # TODO: check fail on filtered out in policy
+
+        raise AerospikeException(result_code)
 
 class WriteCommand(AsyncCommand):
     # TODO: listener, write policy

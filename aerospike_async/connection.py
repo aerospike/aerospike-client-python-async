@@ -2,20 +2,22 @@ from dataclasses import dataclass
 
 import time
 import asyncio
+from typing import Optional
+from .cluster import Pool
 
 @dataclass
 class Connection:
     s_reader: asyncio.StreamReader
     s_writer: asyncio.StreamWriter
     conn_timeout_secs: float
+    pool: Optional[Pool]
     last_used_time_ns: int = time.time_ns()
 
     @staticmethod
-    async def new(address: str, port: int, conn_timeout_secs: float):
-        # TODO: assign pool
+    async def new(address: str, port: int, conn_timeout_secs: float, pool: Optional[Pool]):
         open_conn = asyncio.open_connection(address, port)
         s_reader, s_writer = await asyncio.wait_for(open_conn, timeout=conn_timeout_secs)
-        conn = Connection(s_reader, s_writer, conn_timeout_secs)
+        conn = Connection(s_reader, s_writer, conn_timeout_secs, pool)
         return conn
 
     async def read(self, num_bytes: int) -> bytes:
