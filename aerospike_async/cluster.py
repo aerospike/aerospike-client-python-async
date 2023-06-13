@@ -10,7 +10,7 @@ from typing import Optional
 from .host import Host
 from .connection import Connection
 from .info import Info
-from .exceptions import InvalidNodeException, AerospikeException
+from .exceptions import InvalidNodeException, AerospikeException, ParseException
 from .command import AsyncCommand
 
 class Partitions:
@@ -77,7 +77,7 @@ class PartitionParser:
         pp.info = await Info.new(conn, commands)
 
         if pp.info.length == 0:
-            raise AerospikeException("Partition info is empty")
+            raise Parse("Partition info is empty")
 
         pp.generation = pp.parse_generation()
         pp.parse_replicas_all(node, cls.REPLICAS_ALL_COMMAND)
@@ -108,7 +108,7 @@ class PartitionParser:
                 if len(namespace) <= 0 or len(namespace) >= 32:
                     # TODO: get truncated response
                     response = str(info.buffer, encoding='utf-8')
-                    raise AerospikeException(f"Invalid partition namespace {namespace}. Response={response}")
+                    raise ParseException(f"Invalid partition namespace {namespace}. Response={response}")
 
                 info.offset += 1
                 begin = info.offset
@@ -168,7 +168,7 @@ class PartitionParser:
 
                     if info.offset == begin:
                         response = str(info.buffer, encoding='utf-8')
-                        raise AerospikeException(f"Empty partition id for namespace {namespace}. Response={response}")
+                        raise ParseException(f"Empty partition id for namespace {namespace}. Response={response}")
 
                     # logging.info(f"Map: {namespace} [{i}] , {node}")
                     self.decode_bitmap(node, partitions, i, regime, begin)
@@ -564,7 +564,7 @@ class PeerParser:
         self.parser = parser
 
         if parser.length == 0:
-            raise AerospikeException(f"{command} response is empty")
+            raise ParseException(f"{command} response is empty")
 
         parser.skip_to_value()
         self.generation = parser.parse_int()

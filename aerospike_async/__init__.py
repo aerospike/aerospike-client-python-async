@@ -7,7 +7,7 @@ from Crypto.Hash import RIPEMD160
 from .operations import Operation
 from .command import WriteCommand, OperationType, ParticleType
 from .cluster import Cluster, Host
-from .exceptions import InvalidUserKeyTypeException
+from .exceptions import AerospikeException
 
 MapKey = Union[str, bytes, bytearray, int, float]
 # Recursively define allowed bin values
@@ -61,7 +61,7 @@ class Key:
             user_key_type = ParticleType.AS_BYTES_BLOB
         else:
             # TODO: not in java client?
-            raise InvalidUserKeyTypeException
+            raise AerospikeException("Invalid user key")
 
         user_key_type = user_key_type.to_bytes(1, byteorder='big')
         h.update(user_key_type)
@@ -102,6 +102,7 @@ class Policy:
     total_timeout: int
     socket_timeout: int
     max_retries: int
+    connect_timeout: int = 0
 
 @dataclass
 class WritePolicy(Policy):

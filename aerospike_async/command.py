@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import time
 from dataclasses import dataclass
 from .cluster import Cluster, Partitions, Node
-from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException, Timeout
+from .exceptions import AerospikeException, InvalidNodeException, InvalidNamespaceException, TimeoutException
 from . import Key, Bins, BinValue, WritePolicy, Policy
 from .connection import Connection
 
@@ -279,7 +279,11 @@ class Command:
         self.data_offset = self.MSG_TOTAL_HEADER_SIZE
 
 class ResultCode(IntEnum):
+    INVALID_NODE_ERROR = -3
+    PARSE_ERROR = -2
+    CLIENT_ERROR = -1
     TIMEOUT = 9
+    INVALID_NAMESPACE = 20
     FILTERED_OUT = 27
 
     # Shold connection be put back into pool
@@ -353,7 +357,7 @@ class AsyncCommand(Command, ABC):
 
                     if ae.get_result_code() == ResultCode.TIMEOUT:
                         # Retry on server timeout
-                        exception = Timeout(client=False)
+                        exception = TimeoutException(self.policy, client=False)
                         is_client_timeout = False
                         node.incr_error_count()
                     # TODO: check for device overload
