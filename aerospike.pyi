@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from typing_extensions import TypeAlias
 
@@ -14,7 +14,7 @@ class Client:
     # Read record for the specified key. Depending on the bins value provided, all record bins,
     # only selected record bins or only the record headers will be returned. The policy can be
     # used to specify timeouts.
-    def get(policy: ReadPolicy, key: Key, bins: List[str] | None) -> Record: ...
+    async def get(key: Key, bins: List[str] | None, policy: Optional[ReadPolicy]) -> Record: ...
 
     # Add integer bin values to existing record bin values. The policy specifies the transaction
     # timeout, record expiration and how the transaction is handled when the record already

@@ -1952,12 +1952,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         /// used to specify timeouts.
         pub fn get<'a>(
             &self,
-            policy: &BasePolicy,
             key: &Key,
             bins: Option<Vec<String>>,
-            py: Python<'a>
+            policy: Option<&BasePolicy>,
+            py: Python<'a>,
         ) -> PyResult<&'a PyAny> {
-            let policy = policy._as.clone();
+            let policy = match policy {
+                Some(policy) => policy._as.clone(),
+                None => aerospike_core::policy::ReadPolicy::default()
+            };
             let key = key._as.clone();
             let client = self._as.clone();
 

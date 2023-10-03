@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from aerospike_async import *
+from aerospike_async import Client, ClientPolicy, ReadPolicy, WritePolicy, Key, new_client
 from aerospike_async import FilterExpression as fe
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -9,7 +9,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     rp: ReadPolicy
     key: Key
 
-    async def setup(self):
+    async def asyncSetUp(self):
         cp = ClientPolicy()
         self.client = await new_client(cp, "localhost:3000")
 
@@ -29,34 +29,28 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_all_bins(self):
-        await self.setup()
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key, policy=self.rp)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.generation, 1)
         # self.assertIsNotNone(rec.ttl)
 
     async def test_some_bins(self):
-        await self.setup()
-        rec = await self.client.get(self.rp, self.key, ["brand", "year"])
+        rec = await self.client.get(self.key, ["brand", "year"], policy=self.rp)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
     async def test_matching_filter_exp(self):
-        await self.setup()
 
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
-        rec = await self.client.get(rp, self.key, ["brand", "year"])
+        rec = await self.client.get(self.key, ["brand", "year"], rp)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
     async def test_non_matching_filter_exp(self):
-        await self.setup()
 
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
         with self.assertRaises(Exception):
-            await self.client.get(rp, self.key, ["brand", "year"])
-
-
+            await self.client.get(self.key, ["brand", "year"], policy=rp)
