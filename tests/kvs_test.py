@@ -22,6 +22,10 @@ class TestKVS(unittest.IsolatedAsyncioTestCase):
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         })
 
+    async def asyncTearDown(self):
+        await self.client.delete(self.key)
+        self.client.close()
+
 
 class TestGet(TestKVS):
     client: Client
