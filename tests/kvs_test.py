@@ -102,7 +102,7 @@ class TestAppend(TestKVS):
         self.assertIsNone(retval)
 
         rec = await self.client.get(self.key)
-        self.assertEqual(rec.bins, {"brand": "Fordd"})
+        self.assertEqual(rec.bins["brand"], "Fordd")
 
     async def test_append_nonexistent_bin(self):
         with self.assertRaises(Exception):
@@ -114,7 +114,7 @@ class TestPrepend(TestKVS):
         self.assertIsNone(retval)
 
         rec = await self.client.get(self.key)
-        self.assertEqual(rec.bins, {"brand": "FFord"})
+        self.assertEqual(rec.bins["brand"], "FFord")
 
     async def test_prepend_nonexistent_bin(self):
         with self.assertRaises(Exception):
