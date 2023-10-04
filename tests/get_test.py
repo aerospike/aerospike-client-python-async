@@ -1,7 +1,6 @@
-import asyncio
 import unittest
 
-from aerospike_async import Client, ReadPolicy, Key, new_client
+from aerospike_async import Client, ReadPolicy, Key, new_client, Record
 from aerospike_async import FilterExpression as fe
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -25,20 +24,31 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_bins(self):
         rec = await self.client.get(self.key)
-        self.assertIsNotNone(rec)
+
+        # Check all Record attributes
+        self.assertEqual(type(rec), Record)
+        # Key is not returned in Record struct when reading a record
+        # https://docs.rs/aerospike/latest/aerospike/struct.Record.html#structfield.key
+        self.assertEqual(rec.key, None)
+        self.assertEqual(rec.bins, {
+            "brand": "Ford",
+            "model": "Mustang",
+            "year": 1964,
+            "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
+        })
         self.assertEqual(rec.generation, 1)
-        # self.assertIsNotNone(rec.ttl)
+        self.assertEqual(type(rec.ttl), int)
 
     # TODO: should selecting some / no bins be separate API calls?
 
     async def test_some_bins(self):
         rec = await self.client.get(self.key, ["brand", "year"])
-        self.assertIsNotNone(rec)
+        self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
     async def test_no_bins(self):
         rec = await self.client.get(self.key, [])
-        self.assertIsNotNone(rec)
+        self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {})
 
     # Test that policy works
@@ -48,7 +58,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
         rec = await self.client.get(self.key, ["brand", "year"], rp)
-        self.assertIsNotNone(rec)
+        self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
     async def test_non_matching_filter_exp(self):
