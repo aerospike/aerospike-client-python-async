@@ -29,15 +29,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_all_bins(self):
-        rec = await self.client.get(self.key, policy=self.rp)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.generation, 1)
         # self.assertIsNotNone(rec.ttl)
 
     async def test_some_bins(self):
-        rec = await self.client.get(self.key, ["brand", "year"], policy=self.rp)
+        rec = await self.client.get(self.key, ["brand", "year"])
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
+
+    # Test that policy works
 
     async def test_matching_filter_exp(self):
 
