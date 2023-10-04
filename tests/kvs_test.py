@@ -9,6 +9,12 @@ class TestFixtureConnection(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.client = await new_client("localhost:3000")
 
+    async def asyncTearDown(self):
+        # Clean up any records that a test case using this fixture
+        # may have inserted
+        await self.client.truncate("test", "test")
+        self.client.close()
+
 
 class TestKVS(TestFixtureConnection):
     key: Key
@@ -29,11 +35,6 @@ class TestKVS(TestFixtureConnection):
             "year": 1964,
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         })
-
-    async def asyncTearDown(self):
-        await self.client.truncate("test", "test")
-        self.client.close()
-
 
 class TestPut(TestKVS):
     async def test_bytes(self):
