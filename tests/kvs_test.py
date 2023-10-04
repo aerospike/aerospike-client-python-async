@@ -23,7 +23,7 @@ class TestKVS(unittest.IsolatedAsyncioTestCase):
         })
 
     async def asyncTearDown(self):
-        await self.client.delete(self.key)
+        await self.client.truncate("test", "test")
         self.client.close()
 
 
