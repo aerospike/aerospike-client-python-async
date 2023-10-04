@@ -3,12 +3,20 @@ from aerospike_async import Client, Key, new_client, Record, ReadPolicy
 from aerospike_async import FilterExpression as fe
 
 
-class TestKVS(unittest.IsolatedAsyncioTestCase):
+class TestFixtureConnection(unittest.IsolatedAsyncioTestCase):
     client: Client
-    key: Key
 
     async def asyncSetUp(self):
         self.client = await new_client("localhost:3000")
+
+
+class TestKVS(TestFixtureConnection):
+    key: Key
+    key_nonexistent_pk = Key("test", "test", 0)
+    key_nonexistent_namespace = Key("test1", "test", 1)
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         # make a record
         self.key = Key("test", "test", 1)
@@ -26,6 +34,22 @@ class TestKVS(unittest.IsolatedAsyncioTestCase):
         await self.client.truncate("test", "test")
         self.client.close()
 
+
+class TestPut(TestKVS):
+    async def test_bytes(self):
+        self.client.put(self.key, {"blob": bytes(b'123')})
+
+    async def test_double(self):
+        self.client.put(self.key, {"double": 1.23})
+
+    async def test_bool(self):
+        self.client.put(self.key, {"bool": False})
+
+    async def test_list(self):
+        self.client.put(self.key, {"list": [1, 2, 3]})
+
+    async def test_map(self):
+        self.client.put(self.key, {"map": {"x": 1, "y": 2, "z": 3}})
 
 class TestGet(TestKVS):
     client: Client
