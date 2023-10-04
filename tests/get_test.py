@@ -1,27 +1,22 @@
 import asyncio
 import unittest
 
-from aerospike_async import Client, ClientPolicy, ReadPolicy, WritePolicy, Key, new_client
+from aerospike_async import Client, ReadPolicy, Key, new_client
 from aerospike_async import FilterExpression as fe
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
     client: Client
-    rp: ReadPolicy
     key: Key
 
     async def asyncSetUp(self):
-        cp = ClientPolicy()
-        self.client = await new_client(cp, "localhost:3000")
-
-        self.rp = ReadPolicy()
+        self.client = await new_client("localhost:3000")
 
         # make a record
         self.key = Key("test", "test", 1)
-        wp = WritePolicy()
 
-        await self.client.delete(wp, self.key)
+        await self.client.delete(self.key)
 
-        await self.client.put(wp, self.key, {
+        await self.client.put(self.key, {
             "brand": "Ford",
             "model": "Mustang",
             "year": 1964,
