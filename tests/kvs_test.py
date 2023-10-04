@@ -1,9 +1,9 @@
 import unittest
-
-from aerospike_async import Client, ReadPolicy, Key, new_client, Record
+from aerospike_async import Client, Key, new_client, Record, ReadPolicy
 from aerospike_async import FilterExpression as fe
 
-class TestClient(unittest.IsolatedAsyncioTestCase):
+
+class TestGet(unittest.IsolatedAsyncioTestCase):
     client: Client
     key: Key
 
@@ -82,3 +82,46 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         key = Key("test", "test", 0)
         with self.assertRaises(Exception):
             await self.client.get(key)
+
+
+class TestAppendPrepend(unittest.IsolatedAsyncioTestCase):
+    client: Client
+    key: Key
+
+    async def asyncSetUp(self):
+        self.client = await new_client("localhost:3000")
+
+        # make a record
+        self.key = Key("test", "test", 1)
+
+        await self.client.delete(self.key)
+
+        await self.client.put(self.key, {
+            "brand": "Ford",
+        })
+
+    # Functional tests
+
+    async def test_append(self):
+        retval = await self.client.append(self.key, {"brand": "d"})
+        self.assertIsNone(retval)
+
+        rec = await self.client.get(self.key)
+        self.assertEqual(rec.bins, {"brand": "Fordd"})
+
+    async def test_prepend(self):
+        retval = await self.client.prepend(self.key, {"brand": "F"})
+        self.assertIsNone(retval)
+
+        rec = await self.client.get(self.key)
+        self.assertEqual(rec.bins, {"brand": "FFord"})
+
+    # Negative tests
+
+    async def test_append_nonexistent_bin(self):
+        with self.assertRaises(Exception):
+            await self.client.append(self.key, {"brand1": "d"})
+
+    async def test_prepend_nonexistent_bin(self):
+        with self.assertRaises(Exception):
+            await self.client.append(self.key, {"brand1": "F"})
