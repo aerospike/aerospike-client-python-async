@@ -34,10 +34,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.generation, 1)
         # self.assertIsNotNone(rec.ttl)
 
+    # TODO: should selecting some / no bins be separate API calls?
+
     async def test_some_bins(self):
         rec = await self.client.get(self.key, ["brand", "year"])
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
+
+    async def test_no_bins(self):
+        rec = await self.client.get(self.key, [])
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.bins, {})
 
     # Test that policy works
 
@@ -56,3 +63,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(Exception):
             await self.client.get(self.key, ["brand", "year"], policy=rp)
+
+    # Negative tests
+
+    async def test_get_nonexistent_namespace(self):
+        # A record does not exist with this namespace
+        key = Key("test1", "test", 1)
+        with self.assertRaises(Exception):
+            await self.client.get(key)
+
+    async def test_get_nonexistent_record(self):
+        # A record does not exist with this key
+        key = Key("test", "test", 0)
+        with self.assertRaises(Exception):
+            await self.client.get(key)
