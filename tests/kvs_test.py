@@ -144,3 +144,56 @@ class TestPrepend(TestKVS):
     async def test_prepend_nonexistent_bin(self):
         with self.assertRaises(Exception):
             await self.client.append(self.key, {"brand1": "F"})
+
+
+class TestDelete(TestKVS):
+    async def test_delete_existing_record(self):
+        rec_existed = await self.client.delete(self.key)
+        self.assertEqual(rec_existed, True)
+
+    async def test_delete_nonexistent_record(self):
+        rec_existed = await self.client.delete(self.key_nonexistent_pk)
+        self.assertEqual(rec_existed, False)
+
+
+class TestAdd(TestKVS):
+    async def test_add(self):
+        retval = await self.client.add(self.key, {
+            "year": 1
+        })
+        self.assertEqual(retval, None)
+
+        rec = await self.client.get(self.key)
+        self.assertEqual(rec.bins["year"], 1965)
+
+
+class TestTouch(TestKVS):
+    async def test_existing_record(self):
+        retval = await self.client.touch(self.key)
+        self.assertEqual(retval, None)
+
+        rec = await self.client.get(self.key)
+        self.assertEqual(rec.generation, 2)
+
+    async def test_nonexistent_record(self):
+        with self.assertRaises(Exception):
+            await self.client.touch(self.key_nonexistent_pk)
+
+
+class TestExists(TestKVS):
+    async def test_existing_record(self):
+        retval = await self.client.exists(self.key)
+        self.assertEqual(retval, True)
+
+    async def test_nonexistent_record(self):
+        retval = await self.client.exists(self.key_nonexistent_pk)
+        self.assertEqual(retval, False)
+
+class TestTruncate(TestKVS):
+    async def test_truncate(self):
+        retval = await self.client.truncate("test", "test")
+        self.assertEqual(retval, None)
+
+    async def test_truncate_before_nanos(self):
+        retval = await self.client.truncate("test", "test", 0)
+        self.assertEqual(retval,  None)
