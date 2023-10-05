@@ -2292,6 +2292,11 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pymethods]
     impl GeoJSON {
+        #[new]
+        pub fn new(v: String) -> Self {
+            GeoJSON {v}
+        }
+
         #[getter]
         pub fn get_value(&self) -> String {
             self.v.clone()
