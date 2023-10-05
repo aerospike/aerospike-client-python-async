@@ -14,7 +14,6 @@ pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
 tokio = "1.20"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust.git", branch = "php-rs", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
-serde_json = "1"
 ordered-float = { version = "3", default-features = false }
 
 [profile.release]
