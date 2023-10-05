@@ -1,5 +1,5 @@
 import unittest
-from aerospike_async import Client, Key, new_client, Record, ReadPolicy
+from aerospike_async import Client, Key, new_client, Record, ReadPolicy, HLL, GeoJSON
 from aerospike_async import FilterExpression as fe
 
 
@@ -37,6 +37,8 @@ class TestKVS(TestFixtureConnection):
         })
 
 class TestPut(TestKVS):
+    # Test putting in all the supported server types
+    # TODO: still missing some server types like HLL, GeoJSON
     async def test_bytes(self):
         self.client.put(self.key, {"blob": bytes(b'123')})
 
@@ -51,6 +53,17 @@ class TestPut(TestKVS):
 
     async def test_map(self):
         self.client.put(self.key, {"map": {"x": 1, "y": 2, "z": 3}})
+
+    async def test_hll(self):
+        self.client.put(self.key, {"hll": HLL(b'123')})
+
+    async def test_geojson(self):
+        geojson_str = """{
+            "type": "Point",
+            "coordinates": [30.0, 10.0]
+        }"""
+        value = GeoJSON(geojson_str)
+        self.client.put(self.key, {"geojson": value})
 
 class TestGet(TestKVS):
     client: Client
