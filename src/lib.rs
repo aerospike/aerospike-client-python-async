@@ -6,12 +6,14 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use std::fmt;
+use std::collections::hash_map::DefaultHasher;
 
 use pyo3::exceptions::{PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict};
-use pyo3::exceptions::PyException;
+use pyo3::types::{PyDict, PyByteArray, PyBytes};
+use pyo3::exceptions::{PyException,PyIndexError};
 use pyo3::iter::IterNextOutput;
+use pyo3::basic::CompareOp;
 
 use tokio::sync::RwLock;
 
@@ -32,11 +34,6 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
 
 #[pymodule]
 fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
-    #[pyclass(subclass, freelist = 1000, module = "aerospike_async")]
-    #[derive(Clone)]
-    pub struct ClientPolicy {
-        _as: aerospike_core::ClientPolicy,
-    }
 
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1349,6 +1346,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
 
+    #[pyclass(subclass, freelist = 1000, module = "aerospike_async")]
+    #[derive(Clone)]
+    pub struct ClientPolicy {
+        _as: aerospike_core::ClientPolicy,
+    }
+
     #[pymethods]
     impl ClientPolicy {
         #[new]
@@ -1452,29 +1455,13 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         fn __str__(&self) -> PyResult<String> {
-            // Ok(self)
-            Ok("ClientPolicy!!!".into())
+            Ok(format!("{}", ""))
         }
 
         fn __repr__(&self) -> PyResult<String> {
             let s = self.__str__()?;
-            Ok(format!("ClientPolicy???('{}')", s))
+            Ok(format!("ClientPolicy('{}')", s))
         }
-
-        // fn __richcmp__(&self, other: UUID, op: CompareOp) -> PyResult<bool> {
-        // }
-
-        // fn __hash__(&self) -> PyResult<isize> {
-        //     let mut s = DefaultHasher::new();
-        //     self._as.hash(&mut s);
-        //     let result = s.finish() as isize;
-
-        //     Ok(result)
-        // }
-
-        // fn __int__(&self) -> PyResult<u128> {
-        //     Ok(self.int())
-        // }
 
         // pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<&'py PyBytes> {
         //     Ok(PyBytes::new(py, self.bytes()))
@@ -1493,22 +1480,6 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         //             "bytes is not a 16-char string",
         //         )),
         //     }
-        // }
-
-        // #[allow(clippy::type_complexity)]
-        // pub fn __getnewargs__(
-        //     &self,
-        // ) -> PyResult<(
-        //     Option<&str>,
-        //     Option<&PyBytes>,
-        //     Option<&PyBytes>,
-        //     Option<&PyTuple>,
-        //     Option<u128>,
-        //     Option<u8>,
-        // )> {
-        //     // hex, bytes, bytes_le, fields, int, version. The cheapest to compute valid call to new. The actual value
-        //     // will be set by __setstate__ as part of unpickling.
-        //     Ok((None, None, None, None, Some(0u128), None))
         // }
 
         pub fn __copy__(&self) -> Self {
@@ -1573,15 +1544,6 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             let s = self.__str__()?;
             Ok(format!("Record({})", s))
         }
-
-        // pub fn __copy__(&self) -> Self {
-        //     self.clone()
-        // }
-
-        // pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
-        //     // fast bitwise copy instead of python's pickling process
-        //     self.clone()
-        // }
     }
 
     impl fmt::Display for Record {
@@ -1645,14 +1607,25 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             Some(hex::encode(self._as.digest))
         }
 
+        fn __richcmp__<'a>(&self, other: Key, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    self._as.digest == other._as.digest
+                },
+                CompareOp::Ne => {
+                    self._as.digest != other._as.digest
+                },
+                _ => false,
+            }
+        }
+
         fn __str__(&self) -> PyResult<String> {
-            // Ok(self)
-            Ok("Key!!!".into())
+            Ok(format!("{}", self._as))
         }
 
         fn __repr__(&self) -> PyResult<String> {
             let s = self.__str__()?;
-            Ok(format!("Key???('{}')", s))
+            Ok(format!("Key({})", s))
         }
 
         pub fn __copy__(&self) -> Self {
@@ -1889,18 +1862,18 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
      **********************************************************************************/
 
     #[pyfunction]
-    pub fn new_client(py: Python, policy: ClientPolicy, hosts: String) -> PyResult<PyObject> {
+    pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<PyObject> {
         let as_policy = policy._as.clone();
-        let as_hosts = hosts.clone();
+        let as_seeds = seeds.clone();
 
         Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
-            let c = aerospike_core::Client::new(&as_policy, &as_hosts)
+            let c = aerospike_core::Client::new(&as_policy, &as_seeds)
                 .await
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
             let res = Client {
                 _as: Arc::new(RwLock::new(c)),
-                hosts: hosts.clone(),
+                seeds: seeds.clone(),
             };
 
             // Python::with_gil(|_py| Ok(res))
@@ -1912,13 +1885,13 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[derive(Clone)]
     struct Client {
         _as: Arc<RwLock<aerospike_core::Client>>,
-        hosts: String,
+        seeds: String,
     }
 
     #[pymethods]
     impl Client {
-        pub fn hosts(&self) -> &str {
-            &self.hosts
+        pub fn seeds(&self) -> &str {
+            &self.seeds
         }
 
         pub fn close(&self) -> PyResult<()> {
@@ -2223,28 +2196,354 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
 
-        // fn __str__(&self) -> PyResult<String> {
-        //     // Ok(self)
-        //     Ok("Client!!!".into())
-        // }
+        fn __str__(&self) -> PyResult<String> {
+            Ok(format!("{}", self.seeds))
+        }
 
-        // fn __repr__(&self) -> PyResult<String> {
-        //     let s = self.__str__()?;
-        //     Ok(format!("Client???('{}')", s))
-        // }
+        fn __repr__(&self) -> PyResult<String> {
+            let s = self.__str__()?;
+            Ok(format!("Client('{}')", s))
+        }
 
-        // pub fn __copy__(&self) -> Self {
-        //     self.clone()
-        // }
+        pub fn __copy__(&self) -> Self {
+            self.clone()
+        }
 
-        // pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
-        //     // fast bitwise copy instead of python's pickling process
-        //     self.clone()
-        // }
+        pub fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+            // fast bitwise copy instead of python's pickling process
+            self.clone()
+        }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Blob
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
 
+    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[derive(Debug, Clone)]
+    pub struct Blob {
+        v: Vec<u8>,
+    }
 
+    #[pymethods]
+    impl Blob {
+        #[new]
+        pub fn new(v: Vec<u8>) -> Self {
+            Blob { v: v }
+        }
+
+        #[getter]
+        pub fn get_value(&self) -> Vec<u8> {
+            self.v.clone()
+        }
+
+        #[setter]
+        pub fn set_value(&mut self, b: Vec<u8>) {
+            self.v = b
+        }
+
+        /// Returns a string representation of the value.
+        pub fn as_string(&self) -> String {
+            PythonValue::Blob(self.v.clone()).as_string()
+        }
+
+        fn __getitem__(&mut self, idx: usize) -> PyResult<u8> {
+            if idx > self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            Ok(self.v[idx])
+        }
+
+        fn __setitem__(&mut self, idx: usize, v: u8) -> PyResult<()> {
+            if idx > self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            self.v[idx] = v;
+            Ok(())
+        }
+
+        fn __hash__(&self) -> u64 {
+            let mut s = DefaultHasher::new();
+            self.v.hash(&mut s);
+            s.finish()
+        }
+
+        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    let l: PyResult<Blob> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l.v;
+                    }
+
+                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l;
+                    }
+
+                    false
+                },
+                CompareOp::Ne => {
+                    let l: PyResult<Blob> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l.v;
+                    }
+
+                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l;
+                    }
+
+                    true
+                },
+                _ => false,
+            }
+        }
+    }
+
+    impl fmt::Display for Blob {
+        fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+            write!(f, "{}", self.as_string())
+        }
+    }
+
+    // impl From<Blob> for PythonValue {
+    //     fn from(input: Blob) -> Self {
+    //         PythonValue::Blob(input.v.clone())
+    //     }
+    // }
+
+    // impl Into<PythonValue> for Blob {
+    //     fn into(self) -> PythonValue {
+    //         PythonValue::Blob(self.v)
+    //     }
+    // }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Map
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[derive(Debug, Clone)]
+    pub struct Map {
+        v: HashMap<PythonValue, PythonValue>,
+    }
+
+    #[pymethods]
+    impl Map {
+        #[new]
+        pub fn new(v: HashMap<PythonValue, PythonValue>) -> Self {
+            Map { v: v }
+        }
+
+        #[getter]
+        pub fn get_value(&self) -> HashMap<PythonValue, PythonValue>{
+            self.v.clone()
+        }
+
+        #[setter]
+        pub fn set_value(&mut self, b: HashMap<PythonValue, PythonValue>) {
+            self.v = b
+        }
+
+        /// Returns a string representation of the value.
+        pub fn as_string(&self) -> String {
+            PythonValue::HashMap(self.v.clone()).as_string()
+        }
+
+        // TODO: Change HashMap into BTreeMap and use that
+        // This requires Rust Client implementation first
+        // fn __hash__(&self) -> u64 {
+        //     let mut s = DefaultHasher::new();
+        //     self.v.hash(&mut s);
+        //     s.finish()
+        // }
+
+        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    let l: PyResult<Map> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l.v;
+                    }
+
+                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l;
+                    }
+
+                    false
+                },
+                CompareOp::Ne => {
+                    let l: PyResult<Map> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l.v;
+                    }
+
+                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l;
+                    }
+
+                    true
+                },
+                _ => false,
+            }
+        }
+    }
+
+    impl fmt::Display for Map {
+        fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+            write!(f, "{}", self.as_string())
+        }
+    }
+
+    // impl From<HashMap> for PythonValue {
+    //     fn from(input: HashMap) -> Self {
+    //         PythonValue::HashMap(input.v.clone())
+    //     }
+    // }
+
+    // impl Into<PythonValue> for HashMap {
+    //     fn into(self) -> PythonValue {
+    //         PythonValue::HashMap(self.v)
+    //     }
+    // }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  List
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[derive(Debug, Clone)]
+    pub struct List {
+        v: Vec<PythonValue>,
+        index: usize,
+    }
+
+    #[pymethods]
+    impl List {
+        #[new]
+        pub fn new(v: Vec<PythonValue>) -> Self {
+            List { v: v, index: 0 }
+        }
+
+        #[getter]
+        pub fn get_value(&self) -> Vec<PythonValue> {
+            self.v.clone()
+        }
+
+        #[setter]
+        pub fn set_value(&mut self, geo: Vec<PythonValue>) {
+            self.v = geo
+        }
+
+        /// Returns a string representation of the value.
+        pub fn as_string(&self) -> String {
+            PythonValue::List(self.v.clone()).as_string()
+        }
+
+        fn __str__(&self) -> PyResult<String> {
+            Ok(self.as_string())
+        }
+
+        fn __repr__(&self) -> PyResult<String> {
+            let s = self.__str__()?;
+            Ok(format!("List('{}')", s))
+        }
+
+        fn __getitem__<'a>(&mut self, idx: usize) -> PyResult<PythonValue> {
+            if idx > self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            Ok(self.v[idx].clone())
+        }
+
+        fn __setitem__(&mut self, idx: usize, v: PythonValue) -> PyResult<()> {
+            if idx > self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            self.v[idx] = v;
+            Ok(())
+        }
+
+        fn __hash__(&self) -> u64 {
+            let mut s = DefaultHasher::new();
+            self.v.hash(&mut s);
+            s.finish()
+        }
+
+        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    let l: PyResult<List> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l.v;
+                    }
+
+                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l;
+                    }
+
+                    false
+                },
+                CompareOp::Ne => {
+                    let l: PyResult<List> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l.v;
+                    }
+
+                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l;
+                    }
+
+                    true
+                },
+                _ => false,
+            }
+        }
+
+        fn __iter__(&self) -> Self {
+            self.clone()
+        }
+
+        fn __next__<'a>(&mut self, py: Python<'a>) -> IterNextOutput<PyObject, String> {
+            let res = self.v.get(self.index).clone();
+            self.index += 1;
+            match res {
+                None => IterNextOutput::Return("ended".into()),
+                Some(v) => {
+                    IterNextOutput::Yield(v.clone().into_py(py))
+                },
+            }
+        }
+    }
+
+    impl fmt::Display for List {
+        fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+            write!(f, "{}", self.as_string())
+        }
+    }
+
+    // impl From<List> for PythonValue {
+    //     fn from(input: List) -> Self {
+    //         PythonValue::List(input.v.clone())
+    //     }
+    // }
+
+    // impl Into<PythonValue> for List {
+    //     fn into(self) -> PythonValue {
+    //         PythonValue::List(self.v)
+    //     }
+    // }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -2253,12 +2552,18 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[pyclass(subclass, freelist = 1, module = "aerospike")]
+    #[derive(Debug, Clone)]
     pub struct GeoJSON {
         v: String,
     }
 
     #[pymethods]
     impl GeoJSON {
+        #[new]
+        pub fn new(v: String) -> Self {
+            GeoJSON { v: v}
+        }
+
         #[getter]
         pub fn get_value(&self) -> String {
             self.v.clone()
@@ -2272,6 +2577,38 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
             PythonValue::GeoJSON(self.v.clone()).as_string()
+        }
+
+        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    let l: PyResult<GeoJSON> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l.v;
+                    }
+
+                    let l: PyResult<String> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l;
+                    }
+
+                    false
+                },
+                CompareOp::Ne => {
+                    let l: PyResult<GeoJSON> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l.v;
+                    }
+
+                    let l: PyResult<String> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l;
+                    }
+
+                    true
+                },
+                _ => false,
+            }
         }
     }
 
@@ -2287,13 +2624,19 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass(subclass, freelist = 1, module = "aerospike")]
+    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[derive(Debug, Clone)]
     pub struct HLL {
         v: Vec<u8>,
     }
 
     #[pymethods]
     impl HLL {
+        #[new]
+        pub fn new(v: Vec<u8>) -> Self {
+            HLL { v: v }
+        }
+
         #[getter]
         pub fn get_value(&self) -> Vec<u8> {
             self.v.clone()
@@ -2307,6 +2650,38 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
             PythonValue::HLL(self.v.clone()).as_string()
+        }
+
+        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    let l: PyResult<HLL> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l.v;
+                    }
+
+                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v == l;
+                    }
+
+                    false
+                },
+                CompareOp::Ne => {
+                    let l: PyResult<HLL> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l.v;
+                    }
+
+                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    if let Ok(l) = l {
+                        return self.v != l;
+                    }
+
+                    true
+                },
+                _ => false,
+            }
         }
     }
 
@@ -2378,7 +2753,7 @@ impl Hash for PythonValue {
             PythonValue::Blob(ref val) | PythonValue::HLL(ref val) => val.hash(state),
             PythonValue::List(ref val) => val.hash(state),
             PythonValue::HashMap(_) => panic!("HashMaps cannot be used as map keys."),
-            // PythonValue::OrderedMap(_) => panic!("OrderedMaps cannot be used as map keys."),
+            // PythonValue::OrderedMap(ref val) => val.hash(state),
         }
     }
 }
@@ -2418,20 +2793,12 @@ impl IntoPy<PyObject> for PythonValue {
             PythonValue::UInt(ui) => ui.into_py(py),
             PythonValue::Float(f) => f.into_py(py),
             PythonValue::String(s) => s.into_py(py),
-            PythonValue::Blob(b) => b.into_py(py),
-            PythonValue::List(l) => l.into_py(py),
+            PythonValue::Blob(b) => Blob::new(b).into_py(py),
+            PythonValue::List(l) => List::new(l).into_py(py),
             PythonValue::HashMap(h) => h.into_py(py),
-            PythonValue::GeoJSON(s) => {
-                let res = GeoJSON { v: s };
-                res.into_py(py)
-            }
-            PythonValue::HLL(b) => {
-                let res = HLL { v: b };
-                res.into_py(py)
-            }
+            PythonValue::GeoJSON(s) => GeoJSON::new(s).into_py(py),
+            PythonValue::HLL(b) => HLL::new(b).into_py(py),
         }
-
-        // Ok(())
     }
 }
 
@@ -2457,29 +2824,52 @@ impl FromPyObject<'_> for PythonValue {
             return Ok(PythonValue::String(s));
         }
 
+        let b: PyResult<&PyByteArray> = PyAny::extract(arg);
+        if let Ok(b) = b {
+            return Ok(PythonValue::Blob(b.to_vec()));
+        }
+
+        let b: PyResult<&PyBytes> = PyAny::extract(arg);
+        if let Ok(b) = b {
+            return Ok(PythonValue::Blob(b.as_bytes().to_vec()));
+        }
+
+        let b: PyResult<Blob> = PyAny::extract(arg);
+        if let Ok(b) = b {
+            return Ok(PythonValue::Blob(b.v));
+        }
+
+        let l: PyResult<Vec<PythonValue>> = PyAny::extract(arg);
+        if let Ok(l) = l {
+            return Ok(PythonValue::List(l));
+        }
+
+        let l: PyResult<List> = PyAny::extract(arg);
+        if let Ok(l) = l {
+            return Ok(PythonValue::List(l.v));
+        }
+
+        let hm: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(arg);
+        if let Ok(hm) = hm {
+            return Ok(PythonValue::HashMap(hm));
+        }
+
+        let hm: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(arg);
+        if let Ok(hm) = hm {
+            return Ok(PythonValue::HashMap(hm));
+        }
+
+        let geo: PyResult<GeoJSON> = PyAny::extract(arg);
+        if let Ok(geo) = geo {
+            return Ok(PythonValue::GeoJSON(geo.v));
+        }
+
+        let hll: PyResult<HLL> = PyAny::extract(arg);
+        if let Ok(hll) = hll {
+            return Ok(PythonValue::HLL(hll.v));
+        }
+
         Err(PyTypeError::new_err(format!("invalid value {}", arg)))
-
-    // match self {
-    //         PythonValue::Nil => py.None(),
-    //         PythonValue::Bool(b) => b.into_py(py),
-    //         PythonValue::Int(i) => i.into_py(py),
-    //         PythonValue::UInt(ui) => ui.into_py(py),
-    //         PythonValue::Float(f) => f.into_py(py),
-    //         PythonValue::String(s) => s.into_py(py),
-    //         PythonValue::Blob(b) => b.into_py(py),
-    //         PythonValue::List(l) => l.into_py(py),
-    //         PythonValue::HashMap(h) => h.into_py(py),
-    //         PythonValue::GeoJSON(s) => {
-    //             let res = GeoJSON { v: s };
-    //             res.into_py(py)
-    //         }
-    //         PythonValue::HLL(b) => {
-    //             let res = HLL { v: b };
-    //             res.into_py(py)
-    //         }
-    //     }
-
-    //     // Ok(())
     }
 }
 
@@ -2552,88 +2942,35 @@ impl From<aerospike_core::Value> for PythonValue {
     }
 }
 
-// impl From<aerospike_core::Bin> for Bin {
-//     fn from(other: aerospike_core::Bin) -> Self {
-//         Bin { _as: other }
-//     }
-// }
+    // impl From<aerospike_core::Bin> for Bin {
+    //     fn from(other: aerospike_core::Bin) -> Self {
+    //         Bin { _as: other }
+    //     }
+    // }
 
-impl From<aerospike_core::Key> for Key {
-    fn from(other: aerospike_core::Key) -> Self {
-        Key { _as: other }
-    }
-}
-
-impl From<aerospike_core::Record> for Record {
-    fn from(other: aerospike_core::Record) -> Self {
-        Record { _as: other }
-    }
-}
-
-// impl From<Bin> for aerospike_core::Bin {
-//     fn from(other: Bin) -> Self {
-//         other._as
-//     }
-// }
-
-// impl From<Arc<aerospike_core::Recordset>> for Recordset {
-//     fn from(other: Arc<aerospike_core::Recordset>) -> Self {
-//         Recordset { _as: other }
-//     }
-// }
-
-
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    //
-    //  Value
-    //
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    #[pyclass(subclass, freelist = 1000, module = "aerospike")]
-    pub struct Value;
-
-    #[pymethods]
-    impl Value {
-        #[staticmethod]
-        pub fn nil() -> PythonValue {
-            PythonValue::Nil
-        }
-
-        #[staticmethod]
-        pub fn bool(b: bool) -> PythonValue {
-            PythonValue::Bool(b)
-        }
-
-        #[staticmethod]
-        pub fn int(val: i64) -> PythonValue {
-            PythonValue::Int(val)
-        }
-
-        #[staticmethod]
-        pub fn uint(val: u64) -> PythonValue {
-            PythonValue::UInt(val)
-        }
-
-        #[staticmethod]
-        pub fn string(val: String) -> PythonValue {
-            PythonValue::String(val)
-        }
-
-        #[staticmethod]
-        pub fn blob(val: Vec<u8>) -> PythonValue {
-            PythonValue::Blob(val)
-        }
-
-        #[staticmethod]
-        pub fn geo_json(val: String) -> GeoJSON {
-            GeoJSON { v: val }
-        }
-
-        #[staticmethod]
-        pub fn hll(val: Vec<u8>) -> HLL {
-            HLL { v: val }
+    impl From<aerospike_core::Key> for Key {
+        fn from(other: aerospike_core::Key) -> Self {
+            Key { _as: other }
         }
     }
 
+    impl From<aerospike_core::Record> for Record {
+        fn from(other: aerospike_core::Record) -> Self {
+            Record { _as: other }
+        }
+    }
+
+    // impl From<Bin> for aerospike_core::Bin {
+    //     fn from(other: Bin) -> Self {
+    //         other._as
+    //     }
+    // }
+
+    // impl From<Arc<aerospike_core::Recordset>> for Recordset {
+    //     fn from(other: Arc<aerospike_core::Recordset>) -> Self {
+    //         Recordset { _as: other }
+    //     }
+    // }
 
     m.add_class::<Priority>()?;
     m.add_class::<Expiration>()?;
@@ -2644,9 +2981,13 @@ impl From<aerospike_core::Record> for Record {
     m.add_class::<IndexType>()?;
     m.add_class::<CollectionIndexType>()?;
 
+    m.add_class::<List>()?;
+    // TODO: Implement map and make it an ordered map
+    // Needs Rust Client implementation
+    // m.add_class::<Map>()?;
+    m.add_class::<Blob>()?;
     m.add_class::<GeoJSON>()?;
     m.add_class::<HLL>()?;
-    m.add_class::<Value>()?;
 
     m.add_class::<Key>()?;
     m.add_class::<Record>()?;

@@ -22,3 +22,4 @@ TODO:
     - See if tox can be used
     - Use the CI config for github and ensure that it works
     - Maintain the aerospike.pyi file
+    - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.

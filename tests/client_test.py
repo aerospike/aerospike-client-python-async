@@ -3,6 +3,7 @@ import unittest
 
 from aerospike_async import *
 
+
 class TestClient(unittest.IsolatedAsyncioTestCase):
     async def test_connect(self):
         cp = ClientPolicy()

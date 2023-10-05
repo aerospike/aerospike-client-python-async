@@ -4,7 +4,8 @@ import unittest
 from aerospike_async import *
 from aerospike_async import FilterExpression as fe
 
-class TestClient(unittest.IsolatedAsyncioTestCase):
+
+class TestPut(unittest.IsolatedAsyncioTestCase):
     client: Client
     rp: ReadPolicy
     key: Key
@@ -21,12 +22,16 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         await self.client.delete(wp, self.key)
 
-        await self.client.put(wp, self.key, {
-            "brand": "Ford",
-            "model": "Mustang",
-            "year": 1964,
-            "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-        })
+        await self.client.put(
+            wp,
+            self.key,
+            {
+                "brand": "Ford",
+                "model": "Mustang",
+                "year": 1964,
+                "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
+            },
+        )
 
     async def test_all_bins(self):
         await self.setup()
@@ -58,5 +63,3 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(Exception):
             await self.client.get(rp, self.key, ["brand", "year"])
-
-
