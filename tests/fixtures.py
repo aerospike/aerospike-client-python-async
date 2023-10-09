@@ -1,5 +1,5 @@
 import unittest
-from aerospike_async import Client, Key, new_client, Record, ReadPolicy
+from aerospike_async import Client, Key, new_client, Record, ReadPolicy, GeoJSON
 from aerospike_async import FilterExpression as fe
 
 
@@ -24,7 +24,7 @@ class TestFixtureCleanDB(TestFixtureConnection):
         self.key = Key("test", "test", 1)
 
         # delete the record first
-        await self.client.delete(self.key)
+        await self.client.truncate("test", "test")
 
 
 class TestFixtureInsertRecord(TestFixtureCleanDB):
@@ -36,7 +36,10 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
                 "model": "Mustang",
                 "year": 1964,
                 "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-                "mileage": 100000.1
+                "mileage": 100000.1,
+                "bytearray": bytearray(b'123'),
+                "bytes": b'123',
+                "geojson": GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
         }
 
         # make a record

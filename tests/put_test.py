@@ -122,3 +122,17 @@ class TestPut(TestFixtureCleanDB):
         rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": geo})
+
+    async def test_put_hll(self):
+        hll = HLL(b'123')
+
+        await self.client.put(
+            self.key,
+            {
+                "bin": hll,
+            },
+        )
+
+        rec = await self.client.get(self.key)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.bins, {"bin": hll})

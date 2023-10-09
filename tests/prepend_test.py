@@ -1,4 +1,5 @@
 from fixtures import TestFixtureInsertRecord
+from aerospike_async import WritePolicy
 
 
 class TestPrepend(TestFixtureInsertRecord):
@@ -9,7 +10,21 @@ class TestPrepend(TestFixtureInsertRecord):
         rec = await self.client.get(self.key)
         self.assertEqual(rec.bins["brand"], "FFord")
 
+    async def test_prepend_with_policy(self):
+        wp = WritePolicy()
+        retval = await self.client.prepend(self.key, {"brand": "F"}, policy=wp)
+        self.assertIsNone(retval)
+
+        rec = await self.client.get(self.key)
+        self.assertEqual(rec.bins["brand"], "FFord")
+
+    # TODO: need tests for undocumented behavior?
+
     async def test_prepend_nonexistent_bin(self):
         await self.client.append(self.key, {"brand1": "F"})
         rec = await self.client.get(self.key)
         self.assertEqual(rec.bins["brand1"], "F")
+
+    async def test_prepend_unsupported_type(self):
+        with self.assertRaises(Exception):
+            await self.client.prepend(self.key, {"year": "d"})

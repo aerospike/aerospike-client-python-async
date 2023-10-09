@@ -1,4 +1,5 @@
 from fixtures import TestFixtureInsertRecord
+from aerospike_async import WritePolicy
 
 
 class TestTouch(TestFixtureInsertRecord):
@@ -8,6 +9,11 @@ class TestTouch(TestFixtureInsertRecord):
 
         rec = await self.client.get(self.key)
         self.assertEqual(rec.generation, 2)
+
+    async def test_touch_with_policy(self):
+        wp = WritePolicy()
+        retval = await self.client.touch(self.key, policy=wp)
+        self.assertEqual(retval, None)
 
     async def test_nonexistent_record(self):
         with self.assertRaises(Exception):
