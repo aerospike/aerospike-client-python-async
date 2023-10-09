@@ -90,7 +90,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyclass]
     #[derive(Debug, PartialEq, Clone)]
     pub enum GenerationPolicy {
-        None,
+        NONE,
         ExpectGenEqual,
         ExpectGenGreater,
     }
@@ -1077,7 +1077,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         #[getter]
         pub fn get_generation_policy(&self) -> GenerationPolicy {
             match &self._as.generation_policy {
-                aerospike_core::GenerationPolicy::None => GenerationPolicy::None,
+                aerospike_core::GenerationPolicy::None => GenerationPolicy::NONE,
                 aerospike_core::GenerationPolicy::ExpectGenEqual => GenerationPolicy::ExpectGenEqual,
                 aerospike_core::GenerationPolicy::ExpectGenGreater => GenerationPolicy::ExpectGenGreater,
             }
@@ -1086,7 +1086,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         #[setter]
         pub fn set_generation_policy(&mut self, generation_policy: GenerationPolicy) {
             self._as.generation_policy = match generation_policy {
-                GenerationPolicy::None => aerospike_core::GenerationPolicy::None,
+                GenerationPolicy::NONE => aerospike_core::GenerationPolicy::None,
                 GenerationPolicy::ExpectGenEqual => aerospike_core::GenerationPolicy::ExpectGenEqual,
                 GenerationPolicy::ExpectGenGreater => aerospike_core::GenerationPolicy::ExpectGenGreater,
             };
