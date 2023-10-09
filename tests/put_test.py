@@ -1,21 +1,9 @@
 import unittest
 
 from aerospike_async import *
+from fixtures import TestFixtureCleanDB
 
-
-class TestPut(unittest.IsolatedAsyncioTestCase):
-    client: Client
-    key: Key
-
-    async def asyncSetUp(self):
-        self.client = await new_client("localhost:3000")
-
-        # make a record
-        self.key = Key("test", "test", 1)
-
-        # delete the record first
-        await self.client.delete(self.key)
-
+class TestPut(TestFixtureCleanDB):
     async def test_put_int(self):
         await self.client.put(
             self.key,
