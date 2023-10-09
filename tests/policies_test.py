@@ -82,3 +82,30 @@ class TestWritePolicy(unittest.TestCase):
         self.assertEqual(wp.respond_per_each_op, True)
         self.assertEqual(wp.durable_delete, True)
         # TODO: filter exp already in read policy?
+
+
+class ScanPolicy(unittest.TestCase):
+    def test_get_defaults(self):
+        sp = ScanPolicy()
+        self.assertEquals(sp.scan_percent, 100)
+        self.assertEquals(sp.max_concurrent_nodes, 0)
+        self.assertEquals(sp.record_queue_size, 1024)
+        self.assertEquals(sp.fail_on_cluster_change, True)
+        self.assertEquals(sp.socket_timeout, 10000)
+        # TODO: filter exp already in read policy?
+
+    def test_set_and_get_fields(self):
+        sp = ScanPolicy()
+        sp.scan_percent = 30
+        sp.max_concurrent_nodes = 1
+        sp.record_queue_size = 1000
+        sp.fail_on_cluster_change = False
+        sp.socket_timeout = 5000
+        # TODO: filter exp already in read policy?
+
+        self.assertEquals(sp.scan_percent, 30)
+        self.assertEquals(sp.max_concurrent_nodes, 1)
+        self.assertEquals(sp.record_queue_size, 1000)
+        self.assertEquals(sp.fail_on_cluster_change, False)
+        self.assertEquals(sp.socket_timeout, 5000)
+        # TODO: filter exp already in read policy?
