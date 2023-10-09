@@ -16,12 +16,7 @@ class TestGet(TestFixtureInsertRecord):
         self.assertEqual(rec.key, None)
         self.assertEqual(
             rec.bins,
-            {
-                "brand": "Ford",
-                "model": "Mustang",
-                "year": 1964,
-                "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-            },
+            self.original_bin_val
         )
         self.assertEqual(rec.generation, 1)
         self.assertEqual(type(rec.ttl), int)

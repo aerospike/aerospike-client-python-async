@@ -31,13 +31,16 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
     async def asyncSetUp(self):
         await super().asyncSetUp()
 
-        # make a record
-        await self.client.put(
-            self.key,
-            {
+        self.original_bin_val = {
                 "brand": "Ford",
                 "model": "Mustang",
                 "year": 1964,
                 "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-            },
+                "mileage": 100000.1
+        }
+
+        # make a record
+        await self.client.put(
+            self.key,
+            self.original_bin_val
         )
