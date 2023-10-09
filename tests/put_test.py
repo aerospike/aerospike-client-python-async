@@ -136,3 +136,14 @@ class TestPut(TestFixtureCleanDB):
         rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": hll})
+
+    async def test_put_with_policy(self):
+        wp = WritePolicy()
+        await self.client.put(self.key, {"bin": 1}, policy=wp)
+
+    async def test_put_fail(self):
+        class UnsupportedServerType:
+            pass
+
+        with self.assertRaises(Exception):
+            await self.client.put(self.key_invalid_namespace, {"bin": 1})

@@ -17,11 +17,11 @@ class TestAdd(TestFixtureInsertRecord):
         rec = await self.client.get(self.key)
         self.assertEqual(rec.bins["mileage"], 200000.1)
 
-    async def test_add_unsupported_bin(self):
-        with self.assertRaises(Exception):
-            await self.client.add(self.key, {"brand": 1})
-
     async def test_add_with_policy(self):
         wp = WritePolicy()
         retval = await self.client.add(self.key, {"year": 1}, policy=wp)
         self.assertEqual(retval, None)
+
+    async def test_add_unsupported_bin_type(self):
+        with self.assertRaises(Exception):
+            await self.client.add(self.key, {"brand": 1})

@@ -17,4 +17,4 @@ class TestTouch(TestFixtureInsertRecord):
 
     async def test_nonexistent_record(self):
         with self.assertRaises(Exception):
-            await self.client.touch(self.key_nonexistent_pk)
+            await self.client.touch(self.key_invalid_primary_key)

@@ -15,8 +15,8 @@ class TestFixtureConnection(unittest.IsolatedAsyncioTestCase):
 
 class TestFixtureCleanDB(TestFixtureConnection):
     key: Key
-    key_nonexistent_pk = Key("test", "test", 0)
-    key_nonexistent_namespace = Key("test1", "test", 1)
+    key_invalid_primary_key = Key("test", "test", 0)
+    key_invalid_namespace = Key("test1", "test", 1)
 
     async def asyncSetUp(self):
         await super().asyncSetUp()

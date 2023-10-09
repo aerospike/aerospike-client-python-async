@@ -18,10 +18,10 @@ class TestAppend(TestFixtureInsertRecord):
         self.assertIsNone(retval)
 
     async def test_append_nonexistent_key(self):
-        retval = await self.client.append(self.key_nonexistent_pk, {"brand": "d"})
+        retval = await self.client.append(self.key_invalid_primary_key, {"brand": "d"})
         self.assertIsNone(retval)
 
-        rec = await self.client.get(self.key_nonexistent_pk)
+        rec = await self.client.get(self.key_invalid_primary_key)
         self.assertEqual(rec.bins["brand"], "d")
 
     async def test_append_bytearray(self):
