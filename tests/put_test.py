@@ -1,5 +1,3 @@
-import unittest
-
 from aerospike_async import *
 from fixtures import TestFixtureCleanDB
 
@@ -142,8 +140,5 @@ class TestPut(TestFixtureCleanDB):
         await self.client.put(self.key, {"bin": 1}, policy=wp)
 
     async def test_put_fail(self):
-        class UnsupportedServerType:
-            pass
-
         with self.assertRaises(Exception):
             await self.client.put(self.key_invalid_namespace, {"bin": 1})

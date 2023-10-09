@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 
 from aerospike_async import *
