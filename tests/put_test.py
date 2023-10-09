@@ -7,50 +7,43 @@ from aerospike_async import FilterExpression as fe
 
 class TestPut(unittest.IsolatedAsyncioTestCase):
     client: Client
-    rp: ReadPolicy
     key: Key
 
     async def setup(self):
-        cp = ClientPolicy()
-        self.client = await new_client(cp, "localhost:3000")
+        self.client = await new_client("localhost:3000")
 
         # make a record
         self.key = Key("test", "test", 1)
 
         # delete the record first
-        wp = WritePolicy()
-        self.rp = ReadPolicy()
-        await self.client.delete(wp, self.key)
+        await self.client.delete(self.key)
 
     async def test_put_int(self):
         await self.setup()
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": 1,
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": 1})
 
     async def test_put_float(self):
         await self.setup()
 
-        wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": 1.76123,
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": 1.76123})
 
@@ -59,14 +52,13 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": "str1",
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": "str1"})
 
@@ -75,7 +67,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bint": True,
@@ -83,7 +74,7 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bint": True, "binf": False})
 
@@ -95,7 +86,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin_b": b,
@@ -103,7 +93,7 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin_b": b, "bin_ba": ba})
 
@@ -114,14 +104,13 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": l,
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": l})
 
@@ -144,14 +133,13 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": d,
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": d})
 
@@ -162,13 +150,12 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
         wp = WritePolicy()
         await self.client.put(
-            wp,
             self.key,
             {
                 "bin": geo,
             },
         )
 
-        rec = await self.client.get(self.rp, self.key)
+        rec = await self.client.get(self.key)
         self.assertIsNotNone(rec)
         self.assertEqual(rec.bins, {"bin": geo})
