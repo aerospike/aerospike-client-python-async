@@ -29,16 +29,20 @@ class TestKVS(TestFixtureConnection):
 
         await self.client.delete(self.key)
 
-        await self.client.put(self.key, {
-            "brand": "Ford",
-            "model": "Mustang",
-            "year": 1964,
-            "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-        })
+        await self.client.put(
+            self.key,
+            {
+                "brand": "Ford",
+                "model": "Mustang",
+                "year": 1964,
+                "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
+            },
+        )
+
 
 class TestPut(TestKVS):
     async def test_bytes(self):
-        self.client.put(self.key, {"blob": bytes(b'123')})
+        self.client.put(self.key, {"blob": bytes(b"123")})
 
     async def test_double(self):
         self.client.put(self.key, {"double": 1.23})
@@ -52,6 +56,7 @@ class TestPut(TestKVS):
     async def test_map(self):
         self.client.put(self.key, {"map": {"x": 1, "y": 2, "z": 3}})
 
+
 class TestGet(TestKVS):
     client: Client
     key: Key
@@ -64,12 +69,15 @@ class TestGet(TestKVS):
         # Key is not returned in Record struct when reading a record
         # https://docs.rs/aerospike/latest/aerospike/struct.Record.html#structfield.key
         self.assertEqual(rec.key, None)
-        self.assertEqual(rec.bins, {
-            "brand": "Ford",
-            "model": "Mustang",
-            "year": 1964,
-            "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
-        })
+        self.assertEqual(
+            rec.bins,
+            {
+                "brand": "Ford",
+                "model": "Mustang",
+                "year": 1964,
+                "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
+            },
+        )
         self.assertEqual(rec.generation, 1)
         self.assertEqual(type(rec.ttl), int)
 
@@ -88,7 +96,6 @@ class TestGet(TestKVS):
     # Test that policy works
 
     async def test_matching_filter_exp(self):
-
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
         rec = await self.client.get(self.key, ["brand", "year"], rp)
@@ -96,7 +103,6 @@ class TestGet(TestKVS):
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
     async def test_non_matching_filter_exp(self):
-
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
@@ -133,6 +139,7 @@ class TestAppend(TestKVS):
         with self.assertRaises(Exception):
             await self.client.append(self.key, {"brand1": "d"})
 
+
 class TestPrepend(TestKVS):
     async def test_prepend(self):
         retval = await self.client.prepend(self.key, {"brand": "F"})
@@ -158,9 +165,7 @@ class TestDelete(TestKVS):
 
 class TestAdd(TestKVS):
     async def test_add(self):
-        retval = await self.client.add(self.key, {
-            "year": 1
-        })
+        retval = await self.client.add(self.key, {"year": 1})
         self.assertEqual(retval, None)
 
         rec = await self.client.get(self.key)
@@ -189,6 +194,7 @@ class TestExists(TestKVS):
         retval = await self.client.exists(self.key_nonexistent_pk)
         self.assertEqual(retval, False)
 
+
 class TestTruncate(TestKVS):
     async def test_truncate(self):
         retval = await self.client.truncate("test", "test")
@@ -196,4 +202,4 @@ class TestTruncate(TestKVS):
 
     async def test_truncate_before_nanos(self):
         retval = await self.client.truncate("test", "test", 0)
-        self.assertEqual(retval,  None)
+        self.assertEqual(retval, None)

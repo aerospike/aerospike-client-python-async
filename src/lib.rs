@@ -1528,7 +1528,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         #[getter]
         pub fn get_ttl(&self) -> Option<u32> {
-            self._as.time_to_live().map(|v| v.as_secs() as u32)
+            self._as.time_to_live().map(|v| v.as_secs() as u32).or(Some(0))
         }
 
         #[getter]
