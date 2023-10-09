@@ -1863,10 +1863,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfunction]
     pub fn new_client(py: Python, hosts: String, policy: Option<ClientPolicy>) -> PyResult<PyObject> {
-        let as_policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::ClientPolicy::default()
-        };
+        let as_policy = policy.map(|p| p._as.clone()).unwrap_or(aerospike_core::ClientPolicy::default());
         let as_hosts = hosts.clone();
 
         Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
@@ -1904,10 +1901,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         /// Write record bin(s). The policy specifies the transaction timeout, record expiration and
         /// how the transaction is handled when the record already exists.
         pub fn put<'a>(&self, key: &Key, bins: HashMap<String, PythonValue>, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny>{
-            let policy = match policy {
-                Some(policy) => policy._as.clone(),
-                None => aerospike_core::policy::WritePolicy::default()
-            };
+            let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1936,10 +1930,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             policy: Option<&BasePolicy>,
             py: Python<'a>,
         ) -> PyResult<&'a PyAny> {
-            let policy = match policy {
-                Some(policy) => policy._as.clone(),
-                None => aerospike_core::policy::ReadPolicy::default()
-            };
+            let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::ReadPolicy::default());
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1959,10 +1950,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// timeout, record expiration and how the transaction is handled when the record already
     /// exists. This call only works for integer values.
     pub fn add<'a>(&self, key: &Key, bins: HashMap<String, PythonValue>, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy: aerospike_core::WritePolicy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -1985,10 +1973,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// transaction timeout, record expiration and how the transaction is handled when the record
     /// already exists. This call only works for string values.
     pub fn append<'a>(&self, key: &Key, bins: HashMap<String, PythonValue>, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -2011,10 +1996,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// transaction timeout, record expiration and how the transaction is handled when the record
     /// already exists. This call only works for string values.
     pub fn prepend<'a>(&self, key: &Key, bins: HashMap<String, PythonValue>, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy: aerospike_core::WritePolicy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -2036,10 +2018,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// Delete record for specified key. The policy specifies the transaction timeout.
     /// The call returns `true` if the record existed on the server before deletion.
     pub fn delete<'a>(&self, key: &Key, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -2058,10 +2037,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// Reset record's time to expiration using the policy's expiration. Fail if the record does
     /// not exist.
     pub fn touch<'a>(&self, key: &Key, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -2079,10 +2055,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
     /// Determine if a record key exists. The policy can be used to specify timeouts.
     pub fn exists<'a>(&self, key: &Key, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::WritePolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -2186,10 +2159,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         policy: Option<&ScanPolicy>,
         py: Python<'a>,
     ) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::ScanPolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::ScanPolicy::default());
         let client = self._as.clone();
 
         Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
@@ -2209,10 +2179,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// records on a queue in separate threads. The calling thread concurrently pops records off
     /// the queue through the record iterator.
     pub fn query<'a>(&self, statement: &Statement, policy: Option<&QueryPolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = match policy {
-            Some(policy) => policy._as.clone(),
-            None => aerospike_core::policy::QueryPolicy::default()
-        };
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::QueryPolicy::default());
         let client = self._as.clone();
         let stmt = statement._as.clone();
 
