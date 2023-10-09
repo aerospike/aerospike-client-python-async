@@ -1,15 +1,13 @@
-import asyncio
 import unittest
 
 from aerospike_async import *
-from aerospike_async import FilterExpression as fe
 
 
 class TestPut(unittest.IsolatedAsyncioTestCase):
     client: Client
     key: Key
 
-    async def setup(self):
+    async def asyncSetUp(self):
         self.client = await new_client("localhost:3000")
 
         # make a record
@@ -19,9 +17,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         await self.client.delete(self.key)
 
     async def test_put_int(self):
-        await self.setup()
-
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -34,8 +29,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin": 1})
 
     async def test_put_float(self):
-        await self.setup()
-
         await self.client.put(
             self.key,
             {
@@ -48,9 +41,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin": 1.76123})
 
     async def test_put_string(self):
-        await self.setup()
-
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -63,9 +53,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin": "str1"})
 
     async def test_put_bool(self):
-        await self.setup()
-
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -79,12 +66,9 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bint": True, "binf": False})
 
     async def test_put_blob(self):
-        await self.setup()
-
         ba = bytearray([1, 2, 3, 4, 5, 6])
         b = bytes([1, 2, 3, 4, 5, 6])
 
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -98,11 +82,8 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin_b": b, "bin_ba": ba})
 
     async def test_put_list(self):
-        await self.setup()
-
         l = [1, "str", bytearray([1, 2, 3, 4, 5, 6]), True, False, 1572, 3.1415]
 
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -115,8 +96,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin": l})
 
     async def test_put_dict(self):
-        await self.setup()
-
         b = Blob([1, 2, 3, 4, 5, 6])
         l = List([1572, 3.1415])
         d = {
@@ -131,7 +110,6 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
             l: b,
         }
 
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
@@ -144,11 +122,8 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec.bins, {"bin": d})
 
     async def test_put_GeoJSON(self):
-        await self.setup()
-
         geo = GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
 
-        wp = WritePolicy()
         await self.client.put(
             self.key,
             {
