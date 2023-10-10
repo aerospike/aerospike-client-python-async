@@ -5,12 +5,29 @@ from aerospike_async import *
 
 class TestValue(unittest.IsolatedAsyncioTestCase):
     def test_geo_json(self):
-        geo_str = '{"type":"Point","coordinates":[-80.590003, 28.60009]}'
-        geo = GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
-        geo2 = GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
+        # 2 different GeoJSON strings
+        geojson_str = '{"type":"Point","coordinates":[-80.590003, 28.60009]}'
+        geojson_different_str = '{"type":"Point","coordinates":[-80.590003, 28.60008]}'
 
-        self.assertEqual(geo_str, geo)
-        self.assertEqual(geo, geo2)
+        geojson_obj = GeoJSON(geojson_str)
+        same_geojson_obj = GeoJSON(geojson_str)
+        different_geojson_obj = GeoJSON(geojson_different_str)
+
+        # GeoJSON strings and objects can be compared together
+        # Equality and inequality are handled separately in the code, so we need to test both
+
+        self.assertEqual(geojson_str, geojson_obj)
+        self.assertEqual(geojson_obj, same_geojson_obj)
+
+        self.assertNotEqual(geojson_str, different_geojson_obj)
+        self.assertNotEqual(same_geojson_obj, different_geojson_obj)
+
+        # Test getting and setting the string value of a GeoJSON instance
+        self.assertEqual(geojson_obj.value, geojson_str)
+        geojson_obj.value = geojson_different_str
+        self.assertEqual(geojson_obj.value, geojson_different_str)
+
+        # TODO: add string representation test
 
     def test_list(self):
         l = [1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]
