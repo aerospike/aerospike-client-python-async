@@ -109,3 +109,24 @@ class ScanPolicy(unittest.TestCase):
         self.assertEquals(sp.fail_on_cluster_change, False)
         self.assertEquals(sp.socket_timeout, 5000)
         # TODO: filter exp already in read policy?
+
+
+class QueryPolicy(unittest.TestCase):
+    def test_get_defaults(self):
+        qp = QueryPolicy()
+        self.assertEquals(qp.max_concurrent_nodes, 0)
+        self.assertEquals(qp.record_queue_size, 1024)
+        self.assertEquals(qp.fail_on_cluster_change, True)
+        # TODO: filter exp already in read policy?
+
+    def test_set_and_get_fields(self):
+        qp = QueryPolicy()
+        qp.max_concurrent_nodes = 1
+        qp.record_queue_size = 1023
+        qp.fail_on_cluster_change = False
+        # TODO: filter exp already in read policy?
+
+        self.assertEquals(qp.max_concurrent_nodes, 1)
+        self.assertEquals(qp.record_queue_size, 1023)
+        self.assertEquals(qp.fail_on_cluster_change, False)
+        # TODO: filter exp already in read policy?
