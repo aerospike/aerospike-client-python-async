@@ -10,6 +10,7 @@ class TestStatement(unittest.TestCase):
         # Test defaults
         self.assertEqual(stmt.filters, None)
 
+    # TODO: check that kwds work properly
     def test_set_filters(self):
         # TODO: check that filter expression copy works properly
         stmt = Statement("test", "test")

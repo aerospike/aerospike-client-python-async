@@ -5,7 +5,7 @@ from aerospike_async import new_client, Client, ClientPolicy, Key
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
     async def test_connect_and_close(self):
-        c = await new_client("localhost:3000")
+        c = await new_client(hosts="localhost:3000")
         self.assertEqual(type(c), Client)
         # TODO: shouldn't this be awaitable?
         retval = c.close()

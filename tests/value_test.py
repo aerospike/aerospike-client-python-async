@@ -9,7 +9,8 @@ class TestValue(unittest.IsolatedAsyncioTestCase):
         geojson_str = '{"type":"Point","coordinates":[-80.590003, 28.60009]}'
         geojson_different_str = '{"type":"Point","coordinates":[-80.590003, 28.60008]}'
 
-        geojson_obj = GeoJSON(geojson_str)
+        # Check once that keyword is correct
+        geojson_obj = GeoJSON(value=geojson_str)
         same_geojson_obj = GeoJSON(geojson_str)
         different_geojson_obj = GeoJSON(geojson_different_str)
 

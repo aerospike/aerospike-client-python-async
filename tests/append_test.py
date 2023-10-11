@@ -4,7 +4,7 @@ from aerospike_async import WritePolicy
 
 class TestAppend(TestFixtureInsertRecord):
     async def test_append(self):
-        retval = await self.client.append(self.key, {"brand": "d"})
+        retval = await self.client.append(key=self.key, bins={"brand": "d"})
         self.assertIsNone(retval)
 
         rec = await self.client.get(self.key)

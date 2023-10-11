@@ -4,8 +4,8 @@ from fixtures import TestFixtureCleanDB
 class TestPut(TestFixtureCleanDB):
     async def test_put_int(self):
         await self.client.put(
-            self.key,
-            {
+            key=self.key,
+            bins={
                 "bin": 1,
             },
         )

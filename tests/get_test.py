@@ -7,7 +7,7 @@ class TestGet(TestFixtureInsertRecord):
     key: Key
 
     async def test_all_bins(self):
-        rec = await self.client.get(self.key)
+        rec = await self.client.get(key=self.key)
 
         # Check all Record attributes
         self.assertEqual(type(rec), Record)
@@ -24,7 +24,7 @@ class TestGet(TestFixtureInsertRecord):
     # TODO: should selecting some / no bins be separate API calls?
 
     async def test_some_bins(self):
-        rec = await self.client.get(self.key, ["brand", "year"])
+        rec = await self.client.get(self.key, bins=["brand", "year"])
         self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 
@@ -38,7 +38,7 @@ class TestGet(TestFixtureInsertRecord):
     async def test_matching_filter_exp(self):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
-        rec = await self.client.get(self.key, ["brand", "year"], rp)
+        rec = await self.client.get(self.key, ["brand", "year"], policy=rp)
         self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
 

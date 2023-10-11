@@ -4,7 +4,7 @@ from aerospike_async import WritePolicy
 
 class TestTouch(TestFixtureInsertRecord):
     async def test_existing_record(self):
-        retval = await self.client.touch(self.key)
+        retval = await self.client.touch(key=self.key)
         self.assertEqual(retval, None)
 
         rec = await self.client.get(self.key)

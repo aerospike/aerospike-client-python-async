@@ -3,7 +3,7 @@ from aerospike_async import WritePolicy
 
 class TestExists(TestFixtureInsertRecord):
     async def test_existing_record(self):
-        retval = await self.client.exists(self.key)
+        retval = await self.client.exists(key=self.key)
         self.assertEqual(retval, True)
 
     async def test_nonexistent_record(self):
@@ -12,7 +12,7 @@ class TestExists(TestFixtureInsertRecord):
 
     async def test_exists_with_policy(self):
         wp = WritePolicy()
-        retval = await self.client.exists(self.key, wp)
+        retval = await self.client.exists(self.key, policy=wp)
         self.assertEqual(retval, True)
 
     async def test_exists_fail(self):

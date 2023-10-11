@@ -14,8 +14,15 @@ class TestFixtureDeleteIndices(TestFixtureConnection):
 
 class TestIndex(TestFixtureConnection):
     async def test_create_string_index(self):
-        retval = await self.client.create_index("test", "test", "brand", "index_name", IndexType.String)
+        retval = await self.client.create_index(
+            namespace="test",
+            set_name="test",
+            bin_name="brand",
+            index_name="index_name",
+            index_type=IndexType.String)
         self.assertEqual(retval, None)
+
+    # TODO: missing test for using collection index type
 
     async def test_create_numeric_index(self):
         retval = await self.client.create_index("test", "test", "year", "index_name", IndexType.Numeric)
@@ -36,5 +43,7 @@ class TestIndex(TestFixtureConnection):
         # Setup
         await self.client.create_index("test", "test", "brand", "index_name", IndexType.String)
 
-        retval = self.client.drop_index("test", "test", "index_name")
+        retval = self.client.drop_index(namespace="test", set_name="test", index_name="index_name")
         self.assertEqual(retval, None)
+
+    # TODO: missing negative test case for drop index
