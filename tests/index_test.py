@@ -12,7 +12,7 @@ class TestFixtureDeleteIndices(TestFixtureConnection):
         await super().asyncTearDown()
 
 
-class TestIndex(TestFixtureConnection):
+class TestIndex(TestFixtureDeleteIndices):
     async def test_create_string_index(self):
         retval = await self.client.create_index(
             namespace="test",
