@@ -43,7 +43,7 @@ class TestIndex(TestFixtureDeleteIndices):
         # Setup
         await self.client.create_index("test", "test", "brand", "index_name", IndexType.String)
 
-        retval = self.client.drop_index(namespace="test", set_name="test", index_name="index_name")
+        retval = await self.client.drop_index(namespace="test", set_name="test", index_name="index_name")
         self.assertEqual(retval, None)
 
     # TODO: missing negative test case for drop index
