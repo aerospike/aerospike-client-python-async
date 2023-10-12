@@ -108,7 +108,7 @@ class TestFilterExpr(unittest.TestCase):
     #     self.assertEqual(type(expr), fe)
 
     def test_xor(self):
-        expr = fe.xor(exps=[fe.bool_bin("bin"), fe.bool_val(False)])
+        expr = fe.xor(exps=[fe.eq(fe.int_bin("bin"), fe.int_val(4)), fe.bool_val(False)])
         self.assertEqual(type(expr), fe)
 
     def test_equality(self):
