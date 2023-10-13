@@ -5,10 +5,10 @@ from fixtures import TestFixtureConnection
 class TestFixtureDeleteIndices(TestFixtureConnection):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        self.client.drop_index("test", "test", "index_name")
+        await self.client.drop_index("test", "test", "index_name")
 
     async def asyncTearDown(self):
-        self.client.drop_index("test", "test", "index_name")
+        await self.client.drop_index("test", "test", "index_name")
         await super().asyncTearDown()
 
 

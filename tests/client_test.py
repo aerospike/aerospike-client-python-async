@@ -14,7 +14,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         # If close() actually works, this operation should fail because of no connection
         key = Key("test", "test", 0)
         with self.assertRaises(Exception):
-            c.exists(key)
+            await c.exists(key)
 
     async def test_connect_with_policy(self):
         cp = ClientPolicy()

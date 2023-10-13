@@ -48,4 +48,4 @@ class TestQuery(TestFixtureInsertRecord):
     async def test_fail(self):
         stmt_invalid_namespace = Statement("test1", "test")
         with self.assertRaises(Exception):
-            self.client.query(stmt_invalid_namespace)
+            await self.client.query(stmt_invalid_namespace)
