@@ -1,6 +1,6 @@
 from fixtures import TestFixtureInsertRecord
 import time
-
+from aerospike_async import ServerError
 
 class TestTruncate(TestFixtureInsertRecord):
     async def test_truncate(self):
@@ -14,5 +14,5 @@ class TestTruncate(TestFixtureInsertRecord):
     async def test_truncate_fail(self):
         seconds_in_future = 1000
         future_threshold = time.time_ns() + seconds_in_future * 10**9
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.truncate("test", "test", future_threshold)

@@ -140,5 +140,5 @@ class TestPut(TestFixtureCleanDB):
         await self.client.put(self.key, {"bin": 1}, policy=wp)
 
     async def test_put_fail(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.put(self.key_invalid_namespace, {"bin": 1})

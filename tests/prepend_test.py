@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import WritePolicy
+from aerospike_async import WritePolicy, ServerError
 
 
 class TestPrepend(TestFixtureInsertRecord):
@@ -24,5 +24,5 @@ class TestPrepend(TestFixtureInsertRecord):
         self.assertEqual(rec.bins["brand1"], "F")
 
     async def test_prepend_unsupported_type(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.prepend(self.key, {"year": "d"})

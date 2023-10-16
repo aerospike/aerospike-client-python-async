@@ -1,4 +1,4 @@
-from aerospike_async import IndexType, CollectionIndexType
+from aerospike_async import IndexType, CollectionIndexType, ServerError
 
 from fixtures import TestFixtureConnection
 
@@ -38,7 +38,7 @@ class TestIndex(TestFixtureDeleteIndices):
         # Creating an index where an existing index has the same name should fail
         await self.client.create_index("test", "test", "brand", "index_name", IndexType.String)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.create_index("test", "test", "year", "index_name", IndexType.Numeric)
 
     async def test_drop_index(self):

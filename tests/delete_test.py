@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import WritePolicy
+from aerospike_async import WritePolicy, ServerError
 
 class TestDelete(TestFixtureInsertRecord):
     async def test_delete_existing_record(self):
@@ -16,5 +16,5 @@ class TestDelete(TestFixtureInsertRecord):
         self.assertEqual(rec_existed, True)
 
     async def test_delete_with_nonexistent_namespace(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.delete(self.key_invalid_namespace)

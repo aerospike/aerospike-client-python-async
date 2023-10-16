@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import WritePolicy
+from aerospike_async import WritePolicy, ServerError
 
 class TestAdd(TestFixtureInsertRecord):
     async def test_add(self):
@@ -15,5 +15,5 @@ class TestAdd(TestFixtureInsertRecord):
         self.assertEqual(retval, None)
 
     async def test_add_unsupported_bin_type(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.add(self.key, {"brand": 1})

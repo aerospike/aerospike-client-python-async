@@ -1,6 +1,5 @@
 from fixtures import TestFixtureInsertRecord
 from aerospike_async import *
-from aerospike_async import FilterExpression as fe
 
 class TestGet(TestFixtureInsertRecord):
     client: Client
@@ -41,11 +40,11 @@ class TestGet(TestFixtureInsertRecord):
     async def test_get_nonexistent_namespace(self):
         # A record does not exist with this namespace
         key = Key("test1", "test", 1)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.get(key)
 
     async def test_get_nonexistent_record(self):
         # A record does not exist with this key
         key = Key("test", "test", 0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.get(key)

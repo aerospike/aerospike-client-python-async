@@ -1,6 +1,6 @@
 import unittest
 
-from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy
+from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy, ServerError
 from fixtures import TestFixtureInsertRecord
 
 class TestStatement(unittest.TestCase):
@@ -47,5 +47,5 @@ class TestQuery(TestFixtureInsertRecord):
 
     async def test_fail(self):
         stmt_invalid_namespace = Statement("test1", "test")
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.query(stmt_invalid_namespace)

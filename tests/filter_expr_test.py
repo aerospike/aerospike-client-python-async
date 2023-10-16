@@ -1,5 +1,5 @@
 import unittest
-from aerospike_async import ExpType, ReadPolicy, Record, RegexFlag
+from aerospike_async import ExpType, ReadPolicy, Record, RegexFlag, ServerError
 from aerospike_async import FilterExpression as fe
 from fixtures import TestFixtureInsertRecord
 
@@ -16,7 +16,7 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.get(self.key, ["brand", "year"], policy=rp)
 
 

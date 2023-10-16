@@ -21,7 +21,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(type(c), Client)
 
     async def test_fail_to_connect(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConnectionError):
             await new_client("invalidhost")
 
     async def test_get_seeds(self):

@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import ReadPolicy
+from aerospike_async import ReadPolicy, ServerError
 
 class TestExists(TestFixtureInsertRecord):
     async def test_existing_record(self):
@@ -16,5 +16,5 @@ class TestExists(TestFixtureInsertRecord):
         self.assertEqual(retval, True)
 
     async def test_exists_fail(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.exists(self.key_invalid_namespace)

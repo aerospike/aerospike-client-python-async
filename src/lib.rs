@@ -8,16 +8,18 @@ use std::time::Duration;
 use std::fmt;
 use std::collections::hash_map::DefaultHasher;
 
-use pyo3::exceptions::{PyTypeError};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyByteArray, PyBytes};
-use pyo3::exceptions::{PyException,PyIndexError};
+use pyo3::exceptions::{PyException,PyIndexError,PyUnicodeDecodeError,PyConnectionError,PyValueError};
 use pyo3::iter::IterNextOutput;
 use pyo3::basic::CompareOp;
+use pyo3::create_exception;
 
 use tokio::sync::RwLock;
 
 use aerospike_core::as_val;
+use aerospike_core::errors::{Error,ErrorKind};
 
 fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     match bins {
@@ -28,6 +30,46 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
             } else {
                 aerospike_core::Bins::None
             }
+        }
+    }
+}
+
+create_exception!(aerospike_async, RecvError, PyException);
+create_exception!(aerospike_async, PasswordHashError, PyException);
+create_exception!(aerospike_async, BadResponse, PyException);
+create_exception!(aerospike_async, InvalidRustClientArgs, PyException);
+create_exception!(aerospike_async, InvalidNodeError, PyException);
+create_exception!(aerospike_async, NoMoreConnections, PyException);
+create_exception!(aerospike_async, ServerError, PyException);
+create_exception!(aerospike_async, UDFBadResponse, PyException);
+create_exception!(aerospike_async, TimeoutError, PyException);
+
+// Must define a wrapper type because of the orphan rule
+struct RustClientError(Error);
+
+impl From<RustClientError> for PyErr {
+    fn from(value: RustClientError) -> Self {
+        // RustClientError -> Error -> ErrorKind
+        match value.0.0 {
+            // How to convert this automatically?
+            ErrorKind::Base64(e) => PyUnicodeDecodeError::new_err(e.to_string()),
+            ErrorKind::InvalidUtf8(e) => PyErr::from(e),
+            ErrorKind::Io(e) => PyErr::from(e),
+            ErrorKind::MpscRecv(_) => RecvError::new_err("The sending half of a channel has been closed, so no messages can be received"),
+            ErrorKind::ParseAddr(e) => PyErr::from(e),
+            ErrorKind::ParseInt(e) => PyErr::from(e),
+            ErrorKind::PwHash(e) => PasswordHashError::new_err(e.to_string()),
+            ErrorKind::BadResponse(string) => BadResponse::new_err(string),
+            ErrorKind::Connection(string) => PyConnectionError::new_err(string),
+            ErrorKind::InvalidArgument(string) => PyValueError::new_err(string),
+            ErrorKind::InvalidNode(string) => InvalidNodeError::new_err(string),
+            // TODO: empty arg?
+            ErrorKind::NoMoreConnections => NoMoreConnections::new_err(""),
+            ErrorKind::ServerError(result_code) => ServerError::new_err(String::from(result_code)),
+            ErrorKind::UdfBadResponse(string) => UDFBadResponse::new_err(string),
+            ErrorKind::Timeout(string) => TimeoutError::new_err(string),
+            // TODO: what is Msg for?
+            _ => panic!("Received invalid Rust client error"),
         }
     }
 }
@@ -1899,7 +1941,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
             let c = aerospike_core::Client::new(&as_policy, &as_hosts)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
             let res = Client {
                 _as: Arc::new(RwLock::new(c)),
@@ -1955,7 +1997,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     .await
                     .put(&policy, &key, &bins)
                     .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
             })
@@ -1981,7 +2023,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     .await
                     .get(&policy, &key, bins_flag(bins))
                     .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(Record{_as:res})
             })
@@ -2004,7 +2046,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .add(&policy, &key, &bins)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
             Python::with_gil(|py| Ok(py.None()))
         })
@@ -2027,7 +2069,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .append(&policy, &key, &bins)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2050,7 +2092,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .prepend(&policy, &key, &bins)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2069,7 +2111,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .delete(&policy, &key)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(res)
         })
@@ -2088,7 +2130,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .touch(&policy, &key)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2106,7 +2148,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .exists(&policy, &key)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(res)
         })
@@ -2130,7 +2172,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .truncate(&namespace, &set_name, before_nanos)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2167,7 +2209,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     cit,
                 )
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2182,7 +2224,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .drop_index(&namespace, &set_name, &index_name)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Python::with_gil(|py| Ok(py.None()))
         })
@@ -2210,7 +2252,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .scan(&policy, &namespace, &set_name, bins_flag(bins))
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(Recordset{_as: res})
         })
@@ -2231,7 +2273,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .await
                 .query(&policy, stmt)
                 .await
-                .map_err(|e| PyException::new_err(e.to_string()))?;
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(Recordset{_as: res})
         })
@@ -3172,6 +3214,16 @@ impl From<aerospike_core::Value> for PythonValue {
     m.add_class::<QueryPolicy>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
+
+    m.add("ServerError", _py.get_type::<ServerError>())?;
+    m.add("RecvError", _py.get_type::<RecvError>())?;
+    m.add("BadResponse", _py.get_type::<BadResponse>())?;
+    m.add("InvalidRustClientArgs", _py.get_type::<InvalidRustClientArgs>())?;
+    m.add("InvalidNodeError", _py.get_type::<InvalidNodeError>())?;
+    m.add("NoMoreConnections", _py.get_type::<NoMoreConnections>())?;
+    m.add("ServerError", _py.get_type::<ServerError>())?;
+    m.add("UDFBadResponse", _py.get_type::<UDFBadResponse>())?;
+    m.add("TimeoutError", _py.get_type::<TimeoutError>())?;
 
     Ok(())
 }

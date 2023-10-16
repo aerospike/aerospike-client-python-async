@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import WritePolicy
+from aerospike_async import WritePolicy, ServerError
 
 
 class TestAppend(TestFixtureInsertRecord):
@@ -16,5 +16,5 @@ class TestAppend(TestFixtureInsertRecord):
         self.assertIsNone(retval)
 
     async def test_append_unsupported_bin_type(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.append(self.key, {"year": "d"})

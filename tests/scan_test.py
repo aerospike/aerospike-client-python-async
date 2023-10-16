@@ -1,6 +1,6 @@
 import unittest
 
-from aerospike_async import Recordset, ScanPolicy, Record
+from aerospike_async import Recordset, ScanPolicy, Record, ServerError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -23,5 +23,5 @@ class TestScan(TestFixtureInsertRecord):
         self.assertEqual(type(records), Recordset)
 
     async def test_fail(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ServerError):
             await self.client.scan("test1", "test")
