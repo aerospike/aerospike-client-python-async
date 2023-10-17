@@ -247,6 +247,32 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RegexFlag
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Regex Bit Flags
+    /// Used to change the Regex Mode in Filters
+    #[pyclass]
+    #[derive(Clone)]
+    #[allow(clippy::upper_case_acronyms)]
+    pub enum RegexFlag {
+        /// Use regex defaults.
+        // NONE = 0,
+        /// Use POSIX Extended Regular Expression syntax when interpreting regex.
+        EXTENDED = 1,
+        /// Do not differentiate case.
+        ICASE = 2,
+        /// Do not report position of matches.
+        NOSUB = 3,
+        /// Match-any-character operators don't match a newline.
+        NEWLINE = 8,
+    }
+
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  Filter Expression
@@ -434,9 +460,9 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         #[staticmethod]
         /// Create function like regular expression string operation.
-        pub fn regex_compare(regex: String, flags: i64, bin: FilterExpression) -> Self {
+        pub fn regex_compare(regex: String, flags: Vec<RegexFlag>, bin: FilterExpression) -> Self {
             FilterExpression {
-                _as: aerospike_core::expressions::regex_compare(regex, flags, bin._as),
+                _as: aerospike_core::expressions::regex_compare(regex, flags.into_iter().map(|a| a as i64).reduce(|a, b| a | b).unwrap_or(0), bin._as),
             }
         }
 
