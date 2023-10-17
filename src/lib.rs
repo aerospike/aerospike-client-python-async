@@ -945,23 +945,23 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  BasePolicy
+    //  ReadPolicy
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass(name = "ReadPolicy", subclass, freelist = 1000, module = "aerospike")]
+    #[pyclass(subclass, freelist = 1000, module = "aerospike")]
     #[derive(Debug, Clone)]
-    pub struct BasePolicy {
-        _as: aerospike_core::policy::BasePolicy,
+    pub struct ReadPolicy {
+        _as: aerospike_core::policy::ReadPolicy,
     }
 
     /// Trait implemented by most policy types; policies that implement this trait typically encompass
-    /// an instance of `BasePolicy`.
+    /// an instance of `ReadPolicy`.
     #[pymethods]
-    impl BasePolicy {
+    impl ReadPolicy {
         #[new]
         pub fn __construct() -> Self {
-            BasePolicy {
+            ReadPolicy {
                 _as: aerospike_core::ReadPolicy::default(),
             }
         }
@@ -1204,14 +1204,14 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         // #[getter]
-        // pub fn get_base_policy(&self) -> BasePolicy {
-        //     BasePolicy {
+        // pub fn get_base_policy(&self) -> ReadPolicy {
+        //     ReadPolicy {
         //         _as: self._as.base_policy.clone(),
         //     }
         // }
 
         // #[setter]
-        // pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+        // pub fn set_base_policy(&mut self, base_policy: ReadPolicy) {
         //     self._as.base_policy = base_policy._as;
         // }
 
@@ -1285,14 +1285,14 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         // #[getter]
-        // pub fn get_base_policy(&self) -> BasePolicy {
-        //     BasePolicy {
+        // pub fn get_base_policy(&self) -> ReadPolicy {
+        //     ReadPolicy {
         //         _as: self._as.base_policy.clone(),
         //     }
         // }
 
         // #[setter]
-        // pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+        // pub fn set_base_policy(&mut self, base_policy: ReadPolicy) {
         //     self._as.base_policy = base_policy._as;
         // }
 
@@ -1956,7 +1956,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             &self,
             key: &Key,
             bins: Option<Vec<String>>,
-            policy: Option<&BasePolicy>,
+            policy: Option<&ReadPolicy>,
             py: Python<'a>,
         ) -> PyResult<&'a PyAny> {
             let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::ReadPolicy::default());
@@ -2083,8 +2083,8 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     /// Determine if a record key exists. The policy can be used to specify timeouts.
-    pub fn exists<'a>(&self, key: &Key, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
-        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::WritePolicy::default());
+    pub fn exists<'a>(&self, key: &Key, policy: Option<&ReadPolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
+        let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::ReadPolicy::default());
         let key = key._as.clone();
         let client = self._as.clone();
 
@@ -3043,7 +3043,7 @@ impl From<aerospike_core::Value> for PythonValue {
     m.add_class::<FilterExpression>()?;
     m.add_class::<Client>()?;
 
-    m.add_class::<BasePolicy>()?;
+    m.add_class::<ReadPolicy>()?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
     m.add_class::<ScanPolicy>()?;
