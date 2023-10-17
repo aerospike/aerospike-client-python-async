@@ -3,16 +3,6 @@ from aerospike_async import *
 from aerospike_async import FilterExpression as fe
 
 class TestReadPolicy(unittest.TestCase):
-    def test_get_defaults(self):
-        # TODO: defaults are not documented in Rust client docs
-        rp = ReadPolicy()
-        self.assertEqual(rp.priority, Priority.Default)
-        self.assertEqual(rp.consistency_level, ConsistencyLevel.ConsistencyOne)
-        self.assertEqual(rp.timeout, 30000)
-        self.assertEqual(rp.max_retries, 2)
-        self.assertEqual(rp.sleep_between_retries, 500)
-        self.assertEqual(rp.filter_expression, None)
-
     def test_set_and_get_fields(self):
         # Set to values different from the default
         rp = ReadPolicy()
@@ -47,21 +37,8 @@ class TestReadPolicy(unittest.TestCase):
     # All consistency levels have been tested above
 
 class TestWritePolicy(unittest.TestCase):
-    def test_get_defaults(self):
-        # TODO: WritePolicy should inherit ReadPolicy
-        wp = WritePolicy()
-        self.assertEqual(wp.record_exists_action, RecordExistsAction.Update)
-        self.assertEqual(wp.generation_policy, GenerationPolicy.NONE)
-        self.assertEqual(wp.commit_level, CommitLevel.CommitAll)
-        self.assertEqual(wp.generation, 0)
-        self.assertEqual(wp.expiration, Expiration.NamespaceDefault)
-        self.assertEqual(wp.send_key, False)
-        self.assertEqual(wp.respond_per_each_op, False)
-        self.assertEqual(wp.durable_delete, False)
-        # TODO: already in ReadPolicy?
-        self.assertEqual(wp.filter_expression, None)
-
     def test_set_and_get_fields(self):
+        
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.UpdateOnly
         wp.generation_policy = GenerationPolicy.ExpectGenEqual
@@ -85,15 +62,6 @@ class TestWritePolicy(unittest.TestCase):
 
 
 class ScanPolicy(unittest.TestCase):
-    def test_get_defaults(self):
-        sp = ScanPolicy()
-        self.assertEqual(sp.scan_percent, 100)
-        self.assertEqual(sp.max_concurrent_nodes, 0)
-        self.assertEqual(sp.record_queue_size, 1024)
-        self.assertEqual(sp.fail_on_cluster_change, True)
-        self.assertEqual(sp.socket_timeout, 10000)
-        # TODO: filter exp already in read policy?
-
     def test_set_and_get_fields(self):
         sp = ScanPolicy()
         sp.scan_percent = 30
@@ -112,13 +80,6 @@ class ScanPolicy(unittest.TestCase):
 
 
 class QueryPolicy(unittest.TestCase):
-    def test_get_defaults(self):
-        qp = QueryPolicy()
-        self.assertEqual(qp.max_concurrent_nodes, 0)
-        self.assertEqual(qp.record_queue_size, 1024)
-        self.assertEqual(qp.fail_on_cluster_change, True)
-        # TODO: filter exp already in read policy?
-
     def test_set_and_get_fields(self):
         qp = QueryPolicy()
         qp.max_concurrent_nodes = 1

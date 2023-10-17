@@ -2230,8 +2230,8 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pymethods]
     impl Blob {
         #[new]
-        pub fn new(v: Vec<u8>) -> Self {
-            Blob { v: v }
+        pub fn new(value: Vec<u8>) -> Self {
+            Blob { v: value }
         }
 
         #[getter]
@@ -2430,8 +2430,8 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pymethods]
     impl List {
         #[new]
-        pub fn new(v: Vec<PythonValue>) -> Self {
-            List { v: v, index: 0 }
+        pub fn new(value: Vec<PythonValue>) -> Self {
+            List { v: value, index: 0 }
         }
 
         #[getter]
@@ -2477,6 +2477,10 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             let mut s = DefaultHasher::new();
             self.v.hash(&mut s);
             s.finish()
+        }
+
+        fn __len__(&self) -> usize {
+            self.v.len()
         }
 
         fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
@@ -2610,8 +2614,17 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 _ => false,
             }
         }
+
+        fn __str__(&self) -> String {
+            self.get_value()
+        }
+
+        fn __repr__(&self) -> String {
+            self.as_string()
+        }
     }
 
+    // TODO: not sure why we need this
     impl fmt::Display for GeoJSON {
         fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
             write!(f, "{}", self.as_string())

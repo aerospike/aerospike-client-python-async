@@ -1,6 +1,6 @@
 import unittest
 
-from aerospike_async import Recordset, ScanPolicy
+from aerospike_async import Recordset, ScanPolicy, Record
 from fixtures import TestFixtureInsertRecord
 
 
@@ -11,12 +11,11 @@ class TestScan(TestFixtureInsertRecord):
 
         # RecordSet tests are in the query basic usage test
         for record in records:
-            print(record)
+            self.assertEqual(type(record), Record)
 
     async def test_with_bins(self):
         records = await self.client.scan("test", "test", bins=[])
         self.assertEqual(type(records), Recordset)
-        # TODO:
 
     async def test_with_policy(self):
         sp = ScanPolicy()

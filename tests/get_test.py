@@ -21,8 +21,6 @@ class TestGet(TestFixtureInsertRecord):
         self.assertEqual(rec.generation, 1)
         self.assertEqual(type(rec.ttl), int)
 
-    # TODO: should selecting some / no bins be separate API calls?
-
     async def test_some_bins(self):
         rec = await self.client.get(self.key, bins=["brand", "year"])
         self.assertEqual(type(rec), Record)
@@ -33,21 +31,10 @@ class TestGet(TestFixtureInsertRecord):
         self.assertEqual(type(rec), Record)
         self.assertEqual(rec.bins, {})
 
-    # Test that policy works
-
-    async def test_matching_filter_exp(self):
+    async def test_with_policy(self):
         rp = ReadPolicy()
-        rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
-        rec = await self.client.get(self.key, ["brand", "year"], policy=rp)
+        rec = await self.client.get(self.key, policy=rp)
         self.assertEqual(type(rec), Record)
-        self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
-
-    async def test_non_matching_filter_exp(self):
-        rp = ReadPolicy()
-        rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
-
-        with self.assertRaises(Exception):
-            await self.client.get(self.key, ["brand", "year"], policy=rp)
 
     # Negative tests
 

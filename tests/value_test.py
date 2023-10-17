@@ -1,52 +1,109 @@
 import unittest
 
-from aerospike_async import *
+from aerospike_async import GeoJSON, Blob, List, HLL
 
 
-class TestValue(unittest.IsolatedAsyncioTestCase):
-    def test_geo_json(self):
+class TestGeoJSON(unittest.TestCase):
+    def setUp(self):
         # 2 different GeoJSON strings
-        geojson_str = '{"type":"Point","coordinates":[-80.590003, 28.60009]}'
-        geojson_different_str = '{"type":"Point","coordinates":[-80.590003, 28.60008]}'
+        self.geo_str = '{"type":"Point","coordinates":[-80.590003, 28.60009]}'
+        self.geo_different_str = '{"type":"Point","coordinates":[-80.590003, 28.60008]}'
 
         # Check once that keyword is correct
-        geojson_obj = GeoJSON(value=geojson_str)
-        same_geojson_obj = GeoJSON(geojson_str)
-        different_geojson_obj = GeoJSON(geojson_different_str)
+        self.geo = GeoJSON(value='{"type":"Point","coordinates":[-80.590003, 28.60009]}')
 
-        # GeoJSON strings and objects can be compared together
-        # Equality and inequality are handled separately in the code, so we need to test both
+    # GeoJSON strings and objects can be compared together
+    # Equality and inequality are handled separately in the code, so we need to test both
 
-        self.assertEqual(geojson_str, geojson_obj)
-        self.assertEqual(geojson_obj, same_geojson_obj)
+    def test_equality(self):
+        geo2 = GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
+        self.assertEqual(self.geo_str, self.geo)
+        self.assertEqual(self.geo, geo2)
 
-        self.assertNotEqual(geojson_str, different_geojson_obj)
-        self.assertNotEqual(same_geojson_obj, different_geojson_obj)
+    def test_inequality(self):
+        different_geo = GeoJSON(self.geo_different_str)
+        self.assertNotEqual(self.geo_str, different_geo)
+        self.assertNotEqual(self.geo, different_geo)
 
-        # Test getting and setting the string value of a GeoJSON instance
-        self.assertEqual(geojson_obj.value, geojson_str)
-        geojson_obj.value = geojson_different_str
-        self.assertEqual(geojson_obj.value, geojson_different_str)
+    def test_set_and_get(self):
+        self.geo.value = self.geo_different_str
+        self.assertEqual(self.geo.value, self.geo_different_str)
 
-        # TODO: add string representation test
+    def test_str_repr(self):
+        self.assertEqual(str(self.geo), self.geo_str)
+        # TODO: this test might be wrong
+        self.assertEqual(repr(self.geo), f"GeoJSON({self.geo_str})")
 
-    def test_list(self):
+
+class TestList(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.as_l = List(value=[1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
+
+    def test_equality(self):
         l = [1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]
-        as_l = List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
         as_l2 = List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
 
-        self.assertEqual(as_l, l)
-        self.assertEqual(as_l, as_l2)
+        self.assertEqual(self.as_l, l)
+        self.assertEqual(self.as_l, as_l2)
 
-        # iteration
+    def test_set_and_get(self):
+        self.as_l.value = [1]
+        self.assertEqual(self.as_l.value, [1])
+
+    def test_str_repr(self):
+        self.assertEqual(str(self.as_l), '[1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]')
+        self.assertEqual(repr(self.as_l), 'List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])')
+
+    def test_iteration(self):
         as_l = List([1, 2, 3, 4])
         for i, v in enumerate(as_l, start=1):
             self.assertEqual(i, v)
 
-        # assignment
-        self.assertEqual(as_l[0], 1)
-        as_l[0] = "0"
-        self.assertEqual(as_l[0], "0")
+    def test_get_and_set(self):
+        self.assertEqual(self.as_l[0], 1)
+        self.as_l[0] = "0"
+        self.assertEqual(self.as_l[0], "0")
+
+    def test_get_out_of_bounds(self):
+        with self.assertRaises(IndexError) as cm:
+            self.as_l[5]
+        self.assertEqual(cm.exception.args[0] == "index out of bound")
+
+    def test_set_out_of_bounds(self):
+        with self.assertRaises(IndexError) as cm:
+            self.as_l[5] = 0
+        self.assertEqual(cm.exception.args[0] == "index out of bound")
+
+    def test_length(self):
+        self.assertEqual(len(self.as_l), 5)
+
+    def test_contains(self):
+        self.assertTrue(1 in self.as_l)
+
+    def test_delete(self):
+        l = List([1, 2, 3])
+        del l[0]
+        self.assertEqual(l, List([2, 3]))
+
+    def test_concat(self):
+        l1 = List([1])
+        l2 = List([2])
+        self.assertEqual(List([1, 2]), l1 + l2)
+
+    def test_repeat(self):
+        l = List([1])
+        self.assertEqual(l * 3, List([1, 1, 1]))
+
+    def test_inplace_concat(self):
+        l = List([1])
+        l += List([2, 3])
+        self.assertEqual(l, List([1, 2, 3]))
+
+    def test_inplace_repeat(self):
+        l = List([1])
+        l *= 3
+        self.assertEqual(l, List([1, 1, 1]))
 
     # def test_list_hash(self):
     #     l = [1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]
@@ -57,8 +114,9 @@ class TestValue(unittest.IsolatedAsyncioTestCase):
 
     #     self.assertEqual(d, d2)
 
+class TestBlob(unittest.IsolatedAsyncioTestCase):
     def test_blob(self):
-        b = Blob([1, 7, 8, 4, 1])
+        b = Blob(value=[1, 7, 8, 4, 1])
         b2 = bytearray([1, 7, 8, 4, 1])
         b3 = bytes([1, 7, 8, 4, 1])
 
@@ -83,6 +141,7 @@ class TestValue(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(d, d2)
 
+class TestHLL(unittest.IsolatedAsyncioTestCase):
     def test_hll(self):
         b = bytes([1, 2, 3, 4])
         hll = HLL(bytes([1, 2, 3, 4]))

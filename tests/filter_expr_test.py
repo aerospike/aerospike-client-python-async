@@ -1,9 +1,26 @@
 import unittest
-from aerospike_async import ExpType
+from aerospike_async import ExpType, ReadPolicy, Record
 from aerospike_async import FilterExpression as fe
+from fixtures import TestFixtureInsertRecord
+
+class TestFilterExprUsage(TestFixtureInsertRecord):
+    async def test_matching_filter_exp(self):
+        rp = ReadPolicy()
+        rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
+        rec = await self.client.get(self.key, ["brand", "year"], policy=rp)
+        self.assertEqual(type(rec), Record)
+        self.assertEqual(rec.bins, {"brand": "Ford", "year": 1964})
+
+    async def test_non_matching_filter_exp(self):
+        rp = ReadPolicy()
+        rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
+
+        with self.assertRaises(Exception):
+            await self.client.get(self.key, ["brand", "year"], policy=rp)
+
 
 # Check that we can create every possible filter expression
-class TestFilterExpr(unittest.TestCase):
+class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
     def test_key(self):
         expr = fe.key(exp_type=ExpType.STRING)
         self.assertEqual(type(expr), fe)
@@ -76,7 +93,6 @@ class TestFilterExpr(unittest.TestCase):
         self.assertEqual(type(expr), fe)
 
     def test_geo_compare(self):
-        # TODO: Rust documentation needs improvement
         geo_bin = fe.geo_bin("bin")
         geo_val = fe.geo_val('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
         expr = fe.geo_compare(left=geo_bin, right=geo_val)
@@ -93,7 +109,6 @@ class TestFilterExpr(unittest.TestCase):
             # TODO: missing HLL val
         ]
         for (func, value) in func_and_values:
-            # TODO: improve test output
             with self.subTest(func=func):
                 expr = func(val=value)
                 self.assertEqual(type(expr), fe)
@@ -121,7 +136,6 @@ class TestFilterExpr(unittest.TestCase):
             fe.le
         ]
         for func in funcs:
-            # TODO: improve test output
             with self.subTest(func=func):
                 expr = func(left=fe.int_bin("bin"), right=fe.int_val(4))
                 self.assertEqual(type(expr), fe)
@@ -134,7 +148,6 @@ class TestFilterExpr(unittest.TestCase):
             fe.num_div
         ]
         for func in funcs:
-            # TODO: improve test output
             with self.subTest(func=func):
                 expr = func(exps=[fe.int_bin("bin1"), fe.int_bin("bin2")])
                 self.assertEqual(type(expr), fe)
@@ -178,7 +191,6 @@ class TestFilterExpr(unittest.TestCase):
             fe.int_xor
         ]
         for func in funcs:
-            # TODO: improve test output
             with self.subTest(func=func):
                 expr = func(exps=[fe.int_bin("bin"), fe.int_val(4)])
                 self.assertEqual(type(expr), fe)

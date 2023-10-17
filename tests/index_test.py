@@ -1,4 +1,4 @@
-from aerospike_async import IndexType
+from aerospike_async import IndexType, CollectionIndexType
 
 from fixtures import TestFixtureConnection
 
@@ -22,14 +22,16 @@ class TestIndex(TestFixtureDeleteIndices):
             index_type=IndexType.String)
         self.assertEqual(retval, None)
 
-    # TODO: missing test for using collection index type
-
     async def test_create_numeric_index(self):
         retval = await self.client.create_index("test", "test", "year", "index_name", IndexType.Numeric)
         self.assertEqual(retval, None)
 
     async def test_create_geo2dsphere_index(self):
         retval = await self.client.create_index("test", "test", "geojson", "index_name", IndexType.Geo2DSphere)
+        self.assertEqual(retval, None)
+
+    async def test_create_with_cit(self):
+        retval = await self.client.create_index("test", "test", "year", "index_name", IndexType.Numeric, cit=CollectionIndexType.Default)
         self.assertEqual(retval, None)
 
     async def test_create_index_fail(self):
@@ -46,4 +48,6 @@ class TestIndex(TestFixtureDeleteIndices):
         retval = await self.client.drop_index(namespace="test", set_name="test", index_name="index_name")
         self.assertEqual(retval, None)
 
-    # TODO: missing negative test case for drop index
+    async def test_drop_index_fail(self):
+        retval = await self.client.drop_index(namespace="111", set_name="test1", index_name="index_name1")
+        self.assertEqual(retval, None)
