@@ -374,10 +374,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         /// Create function that returns if bin of specified name exists.
         pub fn bin_exists(name: String) -> Self {
             FilterExpression {
-                _as: aerospike_core::expressions::ne(
-                    aerospike_core::expressions::bin_type(name),
-                    aerospike_core::expressions::int_val(0 as i64),
-                ),
+                _as: aerospike_core::expressions::bin_exists(name),
             }
         }
 
