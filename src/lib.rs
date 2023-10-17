@@ -1915,8 +1915,19 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             &self.seeds
         }
 
-        pub fn close(&self) -> PyResult<()> {
-            Ok(())
+        pub fn close<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::tokio::future_into_py(py, async move {
+                client
+                    .read()
+                    .await
+                    .close()
+                    .await
+                    .map_err(|e| PyException::new_err(e.to_string()))?;
+
+                Python::with_gil(|py| Ok(py.None()))
+            })
         }
 
         /// Write record bin(s). The policy specifies the transaction timeout, record expiration and
