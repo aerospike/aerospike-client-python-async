@@ -511,23 +511,21 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             }
         }
 
-        // #[staticmethod]
-        // /// Create List bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn list_val(val: Vec<PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::list_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create List bin value
+        pub fn list_val(val: Vec<PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::list_val(val.into_iter().map(|v| v.into()).collect())
+            }
+        }
 
-        // #[staticmethod]
-        // /// Create Map bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::map_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create Map bin value
+        pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_val(val.into_iter().map(|(k, v)| (k.into(), v.into())).collect())
+            }
+        }
 
         #[staticmethod]
         /// Create geospatial json string value.
