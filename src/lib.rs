@@ -23,7 +23,7 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     match bins {
         None => aerospike_core::Bins::All,
         Some(bins) => {
-            if bins.len() > 0 {
+            if !bins.is_empty() {
                 aerospike_core::Bins::Some(bins)
             } else {
                 aerospike_core::Bins::None
@@ -90,7 +90,6 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyclass]
     #[derive(Debug, PartialEq, Clone)]
     pub enum GenerationPolicy {
-        NONE,
         ExpectGenEqual,
         ExpectGenGreater,
     }
@@ -217,6 +216,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     /// Expression Data Types for usage in some `FilterExpressions`
     #[pyclass]
     #[derive(Debug, Clone, Copy)]
+    #[allow(clippy::upper_case_acronyms)]
     pub enum ExpType {
         NIL,
         BOOL,
@@ -536,7 +536,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         #[staticmethod]
-        /// Create a Nil PHPValue
+        /// Create a Nil value
         pub fn nil() -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::nil(),
@@ -960,7 +960,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pymethods]
     impl BasePolicy {
         #[new]
-        pub fn new() -> Self {
+        pub fn __construct() -> Self {
             BasePolicy {
                 _as: aerospike_core::ReadPolicy::default(),
             }
@@ -1042,10 +1042,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            match &self._as.filter_expression {
-                Some(fe) => Some(FilterExpression { _as: fe.clone() }),
-                None => None,
-            }
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
@@ -1067,7 +1064,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pymethods]
     impl WritePolicy {
         #[new]
-        pub fn new() -> Self {
+        pub fn __construct() -> Self {
             WritePolicy {
                 _as: aerospike_core::WritePolicy::default(),
             }
@@ -1096,20 +1093,20 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         #[getter]
-        pub fn get_generation_policy(&self) -> GenerationPolicy {
+        pub fn get_generation_policy(&self) -> Option<GenerationPolicy> {
             match &self._as.generation_policy {
-                aerospike_core::GenerationPolicy::None => GenerationPolicy::NONE,
-                aerospike_core::GenerationPolicy::ExpectGenEqual => GenerationPolicy::ExpectGenEqual,
-                aerospike_core::GenerationPolicy::ExpectGenGreater => GenerationPolicy::ExpectGenGreater,
+                aerospike_core::GenerationPolicy::None => None,
+                aerospike_core::GenerationPolicy::ExpectGenEqual => Some(GenerationPolicy::ExpectGenEqual),
+                aerospike_core::GenerationPolicy::ExpectGenGreater => Some(GenerationPolicy::ExpectGenGreater),
             }
         }
 
         #[setter]
-        pub fn set_generation_policy(&mut self, generation_policy: GenerationPolicy) {
+        pub fn set_generation_policy(&mut self, generation_policy: Option<GenerationPolicy>) {
             self._as.generation_policy = match generation_policy {
-                GenerationPolicy::NONE => aerospike_core::GenerationPolicy::None,
-                GenerationPolicy::ExpectGenEqual => aerospike_core::GenerationPolicy::ExpectGenEqual,
-                GenerationPolicy::ExpectGenGreater => aerospike_core::GenerationPolicy::ExpectGenGreater,
+                None => aerospike_core::GenerationPolicy::None,
+                Some(GenerationPolicy::ExpectGenEqual) => aerospike_core::GenerationPolicy::ExpectGenEqual,
+                Some(GenerationPolicy::ExpectGenGreater) => aerospike_core::GenerationPolicy::ExpectGenGreater,
             };
         }
 
@@ -1476,7 +1473,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         fn __str__(&self) -> PyResult<String> {
-            Ok(format!("{}", ""))
+            Ok("".into())
         }
 
         fn __repr__(&self) -> PyResult<String> {
@@ -1605,7 +1602,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         #[new]
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
             let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
-            Key { _as: _as }
+            Key { _as }
         }
 
         #[getter]
@@ -1628,7 +1625,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             Some(hex::encode(self._as.digest))
         }
 
-        fn __richcmp__<'a>(&self, other: Key, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: Key, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
                     self._as.digest == other._as.digest
@@ -1863,7 +1860,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             self.clone()
         }
 
-        fn __next__<'a>(&mut self, py: Python<'a>) -> IterNextOutput<PyObject, String> {
+        fn __next__(&mut self, py: Python<'_>) -> IterNextOutput<PyObject, String> {
             let rcs = self._as.clone();
             match rcs.next_record() {
                 None => IterNextOutput::Return("ended".into()),
@@ -1966,7 +1963,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             let key = key._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+            pyo3_asyncio::tokio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -1975,7 +1972,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Record{_as:res})
-            })?.into())
+            })
         }
 
             /// Add integer bin values to existing record bin values. The policy specifies the transaction
@@ -1989,7 +1986,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let bins: Vec<aerospike_core::Bin> =
             bins.into_iter().map(|(name, val)| aerospike_core::Bin::new(name, val.into())).collect();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -1998,7 +1995,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
             Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Append bin string values to existing record bin values. The policy specifies the
@@ -2012,7 +2009,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let bins: Vec<aerospike_core::Bin> =
             bins.into_iter().map(|(name, val)| aerospike_core::Bin::new(name, val.into())).collect();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2021,7 +2018,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Prepend bin string values to existing record bin values. The policy specifies the
@@ -2035,7 +2032,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let bins: Vec<aerospike_core::Bin> =
             bins.into_iter().map(|(name, val)| aerospike_core::Bin::new(name, val.into())).collect();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2044,7 +2041,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Delete record for specified key. The policy specifies the transaction timeout.
@@ -2054,7 +2051,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let key = key._as.clone();
         let client = self._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             let res = client
                 .read()
                 .await
@@ -2063,7 +2060,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(res)
-        })?.into())
+        })
     }
 
     /// Reset record's time to expiration using the policy's expiration. Fail if the record does
@@ -2073,7 +2070,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let key = key._as.clone();
         let client = self._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2082,7 +2079,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Determine if a record key exists. The policy can be used to specify timeouts.
@@ -2091,7 +2088,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let key = key._as.clone();
         let client = self._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             let res = client
                 .read()
                 .await
@@ -2100,7 +2097,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(res)
-        })?.into())
+        })
     }
 
     /// Removes all records in the specified namespace/set efficiently.
@@ -2115,7 +2112,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         let before_nanos = before_nanos.unwrap_or_default();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2124,11 +2121,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Create a secondary index on a bin containing scalar values. This asynchronous server call
     /// returns before the command is complete.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_index<'a>(
         &self,
         namespace: String,
@@ -2144,7 +2142,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
         let index_type = (&index_type).into();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2160,13 +2158,13 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     pub fn drop_index<'a>(&self, namespace: String, set_name: String, index_name: String, py: Python<'a>) -> PyResult<&'a PyAny> {
         let client = self._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             client
                 .read()
                 .await
@@ -2175,7 +2173,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::with_gil(|py| Ok(py.None()))
-        })?)
+        })
     }
 
     /// Read all records in the specified namespace and set and return a record iterator. The scan
@@ -2194,7 +2192,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let policy = policy.map(|policy| policy._as.clone()).unwrap_or(aerospike_core::policy::ScanPolicy::default());
         let client = self._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             let res = client
                 .read()
                 .await
@@ -2203,7 +2201,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Recordset{_as: res})
-        })?.into())
+        })
 
     }
 
@@ -2215,7 +2213,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         let client = self._as.clone();
         let stmt = statement._as.clone();
 
-        Ok(pyo3_asyncio::tokio::future_into_py(py, async move {
+        pyo3_asyncio::tokio::future_into_py(py, async move {
             let res = client
                 .read()
                 .await
@@ -2224,12 +2222,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Recordset{_as: res})
-        })?.into())
+        })
     }
 
 
         fn __str__(&self) -> PyResult<String> {
-            Ok(format!("{}", self.seeds))
+            Ok(self.seeds.to_string())
         }
 
         fn __repr__(&self) -> PyResult<String> {
@@ -2302,15 +2300,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             s.finish()
         }
 
-        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<Blob> = PyAny::extract(&other);
+                    let l: PyResult<Blob> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
 
-                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<u8>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l;
                     }
@@ -2318,12 +2316,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     false
                 },
                 CompareOp::Ne => {
-                    let l: PyResult<Blob> = PyAny::extract(&other);
+                    let l: PyResult<Blob> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
 
-                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<u8>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l;
                     }
@@ -2369,7 +2367,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     impl Map {
         #[new]
         pub fn new(v: HashMap<PythonValue, PythonValue>) -> Self {
-            Map { v: v }
+            Map { v }
         }
 
         #[getter]
@@ -2395,15 +2393,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         //     s.finish()
         // }
 
-        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<Map> = PyAny::extract(&other);
+                    let l: PyResult<Map> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
 
-                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(&other);
+                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l;
                     }
@@ -2411,12 +2409,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     false
                 },
                 CompareOp::Ne => {
-                    let l: PyResult<Map> = PyAny::extract(&other);
+                    let l: PyResult<Map> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
 
-                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(&other);
+                    let l: PyResult<HashMap<PythonValue, PythonValue>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l;
                     }
@@ -2490,7 +2488,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             Ok(format!("List('{}')", s))
         }
 
-        fn __getitem__<'a>(&mut self, idx: usize) -> PyResult<PythonValue> {
+        fn __getitem__(&mut self, idx: usize) -> PyResult<PythonValue> {
             if idx > self.v.len() {
                 return Err(PyIndexError::new_err("index out of bound"))
             }
@@ -2515,15 +2513,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             self.v.len()
         }
 
-        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<List> = PyAny::extract(&other);
+                    let l: PyResult<List> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
 
-                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l;
                     }
@@ -2531,12 +2529,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     false
                 },
                 CompareOp::Ne => {
-                    let l: PyResult<List> = PyAny::extract(&other);
+                    let l: PyResult<List> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
 
-                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<PythonValue>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l;
                     }
@@ -2551,8 +2549,8 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             self.clone()
         }
 
-        fn __next__<'a>(&mut self, py: Python<'a>) -> IterNextOutput<PyObject, String> {
-            let res = self.v.get(self.index).clone();
+        fn __next__(&mut self, py: Python<'_>) -> IterNextOutput<PyObject, String> {
+            let res = self.v.get(self.index);
             self.index += 1;
             match res {
                 None => IterNextOutput::Return("ended".into()),
@@ -2615,15 +2613,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             PythonValue::GeoJSON(self.v.clone()).as_string()
         }
 
-        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<GeoJSON> = PyAny::extract(&other);
+                    let l: PyResult<GeoJSON> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
 
-                    let l: PyResult<String> = PyAny::extract(&other);
+                    let l: PyResult<String> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l;
                     }
@@ -2631,12 +2629,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     false
                 },
                 CompareOp::Ne => {
-                    let l: PyResult<GeoJSON> = PyAny::extract(&other);
+                    let l: PyResult<GeoJSON> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
 
-                    let l: PyResult<String> = PyAny::extract(&other);
+                    let l: PyResult<String> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l;
                     }
@@ -2671,6 +2669,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
     #[derive(Debug, Clone)]
+    #[allow(clippy::upper_case_acronyms)]
     pub struct HLL {
         v: Vec<u8>,
     }
@@ -2679,7 +2678,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     impl HLL {
         #[new]
         pub fn new(v: Vec<u8>) -> Self {
-            HLL { v: v }
+            HLL { v }
         }
 
         #[getter]
@@ -2697,15 +2696,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             PythonValue::HLL(self.v.clone()).as_string()
         }
 
-        fn __richcmp__<'a>(&self, other: &'a PyAny, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<HLL> = PyAny::extract(&other);
+                    let l: PyResult<HLL> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
 
-                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<u8>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v == l;
                     }
@@ -2713,12 +2712,12 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     false
                 },
                 CompareOp::Ne => {
-                    let l: PyResult<HLL> = PyAny::extract(&other);
+                    let l: PyResult<HLL> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
 
-                    let l: PyResult<Vec<u8>> = PyAny::extract(&other);
+                    let l: PyResult<Vec<u8>> = PyAny::extract(other);
                     if let Ok(l) = l {
                         return self.v != l;
                     }
@@ -2745,6 +2744,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
 // Container for bin values stored in the Aerospike database.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum PythonValue {
     /// Empty value.
     Nil,
@@ -2782,7 +2782,7 @@ pub enum PythonValue {
     HLL(Vec<u8>),
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
+#[allow(clippy::derived_hash_with_manual_eq)]
 impl Hash for PythonValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match *self {
@@ -2813,7 +2813,7 @@ impl PythonValue {
             PythonValue::Bool(ref val) => val.to_string(),
             PythonValue::Float(ref val) => val.to_string(),
             PythonValue::String(ref val) => val.to_string(),
-            PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val.to_string()),
+            PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val),
             PythonValue::Blob(ref val) => format!("{:?}", val),
             PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
             PythonValue::List(ref val) => format!("{:?}", val),
