@@ -1,5 +1,5 @@
 from fixtures import TestFixtureInsertRecord
-from aerospike_async import WritePolicy
+from aerospike_async import ReadPolicy
 
 class TestExists(TestFixtureInsertRecord):
     async def test_existing_record(self):
@@ -11,8 +11,8 @@ class TestExists(TestFixtureInsertRecord):
         self.assertEqual(retval, False)
 
     async def test_exists_with_policy(self):
-        wp = WritePolicy()
-        retval = await self.client.exists(self.key, policy=wp)
+        rp = ReadPolicy()
+        retval = await self.client.exists(self.key, policy=rp)
         self.assertEqual(retval, True)
 
     async def test_exists_fail(self):

@@ -1,5 +1,5 @@
 import unittest
-from aerospike_async import ExpType, ReadPolicy, Record
+from aerospike_async import ExpType, ReadPolicy, Record, RegexFlag
 from aerospike_async import FilterExpression as fe
 from fixtures import TestFixtureInsertRecord
 
@@ -88,8 +88,7 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(type(expr), fe)
 
     def test_regex_compare(self):
-        # TODO: missing implementation for regex flags
-        expr = fe.regex_compare(regex="c*", flags=0, bin=fe.string_bin("bin"))
+        expr = fe.regex_compare(regex="c*", flags=RegexFlag.EXTENDED, bin=fe.string_bin("bin"))
         self.assertEqual(type(expr), fe)
 
     def test_geo_compare(self):

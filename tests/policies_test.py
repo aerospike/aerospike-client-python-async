@@ -44,7 +44,7 @@ class TestWritePolicy(unittest.TestCase):
         wp.generation_policy = GenerationPolicy.ExpectGenEqual
         wp.commit_level = CommitLevel.CommitMaster
         wp.generation = 4
-        wp.expiration = Expiration.Never
+        wp.expiration = Expiration.NEVER_EXPIRE
         wp.send_key = True
         wp.respond_per_each_op = True
         wp.durable_delete = True
@@ -54,7 +54,7 @@ class TestWritePolicy(unittest.TestCase):
         self.assertEqual(wp.generation_policy, GenerationPolicy.ExpectGenEqual)
         self.assertEqual(wp.commit_level, CommitLevel.CommitMaster)
         self.assertEqual(wp.generation, 4)
-        self.assertEqual(wp.expiration, Expiration.Never)
+        self.assertEqual(wp.expiration, Expiration.NEVER_EXPIRE)
         self.assertEqual(wp.send_key, True)
         self.assertEqual(wp.respond_per_each_op, True)
         self.assertEqual(wp.durable_delete, True)
