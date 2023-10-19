@@ -8,7 +8,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         c = await new_client(hosts="localhost:3000")
         self.assertEqual(type(c), Client)
         # TODO: shouldn't this be awaitable?
-        retval = c.close()
+        retval = await c.close()
         self.assertEqual(retval, None)
 
         # If close() actually works, this operation should fail because of no connection
