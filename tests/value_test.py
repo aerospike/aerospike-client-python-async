@@ -115,27 +115,45 @@ class TestList(unittest.IsolatedAsyncioTestCase):
     #     self.assertEqual(d, d2)
 
 class TestBlob(unittest.IsolatedAsyncioTestCase):
-    def test_blob(self):
-        b = Blob(value=[1, 7, 8, 4, 1])
+    def setUp(self):
+        self.b = Blob(value=[1, 7, 8, 4, 1])
+
+    def test_equality(self):
         b2 = bytearray([1, 7, 8, 4, 1])
         b3 = bytes([1, 7, 8, 4, 1])
 
+        # You can initialize a blob with either a bytes or bytearray type
         b4 = Blob(b2)
         b5 = Blob(b3)
 
-        self.assertEqual(b, b2)
-        self.assertEqual(b, b3)
-        self.assertEqual(b, b4)
-        self.assertEqual(b, b5)
+        # Blobs can be compared to bytes or bytearrays
+        self.assertEqual(self.b, b2)
+        self.assertEqual(self.b, b3)
+        # Blobs can be compared
+        self.assertEqual(self.b, b4)
+        self.assertEqual(self.b, b5)
         self.assertEqual(b4, b5)
 
-        self.assertEqual(b[0], 1)
-        # assignment
-        b[0] = 1
+    def test_get_by_index(self):
+        self.assertEqual(self.b[0], 1)
+
+    def test_get_by_index_fail(self):
+        with self.assertRaises(IndexError) as cm:
+            self.b[5]
+        self.assertEqual(cm.exception.args[0], "index out of bound")
+
+    def test_set_by_index(self):
+        self.b[0] = 1
+
+    def test_set_by_index_fail(self):
+        with self.assertRaises(IndexError) as cm:
+            self.b[5] = 0
+        self.assertEqual(cm.exception.args[0], "index out of bound")
 
     def test_blob_hash(self):
         bs = bytes([1, 7, 8, 4, 1])
         b = Blob(bs)
+        # Can blob be used as a map key?
         d = {1: b, b: 1}
         d2 = {1: bs, b: 1}
 
