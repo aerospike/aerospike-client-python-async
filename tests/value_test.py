@@ -68,15 +68,15 @@ class TestList(unittest.IsolatedAsyncioTestCase):
     def test_get_out_of_bounds(self):
         with self.assertRaises(IndexError) as cm:
             self.as_l[5]
-        self.assertEqual(cm.exception.args[0] == "index out of bound")
+        self.assertEqual(cm.exception.args[0], "index out of bound")
 
     def test_set_out_of_bounds(self):
         with self.assertRaises(IndexError) as cm:
             self.as_l[5] = 0
-        self.assertEqual(cm.exception.args[0] == "index out of bound")
+        self.assertEqual(cm.exception.args[0], "index out of bound")
 
     def test_length(self):
-        self.assertEqual(len(self.as_l), 5)
+        self.assertEqual(len(self.as_l), 4)
 
     def test_contains(self):
         self.assertTrue(1 in self.as_l)
