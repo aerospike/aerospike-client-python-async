@@ -2280,14 +2280,14 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         fn __getitem__(&mut self, idx: usize) -> PyResult<u8> {
-            if idx > self.v.len() {
-                return Err(PyIndexError::new_err("index out of bound"))
+            if idx >= self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"));
             }
             Ok(self.v[idx])
         }
 
         fn __setitem__(&mut self, idx: usize, v: u8) -> PyResult<()> {
-            if idx > self.v.len() {
+            if idx >= self.v.len() {
                 return Err(PyIndexError::new_err("index out of bound"))
             }
             self.v[idx] = v;
