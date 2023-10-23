@@ -1037,7 +1037,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         #[setter]
         pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
             let sleep_between_retries = Duration::from_millis(sleep_between_retries_millis);
-            self._as.timeout = Some(sleep_between_retries);
+            self._as.sleep_between_retries = Some(sleep_between_retries);
         }
 
         #[getter]

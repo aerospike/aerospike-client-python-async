@@ -2,6 +2,7 @@ import unittest
 from aerospike_async import *
 from aerospike_async import FilterExpression as fe
 
+
 class TestReadPolicy(unittest.TestCase):
     def test_set_and_get_fields(self):
         # Set to values different from the default
@@ -24,21 +25,16 @@ class TestReadPolicy(unittest.TestCase):
 
     def test_priority(self):
         rp = ReadPolicy()
-        priorities = [
-            Priority.Default,
-            Priority.Low,
-            Priority.Medium,
-            Priority.High
-        ]
+        priorities = [Priority.Default, Priority.Low, Priority.Medium, Priority.High]
         for priority in priorities:
             rp.priority = priority
             self.assertEqual(rp.priority, priority)
 
     # All consistency levels have been tested above
 
+
 class TestWritePolicy(unittest.TestCase):
     def test_set_and_get_fields(self):
-        
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.UpdateOnly
         wp.generation_policy = GenerationPolicy.ExpectGenEqual
