@@ -134,6 +134,18 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         pub fn seconds(s: u32) -> Expiration {
             Expiration {v: _Expiration::Seconds(s)}
         }
+
+        fn __richcmp__(&self, other: Expiration, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    self.v == other.v
+                },
+                CompareOp::Ne => {
+                    self.v != other.v
+                },
+                _ => false,
+            }
+        }
     }
 
     impl From<&Expiration> for aerospike_core::Expiration {
@@ -147,7 +159,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum _Expiration {
         Seconds(u32),
         NamespaceDefault,
