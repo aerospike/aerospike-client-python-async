@@ -2776,8 +2776,8 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pymethods]
     impl HLL {
         #[new]
-        pub fn new(v: Vec<u8>) -> Self {
-            HLL { v }
+        pub fn new(value: Vec<u8>) -> Self {
+            HLL { v: value }
         }
 
         #[getter]

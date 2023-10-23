@@ -124,6 +124,10 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.b = Blob(value=[1, 7, 8, 4, 1])
 
+    def test_set_and_get(self):
+        self.b.value = [2, 3, 4]
+        self.assertEqual(self.b.value, [2, 3, 4])
+
     def test_equality(self):
         b2 = bytearray([1, 7, 8, 4, 1])
         b3 = bytes([1, 7, 8, 4, 1])
@@ -189,12 +193,28 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(d, d2)
 
+    # TODO: str repr test
 
 class TestHLL(unittest.IsolatedAsyncioTestCase):
-    def test_hll(self):
+    def setUp(self):
+        self.hll = HLL(value=bytes([1, 2, 3, 4]))
+
+    def test_equality(self):
         b = bytes([1, 2, 3, 4])
-        hll = HLL(bytes([1, 2, 3, 4]))
         hll2 = HLL(bytes([1, 2, 3, 4]))
 
-        self.assertEqual(hll, b)
-        self.assertEqual(hll, hll2)
+        self.assertEqual(self.hll, b)
+        self.assertEqual(self.hll, hll2)
+
+    def test_inequality(self):
+        b = bytes([1, 2, 3, 5])
+        hll2 = HLL(bytes([1, 2, 3, 5]))
+
+        self.assertNotEqual(self.hll, b)
+        self.assertNotEqual(self.hll, hll2)
+
+    def test_set_and_get(self):
+        self.hll.value = [5, 6, 7]
+        self.assertEqual(self.hll.value, [5, 6, 7])
+
+    # TODO: str repr test
