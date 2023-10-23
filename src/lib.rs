@@ -3025,6 +3025,7 @@ impl From<aerospike_core::Value> for PythonValue {
     m.add_class::<GenerationPolicy>()?;
     m.add_class::<IndexType>()?;
     m.add_class::<CollectionIndexType>()?;
+    m.add_class::<RegexFlag>()?;
 
     m.add_class::<List>()?;
     // TODO: Implement map and make it an ordered map

@@ -88,7 +88,9 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(type(expr), fe)
 
     def test_regex_compare(self):
-        expr = fe.regex_compare(regex="c*", flags=RegexFlag.EXTENDED, bin=fe.string_bin("bin"))
+        expr = fe.regex_compare(
+            regex="c*", flags=[RegexFlag.EXTENDED], bin=fe.string_bin("bin")
+        )
         self.assertEqual(type(expr), fe)
 
     def test_geo_compare(self):
