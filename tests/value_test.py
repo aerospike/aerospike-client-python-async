@@ -48,6 +48,13 @@ class TestList(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.as_l, l)
         self.assertEqual(self.as_l, as_l2)
 
+    def test_inequality(self):
+        l = [1, 2, 3]
+        as_l2 = List([1, 2, 3])
+
+        self.assertNotEqual(self.as_l, l)
+        self.assertNotEqual(self.as_l, as_l2)
+
     def test_set_and_get(self):
         self.as_l.value = [1]
         self.assertEqual(self.as_l.value, [1])
@@ -139,10 +146,19 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
         # Blobs can be compared to bytes or bytearrays
         self.assertEqual(self.b, b2)
         self.assertEqual(self.b, b3)
-        # Blobs can be compared
+        # Blobs can be compared with each other
         self.assertEqual(self.b, b4)
         self.assertEqual(self.b, b5)
         self.assertEqual(b4, b5)
+
+    def test_inequality(self):
+        b2 = bytearray([1, 7, 8, 4])
+        b3 = bytes([1, 7, 8, 4])
+        b4 = Blob(b3)
+
+        self.assertNotEqual(self.b, b4)
+        self.assertNotEqual(self.b, b2)
+        self.assertNotEqual(self.b, b3)
 
     def test_get_by_index(self):
         self.assertEqual(self.b[0], 1)
