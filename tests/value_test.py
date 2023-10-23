@@ -10,7 +10,9 @@ class TestGeoJSON(unittest.TestCase):
         self.geo_different_str = '{"type":"Point","coordinates":[-80.590003, 28.60008]}'
 
         # Check once that keyword is correct
-        self.geo = GeoJSON(value='{"type":"Point","coordinates":[-80.590003, 28.60009]}')
+        self.geo = GeoJSON(
+            value='{"type":"Point","coordinates":[-80.590003, 28.60009]}'
+        )
 
     # GeoJSON strings and objects can be compared together
     # Equality and inequality are handled separately in the code, so we need to test both
@@ -36,7 +38,6 @@ class TestGeoJSON(unittest.TestCase):
 
 
 class TestList(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
         self.as_l = List(value=[1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
 
@@ -52,8 +53,12 @@ class TestList(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.as_l.value, [1])
 
     def test_str_repr(self):
-        self.assertEqual(str(self.as_l), '[1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]')
-        self.assertEqual(repr(self.as_l), 'List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])')
+        self.assertEqual(
+            str(self.as_l), '[1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]'
+        )
+        self.assertEqual(
+            repr(self.as_l), 'List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])'
+        )
 
     def test_iteration(self):
         as_l = List([1, 2, 3, 4])
@@ -114,6 +119,7 @@ class TestList(unittest.IsolatedAsyncioTestCase):
 
     #     self.assertEqual(d, d2)
 
+
 class TestBlob(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.b = Blob(value=[1, 7, 8, 4, 1])
@@ -150,6 +156,30 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
             self.b[5] = 0
         self.assertEqual(cm.exception.args[0], "index out of bound")
 
+    def test_delete(self):
+        l = Blob([1, 2, 3])
+        del l[0]
+        self.assertEqual(l, Blob(bytes([2, 3])))
+
+    def test_concat(self):
+        l1 = Blob(bytes([1]))
+        l2 = Blob(bytes([2]))
+        self.assertEqual(Blob(bytes([1, 2])), l1 + l2)
+
+    def test_repeat(self):
+        l = Blob(bytes([1]))
+        self.assertEqual(l * 3, Blob(bytes([1, 1, 1])))
+
+    def test_inplace_concat(self):
+        l = Blob(bytes([1]))
+        l += Blob(bytes([2, 3]))
+        self.assertEqual(l, Blob(bytes([1, 2, 3])))
+
+    def test_inplace_repeat(self):
+        l = Blob(bytes([1]))
+        l *= 3
+        self.assertEqual(l, Blob(bytes([1, 1, 1])))
+
     def test_blob_hash(self):
         bs = bytes([1, 7, 8, 4, 1])
         b = Blob(bs)
@@ -158,6 +188,7 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
         d2 = {1: bs, b: 1}
 
         self.assertEqual(d, d2)
+
 
 class TestHLL(unittest.IsolatedAsyncioTestCase):
     def test_hll(self):

@@ -2255,13 +2255,14 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     #[derive(Debug, Clone)]
     pub struct Blob {
         v: Vec<u8>,
+        index: usize,
     }
 
     #[pymethods]
     impl Blob {
         #[new]
         pub fn new(value: Vec<u8>) -> Self {
-            Blob { v: value }
+            Blob { v: value, index: 0 }
         }
 
         #[getter]
@@ -2279,6 +2280,15 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             PythonValue::Blob(self.v.clone()).as_string()
         }
 
+        fn __str__(&self) -> PyResult<String> {
+            Ok(self.as_string())
+        }
+
+        fn __repr__(&self) -> PyResult<String> {
+            let s = self.__str__()?;
+            Ok(format!("Blob('{}')", s))
+        }
+
         fn __getitem__(&mut self, idx: usize) -> PyResult<u8> {
             if idx >= self.v.len() {
                 return Err(PyIndexError::new_err("index out of bound"));
@@ -2294,10 +2304,42 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
             Ok(())
         }
 
+        fn __delitem__(&mut self, idx: usize) -> PyResult<()> {
+            if idx >= self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            self.v.remove(idx);
+            Ok(())
+        }
+
+        fn __concat__(&self, mut other: Blob) -> PyResult<Blob> {
+            let mut new_blob = self.v.clone();
+            new_blob.append(&mut other.v);
+            Ok(Blob { v: new_blob, index: 0 })
+        }
+
+        fn __inplace_concat__(&mut self, mut other: Blob) -> PyResult<Blob> {
+            self.v.append(&mut other.v);
+            Ok(self.clone())
+        }
+
+        fn __repeat__(&self, times: usize) -> PyResult<Blob> {
+            Ok(Blob { v: self.v.repeat(times), index: 0 })
+        }
+
+        fn __inplace_repeat__(&mut self, times: usize) -> PyResult<Blob> {
+            self.__repeat__(times)
+        }
+
+
         fn __hash__(&self) -> u64 {
             let mut s = DefaultHasher::new();
             self.v.hash(&mut s);
             s.finish()
+        }
+
+        fn __len__(&self) -> usize {
+            return self.v.len()
         }
 
         fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
@@ -2329,6 +2371,21 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     true
                 },
                 _ => false,
+            }
+        }
+
+        fn __iter__(&self) -> Self {
+            self.clone()
+        }
+
+        fn __next__(&mut self, py: Python<'_>) -> IterNextOutput<PyObject, String> {
+            let res = self.v.get(self.index);
+            self.index += 1;
+            match res {
+                None => IterNextOutput::Return("ended".into()),
+                Some(v) => {
+                    IterNextOutput::Yield(v.clone().into_py(py))
+                },
             }
         }
     }
@@ -2496,11 +2553,41 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         }
 
         fn __setitem__(&mut self, idx: usize, v: PythonValue) -> PyResult<()> {
-            if idx > self.v.len() {
+            if idx >= self.v.len() {
                 return Err(PyIndexError::new_err("index out of bound"))
             }
             self.v[idx] = v;
             Ok(())
+        }
+
+        fn __delitem__(&mut self, idx: usize) -> PyResult<()> {
+            if idx >= self.v.len() {
+                return Err(PyIndexError::new_err("index out of bound"))
+            }
+            self.v.remove(idx);
+            Ok(())
+        }
+
+        fn __concat__(&self, mut other: List) -> PyResult<List> {
+            let mut new_list = self.v.clone();
+            new_list.append(&mut other.v);
+            Ok(List { v: new_list, index: 0 })
+        }
+
+        fn __inplace_concat__(&mut self, mut other: List) -> PyResult<List> {
+            self.v.append(&mut other.v);
+            Ok(self.clone())
+        }
+
+        fn __repeat__(&self, times: usize) -> PyResult<List> {
+            let og = self.v.clone();
+            let len = self.v.len();
+            let new_list: Vec<_> = og.into_iter().cycle().take(len * times).collect();
+            Ok(List { v: new_list, index: 0 })
+        }
+
+        fn __inplace_repeat__(&mut self, times: usize) -> PyResult<List> {
+            self.__repeat__(times)
         }
 
         fn __hash__(&self) -> u64 {

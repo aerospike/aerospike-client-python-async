@@ -3,6 +3,7 @@ from aerospike_async import ExpType, ReadPolicy, Record, RegexFlag
 from aerospike_async import FilterExpression as fe
 from fixtures import TestFixtureInsertRecord
 
+
 class TestFilterExprUsage(TestFixtureInsertRecord):
     async def test_matching_filter_exp(self):
         rp = ReadPolicy()
@@ -39,7 +40,7 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
             fe.geo_bin,
             fe.list_bin,
             fe.map_bin,
-            fe.hll_bin
+            fe.hll_bin,
         ]
         for func in funcs:
             with self.subTest(func=func):
@@ -105,11 +106,11 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
             (fe.bool_val, True),
             (fe.string_val, "a"),
             (fe.float_val, 4.4),
-            (fe.blob_val, b'asdf'),
+            (fe.blob_val, b"asdf"),
             (fe.geo_val, '{"type":"Point","coordinates":[-80.590003, 28.60009]}')
             # TODO: missing HLL val
         ]
-        for (func, value) in func_and_values:
+        for func, value in func_and_values:
             with self.subTest(func=func):
                 expr = func(val=value)
                 self.assertEqual(type(expr), fe)
@@ -124,30 +125,20 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
     #     self.assertEqual(type(expr), fe)
 
     def test_xor(self):
-        expr = fe.xor(exps=[fe.eq(fe.int_bin("bin"), fe.int_val(4)), fe.bool_val(False)])
+        expr = fe.xor(
+            exps=[fe.eq(fe.int_bin("bin"), fe.int_val(4)), fe.bool_val(False)]
+        )
         self.assertEqual(type(expr), fe)
 
     def test_equality(self):
-        funcs = [
-            fe.eq,
-            fe.ne,
-            fe.gt,
-            fe.ge,
-            fe.lt,
-            fe.le
-        ]
+        funcs = [fe.eq, fe.ne, fe.gt, fe.ge, fe.lt, fe.le]
         for func in funcs:
             with self.subTest(func=func):
                 expr = func(left=fe.int_bin("bin"), right=fe.int_val(4))
                 self.assertEqual(type(expr), fe)
 
     def test_num_arithmetic(self):
-        funcs = [
-            fe.num_add,
-            fe.num_sub,
-            fe.num_mul,
-            fe.num_div
-        ]
+        funcs = [fe.num_add, fe.num_sub, fe.num_mul, fe.num_div]
         for func in funcs:
             with self.subTest(func=func):
                 expr = func(exps=[fe.int_bin("bin1"), fe.int_bin("bin2")])
@@ -186,11 +177,7 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(type(expr), fe)
 
     def test_int_bitwise_ops(self):
-        funcs = [
-            fe.int_and,
-            fe.int_or,
-            fe.int_xor
-        ]
+        funcs = [fe.int_and, fe.int_or, fe.int_xor]
         for func in funcs:
             with self.subTest(func=func):
                 expr = func(exps=[fe.int_bin("bin"), fe.int_val(4)])
@@ -216,21 +203,14 @@ class TestFilterExprCreate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(type(expr), fe)
 
     def test_int_scan(self):
-        funcs = [
-            fe.int_lscan,
-            fe.int_rscan
-        ]
+        funcs = [fe.int_lscan, fe.int_rscan]
         for func in funcs:
             with self.subTest(func=func):
                 expr = func(value=fe.int_bin("bin"), search=fe.bool_val(True))
                 self.assertEqual(type(expr), fe)
 
-
     def test_min_max(self):
-        funcs = [
-            fe.min,
-            fe.max
-        ]
+        funcs = [fe.min, fe.max]
         for func in funcs:
             with self.subTest(func=func):
                 expr = func(exps=[fe.float_bin("bin"), fe.float_val(5.0)])
