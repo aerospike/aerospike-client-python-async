@@ -2277,7 +2277,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
-            PythonValue::Blob(self.v.clone()).as_string()
+            format!("{}", PythonValue::Blob(self.v.clone()))
         }
 
         fn __str__(&self) -> PyResult<String> {
@@ -2439,7 +2439,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
-            PythonValue::HashMap(self.v.clone()).as_string()
+            format!("{}", PythonValue::HashMap(self.v.clone()))
         }
 
         // TODO: Change HashMap into BTreeMap and use that
@@ -2533,11 +2533,11 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
-            PythonValue::List(self.v.clone()).as_string()
+            format!("{}", PythonValue::List(self.v.clone()))
         }
 
         fn __str__(&self) -> PyResult<String> {
-            Ok(self.as_string())
+            Ok(format!("{}", PythonValue::List(self.v.clone())))
         }
 
         fn __repr__(&self) -> PyResult<String> {
@@ -2697,7 +2697,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
-            PythonValue::GeoJSON(self.v.clone()).as_string()
+            format!("{}", PythonValue::GeoJSON(self.v.clone()))
         }
 
         fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
@@ -2780,7 +2780,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
 
         /// Returns a string representation of the value.
         pub fn as_string(&self) -> String {
-            PythonValue::HLL(self.v.clone()).as_string()
+            format!("{}", PythonValue::HLL(self.v.clone()))
         }
 
         fn __richcmp__(&self, other: &PyAny, op: CompareOp) -> bool {
@@ -2891,28 +2891,50 @@ impl Hash for PythonValue {
 }
 
 impl PythonValue {
-    /// Returns a string representation of the value.
-    pub fn as_string(&self) -> String {
-        match *self {
-            PythonValue::Nil => "<null>".to_string(),
-            PythonValue::Int(ref val) => val.to_string(),
-            PythonValue::UInt(ref val) => val.to_string(),
-            PythonValue::Bool(ref val) => val.to_string(),
-            PythonValue::Float(ref val) => val.to_string(),
-            PythonValue::String(ref val) => val.to_string(),
-            PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val),
-            PythonValue::Blob(ref val) => format!("{:?}", val),
-            PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
-            PythonValue::List(ref val) => format!("{:?}", val),
-            PythonValue::HashMap(ref val) => format!("{:?}", val),
-            // PythonValue::OrderedMap(ref val) => format!("{:?}", val),
-        }
-    }
 }
 
 impl fmt::Display for PythonValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-        write!(f, "{}", self.as_string())
+        match *self {
+            PythonValue::Nil => write!(f, "{}", "None".to_string()),
+            PythonValue::Int(ref val) => write!(f, "{}", val.to_string()),
+            PythonValue::UInt(ref val) => write!(f, "{}", val.to_string()),
+            PythonValue::Bool(ref val) => match val {
+                true => write!(f, "{}", "True".to_string()),
+                false => write!(f, "{}", "False".to_string()),
+            },
+            PythonValue::Float(ref val) => write!(f, "{}", val.to_string()),
+            PythonValue::String(ref val) => write!(f, "\"{}\"", val.to_string()),
+            PythonValue::GeoJSON(ref val) => write!(f, "{}", format!("GeoJSON('{}')", val)),
+            PythonValue::Blob(ref val) => write!(f, "{}", format!("{:?}", val)),
+            PythonValue::HLL(ref val) => write!(f, "{}", format!("HLL('{:?}')", val)),
+            PythonValue::List(ref val) => {
+                write!(f, "[")?;
+                for (i, v) in val.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                write!(f, "]")?;
+
+                Ok(())
+            },
+            PythonValue::HashMap(ref val) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in val.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
+                }
+                write!(f, "}}")?;
+
+                Ok(())
+
+            },
+            // PythonValue::OrderedMap(ref val) => format!("{:?}", val),
+        }
     }
 }
 
