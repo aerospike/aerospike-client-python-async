@@ -30,5 +30,8 @@ bench: dev
 	python3 benchmarks.py -o bench.json
 	pyperf hist bench.json
 
+bloat:
+	cargo bloat --crates --release -n 50
+
 clean:
 	cargo clean
