@@ -12,7 +12,7 @@ all: lint dev build test install clean
 lint:
 	cargo clippy
 
-dev:
+dev: lint
 	# the following command should be issued manually before dev
 	# source .env/bin/activate
 	maturin develop
