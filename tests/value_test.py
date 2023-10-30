@@ -1,6 +1,6 @@
 import unittest
 
-from aerospike_async import GeoJSON, Blob, List, HLL
+from aerospike_async import GeoJSON, Blob, List, HLL, Map
 
 
 class TestGeoJSON(unittest.TestCase):
@@ -117,14 +117,44 @@ class TestList(unittest.IsolatedAsyncioTestCase):
         l *= 3
         self.assertEqual(l, List([1, 1, 1]))
 
-    # def test_list_hash(self):
-    #     l = [1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}]
-    #     as_l = List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
-    #     # as_l = List([1, 2])
-    #     d = {1: as_l, as_l: 1}
-    #     d2 = {1: as_l, as_l: 1}
+    def test_list_hash(self):
+        as_l = List([1, 2, [1, 2, 3], {1: "str", "str": [1, 2, True]}])
+        d = {1: as_l, as_l: 1}
+        d2 = {1: as_l, as_l: 1}
 
-    #     self.assertEqual(d, d2)
+        self.assertEqual(d, d2)
+
+    def test_use_as_native_type(self):
+        self.assertEqual(isinstance(self.as_l), list)
+
+class TestMap(unittest.TestCase):
+    def setUp(self):
+        self.m = Map(value={"a": 1})
+
+    def test_set_and_get(self):
+        self.m.value = {"a": 2}
+        self.assertEqual(self.m.value, {"a": 2})
+
+    def test_equality(self):
+        native_m = {"a": 1}
+        m = Map({"a": 1})
+        self.assertEqual(self.m, m)
+        self.assertEqual(self.m, native_m)
+
+    def test_inequality(self):
+        native_m = {"a": 2}
+        m = Map({"a": 2})
+        self.assertNotEqual(self.m, m)
+        self.assertNotEqual(self.m, native_m)
+
+    def test_use_as_native_type(self):
+        m = Map({"a": 1})
+        self.assertEqual(isinstance(m), dict)
+
+    def test_hash(self):
+        native_m1 = {Map({"a": 1}): 1}
+        native_m2 = {Map({"a": 1}): 1}
+        self.assertEqual(native_m1, native_m2)
 
 
 class TestBlob(unittest.IsolatedAsyncioTestCase):
