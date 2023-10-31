@@ -36,6 +36,7 @@ class TestGeoJSON(unittest.TestCase):
         # TODO: this test might be wrong
         self.assertEqual(repr(self.geo), f"GeoJSON({self.geo_str})")
 
+    # TODO: supertype test
 
 class TestList(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -156,6 +157,11 @@ class TestMap(unittest.TestCase):
         native_m2 = {Map({"a": 1}): 1}
         self.assertEqual(native_m1, native_m2)
 
+    def test_str(self):
+        self.assertEqual(str(self.m), '{"a": 1}')
+
+    def test_repr(self):
+        self.assertEqual(repr(self.m), 'Map({"a": 1})')
 
 class TestBlob(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -240,6 +246,7 @@ class TestBlob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(d, d2)
 
     # TODO: str repr test
+    # TODO: supertype test
 
 class TestHLL(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -264,3 +271,4 @@ class TestHLL(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hll.value, [5, 6, 7])
 
     # TODO: str repr test
+    # TODO: supertype test
