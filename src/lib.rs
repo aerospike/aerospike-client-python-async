@@ -10,7 +10,7 @@ use std::collections::hash_map::DefaultHasher;
 
 use pyo3::exceptions::{PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyByteArray, PyBytes};
+use pyo3::types::{PyDict, PyByteArray, PyBytes, PyList};
 use pyo3::exceptions::{PyException,PyIndexError};
 use pyo3::iter::IterNextOutput;
 use pyo3::basic::CompareOp;
@@ -2426,7 +2426,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[pyclass(extends = PyDict, subclass, freelist = 1, module = "aerospike", sequence)]
     #[derive(Debug, Clone)]
     pub struct Map {
         v: HashMap<PythonValue, PythonValue>,
@@ -2519,7 +2519,7 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass(subclass, freelist = 1, module = "aerospike", sequence)]
+    #[pyclass(extends = PyList, subclass, freelist = 1, module = "aerospike", sequence)]
     #[derive(Debug, Clone)]
     pub struct List {
         v: Vec<PythonValue>,
