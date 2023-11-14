@@ -34,15 +34,34 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     }
 }
 
-create_exception!(aerospike_async, RecvError, PyException);
-create_exception!(aerospike_async, PasswordHashError, PyException);
-create_exception!(aerospike_async, BadResponse, PyException);
-create_exception!(aerospike_async, InvalidRustClientArgs, PyException);
-create_exception!(aerospike_async, InvalidNodeError, PyException);
-create_exception!(aerospike_async, NoMoreConnections, PyException);
-create_exception!(aerospike_async, ServerError, PyException);
-create_exception!(aerospike_async, UDFBadResponse, PyException);
-create_exception!(aerospike_async, TimeoutError, PyException);
+#[pyclass(extends=PyException, get_all, subclass)]
+struct AerospikeError {
+    node_name: String,
+    in_doubt: bool,
+    result: i32
+}
+
+#[pymethods]
+impl AerospikeError {
+    #[new]
+    fn new(node_name: String, in_doubt: bool, result: i32) -> Self {
+        AerospikeError {
+            node_name,
+            in_doubt,
+            result
+        }
+    }
+}
+
+create_exception!(aerospike_async, RecvError, AerospikeError);
+create_exception!(aerospike_async, PasswordHashError, AerospikeError);
+create_exception!(aerospike_async, BadResponse, AerospikeError);
+create_exception!(aerospike_async, InvalidRustClientArgs, AerospikeError);
+create_exception!(aerospike_async, InvalidNodeError, AerospikeError);
+create_exception!(aerospike_async, NoMoreConnections, AerospikeError);
+create_exception!(aerospike_async, ServerError, AerospikeError);
+create_exception!(aerospike_async, UDFBadResponse, AerospikeError);
+create_exception!(aerospike_async, TimeoutError, AerospikeError);
 
 // Must define a wrapper type because of the orphan rule
 struct RustClientError(Error);
@@ -3215,6 +3234,7 @@ impl From<aerospike_core::Value> for PythonValue {
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
 
+    m.add_class::<AerospikeError>()?;
     m.add("ServerError", _py.get_type::<ServerError>())?;
     m.add("RecvError", _py.get_type::<RecvError>())?;
     m.add("BadResponse", _py.get_type::<BadResponse>())?;
