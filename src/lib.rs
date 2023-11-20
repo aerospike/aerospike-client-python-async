@@ -11,7 +11,7 @@ use std::collections::hash_map::DefaultHasher;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyByteArray, PyBytes};
-use pyo3::exceptions::{PyException,PyIndexError,PyUnicodeDecodeError,PyConnectionError,PyValueError};
+use pyo3::exceptions::{PyException,PyIndexError};
 use pyo3::iter::IterNextOutput;
 use pyo3::basic::CompareOp;
 use pyo3::create_exception;
@@ -34,25 +34,7 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     }
 }
 
-#[pyclass(extends=PyException, get_all, subclass)]
-struct AerospikeError {
-    node_name: String,
-    in_doubt: bool,
-    result: i32
-}
-
-#[pymethods]
-impl AerospikeError {
-    #[new]
-    fn new(node_name: String, in_doubt: bool, result: i32) -> Self {
-        AerospikeError {
-            node_name,
-            in_doubt,
-            result
-        }
-    }
-}
-
+create_exception!(aerospike_async, AerospikeError, PyException);
 create_exception!(aerospike_async, RecvError, AerospikeError);
 create_exception!(aerospike_async, PasswordHashError, AerospikeError);
 create_exception!(aerospike_async, BadResponse, AerospikeError);
@@ -62,6 +44,17 @@ create_exception!(aerospike_async, NoMoreConnections, AerospikeError);
 create_exception!(aerospike_async, ServerError, AerospikeError);
 create_exception!(aerospike_async, UDFBadResponse, AerospikeError);
 create_exception!(aerospike_async, TimeoutError, AerospikeError);
+create_exception!(aerospike_async, Base64DecodeError, AerospikeError);
+
+// These exceptions have the Python native equivalent
+// But we also have our own versions of them
+
+create_exception!(aerospike_async, InvalidUTF8, AerospikeError);
+create_exception!(aerospike_async, IoError, AerospikeError);
+create_exception!(aerospike_async, ParseAddressError, AerospikeError);
+create_exception!(aerospike_async, ParseIntError, AerospikeError);
+create_exception!(aerospike_async, ConnectionError, AerospikeError);
+create_exception!(aerospike_async, ValueError, AerospikeError);
 
 // Must define a wrapper type because of the orphan rule
 struct RustClientError(Error);
@@ -71,19 +64,20 @@ impl From<RustClientError> for PyErr {
         // RustClientError -> Error -> ErrorKind
         match value.0.0 {
             // How to convert this automatically?
-            ErrorKind::Base64(e) => PyUnicodeDecodeError::new_err(e.to_string()),
-            ErrorKind::InvalidUtf8(e) => PyErr::from(e),
-            ErrorKind::Io(e) => PyErr::from(e),
+            ErrorKind::Base64(e) => Base64DecodeError::new_err(e.to_string()),
+            ErrorKind::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
+            ErrorKind::Io(e) => IoError::new_err(e.to_string()),
             ErrorKind::MpscRecv(_) => RecvError::new_err("The sending half of a channel has been closed, so no messages can be received"),
-            ErrorKind::ParseAddr(e) => PyErr::from(e),
-            ErrorKind::ParseInt(e) => PyErr::from(e),
+            ErrorKind::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
+            ErrorKind::ParseInt(e) => ParseIntError::new_err(e.to_string()),
             ErrorKind::PwHash(e) => PasswordHashError::new_err(e.to_string()),
             ErrorKind::BadResponse(string) => BadResponse::new_err(string),
-            ErrorKind::Connection(string) => PyConnectionError::new_err(string),
-            ErrorKind::InvalidArgument(string) => PyValueError::new_err(string),
+            ErrorKind::Connection(string) => ConnectionError::new_err(string),
+            ErrorKind::InvalidArgument(string) => ValueError::new_err(string),
             ErrorKind::InvalidNode(string) => InvalidNodeError::new_err(string),
             // TODO: empty arg?
-            ErrorKind::NoMoreConnections => NoMoreConnections::new_err(""),
+            ErrorKind::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
+            // Result code is the name of the server error exception
             ErrorKind::ServerError(result_code) => ServerError::new_err(String::from(result_code)),
             ErrorKind::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             ErrorKind::Timeout(string) => TimeoutError::new_err(string),
@@ -3234,16 +3228,23 @@ impl From<aerospike_core::Value> for PythonValue {
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
 
-    m.add_class::<AerospikeError>()?;
+    m.add("AerospikeError", _py.get_type::<AerospikeError>())?;
     m.add("ServerError", _py.get_type::<ServerError>())?;
     m.add("RecvError", _py.get_type::<RecvError>())?;
     m.add("BadResponse", _py.get_type::<BadResponse>())?;
     m.add("InvalidRustClientArgs", _py.get_type::<InvalidRustClientArgs>())?;
     m.add("InvalidNodeError", _py.get_type::<InvalidNodeError>())?;
     m.add("NoMoreConnections", _py.get_type::<NoMoreConnections>())?;
-    m.add("ServerError", _py.get_type::<ServerError>())?;
     m.add("UDFBadResponse", _py.get_type::<UDFBadResponse>())?;
     m.add("TimeoutError", _py.get_type::<TimeoutError>())?;
+    m.add("Base64DecodeError", _py.get_type::<Base64DecodeError>())?;
+
+    m.add("InvalidUTF8", _py.get_type::<InvalidUTF8>())?;
+    m.add("IoError", _py.get_type::<IoError>())?;
+    m.add("ParseAddressError", _py.get_type::<ParseAddressError>())?;
+    m.add("ParseIntError", _py.get_type::<ParseIntError>())?;
+    m.add("ConnectionError", _py.get_type::<ConnectionError>())?;
+    m.add("ValueError", _py.get_type::<ValueError>())?;
 
     Ok(())
 }

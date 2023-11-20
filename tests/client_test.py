@@ -1,6 +1,6 @@
 import unittest
 
-from aerospike_async import new_client, Client, ClientPolicy, Key
+from aerospike_async import new_client, Client, ClientPolicy, Key, ConnectionError
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -12,7 +12,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         # If close() actually works, this operation should fail because of no connection
         key = Key("test", "test", 0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConnectionError):
             await c.exists(key)
 
     async def test_connect_with_policy(self):
