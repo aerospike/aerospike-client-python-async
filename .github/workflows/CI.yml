@@ -31,6 +31,7 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
+          'pypy3.8',
           'pypy3.9',
           'pypy3.10']
       fail-fast: false
@@ -43,7 +44,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --interpreter python${{ matrix.python }}
+          args: --release --out dist --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -53,10 +54,11 @@ jobs:
           path: dist
 
   windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       matrix:
         target: [x64, x86]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
