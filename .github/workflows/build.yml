@@ -71,11 +71,11 @@ jobs:
 
       - name: Copy tests and wheel to container
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
-        run: docker cp ../aerospike-client-python ${{ matrix.python }}:/
+        run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
 
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
-        run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
+        run: docker exec --working-directory aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
 
       - name: Remove python prefix for setting up python (CPython only)
         run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
