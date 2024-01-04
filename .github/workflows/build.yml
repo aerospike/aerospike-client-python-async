@@ -73,6 +73,10 @@ jobs:
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
         run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
 
+      - name: Install wheel (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        run: docker exec --working-directory aerospike-client-python-async/dist ${{ matrix.python }} ${{ matrix.python }} -m pip install *.whl
+
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
         run: docker exec --working-directory aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
@@ -81,9 +85,15 @@ jobs:
         run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
 
       - name: Setup Python for testing
+        if: ${{ startsWith(matrix.target[0], 'x86') }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install wheel (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        run: ${{ matrix.python }} -m pip install *.whl
+        working-directory: dist
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86') }}
