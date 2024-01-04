@@ -24,6 +24,7 @@ jobs:
       matrix:
         target: [
           # Don't run a virtual machine for x86_* artifacts
+          # maturin platform, Docker platform
           [x86_64, _],
           [x86, _],
           [aarch64, arm64v8],
@@ -47,7 +48,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.target[0] }}
           args: --release --out dist --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
