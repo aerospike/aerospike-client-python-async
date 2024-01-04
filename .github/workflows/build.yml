@@ -61,7 +61,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Get Docker image name and tag
-        run: echo DOCKER_IMAGE_TAG=$(cat ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
+        run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
 
       - name: Run container in QEMU VM
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
