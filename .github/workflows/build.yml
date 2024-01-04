@@ -39,6 +39,12 @@ jobs:
           'pypy3.9',
           'pypy3.10'
         ]
+        # No PyPy Docker images for ARM 32 bit
+        exclude:
+          - python: pypy3.9
+            target: [armv7, linux/arm/v7]
+          - python: pypy3.10
+            target: [armv7, linux/arm/v7]
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
