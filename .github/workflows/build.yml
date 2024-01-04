@@ -22,7 +22,22 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7]
+        target: [
+          # Don't run a virtual machine for x86_* artifacts
+          [x86_64, _],
+          [x86, _],
+          [aarch64, arm64v8],
+          [armv7, arm32v7]
+        ]
+        python: [
+          'python3.8',
+          'python3.9',
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'pypy3.9',
+          'pypy3.10'
+        ]
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -33,9 +48,35 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
+
+      - name: Run Aerospike server
+        run: docker run -d -p 3000:3000 aerospike/aerospike-server
+
+      - name: Set up QEMU
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Get Docker image name and tag
+        run: echo DOCKER_IMAGE_TAG=$(cat ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
+
+      - name: Run container in QEMU VM
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        # Run in the host network to connect to Aerospike server
+        run: docker run -d --network host --name ${{ matrix.python }} --platform ${{ matrix.target[1]}} ${{ env.DOCKER_IMAGE_TAG }} tail -f /dev/null
+
+      - name: Copy tests and wheel to container
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        run: docker cp ../aerospike-client-python ${{ matrix.python }}:/
+
+      - name: Install test dependencies
+        run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m pytest new_tests/
+
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
