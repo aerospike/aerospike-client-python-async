@@ -75,7 +75,7 @@ jobs:
 
       - name: Install wheel (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
-        run: docker exec --workdir /aerospike-client-python-async/dist ${{ matrix.python }} ${{ matrix.python }} -m pip install *.whl
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike
 
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
