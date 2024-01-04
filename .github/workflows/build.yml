@@ -26,7 +26,7 @@ jobs:
           # Don't run a virtual machine for x86_* artifacts
           # maturin platform, Docker platform
           [x86_64, _],
-          [x86, _],
+          [x86, linux/i686],
           [aarch64, linux/arm64],
           [armv7, linux/arm64]
         ]
@@ -58,46 +58,46 @@ jobs:
         run: docker run -d -p 3000:3000 aerospike/aerospike-server
 
       - name: Set up QEMU
-        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         uses: docker/setup-qemu-action@v3
 
       - name: Get Docker image name and tag
         run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
 
       - name: Run container in QEMU VM
-        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         # Run in the host network to connect to Aerospike server
         run: docker run -d --network host --name ${{ matrix.python }} --platform ${{ matrix.target[1]}} ${{ env.DOCKER_IMAGE_TAG }} tail -f /dev/null
 
       - name: Copy tests and wheel to container
-        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
 
       - name: Install wheel (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_async
 
       - name: Run tests (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86') }}
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
 
       - name: Remove python prefix for setting up python (CPython only)
-        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
 
       - name: Setup Python for testing
-        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install wheel (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: ${{ matrix.python }} -m pip install *.whl
         working-directory: dist
 
       - name: Run tests (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
 
       - name: Upload wheels
