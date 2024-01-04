@@ -93,7 +93,7 @@ jobs:
       - name: Install wheel (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86') }}
         run: ${{ matrix.python }} -m pip install *.whl
-        workdir: dist
+        working-directory: dist
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86') }}
