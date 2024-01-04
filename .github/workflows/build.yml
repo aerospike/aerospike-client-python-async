@@ -42,7 +42,8 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
       - name: Build wheels
@@ -75,6 +76,14 @@ jobs:
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86') }}
         run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
+
+      - name: Remove python prefix for setting up python (CPython only)
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+
+      - name: Setup Python for testing
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86') }}
