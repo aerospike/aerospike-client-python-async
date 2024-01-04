@@ -73,10 +73,22 @@ jobs:
         run: docker cp ../aerospike-client-python ${{ matrix.python }}:/
 
       - name: Install test dependencies
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
         run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m pip install -r requirements.txt
 
       - name: Run tests
+        if: ${{ !startsWith(matrix.target[0], 'x86') }}
         run: docker exec --working-directory aerospike-client-python/test ${{ matrix.python }} ${{ matrix.python }} -m pytest new_tests/
+
+      - name: Install test dependencies
+        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        run: ${{ matrix.python }} -m pip install -r requirements.txt
+        working-directory: test
+
+      - name: Run tests
+        if: ${{ startsWith(matrix.target[0], 'x86') }}
+        run: ${{ matrix.python }} -m pytest new_tests/
+        working-directory: test
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
