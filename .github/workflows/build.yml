@@ -171,13 +171,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install wheel
-        run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike
-      - name: Install test dependencies
-        run: ${{ matrix.python }} -m pip install -r requirements.txt
-        working-directory: test
+        run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
       - name: Run tests
-        run: ${{ matrix.python }} -m pytest new_tests/
-        working-directory: test
+        run: ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
