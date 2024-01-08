@@ -136,6 +136,21 @@ jobs:
           name: wheels
           path: dist
 
+  # macos-m1:
+  #   runs-on: [self-hosted, macOS, ARM64]
+  #   strategy:
+  #     matrix:
+  #       python: [
+  #         'python3.8',
+  #         'python3.9',
+  #         'python3.10',
+  #         'python3.11',
+  #         'python3.12',
+  #         'pypy3.9',
+  #         'pypy3.10'
+  #       ]
+  #     fail-fast: false
+
   macos-x86:
     runs-on: macos-12
     strategy:
