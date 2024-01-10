@@ -73,12 +73,5 @@ Vagrant.configure("2") do |config|
       d.run $image_name,
         args: "-p 3000:3000"
     end
-
-    # https://github.com/actions/runner-images/issues/8730#issuecomment-1872615814
-    # Reduce requirements so everything runs on GitHub Actions
-    config.vm.provider "virtualbox" do |v|
-        v.memory = 1024
-        v.cpus = 1
-    end  
   end
   
