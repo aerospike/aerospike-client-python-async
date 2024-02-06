@@ -3,6 +3,8 @@ extern crate pyo3;
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use std::fmt;
@@ -1918,6 +1920,11 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
         seeds: String,
     }
 
+    #[pyclass]
+    struct Operation {
+        _as: Arc<aerospike_core::operations::Operation<'static>>
+    }
+
     #[pymethods]
     impl Client {
         pub fn seeds(&self) -> &str {
@@ -1984,6 +1991,23 @@ fn aerospike_async(_py: Python, m: &PyModule) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Record{_as:res})
+            })
+        }
+
+        pub fn operate<'a>(&self, key: &Key, ops: Vec<PyRef<Operation>>, policy: Option<&WritePolicy>, py: Python<'a>) -> PyResult<&'a PyAny> {
+            let policy = policy.map(|policy| policy._as.clone()).unwrap_or_default();
+            let key = key._as.clone();
+            let client  = self._as.clone();
+            let ops: Vec<aerospike_core::operations::Operation> = ops.iter().map(|op| (*op._as.deref()).clone()).collect();
+            pyo3_asyncio::tokio::future_into_py(py, async move {
+                client
+                    .read()
+                    .await
+                    .operate(&policy, &key, &ops)
+                    .await
+                    .map_err(|e| PyException::new_err(e.to_string()))?;
+
+                    Python::with_gil(|py| Ok(py.None()))
             })
         }
 
