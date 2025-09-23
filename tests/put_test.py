@@ -1,3 +1,4 @@
+import os
 import asyncio
 import unittest
 
@@ -12,7 +13,7 @@ class TestPut(unittest.IsolatedAsyncioTestCase):
 
     async def setup(self):
         cp = ClientPolicy()
-        self.client = await new_client(cp, "localhost:3000")
+        self.client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
 
         # make a record
         self.key = Key("test", "test", 1)

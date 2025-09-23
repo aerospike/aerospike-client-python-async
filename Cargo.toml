@@ -9,10 +9,10 @@ name = "aerospike_async"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.19.0"
-pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
+pyo3 = "0.20.0"
+pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1.20"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust.git", branch = "php-rs", package = "aerospike-core", features = ["rt-tokio"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust.git", branch = "python-rs", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
 

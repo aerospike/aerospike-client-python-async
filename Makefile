@@ -23,11 +23,11 @@ build:
 test: dev test-only
 
 test-only:
-	python3 -m unittest discover -s tests -p "*_test.py"
+	python -m unittest discover -s tests -p "*_test.py"
 
 bench: dev
 	rm -f bench.json
-	python3 benchmarks.py -o bench.json
+	python benchmarks.py -o bench.json
 	pyperf hist bench.json
 
 clean:
