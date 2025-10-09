@@ -6,15 +6,16 @@ user ?= ""
 pass ?= ""
 ns ?= "test"
 
-.PHONY: build test install clean
+.PHONY: build test install clean stubs
 all: lint dev build test install clean
+
+stubs:
+	./generate_stubs.sh
 
 lint:
 	cargo clippy
 
 dev:
-	# the following command should be issued manually before dev
-	# source .env/bin/activate
 	maturin develop
 
 build:
@@ -26,9 +27,9 @@ test-only:
 	python -m unittest discover -s tests -p "*_test.py"
 
 bench: dev
-	rm -f bench.json
-	python benchmarks.py -o bench.json
-	pyperf hist bench.json
+	rm -f aerospike_async/bench.json
+	python aerospike_async/benchmarks.py -o bench.json
+	pyperf hist aerospike_async/bench.json
 
 clean:
 	cargo clean
