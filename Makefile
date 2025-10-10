@@ -6,29 +6,34 @@ user ?= ""
 pass ?= ""
 ns ?= "test"
 
-.PHONY: build test install clean
+.PHONY: build test install clean stubs
 all: lint dev build test install clean
+
+stubs:
+	# Generate type stubs and organize them as a Python package
+	source aerospike.env && cargo run --bin stub_gen
+	@echo "Generated stubs in aerospike_async/aerospike_async.pyi"
 
 lint:
 	cargo clippy
 
 dev:
-	# the following command should be issued manually before dev
-	# source .env/bin/activate
+	# Generate a temp wheel & install it as a Python module in local virtual environment
 	maturin develop
 
+test:
+	cd aerospike_async; python -m pytest tests
+
+dev-test: dev stubs test
+
 build:
+	# Generate distributable Python wheel binary and put it in the target folder
 	maturin build -r
 
-test: dev test-only
-
-test-only:
-	python -m unittest discover -s tests -p "*_test.py"
-
 bench: dev
-	rm -f bench.json
-	python benchmarks.py -o bench.json
-	pyperf hist bench.json
+	rm -f aerospike_async/bench.json
+	python aerospike_async/benchmarks.py -o bench.json
+	pyperf hist aerospike_async/bench.json
 
 clean:
 	cargo clean

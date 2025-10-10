@@ -1,20 +1,21 @@
 [package]
 name = "aerospike-client-python-async"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "aerospike_async"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = "0.20.0"
-pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
-tokio = "1.20"
+pyo3 = { version = "0.26", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.26", features = ["tokio-runtime"] }
+tokio = "1.40"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust.git", branch = "python-rs", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
+pyo3-stub-gen = "0.14.1"
 
 [profile.release]
 strip = "debuginfo"

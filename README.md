@@ -1,15 +1,43 @@
-# Aerospike Python Client
+# Aerospike Async Python Client
 
-## Setup
+## Setup Instructions
 
-requirements: install `maturin`, `unittest`
+### Setup local virtual environment (pyenv is recommended, but any can work)
 
-Run
-`source .env/bin/activate`
+#### Install python packages:
+```commandline
+pip install -r requirements.txt
+```
+<br>
 
-to activate the `vitualenv`.
+### All-in-one command:
+1. Build Rust code into a wheel that is added as a Python module into local virtual environment
+2. Generate Python stubs from Rust code
+3. Run tests with Pytest
+```commandline
+make dev-test
+```
+<br>
 
-Use the make commands to build the plugin.
+### Individual commands:
+#### Build Rust code into a wheel that is added as a Python module into local virtual environment :
+```commandline
+make dev
+```
+
+#### Run tests:
+```commandline
+make test
+```
+<br>
+
+### Optional - only needed if updating the Rust code
+### Build the Python stubs for the Rust code:
+```commandline
+make stubs
+```
+
+
 
 TODO:
     - Move the current python tests to the new client.
@@ -21,5 +49,4 @@ TODO:
         - User management
     - See if tox can be used
     - Use the CI config for github and ensure that it works
-    - Maintain the aerospike.pyi file
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
