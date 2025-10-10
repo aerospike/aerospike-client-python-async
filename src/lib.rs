@@ -27,7 +27,7 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     match bins {
         None => aerospike_core::Bins::All,
         Some(bins) => {
-            if bins.len() > 0 {
+            if !bins.is_empty() {
                 aerospike_core::Bins::Some(bins)
             } else {
                 aerospike_core::Bins::None
@@ -236,6 +236,30 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  CreateIndexParams
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Parameters for creating a secondary index.
+    #[pyclass]
+    #[derive(Debug, Clone)]
+    pub struct CreateIndexParams {
+        pub namespace: String,
+        pub set_name: String,
+        pub bin_name: String,
+        pub index_name: String,
+        pub index_type: IndexType,
+        pub cit: Option<CollectionIndexType>,
+    }
+
+    impl PyStubType for CreateIndexParams {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  ExpressionType (ExpType)
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,30 +268,30 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     #[pyclass]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
-        NIL,
-        BOOL,
-        INT,
-        STRING,
-        LIST,
-        MAP,
-        BLOB,
-        FLOAT,
-        GEO,
+        Nil,
+        Bool,
+        Int,
+        String,
+        List,
+        Map,
+        Blob,
+        Float,
+        Geo,
         HLL,
     }
 
     impl From<&ExpType> for aerospike_core::expressions::ExpType {
         fn from(input: &ExpType) -> Self {
             match &input {
-                ExpType::NIL => aerospike_core::expressions::ExpType::NIL,
-                ExpType::BOOL => aerospike_core::expressions::ExpType::BOOL,
-                ExpType::INT => aerospike_core::expressions::ExpType::INT,
-                ExpType::STRING => aerospike_core::expressions::ExpType::STRING,
-                ExpType::LIST => aerospike_core::expressions::ExpType::LIST,
-                ExpType::MAP => aerospike_core::expressions::ExpType::MAP,
-                ExpType::BLOB => aerospike_core::expressions::ExpType::BLOB,
-                ExpType::FLOAT => aerospike_core::expressions::ExpType::FLOAT,
-                ExpType::GEO => aerospike_core::expressions::ExpType::GEO,
+                ExpType::Nil => aerospike_core::expressions::ExpType::NIL,
+                ExpType::Bool => aerospike_core::expressions::ExpType::BOOL,
+                ExpType::Int => aerospike_core::expressions::ExpType::INT,
+                ExpType::String => aerospike_core::expressions::ExpType::STRING,
+                ExpType::List => aerospike_core::expressions::ExpType::LIST,
+                ExpType::Map => aerospike_core::expressions::ExpType::MAP,
+                ExpType::Blob => aerospike_core::expressions::ExpType::BLOB,
+                ExpType::Float => aerospike_core::expressions::ExpType::FLOAT,
+                ExpType::Geo => aerospike_core::expressions::ExpType::GEO,
                 ExpType::HLL => aerospike_core::expressions::ExpType::HLL,
             }
         }
@@ -384,7 +408,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             FilterExpression {
                 _as: aerospike_core::expressions::ne(
                     aerospike_core::expressions::bin_type(name),
-                    aerospike_core::expressions::int_val(0 as i64),
+                    aerospike_core::expressions::int_val(0_i64),
                 ),
             }
         }
@@ -1050,6 +1074,12 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
     /// Trait implemented by most policy types; policies that implement this trait typically encompass
     /// an instance of `BasePolicy`.
+    impl Default for BasePolicy {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     #[gen_stub_pymethods]
     #[pymethods]
     impl BasePolicy {
@@ -1124,10 +1154,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            match &self._as.filter_expression {
-                Some(fe) => Some(FilterExpression { _as: fe.clone() }),
-                None => None,
-            }
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
@@ -1185,10 +1212,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         // Override filter expression methods to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            match &self._as.base_policy.filter_expression {
-                Some(fe) => Some(FilterExpression { _as: fe.clone() }),
-                None => None,
-            }
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
@@ -1209,6 +1233,12 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
 
     /// `WritePolicy` encapsulates parameters for all write operations.
+    impl Default for WritePolicy {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     #[gen_stub_pymethods]
     #[pymethods]
     impl WritePolicy {
@@ -1623,7 +1653,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
 
         fn __str__(&self) -> PyResult<String> {
-            Ok(format!("{}", ""))
+            Ok("".to_string())
         }
 
         fn __repr__(&self) -> PyResult<String> {
@@ -1754,7 +1784,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         #[new]
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
             let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
-            Key { _as: _as }
+            Key { _as }
         }
 
         #[getter]
@@ -1777,7 +1807,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             Some(hex::encode(self._as.digest))
         }
 
-        fn __richcmp__<'a>(&self, other: Key, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: Key, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => self._as.digest == other._as.digest,
                 CompareOp::Ne => self._as.digest != other._as.digest,
@@ -2104,7 +2134,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2113,7 +2143,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(())
-            })?)
+            })
         }
 
         /// Read record for the specified key. Depending on the bins value provided, all record bins,
@@ -2138,7 +2168,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let key = key._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -2155,8 +2185,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 }
 
                 Ok(Record { _as: res })
-            })?
-            .into())
+            })
         }
 
         /// Add integer bin values to existing record bin values. The policy specifies the transaction
@@ -2179,7 +2208,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2188,7 +2217,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Append bin string values to existing record bin values. The policy specifies the
@@ -2211,7 +2240,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2220,7 +2249,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Prepend bin string values to existing record bin values. The policy specifies the
@@ -2243,7 +2272,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2252,7 +2281,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Delete record for specified key. The policy specifies the transaction timeout.
@@ -2268,7 +2297,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let key = key._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -2277,8 +2306,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(res)
-            })?
-            .into())
+            })
         }
 
         /// Reset record's time to expiration using the policy's expiration. Fail if the record does
@@ -2294,7 +2322,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let key = key._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2303,7 +2331,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Determine if a record key exists. The policy can be used to specify timeouts.
@@ -2318,7 +2346,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let key = key._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -2327,8 +2355,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(res)
-            })?
-            .into())
+            })
         }
 
         /// Removes all records in the specified namespace/set efficiently.
@@ -2344,7 +2371,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
             let before_nanos = before_nanos.unwrap_or_default();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2353,7 +2380,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Create a secondary index on a bin containing scalar values. This asynchronous server call
@@ -2361,28 +2388,23 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         pub fn create_index<'a>(
             &self,
-            namespace: String,
-            set_name: String,
-            bin_name: String,
-            index_name: String,
-            index_type: IndexType,
-            cit: Option<CollectionIndexType>,
+            params: CreateIndexParams,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
-            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
-            let index_type = (&index_type).into();
+            let cit = (&params.cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&params.index_type).into();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
                     .create_complex_index(
-                        &namespace,
-                        &set_name,
-                        &bin_name,
-                        &index_name,
+                        &params.namespace,
+                        &params.set_name,
+                        &params.bin_name,
+                        &params.index_name,
                         index_type,
                         cit,
                     )
@@ -2390,7 +2412,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
@@ -2403,7 +2425,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
@@ -2412,7 +2434,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Python::attach(|py| Ok(py.None()))
-            })?)
+            })
         }
 
         /// Read all records in the specified namespace and set and return a record iterator. The scan
@@ -2433,7 +2455,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let policy = policy._as.clone();
             let client = self._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -2448,7 +2470,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Recordset { _as: res })
-            })?)
+            })
         }
 
         /// Execute a query on all server nodes and return a record iterator. The query executor puts
@@ -2466,7 +2488,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let client = self._as.clone();
             let stmt = statement._as.clone();
 
-            Ok(pyo3_asyncio::future_into_py(py, async move {
+            pyo3_asyncio::future_into_py(py, async move {
                 let res = client
                     .read()
                     .await
@@ -2475,11 +2497,11 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Recordset { _as: res })
-            })?)
+            })
         }
 
         fn __str__(&self) -> PyResult<String> {
-            Ok(format!("{}", self.seeds))
+            Ok(self.seeds.to_string())
         }
 
         fn __repr__(&self) -> PyResult<String> {
@@ -2515,7 +2537,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     impl Blob {
         #[new]
         pub fn new(v: Vec<u8>) -> Self {
-            Blob { v: v }
+            Blob { v }
         }
 
         #[getter]
@@ -2623,7 +2645,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     impl Map {
         #[new]
         pub fn new(v: HashMap<PythonValue, PythonValue>) -> Self {
-            Map { v: v }
+            Map { v }
         }
 
         #[getter]
@@ -2719,7 +2741,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     impl List {
         #[new]
         pub fn new(v: Vec<PythonValue>) -> Self {
-            List { v: v, index: 0 }
+            List { v, index: 0 }
         }
 
         #[getter]
@@ -2746,7 +2768,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             Ok(format!("List('{}')", s))
         }
 
-        fn __getitem__<'a>(&mut self, idx: usize) -> PyResult<PythonValue> {
+        fn __getitem__(&mut self, idx: usize) -> PyResult<PythonValue> {
             if idx > self.v.len() {
                 return Err(PyIndexError::new_err("index out of bound"));
             }
@@ -2806,10 +2828,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         fn __next__<'a>(&mut self, py: Python<'a>) -> Option<Py<PyAny>> {
             let res = self.v.get(self.index);
             self.index += 1;
-            match res {
-                None => None,
-                Some(v) => Some(v.clone().into_pyobject(py).unwrap().unbind()),
-            }
+            res.map(|v| v.clone().into_pyobject(py).unwrap().unbind())
         }
     }
 
@@ -2849,7 +2868,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     impl GeoJSON {
         #[new]
         pub fn new(v: String) -> Self {
-            GeoJSON { v: v }
+            GeoJSON { v }
         }
 
         #[getter]
@@ -2924,7 +2943,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     impl HLL {
         #[new]
         pub fn new(v: Vec<u8>) -> Self {
-            HLL { v: v }
+            HLL { v }
         }
 
         #[getter]
@@ -3026,7 +3045,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         HLL(Vec<u8>),
     }
 
-    #[allow(clippy::derive_hash_xor_eq)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
     impl Hash for PythonValue {
         fn hash<H: Hasher>(&self, state: &mut H) {
             match *self {
@@ -3057,7 +3076,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 PythonValue::Bool(ref val) => val.to_string(),
                 PythonValue::Float(ref val) => val.to_string(),
                 PythonValue::String(ref val) => val.to_string(),
-                PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val.to_string()),
+                PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val),
                 PythonValue::Blob(ref val) => format!("{:?}", val),
                 PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
                 PythonValue::List(ref val) => format!("{:?}", val),
