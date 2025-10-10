@@ -60,7 +60,7 @@ jobs:
 
       - name: Set up QEMU
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Get Docker image name and tag
         run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
@@ -102,7 +102,7 @@ jobs:
         run:  cd aerospike_async; ${{ matrix.python }}; python -m pytest tests
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -114,7 +114,7 @@ jobs:
         target: [x64, x86]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -126,7 +126,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -161,7 +161,7 @@ jobs:
         ]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Python for maturin
         uses: actions/setup-python@v4
         with:
@@ -185,7 +185,7 @@ jobs:
       - name: Run tests
         run: ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -193,14 +193,14 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
