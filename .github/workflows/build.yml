@@ -30,7 +30,7 @@ jobs:
           'python3.11',
           'python3.12',
           'python3.13',
-          'pypy3.10'
+          'pypy3.10',
           'pypy3.11'
         ]
         # No PyPy Docker images for ARM 32 bit
