@@ -1,0 +1,206 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  # For publish workflow
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [
+          # Don't run a virtual machine for x86_64 artifacts
+          # maturin platform, Docker platform
+          [x86_64, _],
+          [x86, linux/386],
+          [aarch64, linux/arm64],
+          [armv7, linux/arm/v7]
+        ]
+        python: [
+          'python3.8',
+          'python3.9',
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'pypy3.9',
+          'pypy3.10'
+        ]
+        # No PyPy Docker images for ARM 32 bit
+        exclude:
+          - python: pypy3.9
+            target: [armv7, linux/arm/v7]
+          - python: pypy3.10
+            target: [armv7, linux/arm/v7]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target[0] }}
+          args: --release --out dist --interpreter ${{ matrix.python }}
+          sccache: 'true'
+          manylinux: auto
+
+      - name: Run Aerospike server
+        run: docker run -d -p 3000:3000 aerospike/aerospike-server
+
+      - name: Set up QEMU
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Get Docker image name and tag
+        run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
+
+      - name: Run container in QEMU VM
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        # Run in the host network to connect to Aerospike server
+        run: docker run -d --network host --name ${{ matrix.python }} --platform ${{ matrix.target[1]}} ${{ env.DOCKER_IMAGE_TAG }} tail -f /dev/null
+
+      - name: Copy tests and wheel to container
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
+
+      - name: Install wheel (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+
+      - name: Run tests (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async/aerospike_async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
+
+      - name: Remove python prefix for setting up python (CPython only)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+
+      - name: Setup Python for testing
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install wheel (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: ${{ matrix.python }} -m pip install *.whl
+        working-directory: dist
+
+      - name: Run tests (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run:  cd aerospike_async; ${{ matrix.python }}; python -m pytest tests
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  windows:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        target: [x64, x86]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  # macos-m1:
+  #   runs-on: [self-hosted, macOS, ARM64]
+  #   strategy:
+  #     matrix:
+  #       python: [
+  #         'python3.8',
+  #         'python3.9',
+  #         'python3.10',
+  #         'python3.11',
+  #         'python3.12',
+  #         'pypy3.9',
+  #         'pypy3.10'
+  #       ]
+  #     fail-fast: false
+
+  macos-x86:
+    runs-on: macos-12-large
+    strategy:
+      matrix:
+        python: [
+          'python3.8',
+          'python3.9',
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'pypy3.9',
+          'pypy3.10'
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --interpreter ${{ matrix.python }}
+          sccache: 'true'
+      - name: Run Vagrant VM
+        run: vagrant up
+      - name: Remove python prefix for setting up python (CPython only)
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+      - name: Setup Python for testing
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install wheel
+        run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+      - name: Run tests
+        run: ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
