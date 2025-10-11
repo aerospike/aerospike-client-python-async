@@ -42,14 +42,20 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - name: Install dependencies
+      - name: Install specific Rust version
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          rustup install 1.90.0
+          rustup default 1.90.0
+          rustup show
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -80,6 +86,9 @@ jobs:
       - name: Install wheel (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+      - name: Install pytest (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest
 
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
@@ -99,10 +108,13 @@ jobs:
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: ${{ matrix.python }} -m pip install *.whl
         working-directory: dist
+      - name: Install pytest (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: ${{ matrix.python }} -m pip install pytest
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
-        run:  cd aerospike_async; ${{ matrix.python }}; python -m pytest tests
+        run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -118,6 +130,11 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
       - uses: actions/setup-python@v6
         with:
           python-version: '3.10'
@@ -164,14 +181,15 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -188,8 +206,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install wheel
         run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+      - name: Install pytest
+        run: ${{ matrix.python }} -m pip install pytest
       - name: Run tests
-        run: ${{ matrix.python }} -m unittest discover -s tests -p "*_test.py"
+        run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -200,6 +220,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
