@@ -101,7 +101,7 @@ jobs:
 
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
+        run: docker exec --workdir /aerospike-client-python-async/aerospike_async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
 
       - name: Remove python prefix for setting up python (CPython only)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -123,7 +123,7 @@ jobs:
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
-        run: ${{ matrix.python }} -m pytest tests
+        run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest
       - name: Run tests
-        run: ${{ matrix.python }} -m pytest tests
+        run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
