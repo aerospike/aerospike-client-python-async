@@ -88,12 +88,6 @@ jobs:
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
 
-      - name: Verify directory structure (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: |
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ls -la
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ls -la aerospike_async/
-          docker exec --workdir /aerospike-client-python-async/aerospike_async ${{ matrix.python }} ls -la tests/
 
       - name: Install wheel (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
