@@ -22,7 +22,7 @@ dev:
 	maturin develop
 
 test:
-	cd aerospike_async; python -m pytest tests
+	python -m pytest tests
 
 dev-test: dev stubs test
 
@@ -31,8 +31,8 @@ build:
 	maturin build -r
 
 bench: dev
-	rm -f aerospike_async/bench.json
-	python aerospike_async/benchmarks.py -o bench.json
+	rm -f bench.json
+	python benchmarks.py -o bench.json
 	pyperf hist aerospike_async/bench.json
 
 clean:
