@@ -95,7 +95,7 @@ jobs:
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
       - name: Verify module installation (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
@@ -120,7 +120,7 @@ jobs:
         working-directory: dist
       - name: Install pytest (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
-        run: ${{ matrix.python }} -m pip install pytest
+        run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
 
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -217,7 +217,7 @@ jobs:
       - name: Install wheel
         run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
       - name: Install pytest
-        run: ${{ matrix.python }} -m pip install pytest
+        run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
       - name: Run tests
         run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
       - name: Upload wheels
