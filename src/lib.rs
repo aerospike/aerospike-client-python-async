@@ -3359,7 +3359,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Statement>()?;
     m.add_class::<ExpType>()?;
     m.add_class::<FilterExpression>()?;
-    m.add_class::<Client>()?;
 
     m.add_class::<BasePolicy>()?;
     m.add_class::<ReadPolicy>()?;
