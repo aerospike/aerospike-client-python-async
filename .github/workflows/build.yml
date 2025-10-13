@@ -34,11 +34,16 @@ jobs:
           'pypy3.11'
         ]
         # No PyPy Docker images for ARM 32 bit
+        # Temporarily exclude PyPy due to pyo3::Python::initialize() issues
         exclude:
           - python: pypy3.10
             target: [armv7, linux/arm/v7]
           - python: pypy3.11
             target: [armv7, linux/arm/v7]
+          - python: pypy3.10
+            target: [x86_64, _]
+          - python: pypy3.11
+            target: [x86_64, _]
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -104,7 +109,7 @@ jobs:
 
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async/aerospike_async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
 
       - name: Remove python prefix for setting up python (CPython only)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -131,7 +136,7 @@ jobs:
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
-        run: cd aerospike_async && ${{ matrix.python }} -m pytest tests
+        run: ${{ matrix.python }} -m pytest tests
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
