@@ -53,7 +53,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target[0] }}
-          args: --release --out dist --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
 
@@ -79,7 +79,7 @@ jobs:
 
       - name: Install wheel (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
@@ -100,7 +100,7 @@ jobs:
       - name: Install wheel (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: ${{ matrix.python }} -m pip install *.whl
-        working-directory: dist
+        working-directory: aerospike_async
       - name: Install pytest (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
@@ -118,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.python }}-${{ matrix.target[0] }}
-          path: dist
+          path: aerospike_async
 
   windows:
     runs-on: windows-2022
@@ -141,13 +141,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out aerospike_async --find-interpreter
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.target }}
-          path: dist
+          path: aerospike_async
 
   macos:
     runs-on: macos-latest-large
@@ -182,7 +182,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
       - name: Remove python prefix for setting up python (CPython only)
         run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
@@ -191,7 +191,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install wheel
-        run: ${{ matrix.python }} -m pip install --find-links=dist/ aerospike_client_python_async
+        run: ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
       - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
       - name: Debug module contents (macOS)
@@ -204,7 +204,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.python }}
-          path: dist
+          path: aerospike_async
 
   sdist:
     runs-on: ubuntu-latest
@@ -219,9 +219,9 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --out aerospike_async
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels
-          path: dist
+          path: aerospike_async
