@@ -163,12 +163,12 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: Install Colima, Start Docker & Run Aerospike server
+      - name: Try Podman as alternative to Docker
         run: |
-          brew install docker colima
-          colima start || echo "Colima start failed"
-          tail -50 /Users/runner/.colima/_lima/colima/ha.stderr.log || echo "No error log found"
-          tail -50 /Users/runner/.colima/_lima/colima/ha.stdout.log || echo "No stdout log found"
+          brew install podman
+          podman machine init
+          podman machine start
+          podman run -d -p 3000:3000 aerospike/aerospike-server
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
