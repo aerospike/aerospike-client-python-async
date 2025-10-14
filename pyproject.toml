@@ -3,10 +3,10 @@ requires = ["maturin>=1.9.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "aerospike-client-python-async"
+name = "aerospike_async"
 version = "0.2.0"
 requires-python = ">=3.10"
-python-packages = ["aerospike_async"]
+py-modules = ["aerospike_async"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
