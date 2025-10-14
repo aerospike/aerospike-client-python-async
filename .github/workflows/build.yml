@@ -149,7 +149,7 @@ jobs:
           name: wheels-windows-${{ matrix.target }}
           path: dist
 
-  macos-x86:
+  macos:
     runs-on: macos-latest
     strategy:
       matrix:
@@ -163,6 +163,10 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+      - name: Install Vagrant
+        run: |
+          brew tap hashicorp/tap
+          brew install hashicorp/tap/hashicorp-vagrant
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
