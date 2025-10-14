@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "aerospike-client-python-async"
 version = "0.2.0"
 requires-python = ">=3.10"
-py-modules = ["aerospike_async"]
+python-packages = ["aerospike_async"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
