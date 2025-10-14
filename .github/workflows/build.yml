@@ -29,21 +29,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13',
-          'pypy3.10',
-          'pypy3.11'
+          'python3.13'
         ]
-        # No PyPy Docker images for ARM 32 bit
-        # Temporarily exclude PyPy due to pyo3::Python::initialize() issues
-        exclude:
-          - python: pypy3.10
-            target: [armv7, linux/arm/v7]
-          - python: pypy3.11
-            target: [armv7, linux/arm/v7]
-          - python: pypy3.10
-            target: [x86_64, _]
-          - python: pypy3.11
-            target: [x86_64, _]
+        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -95,12 +83,6 @@ jobs:
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
-      - name: Verify module installation (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: |
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest tests
@@ -190,10 +172,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13',
-          'pypy3.10',
-          'pypy3.11'
+          'python3.13'
         ]
+        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
