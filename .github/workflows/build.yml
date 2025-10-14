@@ -163,11 +163,12 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: Install Vagrant & VMware Fusion
+      - name: Install Vagrant, VMware Fusion & VMware Utility
         run: |
           brew tap hashicorp/tap
           brew install hashicorp/tap/hashicorp-vagrant
           vagrant plugin install vagrant-vmware-desktop
+          brew install --cask vagrant-vmware-utility
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
