@@ -150,7 +150,7 @@ jobs:
           path: dist
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-latest-large
     strategy:
       matrix:
         python: [
@@ -163,12 +163,12 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: Try Podman with ARM64 architecture
+      - name: Try Podman
         run: |
           brew install podman
           podman machine init
           podman machine start
-          podman run --arch=arm64 -d -p 3000:3000 aerospike/aerospike-server
+          podman run -d -p 3000:3000 aerospike/aerospike-server
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
