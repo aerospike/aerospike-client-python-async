@@ -199,7 +199,7 @@ jobs:
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
       - name: Run tests
-        run: AEROSPIKE_HOST=localhost:3000 cd aerospike_async && ${{ matrix.python }} -m pytest tests
+        run: AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest tests
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
