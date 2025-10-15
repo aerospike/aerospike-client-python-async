@@ -9,17 +9,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::{PyException, PyIndexError};
 use pyo3::exceptions::{PyStopIteration, PyTypeError};
-use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict};
+use pyo3::exceptions::{PyException, PyIndexError};
 use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::types::{PyByteArray, PyBytes, PyDict, PyBool};
 // use pyo3::conversion::IntoPy;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
-use pyo3_stub_gen::{
-    define_stub_info_gatherer, derive::gen_stub_pyclass, derive::gen_stub_pyfunction,
-    derive::gen_stub_pymethods, PyStubType, TypeInfo,
-};
+use pyo3_stub_gen::{derive::gen_stub_pyfunction, derive::gen_stub_pyclass, derive::gen_stub_pymethods, define_stub_info_gatherer, PyStubType, TypeInfo};
 
 use tokio::sync::RwLock;
 
@@ -59,15 +56,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         PreferRack,
     }
 
-    impl From<&Replica> for aerospike_core::policy::Replica {
-        fn from(input: &Replica) -> Self {
-            match &input {
-                Replica::Master => aerospike_core::policy::Replica::Master,
-                Replica::Sequence => aerospike_core::policy::Replica::Sequence,
-                Replica::PreferRack => aerospike_core::policy::Replica::PreferRack,
-            }
-        }
-    }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ConsistencyLevel
@@ -80,18 +68,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         ConsistencyAll,
     }
 
-    impl From<&ConsistencyLevel> for aerospike_core::ConsistencyLevel {
-        fn from(input: &ConsistencyLevel) -> Self {
-            match &input {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::policy::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::policy::ConsistencyLevel::ConsistencyAll
-                }
-            }
-        }
-    }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordExistsAction
@@ -109,24 +85,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         CreateOnly,
     }
 
-    impl From<&RecordExistsAction> for aerospike_core::policy::RecordExistsAction {
-        fn from(input: &RecordExistsAction) -> Self {
-            match &input {
-                RecordExistsAction::Update => aerospike_core::policy::RecordExistsAction::Update,
-                RecordExistsAction::UpdateOnly => {
-                    aerospike_core::policy::RecordExistsAction::UpdateOnly
-                }
-                RecordExistsAction::Replace => aerospike_core::policy::RecordExistsAction::Replace,
-                RecordExistsAction::ReplaceOnly => {
-                    aerospike_core::policy::RecordExistsAction::ReplaceOnly
-                }
-                RecordExistsAction::CreateOnly => {
-                    aerospike_core::policy::RecordExistsAction::CreateOnly
-                }
-            }
-        }
-    }
-
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  GenerationPolicy
@@ -139,20 +97,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         None,
         ExpectGenEqual,
         ExpectGenGreater,
-    }
-
-    impl From<&GenerationPolicy> for aerospike_core::policy::GenerationPolicy {
-        fn from(input: &GenerationPolicy) -> Self {
-            match &input {
-                GenerationPolicy::None => aerospike_core::policy::GenerationPolicy::None,
-                GenerationPolicy::ExpectGenEqual => {
-                    aerospike_core::policy::GenerationPolicy::ExpectGenEqual
-                }
-                GenerationPolicy::ExpectGenGreater => {
-                    aerospike_core::policy::GenerationPolicy::ExpectGenGreater
-                }
-            }
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,14 +112,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         CommitMaster,
     }
 
-    impl From<&CommitLevel> for aerospike_core::policy::CommitLevel {
-        fn from(input: &CommitLevel) -> Self {
-            match &input {
-                CommitLevel::CommitAll => aerospike_core::policy::CommitLevel::CommitAll,
-                CommitLevel::CommitMaster => aerospike_core::policy::CommitLevel::CommitMaster,
-            }
-        }
-    }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  Expiration
@@ -300,89 +236,25 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  PrivilegeCode
+    //  CreateIndexParams
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// Secondary index collection type.
+    /// Parameters for creating a secondary index.
     #[pyclass]
     #[derive(Debug, Clone)]
-    pub enum PrivilegeCode {
-        /// User can edit/remove other users.  Global scope only.
-        UserAdmin,
-
-        /// User can perform systems administration functions on a database that do not involve user
-        /// administration.  Examples include server configuration.
-        /// Global scope only.
-        SysAdmin,
-
-        /// User can perform UDF and SINDEX administration actions. Global scope only.
-        DataAdmin,
-
-        /// User can perform user defined function(UDF) administration actions.
-        /// Examples include create/drop UDF. Global scope only.
-        /// Requires server version 6+
-        UDFAdmin,
-
-        /// User can perform secondary index administration actions.
-        /// Examples include create/drop index. Global scope only.
-        /// Requires server version 6+
-        SIndexAdmin,
-
-        /// User can read data only.
-        Read,
-
-        /// User can read and write data.
-        ReadWrite,
-
-        /// User can read and write data through user defined functions.
-        ReadWriteUDF,
-
-        /// User can read and write data through user defined functions.
-        Write,
-
-        /// User can truncate data only.
-        /// Requires server version 6+
-        Truncate,
+    pub struct CreateIndexParams {
+        pub namespace: String,
+        pub set_name: String,
+        pub bin_name: String,
+        pub index_name: String,
+        pub index_type: IndexType,
+        pub cit: Option<CollectionIndexType>,
     }
 
-    impl PyStubType for PrivilegeCode {
+    impl PyStubType for CreateIndexParams {
         fn type_output() -> TypeInfo {
             TypeInfo::any()
-        }
-    }
-
-    impl From<&PrivilegeCode> for aerospike_core::PrivilegeCode {
-        fn from(input: &PrivilegeCode) -> Self {
-            match &input {
-                PrivilegeCode::UserAdmin => aerospike_core::PrivilegeCode::UserAdmin,
-                PrivilegeCode::SysAdmin => aerospike_core::PrivilegeCode::SysAdmin,
-                PrivilegeCode::DataAdmin => aerospike_core::PrivilegeCode::DataAdmin,
-                PrivilegeCode::UDFAdmin => aerospike_core::PrivilegeCode::UDFAdmin,
-                PrivilegeCode::SIndexAdmin => aerospike_core::PrivilegeCode::SIndexAdmin,
-                PrivilegeCode::Read => aerospike_core::PrivilegeCode::Read,
-                PrivilegeCode::ReadWrite => aerospike_core::PrivilegeCode::ReadWrite,
-                PrivilegeCode::ReadWriteUDF => aerospike_core::PrivilegeCode::ReadWriteUDF,
-                PrivilegeCode::Write => aerospike_core::PrivilegeCode::Write,
-                PrivilegeCode::Truncate => aerospike_core::PrivilegeCode::Truncate,
-            }
-        }
-    }
-
-    impl From<&aerospike_core::PrivilegeCode> for PrivilegeCode {
-        fn from(input: &aerospike_core::PrivilegeCode) -> Self {
-            match &input {
-                aerospike_core::PrivilegeCode::UserAdmin => PrivilegeCode::UserAdmin,
-                aerospike_core::PrivilegeCode::SysAdmin => PrivilegeCode::SysAdmin,
-                aerospike_core::PrivilegeCode::DataAdmin => PrivilegeCode::DataAdmin,
-                aerospike_core::PrivilegeCode::UDFAdmin => PrivilegeCode::UDFAdmin,
-                aerospike_core::PrivilegeCode::SIndexAdmin => PrivilegeCode::SIndexAdmin,
-                aerospike_core::PrivilegeCode::Read => PrivilegeCode::Read,
-                aerospike_core::PrivilegeCode::ReadWrite => PrivilegeCode::ReadWrite,
-                aerospike_core::PrivilegeCode::ReadWriteUDF => PrivilegeCode::ReadWriteUDF,
-                aerospike_core::PrivilegeCode::Write => PrivilegeCode::Write,
-                aerospike_core::PrivilegeCode::Truncate => PrivilegeCode::Truncate,
-            }
         }
     }
 
@@ -1282,10 +1154,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as
-                .filter_expression
-                .as_ref()
-                .map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
@@ -1343,11 +1212,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         // Override filter expression methods to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as
-                .base_policy
-                .filter_expression
-                .as_ref()
-                .map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
@@ -1365,6 +1230,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     pub struct WritePolicy {
         _as: aerospike_core::WritePolicy,
     }
+
 
     /// `WritePolicy` encapsulates parameters for all write operations.
     impl Default for WritePolicy {
@@ -1523,6 +1389,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         _as: aerospike_core::QueryPolicy,
     }
 
+
     /// `QueryPolicy` encapsulates parameters for query operations.
     #[gen_stub_pymethods]
     #[pymethods]
@@ -1604,6 +1471,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     pub struct ScanPolicy {
         _as: aerospike_core::ScanPolicy,
     }
+
 
     /// `ScanPolicy` encapsulates optional parameters used in scan operations.
     #[gen_stub_pymethods]
@@ -1980,6 +1848,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         _as: aerospike_core::Statement,
     }
 
+
     #[gen_stub_pymethods]
     #[pymethods]
     impl Statement {
@@ -2195,182 +2064,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
 
     /**********************************************************************************
      *
-     * User
-     *
-     **********************************************************************************/
-
-    #[pyclass(subclass, freelist = 1, module = "aerospike_async")]
-    #[derive(Clone)]
-    struct User {
-        _as: aerospike_core::User,
-    }
-
-    #[pymethods]
-    impl User {
-        #[getter]
-        /// User name.
-        pub fn get_user(&self) -> String {
-            self._as.user.clone()
-        }
-
-        #[getter]
-        /// List of assigned roles.
-        pub fn get_roles(&self) -> Vec<String> {
-            self._as.roles.clone()
-        }
-
-        #[getter]
-        /// List of read statistics. List may be nil.
-        /// Current statistics by offset are:
-        ///
-        /// 0: read quota in records per second
-        /// 1: single record read command rate (TPS)
-        /// 2: read scan/query record per second rate (RPS)
-        /// 3: number of limitless read scans/queries
-        ///
-        /// Future server releases may add additional statistics.
-        pub fn get_read_info(&self) -> Vec<u32> {
-            self._as.read_info.clone()
-        }
-
-        #[getter]
-        /// List of write statistics. List may be nil.
-        /// Current statistics by offset are:
-        ///
-        /// 0: write quota in records per second
-        /// 1: single record write command rate (TPS)
-        /// 2: write scan/query record per second rate (RPS)
-        /// 3: number of limitless write scans/queries
-        ///
-        /// Future server releases may add additional statistics.
-        pub fn get_write_info(&self) -> Vec<u32> {
-            self._as.write_info.clone()
-        }
-
-        #[getter]
-        /// Number of currently open connections for the user
-        pub fn get_conns_in_user(&self) -> u32 {
-            self._as.conns_in_use
-        }
-    }
-
-    /**********************************************************************************
-     *
-     * Role
-     *
-     **********************************************************************************/
-
-    #[pyclass(subclass, freelist = 1, module = "aerospike_async")]
-    #[derive(Clone)]
-    struct Role {
-        _as: aerospike_core::Role,
-    }
-
-    #[pymethods]
-    impl Role {
-        #[getter]
-        /// Role name.
-        pub fn get_name(&self) -> String {
-            self._as.name.clone()
-        }
-
-        #[getter]
-        /// List of assigned privileges.
-        pub fn get_privileges(&self) -> Vec<Privilege> {
-            self._as
-                .privileges
-                .iter()
-                .map(|p| Privilege { _as: p.clone() })
-                .collect()
-        }
-
-        #[getter]
-        /// The list of allowable IP addresses.
-        pub fn get_allowlist(&self) -> Vec<String> {
-            self._as.allowlist.clone()
-        }
-
-        #[getter]
-        /// Maximum reads per second limit for the role.
-        pub fn get_read_quota(&self) -> u32 {
-            self._as.read_quota
-        }
-
-        #[getter]
-        /// Maximum writes per second limit for the role.
-        pub fn get_write_quota(&self) -> u32 {
-            self._as.write_quota
-        }
-    }
-
-    /**********************************************************************************
-     *
-     * Privilege
-     *
-     **********************************************************************************/
-
-    #[pyclass(subclass, freelist = 1, module = "aerospike_async")]
-    #[derive(Clone)]
-    struct Privilege {
-        _as: aerospike_core::Privilege,
-    }
-
-    #[pymethods]
-    impl Privilege {
-        #[new]
-        pub fn __construct(
-            code: &PrivilegeCode,
-            namespace: Option<String>,
-            set_name: Option<String>,
-        ) -> Self {
-            Privilege {
-                _as: aerospike_core::Privilege::new(code.into(), namespace, set_name),
-            }
-        }
-
-        #[getter]
-        pub fn get_code(&self) -> PrivilegeCode {
-            (&self._as.code).into()
-        }
-
-        #[getter]
-        pub fn get_namespace(&self) -> Option<String> {
-            self._as.namespace.clone()
-        }
-
-        #[getter]
-        pub fn get_set_name(&self) -> Option<String> {
-            self._as.set_name.clone()
-        }
-
-        fn as_string(&self) -> String {
-            format!("{}", self)
-        }
-
-        fn __str__(&self) -> PyResult<String> {
-            Ok(self.as_string())
-        }
-
-        fn __repr__(&self) -> PyResult<String> {
-            let s = self.__str__()?;
-            Ok(format!("Privilege({})", s))
-        }
-    }
-
-    impl PyStubType for Privilege {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
-
-    impl fmt::Display for Privilege {
-        fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-            write!(f, "{}", self.as_string())
-        }
-    }
-
-    /**********************************************************************************
-     *
      * Client
      *
      **********************************************************************************/
@@ -2380,17 +2073,17 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
         let as_policy = policy._as.clone();
         let as_seeds = seeds.clone();
-
+    
         Ok(pyo3_asyncio::future_into_py(py, async move {
             let c = aerospike_core::Client::new(&as_policy, &as_seeds)
                 .await
                 .map_err(|e| PyException::new_err(e.to_string()))?;
-
+    
             let res = Client {
                 _as: Arc::new(RwLock::new(c)),
                 seeds: seeds.clone(),
             };
-
+    
             // Python::with_gil(|_py| Ok(res))
             Ok(res)
         })?
@@ -2411,9 +2104,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         #[new]
         pub fn new() -> PyResult<Self> {
             // This is a placeholder constructor - actual initialization should be done via new_client function
-            Err(PyException::new_err(
-                "Use new_client() function to create a Client instance",
-            ))
+            Err(PyException::new_err("Use new_client() function to create a Client instance"))
         }
 
         pub fn seeds(&self) -> &str {
@@ -2471,7 +2162,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             let has_filter_expression = policy.get_filter_expression().is_some();
             // println!("DEBUG: has_filter_expression from ReadPolicy: {}", has_filter_expression);
             // println!("DEBUG: policy._as type: {:?}", std::any::type_name::<aerospike_core::ReadPolicy>());
-
+            
             // The filter expression should already be properly set in the base_policy
             let policy = policy._as.clone();
             let key = key._as.clone();
@@ -2490,9 +2181,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 // println!("DEBUG: res.bins.is_empty() = {}", res.bins.is_empty());
                 // println!("DEBUG: has_filter_expression = {}", has_filter_expression);
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
+                    return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
                 Ok(Record { _as: res })
@@ -2699,28 +2388,23 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         pub fn create_index<'a>(
             &self,
-            namespace: String,
-            set_name: String,
-            bin_name: String,
-            index_name: String,
-            index_type: IndexType,
-            cit: Option<CollectionIndexType>,
+            params: CreateIndexParams,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
-            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
-            let index_type = (&index_type).into();
+            let cit = (&params.cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&params.index_type).into();
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
                     .create_complex_index(
-                        &namespace,
-                        &set_name,
-                        &bin_name,
-                        &index_name,
+                        &params.namespace,
+                        &params.set_name,
+                        &params.bin_name,
+                        &params.index_name,
                         index_type,
                         cit,
                     )
@@ -2813,327 +2497,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                     .map_err(|e| PyException::new_err(e.to_string()))?;
 
                 Ok(Recordset { _as: res })
-            })
-        }
-
-        /// Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
-        /// before sending to server.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn create_user<'a>(
-            &self,
-            user: String,
-            password: String,
-            roles: Vec<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
-                client
-                    .read()
-                    .await
-                    .create_user(&user, &password, &roles)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Removes a user from the cluster.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn drop_user<'a>(&self, user: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                client
-                    .read()
-                    .await
-                    .drop_user(&user)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn change_password<'a>(
-            &self,
-            user: String,
-            password: String,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                client
-                    .read()
-                    .await
-                    .change_password(&user, &password)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Adds roles to user's list of roles.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn grant_roles<'a>(
-            &self,
-            user: String,
-            roles: Vec<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
-                client
-                    .read()
-                    .await
-                    .grant_roles(&user, &roles)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Removes roles from user's list of roles.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn revoke_roles<'a>(
-            &self,
-            user: String,
-            roles: Vec<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
-                client
-                    .read()
-                    .await
-                    .revoke_roles(&user, &roles)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Retrieves users and their roles.
-        /// If None is passed for the user argument, all users will be returned.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn query_users<'a>(
-            &self,
-            user: Option<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let user = user.as_ref().map(|u| u.as_str());
-                let res = client
-                    .read()
-                    .await
-                    .query_users(user)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                let res: Vec<User> = res.iter().map(|u| User { _as: u.clone() }).collect();
-                Ok(res)
-            })
-        }
-
-        /// Retrieves roles and their privileges.
-        /// If None is passed for the role argument, all roles will be returned.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn query_roles<'a>(
-            &self,
-            role: Option<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let role: Option<&str> = role.as_ref().map(|u| u.as_str());
-                let res = client
-                    .read()
-                    .await
-                    .query_roles(role)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                let res: Vec<Role> = res.iter().map(|r| Role { _as: r.clone() }).collect();
-                Ok(res)
-            })
-        }
-
-        /// Creates a user-defined role.
-        /// Quotas require server security configuration "enable-quotas" to be set to true.
-        /// Pass 0 for quota values for no limit.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn create_role<'a>(
-            &self,
-            role_name: String,
-            privileges: Vec<Privilege>,
-            allowlist: Vec<String>,
-            read_quota: u32,
-            write_quota: u32,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
-                let privileges: Vec<aerospike_core::Privilege> =
-                    privileges.iter().map(|r| r._as.clone()).collect();
-                client
-                    .read()
-                    .await
-                    .create_role(&role_name, &privileges, &allowlist, read_quota, write_quota)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Removes a user-defined role.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn drop_role<'a>(
-            &self,
-            role_name: String,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let role_name = role_name.clone();
-                client
-                    .read()
-                    .await
-                    .drop_role(&role_name)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Grants privileges to a user-defined role.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn grant_privileges<'a>(
-            &self,
-            role_name: String,
-            privileges: Vec<Privilege>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let privileges: Vec<aerospike_core::Privilege> =
-                    privileges.iter().map(|p| p._as.clone()).collect();
-                client
-                    .read()
-                    .await
-                    .grant_privileges(&role_name, &privileges)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Revokes privileges from a user-defined role.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn revoke_privileges<'a>(
-            &self,
-            role_name: String,
-            privileges: Vec<Privilege>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let privileges: Vec<aerospike_core::Privilege> =
-                    privileges.iter().map(|p| p._as.clone()).collect();
-                client
-                    .read()
-                    .await
-                    .revoke_privileges(&role_name, &privileges)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Sets IP address allowlist for a role.
-        /// If allowlist is nil or empty, it removes existing allowlist from role.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn set_allowlist<'a>(
-            &self,
-            role_name: String,
-            allowlist: Vec<String>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
-                client
-                    .read()
-                    .await
-                    .set_allowlist(&role_name, &allowlist)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
-            })
-        }
-
-        /// Sets maximum reads/writes per second limits for a role.
-        /// If a quota is zero, the limit is removed.
-        /// Quotas require server security configuration "enable-quotas" to be set to true.
-        /// Pass 0 for quota values for no limit.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn set_quotas<'a>(
-            &self,
-            role_name: String,
-            read_quota: u32,
-            write_quota: u32,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                client
-                    .read()
-                    .await
-                    .set_quotas(&role_name, read_quota, write_quota)
-                    .await
-                    .map_err(|e| PyException::new_err(e.to_string()))?;
-
-                Python::attach(|py| Ok(py.None()))
             })
         }
 
@@ -3742,26 +3105,11 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
                 PythonValue::UInt(ui) => Ok(ui.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::Float(f) => Ok(f.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::String(s) => Ok(s.into_pyobject(py).map(|v| v.into_any()).unwrap()),
-                PythonValue::Blob(b) => Ok(Blob::new(b)
-                    .into_pyobject(py)
-                    .map(|v| v.into_any())
-                    .unwrap()),
-                PythonValue::List(l) => Ok(List::new(l)
-                    .into_pyobject(py)
-                    .map(|v| v.into_any())
-                    .unwrap()),
-                PythonValue::HashMap(h) => Ok(h
-                    .into_pyobject(py)
-                    .map_err(|_| unreachable!())
-                    .map(|v| v.into_any())
-                    .unwrap()),
-                PythonValue::GeoJSON(s) => Ok(GeoJSON::new(s)
-                    .into_pyobject(py)
-                    .map(|v| v.into_any())
-                    .unwrap()),
-                PythonValue::HLL(b) => {
-                    Ok(HLL::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap())
-                }
+                PythonValue::Blob(b) => Ok(Blob::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::List(l) => Ok(List::new(l).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::HashMap(h) => Ok(h.into_pyobject(py).map_err(|_| unreachable!()).map(|v| v.into_any()).unwrap()),
+                PythonValue::GeoJSON(s) => Ok(GeoJSON::new(s).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::HLL(b) => Ok(HLL::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
             }
         }
     }
@@ -3955,6 +3303,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
     }
 
+
     // impl From<aerospike_core::Bin> for Bin {
     //     fn from(other: aerospike_core::Bin) -> Self {
     //         Bin { _as: other }
@@ -3994,8 +3343,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GenerationPolicy>()?;
     m.add_class::<IndexType>()?;
     m.add_class::<CollectionIndexType>()?;
-    m.add_class::<PrivilegeCode>()?;
-    m.add_class::<Privilege>()?;
 
     m.add_class::<List>()?;
     // TODO: Implement map and make it an ordered map
