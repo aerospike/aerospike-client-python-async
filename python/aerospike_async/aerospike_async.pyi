@@ -3,6 +3,7 @@
 
 import builtins
 import typing
+from enum import Enum
 
 class BasePolicy:
     @property
@@ -93,13 +94,13 @@ class Client:
         r"""
         Removes all records in the specified namespace/set efficiently.
         """
-    def create_index(self, params:typing.Any) -> typing.Awaitable[typing.Any]:
+    def create_index(self, namespace:builtins.str, set_name:builtins.str, bin_name:builtins.str, index_name:builtins.str, index_type:IndexType, cit:typing.Optional[CollectionIndexType]) -> typing.Awaitable[typing.Any]:
         r"""
         Create a secondary index on a bin containing scalar values. This asynchronous server call
         returns before the command is complete.
         """
     def drop_index(self, namespace:builtins.str, set_name:builtins.str, index_name:builtins.str) -> typing.Awaitable[typing.Any]: ...
-    def scan(self, policy:ScanPolicy, partition_filter:typing.Any, namespace:builtins.str, set_name:builtins.str, bins:typing.Optional[typing.Sequence[builtins.str]]) -> typing.Awaitable[typing.Any]:
+    def scan(self, policy:ScanPolicy, partition_filter:PartitionFilter, namespace:builtins.str, set_name:builtins.str, bins:typing.Optional[typing.Sequence[builtins.str]]) -> typing.Awaitable[typing.Any]:
         r"""
         Read all records in the specified namespace and set and return a record iterator. The scan
         executor puts records on a queue in separate threads. The calling thread concurrently pops
@@ -107,7 +108,7 @@ class Client:
         nodes are scanned in parallel. If concurrent nodes is set to zero, the server nodes are
         read in series.
         """
-    def query(self, policy:QueryPolicy, partition_filter:typing.Any, statement:Statement) -> typing.Awaitable[typing.Any]:
+    def query(self, policy:QueryPolicy, partition_filter:PartitionFilter, statement:Statement) -> typing.Awaitable[typing.Any]:
         r"""
         Execute a query on all server nodes and return a record iterator. The query executor puts
         records on a queue in separate threads. The calling thread concurrently pops records off
@@ -120,6 +121,37 @@ class Client:
 
 class ClientPolicy:
     ...
+
+class Expiration:
+    ...
+
+class Filter:
+    r"""
+    Query filter definition. Currently, only one filter is allowed in a Statement, and must be on a
+    bin which has a secondary index defined.
+    
+    Filter instances should be instantiated using one of the provided macros:
+    
+    - `as_eq`
+    - `as_range`
+    - `as_contains`
+    - `as_contains_range`
+    - `as_within_region`
+    - `as_within_radius`
+    - `as_regions_containing_point`
+    """
+    @staticmethod
+    def range(bin_name:builtins.str, begin:typing.Any, end:typing.Any) -> Filter: ...
+    @staticmethod
+    def contains(bin_name:builtins.str, value:typing.Any, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
+    @staticmethod
+    def contains_range(bin_name:builtins.str, begin:typing.Any, end:typing.Any, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
+    @staticmethod
+    def within_region(bin_name:builtins.str, region:builtins.str, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
+    @staticmethod
+    def within_radius(bin_name:builtins.str, lat:builtins.float, lng:builtins.float, radius:builtins.float, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
+    @staticmethod
+    def regions_containing_point(bin_name:builtins.str, point:builtins.str, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
 
 class FilterExpression:
     r"""
@@ -612,6 +644,18 @@ class Map:
         """
     def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
 
+class PartitionFilter:
+    def __new__(cls) -> PartitionFilter: ...
+    def done(self) -> builtins.bool: ...
+    @staticmethod
+    def all() -> PartitionFilter: ...
+    @staticmethod
+    def by_id(id:builtins.int) -> PartitionFilter: ...
+    @staticmethod
+    def by_key(key:Key) -> PartitionFilter: ...
+    @staticmethod
+    def by_range(begin:builtins.int, count:builtins.int) -> PartitionFilter: ...
+
 class QueryPolicy:
     @property
     def max_concurrent_nodes(self) -> builtins.int: ...
@@ -628,6 +672,18 @@ class QueryPolicy:
     def __new__(cls) -> QueryPolicy: ...
 
 class ReadPolicy(BasePolicy):
+    ...
+
+class Record:
+    ...
+
+class Recordset:
+    r"""
+    Virtual collection of records retrieved through queries and scans. During a query/scan,
+    multiple threads will retrieve records from the server nodes and put these records on an
+    internal queue managed by the recordset. The single user thread consumes these records from the
+    queue.
+    """
     ...
 
 class ScanPolicy:
@@ -650,9 +706,9 @@ class Statement:
     Query statement parameters.
     """
     @property
-    def filters(self) -> typing.Optional[builtins.list[typing.Any]]: ...
+    def filters(self) -> typing.Optional[builtins.list[Filter]]: ...
     @filters.setter
-    def filters(self, value: typing.Optional[builtins.list[typing.Any]]) -> None: ...
+    def filters(self, value: typing.Optional[builtins.list[Filter]]) -> None: ...
     def __new__(cls, namespace:builtins.str, set_name:builtins.str, bins:typing.Optional[typing.Sequence[builtins.str]]) -> Statement: ...
 
 class WritePolicy:
@@ -673,9 +729,9 @@ class WritePolicy:
     @generation.setter
     def generation(self, value: builtins.int) -> None: ...
     @property
-    def expiration(self) -> typing.Any: ...
+    def expiration(self) -> Expiration: ...
     @expiration.setter
-    def expiration(self, value: typing.Any) -> None: ...
+    def expiration(self, value: Expiration) -> None: ...
     @property
     def send_key(self) -> builtins.bool: ...
     @send_key.setter
@@ -689,6 +745,23 @@ class WritePolicy:
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
     def __new__(cls) -> WritePolicy: ...
+
+class CollectionIndexType(Enum):
+    r"""
+    Secondary index collection type.
+    """
+    Default = ...
+    List = ...
+    MapKeys = ...
+    MapValues = ...
+
+class IndexType(Enum):
+    r"""
+    Underlying data type of secondary index.
+    """
+    Numeric = ...
+    String = ...
+    Geo2DSphere = ...
 
 def new_client(policy:ClientPolicy, seeds:builtins.str) -> typing.Awaitable[Client]: ...
 

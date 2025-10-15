@@ -16,7 +16,7 @@ use pyo3::types::{PyByteArray, PyBytes, PyDict, PyBool};
 // use pyo3::conversion::IntoPy;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
-use pyo3_stub_gen::{derive::gen_stub_pyfunction, derive::gen_stub_pyclass, derive::gen_stub_pymethods, define_stub_info_gatherer, PyStubType, TypeInfo};
+use pyo3_stub_gen::{derive::gen_stub_pyfunction, derive::gen_stub_pyclass, derive::gen_stub_pymethods, derive::gen_stub_pyclass_enum, define_stub_info_gatherer, PyStubType, TypeInfo};
 
 use tokio::sync::RwLock;
 
@@ -48,7 +48,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Priority of operations on database server.
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, Clone, Copy)]
     pub enum Replica {
         Master,
@@ -56,16 +56,28 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         PreferRack,
     }
 
+    impl PyStubType for Replica {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ConsistencyLevel
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, Clone, Copy)]
     pub enum ConsistencyLevel {
         ConsistencyOne,
         ConsistencyAll,
+    }
+
+    impl PyStubType for ConsistencyLevel {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +87,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// `RecordExistsAction` determines how to handle record writes based on record generation.
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, PartialEq, Clone)]
     pub enum RecordExistsAction {
         Update,
@@ -85,18 +97,30 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         CreateOnly,
     }
 
+    impl PyStubType for RecordExistsAction {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  GenerationPolicy
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, PartialEq, Clone)]
     pub enum GenerationPolicy {
         None,
         ExpectGenEqual,
         ExpectGenGreater,
+    }
+
+    impl PyStubType for GenerationPolicy {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -105,11 +129,17 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, Clone)]
     pub enum CommitLevel {
         CommitAll,
         CommitMaster,
+    }
+
+    impl PyStubType for CommitLevel {
+        fn type_output() -> TypeInfo {
+            TypeInfo::any()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +148,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     #[derive(Debug, Clone)]
     pub struct Expiration {
@@ -175,19 +206,15 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Underlying data type of secondary index.
-    #[pyclass]
-    #[derive(Debug, Clone)]
+    #[gen_stub_pyclass_enum]
+    #[pyclass(module = "aerospike_async")]
+    #[derive(Debug, Clone, Copy)]
     pub enum IndexType {
         Numeric,
         String,
         Geo2DSphere,
     }
 
-    impl PyStubType for IndexType {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
     impl From<&IndexType> for aerospike_core::query::IndexType {
         fn from(input: &IndexType) -> Self {
@@ -199,6 +226,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
     }
 
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  CollectionIndexType
@@ -206,8 +234,9 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Secondary index collection type.
-    #[pyclass]
-    #[derive(Debug, Clone)]
+    #[gen_stub_pyclass_enum]
+    #[pyclass(module = "aerospike_async")]
+    #[derive(Debug, Clone, Copy)]
     pub enum CollectionIndexType {
         Default,
         List,
@@ -215,11 +244,6 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         MapValues,
     }
 
-    impl PyStubType for CollectionIndexType {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
     impl From<&CollectionIndexType> for aerospike_core::query::CollectionIndexType {
         fn from(input: &CollectionIndexType) -> Self {
@@ -234,29 +258,8 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    //
-    //  CreateIndexParams
-    //
-    ////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// Parameters for creating a secondary index.
-    #[pyclass]
-    #[derive(Debug, Clone)]
-    pub struct CreateIndexParams {
-        pub namespace: String,
-        pub set_name: String,
-        pub bin_name: String,
-        pub index_name: String,
-        pub index_type: IndexType,
-        pub cit: Option<CollectionIndexType>,
-    }
 
-    impl PyStubType for CreateIndexParams {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -265,7 +268,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Expression Data Types for usage in some `FilterExpressions`
-    #[pyclass]
+    #[pyclass(module = "aerospike_async")]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
         Nil,
@@ -302,6 +305,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
             TypeInfo::any()
         }
     }
+
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -998,20 +1002,18 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(freelist = 1000)]
     #[derive(Debug, Clone)]
-    struct PartitionFilter {
+    pub struct PartitionFilter {
         _as: aerospike_core::query::PartitionFilter,
     }
 
-    impl PyStubType for PartitionFilter {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
+
 
     /// Trait implemented by most policy types; policies that implement this trait typically encompass
     /// an instance of `PartitionFilter`.
+    #[gen_stub_pymethods]
     #[pymethods]
     impl PartitionFilter {
         #[new]
@@ -1224,7 +1226,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
     }
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     #[derive(Debug, Clone)]
     pub struct WritePolicy {
@@ -1383,7 +1385,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     pub struct QueryPolicy {
         _as: aerospike_core::QueryPolicy,
@@ -1466,7 +1468,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     pub struct ScanPolicy {
         _as: aerospike_core::ScanPolicy,
@@ -1696,6 +1698,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
      *
      **********************************************************************************/
 
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
     struct Record {
@@ -1771,10 +1774,10 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
-    struct Key {
+    pub struct Key {
         _as: aerospike_core::Key,
     }
 
@@ -1841,7 +1844,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Query statement parameters.
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     #[derive(Clone)]
     pub struct Statement {
@@ -1896,12 +1899,14 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     /// - `as_within_region`
     /// - `as_within_radius`
     /// - `as_regions_containing_point`
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     #[derive(Clone)]
     pub struct Filter {
         _as: aerospike_core::query::Filter,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl Filter {
         #[staticmethod]
@@ -2028,6 +2033,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     /// multiple threads will retrieve records from the server nodes and put these records on an
     /// internal queue managed by the recordset. The single user thread consumes these records from the
     /// queue.
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1000)]
     #[derive(Clone)]
     pub struct Recordset {
@@ -2388,23 +2394,28 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         pub fn create_index<'a>(
             &self,
-            params: CreateIndexParams,
+            namespace: String,
+            set_name: String,
+            bin_name: String,
+            index_name: String,
+            index_type: IndexType,
+            cit: Option<CollectionIndexType>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
-            let cit = (&params.cit.unwrap_or(CollectionIndexType::Default)).into();
-            let index_type = (&params.index_type).into();
+            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&index_type).into();
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
                     .create_complex_index(
-                        &params.namespace,
-                        &params.set_name,
-                        &params.bin_name,
-                        &params.index_name,
+                        &namespace,
+                        &set_name,
+                        &bin_name,
+                        &index_name,
                         index_type,
                         cit,
                     )
@@ -2525,7 +2536,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct Blob {
@@ -2633,7 +2644,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct Map {
@@ -2728,7 +2739,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct List {
@@ -2856,7 +2867,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Debug, Clone)]
     pub struct GeoJSON {
@@ -2931,7 +2942,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass]
+    #[gen_stub_pyclass(module = "aerospike_async")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct HLL {
@@ -3255,53 +3266,13 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
         }
     }
 
-    impl PyStubType for RecordExistsAction {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for GenerationPolicy {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for CommitLevel {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for Expiration {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for Filter {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for ConsistencyLevel {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for Replica {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
-    impl PyStubType for Recordset {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
 
 
     // impl From<aerospike_core::Bin> for Bin {
@@ -3347,7 +3318,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<List>()?;
     // TODO: Implement map and make it an ordered map
     // Needs Rust Client implementation
-    // m.add_class::<Map>()?;
+    m.add_class::<Map>()?;
     m.add_class::<Blob>()?;
     m.add_class::<GeoJSON>()?;
     m.add_class::<HLL>()?;
@@ -3366,6 +3337,7 @@ fn aerospike_async(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<WritePolicy>()?;
     m.add_class::<ScanPolicy>()?;
     m.add_class::<QueryPolicy>()?;
+    m.add_class::<PartitionFilter>()?;
 
     m.add_function(wrap_pyfunction!(new_client, &m)?)?;
 

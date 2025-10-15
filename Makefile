@@ -22,7 +22,7 @@ dev:
 	maturin develop
 
 test:
-	python -m pytest python/tests
+	source aerospike.env && python -m pytest python/tests
 
 dev-test: dev stubs test
 
@@ -33,7 +33,7 @@ build:
 bench: dev
 	rm -f bench.json
 	python benchmarks.py -o bench.json
-	pyperf hist python/aerospike_async/bench.json
+	pyperf hist aerospike_async/bench.json
 
 clean:
 	cargo clean
