@@ -3,7 +3,7 @@ requires = ["maturin>=1.9.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "aerospike_async"
+name = "aerospike_client_python_async"
 version = "0.2.0"
 requires-python = ">=3.10"
 python-packages = ["aerospike_async"]
