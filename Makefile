@@ -12,7 +12,7 @@ all: lint dev build test install clean
 stubs:
 	# Generate type stubs and organize them as a Python package
 	source aerospike.env && cargo run --bin stub_gen
-	@echo "Generated stubs in aerospike_async/aerospike_async.pyi"
+	@echo "Generated stubs in python/aerospike_async/aerospike_async.pyi"
 
 lint:
 	cargo clippy
@@ -22,7 +22,7 @@ dev:
 	maturin develop
 
 test:
-	cd aerospike_async; python -m pytest tests
+	source aerospike.env && python -m pytest python/tests
 
 dev-test: dev stubs test
 
@@ -31,8 +31,8 @@ build:
 	maturin build -r
 
 bench: dev
-	rm -f aerospike_async/bench.json
-	python aerospike_async/benchmarks.py -o bench.json
+	rm -f bench.json
+	python benchmarks.py -o bench.json
 	pyperf hist aerospike_async/bench.json
 
 clean:

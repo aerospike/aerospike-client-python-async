@@ -1,0 +1,227 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  # For publish workflow
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [
+          # Don't run a virtual machine for x86_64 artifacts
+          # maturin platform, Docker platform
+          [x86_64, _],
+          [x86, linux/386],
+          [aarch64, linux/arm64],
+          [armv7, linux/arm/v7]
+        ]
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13'
+        ]
+        # PyPy disabled due to pyo3::Python::initialize() issues
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install specific Rust version
+        run: |
+          rustup install 1.90.0
+          rustup default 1.90.0
+          rustup show
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target[0] }}
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+          manylinux: auto
+
+      - name: Run Aerospike server
+        run: docker run -d -p 3000:3000 aerospike/aerospike-server
+
+      - name: Set up QEMU
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Get Docker image name and tag
+        run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
+
+      - name: Run container in QEMU VM
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        # Run in the host network to connect to Aerospike server
+        run: docker run -d --network host --name ${{ matrix.python }} --platform ${{ matrix.target[1]}} ${{ env.DOCKER_IMAGE_TAG }} tail -f /dev/null
+
+      - name: Copy tests and wheel to container
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
+
+
+      - name: Install wheel (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
+      - name: Install pytest (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
+      - name: Run tests (non-x86 wheels)
+        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
+        run: docker exec --workdir /aerospike-client-python-async -e AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
+
+      - name: Remove python prefix for setting up python (CPython only)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+
+      - name: Setup Python for testing
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install wheel (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: ${{ matrix.python }} -m pip install *.whl
+        working-directory: aerospike_async
+      - name: Install pytest (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
+
+      - name: Debug module contents (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: |
+          ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
+          ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+      - name: Run tests (x86 wheels)
+        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        run: AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.python }}-${{ matrix.target[0] }}
+          path: aerospike_async
+
+  windows:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        target: [x64, x86]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out aerospike_async --find-interpreter
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: aerospike_async
+
+  macos:
+    runs-on: macos-latest-large
+    strategy:
+      matrix:
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13'
+        ]
+        # PyPy disabled due to pyo3::Python::initialize() issues
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try Podman
+        run: |
+          brew install podman
+          podman machine init
+          podman machine start
+          podman run -d -p 3000:3000 aerospike/aerospike-server
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+      - name: Remove python prefix for setting up python (CPython only)
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+      - name: Setup Python for testing
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install wheel
+        run: ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
+      - name: Install pytest
+        run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
+      - name: Debug module contents (macOS)
+        run: |
+          ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
+          ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+      - name: Run tests
+        run: AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.python }}
+          path: aerospike_async
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out aerospike_async
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: aerospike_async

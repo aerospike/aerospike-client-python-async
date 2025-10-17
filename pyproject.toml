@@ -1,11 +1,12 @@
 [build-system]
-requires = ["maturin>=1.2,<2.0"]
+requires = ["maturin>=1.9.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "aerospike-client-python-async"
+name = "aerospike_client_python_async"
 version = "0.2.0"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
+python-packages = ["aerospike_async"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -14,6 +15,8 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+module-name = "aerospike_async"
+python-source = "python"
 
 [tool.pytest]
 log_cli = true

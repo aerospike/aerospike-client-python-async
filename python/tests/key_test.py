@@ -2,6 +2,8 @@ from aerospike_async import Key
 
 
 def test_key_eq():
+    """Test key equality comparisons."""
+
     key1 = Key("test", "test", 1)
     key2 = Key("test", "test", 1)
     key3 = Key("test", "test", 2)

@@ -7,6 +7,7 @@ from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, K
 @pytest_asyncio.fixture
 async def client_and_key():
     """Setup client and prepare test key."""
+
     cp = ClientPolicy()
     client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
 
@@ -17,10 +18,13 @@ async def client_and_key():
     wp = WritePolicy()
     rp = ReadPolicy()
     await client.delete(wp, key)
-    
+
     return client, rp, key
 
+
 async def test_put_int(client_and_key):
+    """Test putting integer values."""
+
     client, rp, key = client_and_key
 
     wp = WritePolicy()
@@ -36,7 +40,10 @@ async def test_put_int(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": 1}
 
+
 async def test_put_float(client_and_key):
+    """Test putting float values."""
+
     client, rp, key = client_and_key
 
     wp = WritePolicy()
@@ -52,7 +59,10 @@ async def test_put_float(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": 1.76123}
 
+
 async def test_put_string(client_and_key):
+    """Test putting string values."""
+
     client, rp, key = client_and_key
 
     wp = WritePolicy()
@@ -68,7 +78,10 @@ async def test_put_string(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": "str1"}
 
+
 async def test_put_bool(client_and_key):
+    """Test putting boolean values."""
+
     client, rp, key = client_and_key
 
     wp = WritePolicy()
@@ -85,7 +98,10 @@ async def test_put_bool(client_and_key):
     assert rec is not None
     assert rec.bins == {"bint": True, "binf": False}
 
+
 async def test_put_blob(client_and_key):
+    """Test putting blob (bytes/bytearray) values."""
+
     client, rp, key = client_and_key
 
     ba = bytearray([1, 2, 3, 4, 5, 6])
@@ -105,7 +121,10 @@ async def test_put_blob(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin_b": b, "bin_ba": ba}
 
+
 async def test_put_list(client_and_key):
+    """Test putting list values."""
+
     client, rp, key = client_and_key
 
     l = [1, "str", bytearray([1, 2, 3, 4, 5, 6]), True, False, 1572, 3.1415]
@@ -123,7 +142,10 @@ async def test_put_list(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": l}
 
+
 async def test_put_dict(client_and_key):
+    """Test putting dictionary values."""
+
     client, rp, key = client_and_key
 
     b = Blob(b"Some bytes")
@@ -153,7 +175,10 @@ async def test_put_dict(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": d}
 
+
 async def test_put_GeoJSON(client_and_key):
+    """Test putting GeoJSON values."""
+
     client, rp, key = client_and_key
 
     geo = GeoJSON('{"type":"Point","coordinates":[-80.590003, 28.60009]}')

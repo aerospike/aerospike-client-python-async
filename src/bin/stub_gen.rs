@@ -1,8 +1,23 @@
 use pyo3_stub_gen::Result;
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
     // `stub_info` is a function defined by `define_stub_info_gatherer!` macro.
     let stub = aerospike_async::stub_info()?;
-    stub.generate()?;
+    
+    // Override the output directory if specified
+    if let Ok(output_dir) = std::env::var("STUB_OUTPUT_DIR") {
+        let output_path = PathBuf::from(output_dir);
+        // We need to create a new StubInfo with the custom python_root
+        let modules = stub.modules.clone();
+        let custom_stub = pyo3_stub_gen::StubInfo {
+            modules,
+            python_root: output_path,
+        };
+        custom_stub.generate()?;
+    } else {
+        stub.generate()?;
+    }
+    
     Ok(())
 }
