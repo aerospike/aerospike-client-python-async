@@ -18,6 +18,14 @@ This directory contains example scripts demonstrating how to use the `aerospike_
 ### Statement Examples
 - **[`statement_simple.py`](statement_simple.py)** - Basic query statements with filters
 
+### User Management
+- **[`user_management.py`](user_management.py)** - User creation, role assignment, and user administration
+- **[`role_management.py`](role_management.py)** - Role creation, privilege assignment, and role configuration
+
+### Privilege Examples
+- **[`privilege.py`](privilege.py)** - Comprehensive privilege and user management examples
+- **[`privilege_simple.py`](privilege_simple.py)** - Simple privilege object examples (no server required)
+
 ## Running the Examples
 
 ### Prerequisites
@@ -43,6 +51,14 @@ python scan.py
 
 # Run statement examples
 python statement_simple.py
+
+# Run user management examples
+python user_management.py
+python role_management.py
+
+# Run privilege examples
+python privilege.py
+python privilege_simple.py
 ```
 
 
@@ -77,13 +93,34 @@ python statement_simple.py
 - Geo filters for location data
 - Filter combinations and advanced patterns
 
+### User Management ([`user_management.py`](user_management.py))
+- User creation with role assignment
+- User query and administration
+- Role management for users
+- Password management
+- User cleanup and deletion
+
+### Role Management ([`role_management.py`](role_management.py))
+- Custom role creation with privileges
+- Privilege assignment and management
+- IP allowlist configuration
+- Quota management (read/write limits)
+- Role query and administration
+
+### Privilege Management ([`privilege.py`](privilege.py), [`privilege_simple.py`](privilege_simple.py))
+- User privilege definitions and management
+- Role-based access control patterns
+- Privilege validation and testing
+- Authentication and authorization examples
+
 ## Quick Start
 
 For a quick introduction, start with:
 1. **[`create_index_simple.py`](create_index_simple.py)** - Shows basic index creation
 2. **[`scan_simple.py`](scan_simple.py)** - Shows basic scanning
 3. **[`statement_simple.py`](statement_simple.py)** - Shows basic querying
-4. **[`basic_examples.py`](basic_examples.py)** - Shows basic data operations
+4. **[`privilege_simple.py`](privilege_simple.py)** - Shows privilege objects (no server needed)
+5. **[`user_management.py`](user_management.py)** - Shows user management operations
 
 For comprehensive usage, see:
 1. **[`create_index.py`](create_index.py)** - Complete index creation guide

@@ -114,6 +114,67 @@ class Client:
         records on a queue in separate threads. The calling thread concurrently pops records off
         the queue through the record iterator.
         """
+    def create_user(self, user:builtins.str, password:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
+        before sending to server.
+        """
+    def drop_user(self, user:builtins.str) -> typing.Awaitable[typing.Any]:
+        r"""
+        Removes a user from the cluster.
+        """
+    def change_password(self, user:builtins.str, password:builtins.str) -> typing.Awaitable[typing.Any]:
+        r"""
+        Changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
+        """
+    def grant_roles(self, user:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Adds roles to user's list of roles.
+        """
+    def revoke_roles(self, user:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Removes roles from user's list of roles.
+        """
+    def query_users(self, user:typing.Optional[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Retrieves users and their roles.
+        If None is passed for the user argument, all users will be returned.
+        """
+    def query_roles(self, role:typing.Optional[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Retrieves roles and their privileges.
+        If None is passed for the role argument, all roles will be returned.
+        """
+    def create_role(self, role_name:builtins.str, privileges:typing.Sequence[Privilege], allowlist:typing.Sequence[builtins.str], read_quota:builtins.int, write_quota:builtins.int) -> typing.Awaitable[typing.Any]:
+        r"""
+        Creates a user-defined role.
+        Quotas require server security configuration "enable-quotas" to be set to true.
+        Pass 0 for quota values for no limit.
+        """
+    def drop_role(self, role_name:builtins.str) -> typing.Awaitable[typing.Any]:
+        r"""
+        Removes a user-defined role.
+        """
+    def grant_privileges(self, role_name:builtins.str, privileges:typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Grants privileges to a user-defined role.
+        """
+    def revoke_privileges(self, role_name:builtins.str, privileges:typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Revokes privileges from a user-defined role.
+        """
+    def set_allowlist(self, role_name:builtins.str, allowlist:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
+        r"""
+        Sets IP address allowlist for a role.
+        If allowlist is nil or empty, it removes existing allowlist from role.
+        """
+    def set_quotas(self, role_name:builtins.str, read_quota:builtins.int, write_quota:builtins.int) -> typing.Awaitable[typing.Any]:
+        r"""
+        Sets maximum reads/writes per second limits for a role.
+        If a quota is zero, the limit is removed.
+        Quotas require server security configuration "enable-quotas" to be set to true.
+        Pass 0 for quota values for no limit.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
     def __copy__(self) -> Client: ...
@@ -656,6 +717,18 @@ class PartitionFilter:
     @staticmethod
     def by_range(begin:builtins.int, count:builtins.int) -> PartitionFilter: ...
 
+class Privilege:
+    @property
+    def code(self) -> PrivilegeCode: ...
+    @property
+    def namespace(self) -> typing.Optional[builtins.str]: ...
+    @property
+    def set_name(self) -> typing.Optional[builtins.str]: ...
+    def __new__(cls, code:PrivilegeCode, namespace:typing.Optional[builtins.str], set_name:typing.Optional[builtins.str]) -> Privilege: ...
+    def as_string(self) -> builtins.str: ...
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
 class QueryPolicy:
     @property
     def max_concurrent_nodes(self) -> builtins.int: ...
@@ -762,6 +835,58 @@ class IndexType(Enum):
     Numeric = ...
     String = ...
     Geo2DSphere = ...
+
+class PrivilegeCode(Enum):
+    r"""
+    Secondary index collection type.
+    """
+    UserAdmin = ...
+    r"""
+    User can edit/remove other users.  Global scope only.
+    """
+    SysAdmin = ...
+    r"""
+    User can perform systems administration functions on a database that do not involve user
+    administration.  Examples include server configuration.
+    Global scope only.
+    """
+    DataAdmin = ...
+    r"""
+    User can perform UDF and SINDEX administration actions. Global scope only.
+    """
+    UDFAdmin = ...
+    r"""
+    User can perform user defined function(UDF) administration actions.
+    Examples include create/drop UDF. Global scope only.
+    Requires server version 6+
+    """
+    SIndexAdmin = ...
+    r"""
+    User can perform secondary index administration actions.
+    Examples include create/drop index. Global scope only.
+    Requires server version 6+
+    """
+    Read = ...
+    r"""
+    User can read data only.
+    """
+    ReadWrite = ...
+    r"""
+    User can read and write data.
+    """
+    ReadWriteUDF = ...
+    r"""
+    User can read and write data through user defined functions.
+    """
+    Write = ...
+    r"""
+    User can read and write data through user defined functions.
+    """
+    Truncate = ...
+    r"""
+    User can truncate data only.
+    Requires server version 6+
+    """
 
 def new_client(policy:ClientPolicy, seeds:builtins.str) -> typing.Awaitable[Client]: ...
 

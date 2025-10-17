@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import asyncio
+import os
 import pyperf
 
 from aerospike_async import *
@@ -13,7 +14,7 @@ wp = WritePolicy()
 async def setup():
     global client, key
     cp = ClientPolicy()
-    client = await new_client(cp, "localhost:3101")
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3101"))
     await client.put(wp, key, {
         "brand": "Ford",
         "model": "Mustang",
