@@ -36,17 +36,23 @@ make test
 ```commandline
 make stubs
 ```
+<br>
 
-
-
-TODO:
-    - Move the current python tests to the new client.
-    - Do more benchmarks, track performance between runs.
-    - Implement the `aerospike.Exception` class and convert rust errors to said class.
-    - Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
-    - Move more API:
-        - CDTs
-        - User management
-    - See if tox can be used
-    - Use the CI config for github and ensure that it works
+### Known TODOs:
+*   Tests:
+    - Move / port more of the legacy python tests to the new client
+    - Go through Java client tests and check for analogous test coverage 
+*  Pipeline benchmarks: track performance between runs.
+*  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
+*  Move more API:
+    - CDTs
+*  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
+*  Cross-Python Client compatibility testing - esp data types
+    - Write from legacy, read from new
+    - Write from new, read from legacy
+*  Track known remaining "core" (Rust Client) items:
+    - TLS
+    - AP/SC
+    - MRT
+    - smaller items

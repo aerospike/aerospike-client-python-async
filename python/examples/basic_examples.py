@@ -1,9 +1,11 @@
 import asyncio
+import os
 from aerospike_async import *
 
 async def main():
     cp = ClientPolicy()
-    c = await new_client(cp, "localhost:3000")
+    host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
+    c = await new_client(cp, host)
 
     key = Key("test", "test", 1)
 
@@ -38,11 +40,11 @@ async def main():
     rec = await c.get(rp, key)
     print(f".touch result: {rec}")
 
-    exists = await c.exists(wp, key)
+    exists = await c.exists(rp, key)
     print(f".exists result: {exists}")
 
-    await c.truncate("test", "test")
-    exists = await c.exists(wp, key)
+    await c.truncate("test", "test", 0)
+    exists = await c.exists(rp, key)
     print(f".exists after .truncate result: {exists}")
 
     for i in range(10):
@@ -55,10 +57,11 @@ async def main():
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         })
 
-    await c.create_index("test", "test", "year", "test.test.year", IndexType.Numeric)
+    await c.create_index("test", "test", "year", "test.test.year", IndexType.Numeric, cit=CollectionIndexType.Default)
 
     sp = ScanPolicy()
-    rcs = await c.scan(sp, "test", "test")
+    pf = PartitionFilter()
+    rcs = await c.scan(sp, pf, "test", "test", [])
     print(f"Scan results:")
     i = 0
     for rec in rcs:
@@ -68,9 +71,9 @@ async def main():
     print(f"Scan result count: {i}")
 
     qp = QueryPolicy()
-    stmt = Statement("test", "test")
+    stmt = Statement("test", "test", [])
     stmt.filters = [Filter.range("year", 1964, 1968)]
-    rcs = await c.query(qp, stmt)
+    rcs = await c.query(qp, pf, stmt)
     print(f"Query results:")
     i = 0
     for rec in rcs:

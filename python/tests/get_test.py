@@ -73,10 +73,5 @@ async def test_non_matching_filter_exp(client_and_key):
     rp = ReadPolicy()
     rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
-    # Debug: Check if filter expression is set
-    print(f"\n\nFilter expression set: {rp.filter_expression}")
-    print(f"Available methods: {[method for method in dir(rp) if 'filter' in method.lower()]}")
-    print(f"Has set_filter_expression: {hasattr(rp, 'set_filter_expression')}")
-
     with pytest.raises(Exception):
         await client.get(rp, key, ["brand", "year"])
