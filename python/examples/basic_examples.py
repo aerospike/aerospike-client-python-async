@@ -1,6 +1,10 @@
 import asyncio
 import os
-from aerospike_async import *
+from aerospike_async import (
+    new_client, ClientPolicy, Key, WritePolicy, ReadPolicy, 
+    ScanPolicy, PartitionFilter, QueryPolicy, Statement, 
+    Filter, IndexType, CollectionIndexType
+)
 
 async def main():
     cp = ClientPolicy()

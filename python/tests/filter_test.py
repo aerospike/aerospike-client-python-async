@@ -1,5 +1,5 @@
 import pytest
-from aerospike_async import *
+from aerospike_async import Filter, CollectionIndexType
 
 
 class TestFilter:

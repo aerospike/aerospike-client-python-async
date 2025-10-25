@@ -1,6 +1,9 @@
 import pytest
-from aerospike_async import *
-from aerospike_async import FilterExpression as fe
+from aerospike_async import (
+    ReadPolicy, WritePolicy, ScanPolicy, QueryPolicy,
+    ConsistencyLevel, RecordExistsAction, GenerationPolicy, 
+    CommitLevel, Expiration, FilterExpression as fe
+)
 
 
 class TestReadPolicy:
