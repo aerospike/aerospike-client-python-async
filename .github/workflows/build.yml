@@ -58,7 +58,22 @@ jobs:
           manylinux: auto
 
       - name: Run Aerospike server
-        run: docker run -d -p 3000:3000 aerospike/aerospike-server
+        run: |
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server
+          # Wait for Aerospike server to be ready (max 10 seconds)
+          for i in {1..10}; do
+            if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
+              echo "Aerospike server is ready after $i seconds"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "Aerospike server failed to start after 10 seconds"
+              docker logs aerospike-server
+              exit 1
+            fi
+            echo "Waiting for Aerospike server... ($i/10)"
+            sleep 1
+          done
 
       - name: Set up QEMU
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
@@ -86,9 +101,9 @@ jobs:
       - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: |
-          # Remove local python/aerospike_async directory to prevent import conflicts
-          # The local source code conflicts with the installed package, causing ModuleNotFoundError
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -rf python/aerospike_async
+          # Remove only the __init__.py file to prevent import conflicts with installed package
+          # Keep the exceptions/ directory as it's needed by the tests
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
           docker exec --workdir /aerospike-client-python-async -e AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
 
       - name: Remove python prefix for setting up python (CPython only)
@@ -117,9 +132,9 @@ jobs:
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: |
-          # Remove local python/aerospike_async directory to prevent import conflicts
-          # The local source code conflicts with the installed package, causing ModuleNotFoundError
-          rm -rf python/aerospike_async
+          # Remove only the __init__.py file to prevent import conflicts with installed package
+          # Keep the exceptions/ directory as it's needed by the tests
+          rm -f python/aerospike_async/__init__.py
           AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
 
       - name: Upload wheels
@@ -208,9 +223,9 @@ jobs:
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
       - name: Run tests
         run: |
-          # Remove local python/aerospike_async directory to prevent import conflicts
-          # The local source code conflicts with the installed package, causing ModuleNotFoundError
-          rm -rf python/aerospike_async
+          # Remove only the __init__.py file to prevent import conflicts with installed package
+          # Keep the exceptions/ directory as it's needed by the tests
+          rm -f python/aerospike_async/__init__.py
           AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
       - name: Upload wheels
         uses: actions/upload-artifact@v4
