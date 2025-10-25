@@ -14,11 +14,12 @@ async def test_connect():
     assert client is not None
 
 async def test_failed_connect():
-    """Test basic client connection."""
+    """Test basic client connection failure."""
     client = None
     cp = ClientPolicy()
+    # Use a non-existent host and port to ensure connection failure
     with pytest.raises(ConnectionError) as exc_info:
-        client = await new_client(cp, "0.0.0.0:3000")
+        client = await new_client(cp, "nonexistent-host:9999")
     assert client is None
     assert exc_info.value.args[0] == "Failed to connect to host(s). The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux."
 
