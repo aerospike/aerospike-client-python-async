@@ -15,7 +15,7 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "aerospike_async"
+module-name = "aerospike_async._aerospike_async_native"
 python-source = "python"
 
 [tool.pytest]

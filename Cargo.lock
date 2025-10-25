@@ -18,19 +18,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "aerospike-client-python-async"
-version = "0.2.0"
-dependencies = [
- "aerospike-core",
- "hex",
- "ordered-float 3.9.2",
- "pyo3",
- "pyo3-async-runtimes",
- "pyo3-stub-gen",
- "tokio",
-]
-
-[[package]]
 name = "aerospike-core"
 version = "2.0.0-alpha.4"
 source = "git+https://github.com/aerospike/aerospike-client-rust.git?branch=python-rs#3f83fb806587b3211052d180577f7bb353ad992f"
@@ -55,6 +42,19 @@ name = "aerospike-rt"
 version = "2.0.0-alpha.4"
 source = "git+https://github.com/aerospike/aerospike-client-rust.git?branch=python-rs#3f83fb806587b3211052d180577f7bb353ad992f"
 dependencies = [
+ "tokio",
+]
+
+[[package]]
+name = "aerospike_async"
+version = "0.2.0"
+dependencies = [
+ "aerospike-core",
+ "hex",
+ "ordered-float 3.9.2",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "pyo3-stub-gen",
  "tokio",
 ]
 

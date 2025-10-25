@@ -4387,7 +4387,7 @@ pub enum Replica {
     // }
 
 #[pymodule]
-fn aerospike_async(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;
     m.add_class::<Replica>()?;
