@@ -66,8 +66,14 @@ class TestQuery(TestFixtureInsertRecord):
 
 
     async def test_fail(self, client):
+        """Test query operation with invalid parameters raises TypeError."""
+        # Test with invalid partition filter type to trigger TypeError
+        with pytest.raises(TypeError):
+            records = await client.query(QueryPolicy(), "invalid_filter", Statement("test", "test", ["bin1"]))
+
+    async def test_invalid_node_error(self, client):
         """Test query operation with invalid namespace raises InvalidNodeError during iteration."""
-        stmt_invalid_namespace = Statement("bad_ns", "test", [self.bin_name])
+        stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
         
         # The error occurs during iteration, not during the query call
