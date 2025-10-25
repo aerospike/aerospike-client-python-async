@@ -10,7 +10,7 @@ async def test_connect():
     """Test basic client connection."""
 
     cp = ClientPolicy()
-    client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
 
 async def test_failed_connect():
@@ -27,6 +27,6 @@ async def test_close():
     """Test client connection and proper closing."""
 
     cp = ClientPolicy()
-    client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
     client.close()

@@ -10,7 +10,7 @@ async def client_and_key():
     """Setup client and create test record."""
 
     cp = ClientPolicy()
-    client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
 
     rp = ReadPolicy()
 
