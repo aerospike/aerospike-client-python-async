@@ -104,7 +104,9 @@ jobs:
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
-          docker exec --workdir /aerospike-client-python-async -e AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
+          # Remove .env file so tests use default localhost:3000 (matches our server)
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
 
       - name: Remove python prefix for setting up python (CPython only)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -135,7 +137,9 @@ jobs:
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           rm -f python/aerospike_async/__init__.py
-          AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
+          # Remove .env file so tests use default localhost:3000 (matches our server)
+          rm -f aerospike.env
+          ${{ matrix.python }} -m pytest python/tests
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -226,7 +230,9 @@ jobs:
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           rm -f python/aerospike_async/__init__.py
-          AEROSPIKE_HOST=localhost:3000 ${{ matrix.python }} -m pytest python/tests
+          # Remove .env file so tests use default localhost:3000 (matches our server)
+          rm -f aerospike.env
+          ${{ matrix.python }} -m pytest python/tests
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
