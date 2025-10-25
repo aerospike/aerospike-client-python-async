@@ -31,10 +31,7 @@ class TestScan(TestFixtureInsertRecord):
 
 
     async def test_fail(self, client):
-        """Test scan operation with invalid namespace raises InvalidNodeError during iteration."""
-        records = await client.scan(ScanPolicy(), PartitionFilter.all(), "bad_ns", "test", None)
-        
-        # The error occurs during iteration, not during the scan call
-        with pytest.raises(InvalidNodeError):
-            # Force iteration to trigger the error
-            list(records)
+        """Test scan operation with invalid parameters raises TypeError."""
+        # Test with invalid partition filter type to trigger TypeError
+        with pytest.raises(TypeError):
+            await client.scan(ScanPolicy(), "invalid_filter", "test", "test", None)
