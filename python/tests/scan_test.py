@@ -16,19 +16,16 @@ class TestScan(TestFixtureInsertRecord):
         for record in records:
             assert isinstance(record, Record)
 
-
     async def test_with_bins(self, client):
         """Test scan operation with specific bins."""
         records = await client.scan(ScanPolicy(), PartitionFilter.all(), "test", "test", [])
         assert isinstance(records, Recordset)
-
 
     async def test_with_policy(self, client):
         """Test scan operation with scan policy."""
         sp = ScanPolicy()
         records = await client.scan(sp, PartitionFilter.all(), "test", "test", None)
         assert isinstance(records, Recordset)
-
 
     async def test_fail(self, client):
         """Test scan operation with invalid parameters raises TypeError."""

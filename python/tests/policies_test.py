@@ -1,4 +1,3 @@
-import pytest
 from aerospike_async import (
     ReadPolicy, WritePolicy, ScanPolicy, QueryPolicy,
     ConsistencyLevel, RecordExistsAction, GenerationPolicy, 

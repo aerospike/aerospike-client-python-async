@@ -20,13 +20,11 @@ class TestAdd(TestFixtureInsertRecord):
         with(pytest.raises(TypeError)):
             retval = await client.add(key=key, bins={"year": 1})
 
-
     async def test_add_with_policy(self, client, key):
         """Test add operation with write policy."""
         wp = WritePolicy()
         retval = await client.add(wp, key, {"year": 1})
         assert retval is None
-
 
     async def test_add_unsupported_bin_type(self, client, key):
         """Test add operation with unsupported bin type raises ServerError."""

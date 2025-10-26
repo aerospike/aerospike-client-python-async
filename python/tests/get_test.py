@@ -33,7 +33,6 @@ async def client_and_key():
 
     return client, rp, key
 
-
 async def test_all_bins(client_and_key):
     """Test getting all bins from a record."""
 
@@ -43,7 +42,6 @@ async def test_all_bins(client_and_key):
     assert rec.generation == 1
     # assert rec.ttl is not None
 
-
 async def test_some_bins(client_and_key):
     """Test getting specific bins from a record."""
 
@@ -51,7 +49,6 @@ async def test_some_bins(client_and_key):
     rec = await client.get(rp, key, ["brand", "year"])
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
-
 
 async def test_matching_filter_exp(client_and_key):
     """Test get operation with matching filter expression."""
@@ -63,7 +60,6 @@ async def test_matching_filter_exp(client_and_key):
     rec = await client.get(rp, key, ["brand", "year"])
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
-
 
 async def test_non_matching_filter_exp(client_and_key):
     """Test get operation with non-matching filter expression."""

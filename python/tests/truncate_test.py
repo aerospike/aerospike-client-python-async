@@ -12,12 +12,10 @@ class TestTruncate(TestFixtureInsertRecord):
         retval = await client.truncate("test", "test", None)
         assert retval is None
 
-
     async def test_truncate_before_nanos(self, client):
         """Test truncate operation with before_nanos parameter."""
         retval = await client.truncate("test", "test", before_nanos=0)
         assert retval is None
-
 
     async def test_truncate_fail(self, client):
         """Test truncate operation with future timestamp raises BadResponse."""

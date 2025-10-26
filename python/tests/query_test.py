@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy, PartitionFilter
 from aerospike_async.exceptions import ServerError, InvalidNodeError
@@ -14,7 +15,6 @@ class TestStatement:
         stmt = Statement(namespace="test", set_name="test", bins=["test_bin"])
         # Test defaults
         assert stmt.filters is None
-
 
     def test_set_filters(self):
         """Test setting filters on Statement."""
@@ -35,7 +35,6 @@ class TestQuery(TestFixtureInsertRecord):
     def stmt(self):
         """Create a test statement."""
         return Statement("test", "test", [self.bin_name])
-
 
     async def test_query_and_recordset(self, client, stmt):
         """Test basic query operation and Recordset functionality."""
@@ -64,7 +63,6 @@ class TestQuery(TestFixtureInsertRecord):
         records = await client.query(qp, PartitionFilter.all(), stmt)
         assert isinstance(records, Recordset)
 
-
     async def test_fail(self, client):
         """Test query operation with invalid parameters raises TypeError."""
         # Test with invalid partition filter type to trigger TypeError
@@ -75,6 +73,9 @@ class TestQuery(TestFixtureInsertRecord):
         """Test query operation with invalid namespace raises InvalidNodeError during iteration."""
         stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
+        
+        # Add a small delay to allow the server to process the request
+        await asyncio.sleep(0.1)
         
         # The error occurs during iteration, not during the query call
         with pytest.raises(InvalidNodeError):
