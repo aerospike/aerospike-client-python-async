@@ -39,7 +39,7 @@ async def create_index_examples():
                 bin_name="age",
                 index_name="age_idx",
                 index_type=IndexType.Numeric,
-                cit=None  # Optional, defaults to CollectionIndexType.Default
+                cit=CollectionIndexType.Default
             )
             print("✅ Created numeric index on 'age' bin")
         except Exception as e:
@@ -69,7 +69,7 @@ async def create_index_examples():
                 bin_name="coordinates",
                 index_name="geo_idx",
                 index_type=IndexType.Geo2DSphere,
-                cit=None
+                cit=CollectionIndexType.Default
             )
             print("✅ Created Geo2DSphere index on 'coordinates' bin")
         except Exception as e:
@@ -131,7 +131,7 @@ async def create_index_examples():
                     bin_name="user_id",
                     index_name="user_id_idx",
                     index_type=IndexType.Numeric,
-                    cit=None
+                    cit=CollectionIndexType.Default
                 ),
                 aerospike_client.create_index(
                     namespace="test", 
@@ -139,7 +139,7 @@ async def create_index_examples():
                     bin_name="event_type",
                     index_name="event_type_idx",
                     index_type=IndexType.String,
-                    cit=None
+                    cit=CollectionIndexType.Default
                 ),
                 aerospike_client.create_index(
                     namespace="test",
@@ -147,7 +147,7 @@ async def create_index_examples():
                     bin_name="timestamp",
                     index_name="timestamp_idx",
                     index_type=IndexType.Numeric,
-                    cit=None
+                    cit=CollectionIndexType.Default
                 )
             ]
             await asyncio.gather(*tasks)

@@ -2,8 +2,8 @@ use pyo3_stub_gen::Result;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    // `stub_info` is a function defined by `define_stub_info_gatherer!` macro.
-    let stub = aerospike_async::stub_info()?;
+    // Generate stubs for the main aerospike_async module
+    let stub = _aerospike_async_native::stub_info()?;
     
     // Override the output directory if specified
     if let Ok(output_dir) = std::env::var("STUB_OUTPUT_DIR") {

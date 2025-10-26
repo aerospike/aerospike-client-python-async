@@ -10,7 +10,7 @@ async def client_and_key():
     """Setup client and create test record."""
 
     cp = ClientPolicy()
-    client = await new_client(cp, os.environ["AEROSPIKE_HOST"])
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
 
     rp = ReadPolicy()
 
@@ -33,7 +33,6 @@ async def client_and_key():
 
     return client, rp, key
 
-
 async def test_all_bins(client_and_key):
     """Test getting all bins from a record."""
 
@@ -43,7 +42,6 @@ async def test_all_bins(client_and_key):
     assert rec.generation == 1
     # assert rec.ttl is not None
 
-
 async def test_some_bins(client_and_key):
     """Test getting specific bins from a record."""
 
@@ -51,7 +49,6 @@ async def test_some_bins(client_and_key):
     rec = await client.get(rp, key, ["brand", "year"])
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
-
 
 async def test_matching_filter_exp(client_and_key):
     """Test get operation with matching filter expression."""
@@ -64,7 +61,6 @@ async def test_matching_filter_exp(client_and_key):
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
 
-
 async def test_non_matching_filter_exp(client_and_key):
     """Test get operation with non-matching filter expression."""
 
@@ -72,11 +68,6 @@ async def test_non_matching_filter_exp(client_and_key):
 
     rp = ReadPolicy()
     rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
-
-    # Debug: Check if filter expression is set
-    print(f"\n\nFilter expression set: {rp.filter_expression}")
-    print(f"Available methods: {[method for method in dir(rp) if 'filter' in method.lower()]}")
-    print(f"Has set_filter_expression: {hasattr(rp, 'set_filter_expression')}")
 
     with pytest.raises(Exception):
         await client.get(rp, key, ["brand", "year"])

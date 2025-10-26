@@ -12,6 +12,8 @@ all: lint dev build test install clean
 stubs:
 	# Generate type stubs and organize them as a Python package
 	source aerospike.env && cargo run --bin stub_gen
+	# Add exception stubs (create_exception! doesn't generate stubs automatically)
+	python python/add_exception_stubs.py python/aerospike_async/aerospike_async.pyi
 	@echo "Generated stubs in python/aerospike_async/aerospike_async.pyi"
 
 lint:

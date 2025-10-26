@@ -28,7 +28,7 @@ async def simple_create_index_example():
             bin_name="age",             # Bin to index
             index_name="age_index",     # Unique index name
             index_type=IndexType.Numeric,  # Data type
-            cit=None                    # Optional collection type
+            cit=CollectionIndexType.Default
         )
         print("✅ Index created successfully!")
         
@@ -57,7 +57,7 @@ def quick_examples():
         bin_name="age",
         index_name="age_idx",
         index_type=IndexType.Numeric,
-        cit=None
+        cit=CollectionIndexType.Default
     )
     """)
     
@@ -69,7 +69,7 @@ def quick_examples():
         bin_name="category", 
         index_name="category_idx",
         index_type=IndexType.String,
-        cit=None
+        cit=CollectionIndexType.Default
     )
     """)
     
@@ -81,7 +81,7 @@ def quick_examples():
         bin_name="coordinates",
         index_name="geo_idx",
         index_type=IndexType.Geo2DSphere,
-        cit=None
+        cit=CollectionIndexType.Default
     )
     """)
     
