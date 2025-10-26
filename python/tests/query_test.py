@@ -74,8 +74,13 @@ class TestQuery(TestFixtureInsertRecord):
         stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
         
-        # Add a small delay to allow the server to process the request
-        await asyncio.sleep(0.1)
+        # Wait for the recordset to become inactive (query finished processing)
+        # This ensures the error is properly raised during iteration
+        max_wait = 10  # Maximum 1 second wait
+        for _ in range(max_wait):
+            if not records.active:
+                break
+            await asyncio.sleep(0.1)
         
         # The error occurs during iteration, not during the query call
         with pytest.raises(InvalidNodeError):
