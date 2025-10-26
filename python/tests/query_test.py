@@ -44,13 +44,15 @@ class TestQuery(TestFixtureInsertRecord):
         for record in records:
             assert isinstance(record, Record)
 
-        # Close the recordset
-        #records.close()
+        # Wait for the recordset to become inactive (query finished processing)
+        # This ensures the recordset is properly closed after consuming all records
+        max_wait = 10  # Maximum 1 second wait
+        for _ in range(max_wait):
+            if not records.active:
+                break
+            await asyncio.sleep(0.1)
         
         # Query finished - recordset should be inactive after consuming all records
-        # Note: There may be timing differences between IDE and command line execution
-        import time
-        time.sleep(0.1)  # Small delay to allow recordset to become inactive
         assert records.active is False
 
         # Check that we can call close()
