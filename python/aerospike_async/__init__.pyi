@@ -3,7 +3,7 @@
 
 import builtins
 import typing
-from ._aerospike_async_native import Key
+from ._aerospike_async_native import Client, Key
 from . import _aerospike_async_native
 from enum import Enum
 
