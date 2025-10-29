@@ -1,5 +1,5 @@
 import pytest
-from aerospike_async import WritePolicy
+from aerospike_async import WritePolicy, Expiration
 from aerospike_async.exceptions import ConnectionError
 from fixtures import TestFixtureInsertRecord
 
@@ -12,12 +12,10 @@ class TestDelete(TestFixtureInsertRecord):
         rec_existed = await client.delete(WritePolicy(), key)
         assert rec_existed is True
 
-
     async def test_delete_nonexistent_record(self, client, key_invalid_primary_key):
         """Test deleting a non-existent record."""
         rec_existed = await client.delete(WritePolicy(), key_invalid_primary_key)
         assert rec_existed is False
-
 
     async def test_delete_with_policy(self, client, key):
         """Test delete operation with write policy."""
@@ -25,8 +23,9 @@ class TestDelete(TestFixtureInsertRecord):
         rec_existed = await client.delete(wp, key)
         assert rec_existed is True
 
-
     async def test_delete_with_nonexistent_namespace(self, client, key_invalid_namespace):
         """Test delete operation with invalid namespace raises ConnectionError (timeout)."""
+        wp = WritePolicy()
+        wp.expiration = Expiration.NEVER_EXPIRE
         with pytest.raises(ConnectionError):
-            await client.delete(WritePolicy(), key_invalid_namespace)
+            await client.delete(wp, key_invalid_namespace)

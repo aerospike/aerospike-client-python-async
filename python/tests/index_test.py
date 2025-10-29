@@ -30,7 +30,6 @@ class TestIndex(TestFixtureConnection):
         except:
             pass
 
-
     async def test_create_numeric_index(self, client):
         """Test creating a numeric index."""
         # Clean up any existing index first
@@ -47,7 +46,6 @@ class TestIndex(TestFixtureConnection):
             await client.drop_index("test", "test", "index_name")
         except:
             pass
-
 
     async def test_create_geo2dsphere_index(self, client):
         """Test creating a geo2dsphere index."""
@@ -66,7 +64,6 @@ class TestIndex(TestFixtureConnection):
         except:
             pass
 
-
     async def test_create_with_cit(self, client):
         """Test creating an index with collection index type."""
         # Clean up any existing index first
@@ -83,7 +80,6 @@ class TestIndex(TestFixtureConnection):
             await client.drop_index("test", "test", "index_name")
         except:
             pass
-
 
     async def test_create_index_fail(self, client):
         """Test that creating duplicate index names fails."""
@@ -106,7 +102,6 @@ class TestIndex(TestFixtureConnection):
         except:
             pass
 
-
     async def test_drop_index(self, client):
         """Test dropping an index."""
         # Clean up any existing index first
@@ -120,7 +115,6 @@ class TestIndex(TestFixtureConnection):
 
         retval = await client.drop_index(namespace="test", set_name="test", index_name="index_name")
         assert retval is None
-
 
     async def test_drop_index_fail(self, client):
         """Test dropping a non-existent index."""

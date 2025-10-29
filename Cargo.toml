@@ -9,13 +9,21 @@ name = "_aerospike_async_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.26", features = ["extension-module"] }
+pyo3 = { version = "0.26", default-features = false }
 pyo3-async-runtimes = { version = "0.26", features = ["tokio-runtime"] }
 tokio = "1.40"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust.git", branch = "python-rs", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.14.1"
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
+[[bin]]
+name = "stub_gen"
+path = "src/bin/stub_gen.rs"
 
 [profile.release]
 strip = "debuginfo"

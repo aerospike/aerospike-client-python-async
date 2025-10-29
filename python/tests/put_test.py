@@ -21,7 +21,6 @@ async def client_and_key():
 
     return client, rp, key
 
-
 async def test_put_int(client_and_key):
     """Test putting integer values."""
 
@@ -39,7 +38,6 @@ async def test_put_int(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bin": 1}
-
 
 async def test_put_float(client_and_key):
     """Test putting float values."""
@@ -59,7 +57,6 @@ async def test_put_float(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": 1.76123}
 
-
 async def test_put_string(client_and_key):
     """Test putting string values."""
 
@@ -77,7 +74,6 @@ async def test_put_string(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bin": "str1"}
-
 
 async def test_put_bool(client_and_key):
     """Test putting boolean values."""
@@ -97,7 +93,6 @@ async def test_put_bool(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bint": True, "binf": False}
-
 
 async def test_put_blob(client_and_key):
     """Test putting blob (bytes/bytearray) values."""
@@ -121,7 +116,6 @@ async def test_put_blob(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin_b": b, "bin_ba": ba}
 
-
 async def test_put_list(client_and_key):
     """Test putting list values."""
 
@@ -141,7 +135,6 @@ async def test_put_list(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bin": l}
-
 
 async def test_put_dict(client_and_key):
     """Test putting dictionary values."""
@@ -174,7 +167,6 @@ async def test_put_dict(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bin": d}
-
 
 async def test_put_GeoJSON(client_and_key):
     """Test putting GeoJSON values."""

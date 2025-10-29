@@ -3,6 +3,8 @@
 
 import builtins
 import typing
+from aerospike_async import Key
+from . import _aerospike_async_native
 from enum import Enum
 
 class BasePolicy:
@@ -27,164 +29,6 @@ class BasePolicy:
     @filter_expression.setter
     def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
     def __new__(cls) -> BasePolicy: ...
-
-class Blob:
-    @property
-    def value(self) -> builtins.list[builtins.int]: ...
-    @value.setter
-    def value(self, value: builtins.list[builtins.int]) -> None: ...
-    def __new__(cls, v:typing.Sequence[builtins.int]) -> Blob: ...
-    def as_string(self) -> builtins.str:
-        r"""
-        Returns a string representation of the value.
-        """
-    def __getitem__(self, idx:builtins.int) -> builtins.int: ...
-    def __setitem__(self, idx:builtins.int, v:builtins.int) -> None: ...
-    def __hash__(self) -> builtins.int: ...
-    def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
-    def __add__(self, other:typing.Any) -> Blob: ...
-    def __mul__(self, other:typing.Any) -> Blob: ...
-    def __iadd__(self, other:typing.Any) -> None: ...
-    def __imul__(self, other:typing.Any) -> None: ...
-    def __delitem__(self, idx:builtins.int) -> None: ...
-    def __len__(self) -> builtins.int: ...
-
-class Client:
-    def __new__(cls) -> Client: ...
-    def seeds(self) -> builtins.str: ...
-    def close(self) -> None: ...
-    def put(self, policy:WritePolicy, key:Key, bins:typing.Mapping[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Write record bin(s). The policy specifies the transaction timeout, record expiration and
-        how the transaction is handled when the record already exists.
-        """
-    def get(self, policy:ReadPolicy, key:Key, bins:typing.Optional[typing.Sequence[builtins.str]]=None) -> typing.Awaitable[typing.Any]:
-        r"""
-        Read record for the specified key. Depending on the bins value provided, all record bins,
-        only selected record bins or only the record headers will be returned. The policy can be
-        used to specify timeouts.
-        """
-    def add(self, policy:WritePolicy, key:Key, bins:typing.Mapping[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Add integer bin values to existing record bin values. The policy specifies the transaction
-        timeout, record expiration and how the transaction is handled when the record already
-        exists. This call only works for integer values.
-        """
-    def append(self, policy:WritePolicy, key:Key, bins:typing.Mapping[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Append bin string values to existing record bin values. The policy specifies the
-        transaction timeout, record expiration and how the transaction is handled when the record
-        already exists. This call only works for string values.
-        """
-    def prepend(self, policy:WritePolicy, key:Key, bins:typing.Mapping[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Prepend bin string values to existing record bin values. The policy specifies the
-        transaction timeout, record expiration and how the transaction is handled when the record
-        already exists. This call only works for string values.
-        """
-    def delete(self, policy:WritePolicy, key:Key) -> typing.Awaitable[typing.Any]:
-        r"""
-        Delete record for specified key. The policy specifies the transaction timeout.
-        The call returns `true` if the record existed on the server before deletion.
-        """
-    def touch(self, policy:WritePolicy, key:Key) -> typing.Awaitable[typing.Any]:
-        r"""
-        Reset record's time to expiration using the policy's expiration. Fail if the record does
-        not exist.
-        """
-    def exists(self, policy:ReadPolicy, key:Key) -> typing.Awaitable[typing.Any]:
-        r"""
-        Determine if a record key exists. The policy can be used to specify timeouts.
-        """
-    def truncate(self, namespace:builtins.str, set_name:builtins.str, before_nanos:typing.Optional[builtins.int]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Removes all records in the specified namespace/set efficiently.
-        """
-    def create_index(self, namespace:builtins.str, set_name:builtins.str, bin_name:builtins.str, index_name:builtins.str, index_type:IndexType, cit:typing.Optional[CollectionIndexType]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Create a secondary index on a bin containing scalar values. This asynchronous server call
-        returns before the command is complete.
-        """
-    def drop_index(self, namespace:builtins.str, set_name:builtins.str, index_name:builtins.str) -> typing.Awaitable[typing.Any]: ...
-    def scan(self, policy:ScanPolicy, partition_filter:PartitionFilter, namespace:builtins.str, set_name:builtins.str, bins:typing.Optional[typing.Sequence[builtins.str]]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Read all records in the specified namespace and set and return a record iterator. The scan
-        executor puts records on a queue in separate threads. The calling thread concurrently pops
-        records off the queue through the record iterator. Up to `policy.max_concurrent_nodes`
-        nodes are scanned in parallel. If concurrent nodes is set to zero, the server nodes are
-        read in series.
-        """
-    def query(self, policy:QueryPolicy, partition_filter:PartitionFilter, statement:Statement) -> typing.Awaitable[typing.Any]:
-        r"""
-        Execute a query on all server nodes and return a record iterator. The query executor puts
-        records on a queue in separate threads. The calling thread concurrently pops records off
-        the queue through the record iterator.
-        """
-    def create_user(self, user:builtins.str, password:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
-        before sending to server.
-        """
-    def drop_user(self, user:builtins.str) -> typing.Awaitable[typing.Any]:
-        r"""
-        Removes a user from the cluster.
-        """
-    def change_password(self, user:builtins.str, password:builtins.str) -> typing.Awaitable[typing.Any]:
-        r"""
-        Changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
-        """
-    def grant_roles(self, user:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Adds roles to user's list of roles.
-        """
-    def revoke_roles(self, user:builtins.str, roles:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Removes roles from user's list of roles.
-        """
-    def query_users(self, user:typing.Optional[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Retrieves users and their roles.
-        If None is passed for the user argument, all users will be returned.
-        """
-    def query_roles(self, role:typing.Optional[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Retrieves roles and their privileges.
-        If None is passed for the role argument, all roles will be returned.
-        """
-    def create_role(self, role_name:builtins.str, privileges:typing.Sequence[Privilege], allowlist:typing.Sequence[builtins.str], read_quota:builtins.int, write_quota:builtins.int) -> typing.Awaitable[typing.Any]:
-        r"""
-        Creates a user-defined role.
-        Quotas require server security configuration "enable-quotas" to be set to true.
-        Pass 0 for quota values for no limit.
-        """
-    def drop_role(self, role_name:builtins.str) -> typing.Awaitable[typing.Any]:
-        r"""
-        Removes a user-defined role.
-        """
-    def grant_privileges(self, role_name:builtins.str, privileges:typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Grants privileges to a user-defined role.
-        """
-    def revoke_privileges(self, role_name:builtins.str, privileges:typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Revokes privileges from a user-defined role.
-        """
-    def set_allowlist(self, role_name:builtins.str, allowlist:typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]:
-        r"""
-        Sets IP address allowlist for a role.
-        If allowlist is nil or empty, it removes existing allowlist from role.
-        """
-    def set_quotas(self, role_name:builtins.str, read_quota:builtins.int, write_quota:builtins.int) -> typing.Awaitable[typing.Any]:
-        r"""
-        Sets maximum reads/writes per second limits for a role.
-        If a quota is zero, the limit is removed.
-        Quotas require server security configuration "enable-quotas" to be set to true.
-        Pass 0 for quota values for no limit.
-        """
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
-    def __copy__(self) -> Client: ...
-    def __deepcopy__(self, _memo:dict) -> Client: ...
 
 class ClientPolicy:
     @property
@@ -229,7 +73,13 @@ class ClientPolicy:
     def __deepcopy__(self, _memo:dict) -> ClientPolicy: ...
 
 class Expiration:
-    ...
+    NAMESPACE_DEFAULT: Expiration = ...
+    NEVER_EXPIRE: Expiration = ...
+    DONT_UPDATE: Expiration = ...
+    @staticmethod
+    def seconds(s:builtins.int) -> Expiration: ...
+    def __richcmp__(self, other:Expiration, op:int) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
 
 class Filter:
     r"""
@@ -681,87 +531,6 @@ class FilterExpression:
         Requires server version 5.6.0+.
         """
 
-class GeoJSON:
-    @property
-    def value(self) -> builtins.str: ...
-    @value.setter
-    def value(self, value: builtins.str) -> None: ...
-    def __new__(cls, v:builtins.str) -> GeoJSON: ...
-    def as_string(self) -> builtins.str:
-        r"""
-        Returns a string representation of the value.
-        """
-    def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
-
-class HLL:
-    @property
-    def value(self) -> builtins.list[builtins.int]: ...
-    @value.setter
-    def value(self, value: builtins.list[builtins.int]) -> None: ...
-    def __new__(cls, v:typing.Sequence[builtins.int]) -> HLL: ...
-    def as_string(self) -> builtins.str:
-        r"""
-        Returns a string representation of the value.
-        """
-    def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
-
-class Key:
-    @property
-    def namespace(self) -> builtins.str: ...
-    @property
-    def set_name(self) -> builtins.str: ...
-    @property
-    def value(self) -> typing.Optional[typing.Any]: ...
-    @property
-    def digest(self) -> typing.Optional[builtins.str]: ...
-    def __new__(cls, namespace:builtins.str, set:builtins.str, key:typing.Any) -> Key: ...
-    def __richcmp__(self, other:Key, op:int) -> builtins.bool: ...
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
-    def __copy__(self) -> Key: ...
-    def __deepcopy__(self, _memo:dict) -> Key: ...
-
-class List:
-    @property
-    def value(self) -> builtins.list[typing.Any]: ...
-    @value.setter
-    def value(self, value: builtins.list[typing.Any]) -> None: ...
-    def __new__(cls, v:typing.Sequence[typing.Any]) -> List: ...
-    def as_string(self) -> builtins.str:
-        r"""
-        Returns a string representation of the value.
-        """
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
-    def __getitem__(self, idx:builtins.int) -> typing.Any: ...
-    def __setitem__(self, idx:builtins.int, v:typing.Any) -> None: ...
-    def __delitem__(self, idx:builtins.int) -> None: ...
-    def __concat__(self, other:List) -> List: ...
-    def __inplace_concat__(self, other:List) -> List: ...
-    def __repeat__(self, times:builtins.int) -> List: ...
-    def __inplace_repeat__(self, times:builtins.int) -> List: ...
-    def __hash__(self) -> builtins.int: ...
-    def __len__(self) -> builtins.int: ...
-    def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
-    def __iter__(self) -> List: ...
-    def __next__(self) -> typing.Optional[typing.Any]: ...
-
-class Map:
-    @property
-    def value(self) -> builtins.dict[typing.Any, typing.Any]: ...
-    @value.setter
-    def value(self, value: builtins.dict[typing.Any, typing.Any]) -> None: ...
-    def __new__(cls, v:typing.Mapping[typing.Any, typing.Any]) -> Map: ...
-    def as_string(self) -> builtins.str:
-        r"""
-        Returns a string representation of the value.
-        """
-    def __richcmp__(self, other:typing.Any, op:int) -> builtins.bool: ...
-    def __str__(self) -> builtins.str: ...
-    def __repr__(self) -> builtins.str: ...
-
 class PartitionFilter:
     def __new__(cls) -> PartitionFilter: ...
     def done(self) -> builtins.bool: ...
@@ -802,9 +571,6 @@ class QueryPolicy:
     def __new__(cls) -> QueryPolicy: ...
 
 class ReadPolicy(BasePolicy):
-    ...
-
-class Record:
     ...
 
 class Recordset:

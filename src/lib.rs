@@ -390,6 +390,7 @@ pub enum Replica {
         v: _Expiration,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl Expiration {
         #[classattr]
@@ -1628,7 +1629,7 @@ pub enum Replica {
             }
         }
 
-        #[getter]
+        #[getter(record_exists_action)]
         pub fn get_record_exists_action(&self) -> RecordExistsAction {
             match &self._as.record_exists_action {
                 aerospike_core::RecordExistsAction::Update => RecordExistsAction::Update,
@@ -1639,7 +1640,7 @@ pub enum Replica {
             }
         }
 
-        #[setter]
+        #[setter(record_exists_action)]
         pub fn set_record_exists_action(&mut self, record_exists_action: RecordExistsAction) {
             self._as.record_exists_action = match record_exists_action {
                 RecordExistsAction::Update => aerospike_core::RecordExistsAction::Update,
