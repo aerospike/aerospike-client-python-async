@@ -89,20 +89,27 @@ class NoMoreConnections(AerospikeError):
     # with simpler imports
     import re
     content = re.sub(
-        r'from aerospike_async\._aerospike_async_native import (\w+)',
-        r'from aerospike_async import \1',
+        r'from aerospike_async\._aerospike_async_native import ([\w, ]+)',
+        r'from ._aerospike_async_native import \1',
         content
+    )
+    # Fix any existing circular imports
+    content = re.sub(
+        r'^from aerospike_async import (Key|Record|Blob|GeoJSON|HLL|List|Map)\b',
+        r'from ._aerospike_async_native import \1',
+        content,
+        flags=re.MULTILINE
     )
     content = re.sub(
         r'from \. import _aerospike_async_native',
         r'from . import _aerospike_async_native',
         content
     )
-
+    
     # Write the fixed content back
     with open(pyi_file_path, 'w') as f:
         f.write(content)
-
+    
     # Check if exceptions are already added
     if 'class AerospikeError(' in content:
         print(f"Exception stubs already present in {pyi_file_path}")
