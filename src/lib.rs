@@ -2174,6 +2174,40 @@ pub enum Replica {
             Key { _as }
         }
 
+        #[staticmethod]
+        /// Create a Key from a namespace, set, and digest (20-byte hash).
+        /// The digest can be provided as bytes or a hex-encoded string.
+        pub fn key_with_digest(namespace: &str, set: &str, digest: &Bound<'_, PyAny>) -> PyResult<Self> {
+            let digest_bytes: Vec<u8> = if let Ok(bytes) = digest.extract::<Vec<u8>>() {
+                bytes
+            } else if let Ok(hex_str) = digest.extract::<String>() {
+                hex::decode(&hex_str).map_err(|e| PyValueError::new_err(format!("Invalid hex digest: {}", e)))?
+            } else if let Ok(byte_array) = digest.extract::<&[u8]>() {
+                byte_array.to_vec()
+            } else {
+                return Err(PyTypeError::new_err("Digest must be bytes, bytearray, or hex string"));
+            };
+
+            if digest_bytes.len() != 20 {
+                return Err(PyValueError::new_err(format!(
+                    "Digest must be exactly 20 bytes, got {} bytes",
+                    digest_bytes.len()
+                )));
+            }
+
+            let mut digest_array = [0u8; 20];
+            digest_array.copy_from_slice(&digest_bytes);
+
+            let _as = aerospike_core::Key {
+                namespace: namespace.to_string(),
+                set_name: set.to_string(),
+                user_key: None,
+                digest: digest_array,
+            };
+
+            Ok(Key { _as })
+        }
+
         #[getter]
         pub fn get_namespace(&self) -> String {
             self._as.namespace.clone()
