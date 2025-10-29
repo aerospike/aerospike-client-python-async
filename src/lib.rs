@@ -157,6 +157,7 @@ impl From<RustClientError> for PyErr {
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Priority of operations on database server.
+#[gen_stub_pyclass_enum(module = "aerospike_async")]
 #[pyclass(module = "aerospike_async")]
 #[derive(Debug, Clone, Copy)]
 pub enum Replica {
@@ -165,12 +166,6 @@ pub enum Replica {
     PreferRack,
 }
 
-    impl PyStubType for Replica {
-        fn type_output() -> TypeInfo {
-            TypeInfo::any()
-        }
-    }
-    
     impl From<&Replica> for aerospike_core::policy::Replica {
         fn from(input: &Replica) -> Self {
             match &input {
@@ -1603,7 +1598,7 @@ pub enum Replica {
     #[pyclass(
         name = "WritePolicy",
         module = "aerospike_async",
-        subclass,
+        extends = BasePolicy,
         freelist = 1000
     )]
     #[derive(Debug, Clone)]
@@ -1613,20 +1608,17 @@ pub enum Replica {
 
 
     /// `WritePolicy` encapsulates parameters for all write operations.
-    impl Default for WritePolicy {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
 
-    #[gen_stub_pymethods]
     #[pymethods]
     impl WritePolicy {
         #[new]
-        pub fn new() -> Self {
-            WritePolicy {
+        pub fn new() -> PyClassInitializer<Self> {
+            let write_policy = WritePolicy {
                 _as: aerospike_core::WritePolicy::default(),
-            }
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(write_policy)
         }
 
         #[getter(record_exists_action)]
@@ -1748,7 +1740,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_durable_delete(&self) -> bool {
-            self._as.respond_per_each_op
+            self._as.durable_delete
         }
 
         #[setter]

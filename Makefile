@@ -14,6 +14,8 @@ stubs:
 	source aerospike.env && cargo run --no-default-features --bin stub_gen
 	# Add exception stubs (create_exception! doesn't generate stubs automatically)
 	python python/add_exception_stubs.py python/aerospike_async/__init__.pyi
+	# Add policy stubs (PyClassInitializer classes don't generate method stubs automatically)
+	python python/add_policy_stubs.py python/aerospike_async/__init__.pyi
 	@echo "Generated stubs in python/aerospike_async/__init__.pyi"
 
 lint:
