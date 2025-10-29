@@ -2,6 +2,13 @@
 
 ## Setup Instructions
 
+### Customize your aerospike environment file (aerospike.env)
+Edit the ```aerospike.env``` file to match your Aerospike database node configuration:
+```commandline
+export AEROSPIKE_HOST=localhost:3100
+```
+<br>
+
 ### Setup local virtual environment (pyenv is recommended, but any can work)
 
 #### Install python packages:
