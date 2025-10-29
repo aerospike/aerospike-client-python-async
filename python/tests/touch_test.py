@@ -21,7 +21,6 @@ class TestTouch(TestFixtureInsertRecord):
         retval = await client.touch(wp, key)
         assert retval is None
 
-
     async def test_nonexistent_record(self, client, key_invalid_primary_key):
         """Test touching a non-existent record raises ServerError."""
         with pytest.raises(ServerError):

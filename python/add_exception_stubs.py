@@ -85,6 +85,24 @@ class NoMoreConnections(AerospikeError):
     with open(pyi_file_path, 'r') as f:
         content = f.read()
     
+    # Fix import statements - replace absolute imports from aerospike_async._aerospike_async_native 
+    # with simpler imports
+    import re
+    content = re.sub(
+        r'from aerospike_async\._aerospike_async_native import (\w+)',
+        r'from aerospike_async import \1',
+        content
+    )
+    content = re.sub(
+        r'from \. import _aerospike_async_native',
+        r'from . import _aerospike_async_native',
+        content
+    )
+
+    # Write the fixed content back
+    with open(pyi_file_path, 'w') as f:
+        f.write(content)
+
     # Check if exceptions are already added
     if 'class AerospikeError(' in content:
         print(f"Exception stubs already present in {pyi_file_path}")
@@ -204,10 +222,10 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python add_exception_stubs.py <path_to_pyi_file>")
         sys.exit(1)
-    
+
     pyi_file = sys.argv[1]
     if not os.path.exists(pyi_file):
         print(f"Error: File {pyi_file} does not exist")
         sys.exit(1)
-    
+
     add_exception_stubs(pyi_file)

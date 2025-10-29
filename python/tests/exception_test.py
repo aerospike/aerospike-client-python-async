@@ -26,7 +26,6 @@ class TestException:
         """Test that AerospikeError is a proper exception."""
         assert issubclass(AerospikeError, Exception)
 
-
     def test_supertype(self):
         """Test that all specific exceptions inherit from AerospikeError."""
         exceptions = [

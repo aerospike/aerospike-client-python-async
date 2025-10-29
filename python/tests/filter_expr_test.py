@@ -16,7 +16,6 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         assert isinstance(rec, Record)
         assert rec.bins == {"brand": "Ford", "year": 1964}
 
-
     async def test_non_matching_filter_exp(self, client, key):
         """Test using a non-matching filter expression raises ServerError."""
         rp = ReadPolicy()
@@ -35,12 +34,10 @@ class TestFilterExprCreate:
         expr = fe.key(exp_type=ExpType.String)
         assert isinstance(expr, fe)
 
-
     def test_key_exists(self):
         """Test creating key_exists expression."""
         expr = fe.key_exists()
         assert isinstance(expr, fe)
-
 
     def test_bins(self):
         """Test creating bin expressions."""
@@ -59,66 +56,55 @@ class TestFilterExprCreate:
             expr = func(name="bin")
             assert isinstance(expr, fe)
 
-
     def test_bin_exists(self):
         """Test creating bin_exists expression."""
         expr = fe.bin_exists(name="bin")
         assert isinstance(expr, fe)
-
 
     def test_bin_type(self):
         """Test creating bin_type expression."""
         expr = fe.bin_type(name="bin")
         assert isinstance(expr, fe)
 
-
     def test_set_name(self):
         """Test creating set_name expression."""
         expr = fe.set_name()
         assert isinstance(expr, fe)
-
 
     def test_device_size(self):
         """Test creating device_size expression."""
         expr = fe.device_size()
         assert isinstance(expr, fe)
 
-
     def test_last_update(self):
         """Test creating last_update expression."""
         expr = fe.last_update()
         assert isinstance(expr, fe)
-
 
     def test_since_update(self):
         """Test creating since_update expression."""
         expr = fe.since_update()
         assert isinstance(expr, fe)
 
-
     def test_void_time(self):
         """Test creating void_time expression."""
         expr = fe.void_time()
         assert isinstance(expr, fe)
-
 
     def test_ttl(self):
         """Test creating ttl expression."""
         expr = fe.ttl()
         assert isinstance(expr, fe)
 
-
     def test_is_tombstone(self):
         """Test creating is_tombstone expression."""
         expr = fe.is_tombstone()
         assert isinstance(expr, fe)
 
-
     def test_digest_modulo(self):
         """Test creating digest_modulo expression."""
         expr = fe.digest_modulo(modulo=7)
         assert isinstance(expr, fe)
-
 
     def test_regex_compare(self):
         """Test creating regex_compare expression."""
@@ -127,14 +113,12 @@ class TestFilterExprCreate:
         )
         assert isinstance(expr, fe)
 
-
     def test_geo_compare(self):
         """Test creating geo_compare expression."""
         geo_bin = fe.geo_bin("bin")
         geo_val = fe.geo_val('{"type":"Point","coordinates":[-80.590003, 28.60009]}')
         expr = fe.geo_compare(left=geo_bin, right=geo_val)
         assert isinstance(expr, fe)
-
 
     def test_vals(self):
         """Test creating value expressions."""
@@ -151,12 +135,10 @@ class TestFilterExprCreate:
             expr = func(val=value)
             assert isinstance(expr, fe)
 
-
     def test_nil(self):
         """Test creating nil expression."""
         expr = fe.nil()
         assert isinstance(expr, fe)
-
 
     def test_xor(self):
         """Test creating xor expression."""
@@ -165,14 +147,12 @@ class TestFilterExprCreate:
         )
         assert isinstance(expr, fe)
 
-
     def test_equality(self):
         """Test creating equality expressions."""
         funcs = [fe.eq, fe.ne, fe.gt, fe.ge, fe.lt, fe.le]
         for func in funcs:
             expr = func(left=fe.int_bin("bin"), right=fe.int_val(4))
             assert isinstance(expr, fe)
-
 
     def test_num_arithmetic(self):
         """Test creating numeric arithmetic expressions."""
@@ -181,54 +161,45 @@ class TestFilterExprCreate:
             expr = func(exps=[fe.int_bin("bin1"), fe.int_bin("bin2")])
             assert isinstance(expr, fe)
 
-
     def test_num_pow(self):
         """Test creating num_pow expression."""
         expr = fe.num_pow(base=fe.float_bin("bin"), exponent=fe.float_val(4))
         assert isinstance(expr, fe)
-
 
     def test_num_log(self):
         """Test creating num_log expression."""
         expr = fe.num_log(num=fe.float_bin("bin"), base=fe.float_val(10))
         assert isinstance(expr, fe)
 
-
     def test_num_mod(self):
         """Test creating num_mod expression."""
         expr = fe.num_mod(numerator=fe.int_bin("bin"), denominator=fe.int_val(3))
         assert isinstance(expr, fe)
-
 
     def test_num_abs(self):
         """Test creating num_abs expression."""
         expr = fe.num_abs(value=fe.int_val(-3))
         assert isinstance(expr, fe)
 
-
     def test_num_floor(self):
         """Test creating num_floor expression."""
         expr = fe.num_floor(num=fe.float_val(5.3))
         assert isinstance(expr, fe)
-
 
     def test_num_ceil(self):
         """Test creating num_ceil expression."""
         expr = fe.num_ceil(num=fe.float_val(5.3))
         assert isinstance(expr, fe)
 
-
     def test_to_int(self):
         """Test creating to_int expression."""
         expr = fe.to_int(num=fe.float_val(5.3))
         assert isinstance(expr, fe)
 
-
     def test_to_float(self):
         """Test creating to_float expression."""
         expr = fe.to_float(num=fe.int_val(5))
         assert isinstance(expr, fe)
-
 
     def test_int_bitwise_ops(self):
         """Test creating integer bitwise operation expressions."""
@@ -237,12 +208,10 @@ class TestFilterExprCreate:
             expr = func(exps=[fe.int_bin("bin"), fe.int_val(4)])
             assert isinstance(expr, fe)
 
-
     def test_int_not(self):
         """Test creating int_not expression."""
         expr = fe.int_not(fe.int_val(5))
         assert isinstance(expr, fe)
-
 
     def test_int_shift(self):
         """Test creating integer shift expressions."""
@@ -255,12 +224,10 @@ class TestFilterExprCreate:
             expr = func(value=fe.int_bin("bin"), shift=fe.int_val(4))
             assert isinstance(expr, fe)
 
-
     def test_int_count(self):
         """Test creating int_count expression."""
         expr = fe.int_count(fe.int_bin("bin"))
         assert isinstance(expr, fe)
-
 
     def test_int_scan(self):
         """Test creating integer scan expressions."""
@@ -269,7 +236,6 @@ class TestFilterExprCreate:
             expr = func(value=fe.int_bin("bin"), search=fe.bool_val(True))
             assert isinstance(expr, fe)
 
-
     def test_min_max(self):
         """Test creating min/max expressions."""
         funcs = [fe.min, fe.max]
@@ -277,18 +243,15 @@ class TestFilterExprCreate:
             expr = func(exps=[fe.float_bin("bin"), fe.float_val(5.0)])
             assert isinstance(expr, fe)
 
-
     def test_cond(self):
         """Test creating cond expression."""
         expr = fe.cond(exps=[fe.bool_val(True), fe.int_val(4), fe.int_val(3)])
         assert isinstance(expr, fe)
 
-
     def test_var(self):
         """Test creating var expression."""
         expr = fe.var(name="var")
         assert isinstance(expr, fe)
-
 
     def test_unknown(self):
         """Test creating unknown expression."""

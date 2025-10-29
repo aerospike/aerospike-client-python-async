@@ -5,26 +5,6 @@ from aerospike_async import (
 )
 
 
-class TestReadPolicy:
-    """Test ReadPolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting ReadPolicy fields."""
-        rp = ReadPolicy()
-        rp.consistency_level = ConsistencyLevel.ConsistencyAll
-        rp.timeout = 20000
-        rp.max_retries = 4
-        rp.sleep_between_retries = 1000
-        filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
-        rp.filter_expression = filter_exp
-
-        assert rp.consistency_level == ConsistencyLevel.ConsistencyAll
-        assert rp.timeout == 20000
-        assert rp.max_retries == 4
-        assert rp.sleep_between_retries == 1000
-        assert rp.filter_expression == filter_exp
-
-
 class TestWritePolicy:
     """Test WritePolicy functionality."""
 
@@ -48,6 +28,26 @@ class TestWritePolicy:
         assert wp.send_key is True
         assert wp.respond_per_each_op is True
         assert wp.durable_delete is True
+
+
+class TestReadPolicy:
+    """Test ReadPolicy functionality."""
+
+    def test_set_and_get_fields(self):
+        """Test setting and getting ReadPolicy fields."""
+        rp = ReadPolicy()
+        rp.consistency_level = ConsistencyLevel.ConsistencyAll
+        rp.timeout = 20000
+        rp.max_retries = 4
+        rp.sleep_between_retries = 1000
+        filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
+        rp.filter_expression = filter_exp
+
+        assert rp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert rp.timeout == 20000
+        assert rp.max_retries == 4
+        assert rp.sleep_between_retries == 1000
+        assert rp.filter_expression == filter_exp
 
 
 class TestScanPolicy:

@@ -58,7 +58,6 @@ class TestQuery(TestFixtureInsertRecord):
         # Check that we can call close()
         records.close()
 
-
     async def test_with_policy(self, client, stmt):
         """Test query operation with query policy."""
         qp = QueryPolicy()

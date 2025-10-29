@@ -15,7 +15,6 @@ class TestPrepend(TestFixtureInsertRecord):
         rec = await client.get(ReadPolicy(), key)
         assert rec.bins["brand"] == "FFord"
 
-
     async def test_prepend_with_policy(self, client, key):
         """Test prepend operation with write policy."""
         wp = WritePolicy()
@@ -25,13 +24,11 @@ class TestPrepend(TestFixtureInsertRecord):
         rec = await client.get(ReadPolicy(), key)
         assert rec.bins["brand"] == "FFord"
 
-
     async def test_prepend_nonexistent_bin(self, client, key):
         """Test prepend operation on non-existent bin."""
         await client.append(WritePolicy(), key, {"brand1": "F"})
         rec = await client.get(ReadPolicy(), key)
         assert rec.bins["brand1"] == "F"
-
 
     async def test_prepend_unsupported_type(self, client, key):
         """Test prepend operation with unsupported type raises ServerError."""

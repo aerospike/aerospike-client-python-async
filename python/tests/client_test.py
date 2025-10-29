@@ -5,7 +5,6 @@ import pytest
 from aerospike_async import new_client, ClientPolicy
 from aerospike_async.exceptions import ConnectionError
 
-
 async def test_connect():
     """Test basic client connection."""
 
@@ -22,7 +21,6 @@ async def test_failed_connect():
         client = await new_client(cp, "nonexistent-host:9999")
     assert client is None
     assert exc_info.value.args[0] == "Failed to connect to host(s). The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux."
-
 
 async def test_close():
     """Test client connection and proper closing."""
