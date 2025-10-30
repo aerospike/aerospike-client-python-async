@@ -12,11 +12,10 @@ all: lint dev build test install clean
 stubs:
 	# Generate type stubs and organize them as a Python package
 	source aerospike.env && cargo run --no-default-features --bin stub_gen
-	# Add exception stubs (create_exception! doesn't generate stubs automatically)
-	python python/add_exception_stubs.py python/aerospike_async/__init__.pyi
-	# Add policy stubs (PyClassInitializer classes don't generate method stubs automatically)
-	python python/add_policy_stubs.py python/aerospike_async/__init__.pyi
-	@echo "Generated stubs in python/aerospike_async/__init__.pyi"
+	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
+	python python/postprocess_stubs.py python/aerospike_async/__init__.pyi
+	python python/postprocess_stubs.py python/aerospike_async/_aerospike_async_native.pyi || true
+	@echo "Generated stubs in python/aerospike_async/"
 
 lint:
 	cargo clippy
@@ -26,6 +25,8 @@ dev:
 	maturin develop
 
 test:
+	# Clear any stale pytest/bytecode cache that might have incorrect imports
+	@python/clean_caches.sh || true
 	source aerospike.env && python -m pytest python/tests
 
 dev-test: dev stubs test

@@ -1,4 +1,3 @@
-import pytest
 from aerospike_async.exceptions import (
     AerospikeError,
     ServerError,
