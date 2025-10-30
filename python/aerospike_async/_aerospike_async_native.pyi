@@ -3,7 +3,6 @@
 
 import builtins
 import typing
-from aerospike_async import CollectionIndexType, IndexType, PartitionFilter, Privilege, QueryPolicy, ReadPolicy, ScanPolicy, Statement, WritePolicy
 
 class Blob:
     @property
@@ -199,6 +198,12 @@ class Key:
     @property
     def digest(self) -> typing.Optional[builtins.str]: ...
     def __new__(cls, namespace:builtins.str, set:builtins.str, key:typing.Any) -> Key: ...
+    @staticmethod
+    def key_with_digest(namespace:builtins.str, set:builtins.str, digest:typing.Any) -> Key:
+        r"""
+        Create a Key from a namespace, set, and digest (20-byte hash).
+        The digest can be provided as bytes or a hex-encoded string.
+        """
     def __richcmp__(self, other:Key, op:int) -> builtins.bool: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

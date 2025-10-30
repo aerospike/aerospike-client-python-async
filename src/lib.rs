@@ -157,8 +157,8 @@ impl From<RustClientError> for PyErr {
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Priority of operations on database server.
-#[gen_stub_pyclass_enum(module = "aerospike_async")]
-#[pyclass(module = "aerospike_async")]
+#[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+#[pyclass(module = "_aerospike_async_native")]
 #[derive(Debug, Clone, Copy)]
 pub enum Replica {
     Master,
@@ -181,8 +181,8 @@ pub enum Replica {
     //  ConsistencyLevel
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ConsistencyLevel {
         ConsistencyOne,
@@ -228,8 +228,8 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// `RecordExistsAction` determines how to handle record writes based on record generation.
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum RecordExistsAction {
         Update,
@@ -282,8 +282,8 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum GenerationPolicy {
         #[pyo3(name = "None_")]
@@ -331,8 +331,8 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum CommitLevel {
         CommitAll,
@@ -373,10 +373,10 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Expiration",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -453,8 +453,8 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Underlying data type of secondary index.
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum IndexType {
         Numeric,
@@ -480,8 +480,8 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Secondary index collection type.
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum CollectionIndexType {
         Default,
@@ -511,8 +511,8 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Secondary index collection type.
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum PrivilegeCode {
         /// User can edit/remove other users.  Global scope only.
@@ -595,8 +595,8 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Expression Data Types for usage in some `FilterExpressions`
-    #[gen_stub_pyclass_enum(module = "aerospike_async")]
-    #[pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
         Nil,
@@ -637,10 +637,10 @@ pub enum Replica {
 
     /// Filter expression, which can be applied to most commands, to control which records are
     /// affected by the command.
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "FilterExpression",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -1366,10 +1366,10 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "PartitionFilter",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         freelist = 1000
     )]
     #[derive(Debug, Clone)]
@@ -1430,12 +1430,12 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "BasePolicy",
         subclass,
         freelist = 1000,
-        module = "aerospike_async"
+        module = "_aerospike_async_native"
     )]
     #[derive(Debug, Clone)]
     pub struct BasePolicy {
@@ -1536,11 +1536,11 @@ pub enum Replica {
         }
     }
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "ReadPolicy",
         freelist = 1000,
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         extends = BasePolicy
     )]
     #[derive(Debug, Clone)]
@@ -1594,10 +1594,10 @@ pub enum Replica {
         }
     }
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "WritePolicy",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         extends = BasePolicy,
         freelist = 1000
     )]
@@ -1755,10 +1755,10 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "QueryPolicy",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -1842,10 +1842,10 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "ScanPolicy",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -1923,10 +1923,10 @@ pub enum Replica {
         // }
     }
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "ClientPolicy",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -2082,7 +2082,7 @@ pub enum Replica {
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
     struct Record {
@@ -2158,7 +2158,7 @@ pub enum Replica {
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
     pub struct Key {
@@ -2172,6 +2172,40 @@ pub enum Replica {
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
             let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
             Key { _as }
+        }
+
+        #[staticmethod]
+        /// Create a Key from a namespace, set, and digest (20-byte hash).
+        /// The digest can be provided as bytes or a hex-encoded string.
+        pub fn key_with_digest(namespace: &str, set: &str, digest: &Bound<'_, PyAny>) -> PyResult<Self> {
+            let digest_bytes: Vec<u8> = if let Ok(bytes) = digest.extract::<Vec<u8>>() {
+                bytes
+            } else if let Ok(hex_str) = digest.extract::<String>() {
+                hex::decode(&hex_str).map_err(|e| PyValueError::new_err(format!("Invalid hex digest: {}", e)))?
+            } else if let Ok(byte_array) = digest.extract::<&[u8]>() {
+                byte_array.to_vec()
+            } else {
+                return Err(PyTypeError::new_err("Digest must be bytes, bytearray, or hex string"));
+            };
+
+            if digest_bytes.len() != 20 {
+                return Err(PyValueError::new_err(format!(
+                    "Digest must be exactly 20 bytes, got {} bytes",
+                    digest_bytes.len()
+                )));
+            }
+
+            let mut digest_array = [0u8; 20];
+            digest_array.copy_from_slice(&digest_bytes);
+
+            let _as = aerospike_core::Key {
+                namespace: namespace.to_string(),
+                set_name: set.to_string(),
+                user_key: None,
+                digest: digest_array,
+            };
+
+            Ok(Key { _as })
         }
 
         #[getter]
@@ -2228,10 +2262,10 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Query statement parameters.
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Statement",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -2287,10 +2321,10 @@ pub enum Replica {
     /// - `as_within_region`
     /// - `as_within_radius`
     /// - `as_regions_containing_point`
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Filter",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -2426,10 +2460,10 @@ pub enum Replica {
     /// multiple threads will retrieve records from the server nodes and put these records on an
     /// internal queue managed by the recordset. The single user thread consumes these records from the
     /// queue.
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Recordset",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1000
     )]
@@ -2473,7 +2507,7 @@ pub enum Replica {
      *
      **********************************************************************************/
 
-    #[pyclass(subclass, freelist = 1, module = "aerospike_async")]
+    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     struct User {
         _as: aerospike_core::User,
@@ -2534,7 +2568,7 @@ pub enum Replica {
      *
      **********************************************************************************/
 
-    #[pyclass(subclass, freelist = 1, module = "aerospike_async")]
+    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     struct Role {
         _as: aerospike_core::Role,
@@ -2583,10 +2617,10 @@ pub enum Replica {
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Privilege",
-        module = "aerospike_async",
+        module = "_aerospike_async_native",
         subclass,
         freelist = 1
     )]
@@ -2654,7 +2688,7 @@ pub enum Replica {
      * Client
      *
      **********************************************************************************/
-    #[gen_stub_pyfunction(module = "aerospike_async")]
+    #[gen_stub_pyfunction(module = "_aerospike_async_native")]
     #[pyfunction]
     #[gen_stub(override_return_type(type_repr="typing.Awaitable[Client]", imports=("typing")))]
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
@@ -2677,7 +2711,7 @@ pub enum Replica {
         .into())
     }
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
     struct Client {
@@ -3434,7 +3468,7 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct Blob {
@@ -3621,7 +3655,7 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct Map {
@@ -3775,7 +3809,7 @@ pub enum Replica {
         }
     }
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct List {
@@ -3941,7 +3975,7 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Debug, Clone)]
     pub struct GeoJSON {
@@ -4024,7 +4058,7 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "aerospike_async")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, sequence)]
     #[derive(Debug, Clone)]
     pub struct HLL {

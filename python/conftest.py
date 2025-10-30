@@ -37,6 +37,12 @@ def pytest_configure(config):
     
     # Print loaded environment variables for debugging
     print(f"Loaded environment variables from {env_file}\n")
+    
+    # Ensure python path includes the python directory for imports
+    import sys
+    python_dir = Path(__file__).parent
+    if str(python_dir) not in sys.path:
+        sys.path.insert(0, str(python_dir))
 
 @pytest.fixture(scope="session")
 def aerospike_host():

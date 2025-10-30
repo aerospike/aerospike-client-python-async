@@ -3,10 +3,16 @@
 
 import builtins
 import typing
-from ._aerospike_async_native import Client, Key
+from ._aerospike_async_native import Key, Client, Record
 from . import _aerospike_async_native
 from enum import Enum
 
+
+
+# Re-export Key, Client, and Record for type checking
+Key: type = _aerospike_async_native.Key
+Client: type = _aerospike_async_native.Client
+Record: type = _aerospike_async_native.Record
 class BasePolicy:
     @property
     def consistency_level(self) -> ConsistencyLevel: ...
