@@ -1,6 +1,5 @@
 import pytest
 from aerospike_async import Recordset, ScanPolicy, Record, PartitionFilter
-from aerospike_async.exceptions import ServerError, InvalidNodeError
 from fixtures import TestFixtureInsertRecord
 
 

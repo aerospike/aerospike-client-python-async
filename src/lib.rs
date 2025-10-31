@@ -2719,6 +2719,17 @@ pub enum Replica {
         seeds: String,
     }
 
+    // Helper function to check if a key exists (internal use, shared by exists() and exists_legacy())
+    impl Client {
+        async fn exists_internal(
+            client: std::sync::Arc<RwLock<aerospike_core::Client>>,
+            policy: aerospike_core::ReadPolicy,
+            key: aerospike_core::Key,
+        ) -> Result<bool, Error> {
+            client.read().await.exists(&policy, &key).await
+        }
+    }
+
     #[gen_stub_pymethods]
     #[pymethods]
     impl Client {
@@ -2964,14 +2975,66 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let res = client
-                    .read()
-                    .await
-                    .exists(&policy, &key)
+                let res = Self::exists_internal(client, policy, key)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(res)
+            })
+        }
+
+        /// Determine if a record key exists (legacy contract). Returns (key, meta) where meta=None if record not found.
+        /// This matches the legacy Python client contract.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]", imports=("typing")))]
+        pub fn exists_legacy<'a>(
+            &self,
+            policy: &ReadPolicy,
+            key: &Key,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                // Reuse the same logic as exists() but return (key, meta) tuple
+                let exists = Self::exists_internal(client.clone(), policy.clone(), key.clone())
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                // Return (key, meta) tuple where meta=None if record doesn't exist
+                // If record exists, get metadata (generation, ttl)
+                let meta_record = if exists {
+                    // Get metadata by calling get() with empty bins
+                    Some(client
+                        .read()
+                        .await
+                        .get(&policy, &key, aerospike_core::Bins::None)
+                        .await
+                        .map_err(|e| PyErr::from(RustClientError(e)))?)
+                } else {
+                    None
+                };
+
+                // This matches the legacy Python client contract
+                Python::attach(|py| {
+                    let key_obj = Py::new(py, Key { _as: key })?;
+                    let meta = if let Some(record) = meta_record {
+                        // Create a dict with generation and ttl metadata
+                        let meta_dict = pyo3::types::PyDict::new(py);
+                        meta_dict.set_item("gen", record.generation)?;
+                        if let Some(ttl) = record.time_to_live() {
+                            meta_dict.set_item("ttl", ttl.as_secs() as u32)?;
+                        } else {
+                            meta_dict.set_item("ttl", py.None())?;
+                        }
+                        meta_dict.into()
+                    } else {
+                        py.None()
+                    };
+                    let tuple = pyo3::types::PyTuple::new(py, [key_obj.into(), meta])?;
+                    Ok(tuple.unbind())
+                })
             })
         }
 
