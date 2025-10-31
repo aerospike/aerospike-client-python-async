@@ -1,7 +1,6 @@
 import pytest
 import os
-from aerospike_async import Client, Key, new_client, Record, ReadPolicy, WritePolicy, ClientPolicy, GeoJSON
-from aerospike_async import FilterExpression as fe
+from aerospike_async import Key, new_client, WritePolicy, ClientPolicy, GeoJSON
 
 
 class TestFixtureConnection:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 User Test - Tests for privilege objects and basic functionality.
 Security-related tests are in security_test.py

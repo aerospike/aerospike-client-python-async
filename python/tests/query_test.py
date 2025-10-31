@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy, PartitionFilter
-from aerospike_async.exceptions import ServerError, InvalidNodeError
+from aerospike_async.exceptions import InvalidNodeError
 from fixtures import TestFixtureInsertRecord
 
 

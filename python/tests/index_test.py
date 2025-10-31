@@ -1,6 +1,6 @@
 import pytest
 from aerospike_async import IndexType, CollectionIndexType
-from aerospike_async.exceptions import ServerError, AerospikeError
+from aerospike_async.exceptions import AerospikeError
 from fixtures import TestFixtureConnection
 
 

@@ -27,5 +27,6 @@ class TestDelete(TestFixtureInsertRecord):
         """Test delete operation with invalid namespace raises ConnectionError (timeout)."""
         wp = WritePolicy()
         wp.expiration = Expiration.NEVER_EXPIRE
-        with pytest.raises(ConnectionError):
+        with pytest.raises(ConnectionError) as exi:
             await client.delete(wp, key_invalid_namespace)
+        assert exi.value.args[0] == "Timeout after 4 tries"

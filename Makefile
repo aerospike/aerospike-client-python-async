@@ -11,10 +11,15 @@ all: lint dev build test install clean
 
 stubs:
 	# Generate type stubs and organize them as a Python package
+	# stub_gen.rs will automatically move _aerospike_async_native.pyi to the correct location
 	source aerospike.env && cargo run --no-default-features --bin stub_gen
 	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
-	python python/postprocess_stubs.py python/aerospike_async/__init__.pyi
-	python python/postprocess_stubs.py python/aerospike_async/_aerospike_async_native.pyi || true
+	@if [ -f python/aerospike_async/__init__.pyi ]; then \
+		python python/postprocess_stubs.py python/aerospike_async/__init__.pyi; \
+	fi
+	@if [ -f python/aerospike_async/_aerospike_async_native.pyi ]; then \
+		python python/postprocess_stubs.py python/aerospike_async/_aerospike_async_native.pyi; \
+	fi
 	@echo "Generated stubs in python/aerospike_async/"
 
 lint:

@@ -5,7 +5,6 @@ These tests require a server with security enabled and proper authentication.
 """
 
 import pytest
-import asyncio
 import os
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 
