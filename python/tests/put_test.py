@@ -1,7 +1,7 @@
 import os
 import pytest_asyncio
 
-from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON
+from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
 
 
 @pytest_asyncio.fixture
@@ -187,3 +187,44 @@ async def test_put_GeoJSON(client_and_key):
     rec = await client.get(rp, key)
     assert rec is not None
     assert rec.bins == {"bin": geo}
+
+async def test_put_edge_types(client_and_key):
+    """Test putting edge case types: None, null(), large u64 (in List), and geojson helper."""
+    client, rp, key = client_and_key
+
+    wp = WritePolicy()
+
+    # Create record with a non-Nil value first (Aerospike requires at least one non-Nil bin)
+    await client.put(wp, key, {"placeholder": 1})
+
+    # Put None value (adds to existing record)
+    # Note: None values are stored but not returned by Aerospike when reading
+    await client.put(wp, key, {"a": None})
+
+    # Put null() value (adds to existing record)
+    await client.put(wp, key, {"b": null()})
+
+    # Verify None/null() were accepted (no errors) and are not returned (Aerospike behavior)
+    rec = await client.get(rp, key)
+    assert rec is not None
+    assert "a" not in rec.bins  # Nil bins are not returned
+    assert "b" not in rec.bins  # Nil bins are not returned
+    assert rec.bins["placeholder"] == 1
+
+    # Put large u64 value in a List (u64 cannot be stored directly as a bin value)
+    # 2^63 = 9223372036854775808, which is > i64::MAX
+    await client.put(wp, key, {"c": List([2 ** 63])})
+
+    # Put geojson helper result
+    await client.put(wp, key, {"geo": geojson("-122.0, 37.5")})
+    # Put geojson helper result (using JSON string format, like legacy client)
+    await client.put(wp, key, {"geo": geojson('{"type": "Point", "coordinates": [-80.604333, 28.608389]}')})
+
+    # Verify all values were stored correctly
+    rec = await client.get(rp, key)
+    assert rec is not None
+    assert rec.bins["placeholder"] == 1
+    # Verify u64 in List (2**63 is stored as UInt internally)
+    assert isinstance(rec.bins["c"], List)
+    assert rec.bins["c"][0] == 2 ** 63
+    assert isinstance(rec.bins["geo"], GeoJSON)

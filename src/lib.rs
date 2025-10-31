@@ -1819,21 +1819,18 @@ pub enum Replica {
             self._as.fail_on_cluster_change = fail_on_cluster_change;
         }
 
-        // #[getter]
-        // pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-        //     match &self._as.filter_expression {
-        //         Some(fe) => Some(FilterExpression { _as: fe.clone() }),
-        //         None => None,
-        //     }
-        // }
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
 
-        // #[setter]
-        // pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
-        //     match filter_expression {
-        //         Some(fe) => self._as.filter_expression = Some(fe._as),
-        //         None => self._as.filter_expression = None,
-        //     }
-        // }
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2328,14 +2325,28 @@ pub enum Replica {
         subclass,
         freelist = 1000
     )]
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct Filter {
         _as: aerospike_core::query::Filter,
+    }
+
+    impl fmt::Display for Filter {
+        fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+            write!(f, "Filter({:?})", self._as)
+        }
     }
 
     #[gen_stub_pymethods]
     #[pymethods]
     impl Filter {
+        fn __str__(&self) -> PyResult<String> {
+            Ok(format!("{}", self))
+        }
+
+        fn __repr__(&self) -> PyResult<String> {
+            Ok(format!("Filter({:?})", self._as))
+        }
+
         #[staticmethod]
         pub fn range(bin_name: &str, begin: PythonValue, end: PythonValue) -> Self {
             Filter {
@@ -2405,25 +2416,41 @@ pub enum Replica {
 
         #[staticmethod]
         // Example code :
-        // $lat = 43.0004;
         // $lng = -89.0005;
+        // $lat = 43.0004;
         // $radius = 1000;
-        // $filter = Filter::regionsContainingPoint("binName", $lat, $lng, $radius);
+        // $filter = Filter::withinRadius("binName", $lng, $lat, $radius);
+        // Note: Public API uses (lng, lat) to match GeoJSON standard [longitude, latitude]
+        // This matches Java's geoWithinRadius(name, lng, lat, radius) signature
+        // 
+        // WORKAROUND: The as_within_radius! macro has bugs:
+        // 1. It expects parameters in (lat, lng) order, not (lng, lat)
+        // 2. It has a typo: generates "Aeroircle" instead of "AeroCircle"
+        // Since we can't fix the macro (it's in aerospike-core), we manually construct
+        // the AeroCircle GeoJSON string with correct type name and use within_region
         pub fn within_radius(
             bin_name: &str,
-            lat: f64,
             lng: f64,
+            lat: f64,
             radius: f64,
             cit: Option<&CollectionIndexType>,
         ) -> Self {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
+            
+            // Manually construct AeroCircle GeoJSON string to match Java client format
+            // Java: String.format("{ \"type\": \"AeroCircle\", \"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
+            // Note: Must use "AeroCircle" (correct) not "Aeroircle" (macro typo)
+            let aero_circle = format!(
+                "{{ \"type\": \"AeroCircle\", \"coordinates\": [[{:.8}, {:.8}], {}] }}",
+                lng, lat, radius
+            );
+            
+            // Use within_region with correctly formatted AeroCircle string
             Filter {
-                _as: aerospike_core::as_within_radius!(
+                _as: aerospike_core::as_within_region!(
                     bin_name,
-                    lat,
-                    lng,
-                    radius,
+                    &aero_circle,
                     aerospike_core::query::CollectionIndexType::from(cit)
                 ),
             }
@@ -4049,8 +4076,29 @@ pub enum Replica {
     #[pymethods]
     impl GeoJSON {
         #[new]
-        pub fn new(v: String) -> Self {
-            GeoJSON { v }
+        pub fn new<'a>(py: Python<'a>, v: &Bound<'a, PyAny>) -> PyResult<Self> {
+            // Accept both String and dict inputs
+            if let Ok(s) = v.extract::<String>() {
+                return Ok(GeoJSON { v: s });
+            }
+
+            // Try to extract as dict and serialize to JSON
+            if let Ok(dict) = v.downcast::<PyDict>() {
+                // Use Python's json module to serialize the dict
+                let json_module = PyModule::import(py, "json")?;
+                let json_dumps = json_module.getattr("dumps")?;
+                let json_string: String = json_dumps.call1((dict,))?.extract()?;
+                return Ok(GeoJSON { v: json_string });
+            }
+
+            // If it's already a GeoJSON object, extract its value
+            if let Ok(geo) = v.extract::<GeoJSON>() {
+                return Ok(geo);
+            }
+
+            Err(PyTypeError::new_err(
+                "GeoJSON constructor requires a string, dict, or GeoJSON object"
+            ))
         }
 
         #[getter]
@@ -4299,7 +4347,10 @@ pub enum Replica {
                 PythonValue::Blob(b) => Ok(Blob::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::List(l) => Ok(List::new(l).into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::HashMap(h) => Ok(h.into_pyobject(py).map_err(|_| unreachable!()).map(|v| v.into_any()).unwrap()),
-                PythonValue::GeoJSON(s) => Ok(GeoJSON::new(s).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::GeoJSON(s) => {
+                    let geo = GeoJSON { v: s };
+                    Ok(geo.into_pyobject(py).map(|v| v.into_any()).unwrap())
+                }
                 PythonValue::HLL(b) => Ok(HLL::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
             }
         }
@@ -4307,14 +4358,33 @@ pub enum Replica {
 
     impl<'source> FromPyObject<'source> for PythonValue {
         fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+            // Handle None first - check if the object is None
+            if ob.is_none() {
+                return Ok(PythonValue::Nil);
+            }
+
             let b: PyResult<bool> = ob.extract();
             if let Ok(b) = b {
                 return Ok(PythonValue::Bool(b));
             }
 
+            // Try to extract as integer - handle both i64 and large u64 values
+            // First try i64 (most common case)
             let i: PyResult<i64> = ob.extract();
             if let Ok(i) = i {
                 return Ok(PythonValue::Int(i));
+            }
+
+            // For large positive integers that don't fit in i64, try u64
+            // Check if the value can be extracted as u64 and is beyond i64::MAX
+            let ui: PyResult<u64> = ob.extract();
+            if let Ok(ui) = ui {
+                // Only use UInt if it's beyond i64::MAX
+                if ui > i64::MAX as u64 {
+                    return Ok(PythonValue::UInt(ui));
+                }
+                // Otherwise, convert to i64 (should fit since ui <= i64::MAX)
+                return Ok(PythonValue::Int(ui as i64));
             }
 
             let f1: PyResult<f64> = ob.extract();
@@ -4476,6 +4546,60 @@ pub enum Replica {
     //     }
     // }
 
+/// Return a null value for use in Aerospike operations.
+/// This is equivalent to Python None but represents an Aerospike null value.
+/// Matches the legacy client's aerospike.null() function.
+#[pyfunction]
+#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+pub fn null(py: Python) -> Bound<PyAny> {
+    py.None().into_bound(py)
+}
+
+/// Convert a GeoJSON string or coordinate pair to a GeoJSON object.
+/// This matches the legacy client's aerospike.geojson() function.
+/// 
+/// Accepts:
+/// - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
+/// - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
+#[pyfunction]
+#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
+    // First, try to parse as GeoJSON JSON string
+    // Check if it looks like JSON (starts with '{' and contains "type")
+    if geo_str.trim_start().starts_with('{') && geo_str.contains("\"type\"") {
+        // Try to parse as JSON and create GeoJSON from it
+        let json_module = PyModule::import(py, "json")?;
+        let json_loads = json_module.getattr("loads")?;
+        let geo_dict = json_loads.call1((geo_str,))?;
+        
+        // Use GeoJSON constructor which accepts dict
+        return GeoJSON::new(py, &geo_dict.into_bound_py_any(py)?.as_any());
+    }
+
+    // Otherwise, try to parse as coordinate pair string like "122.0, 37.5"
+    let parts: Vec<&str> = geo_str.split(',').map(|s| s.trim()).collect();
+    if parts.len() != 2 {
+        return Err(PyValueError::new_err(
+            format!("Invalid input: '{}'. Expected GeoJSON JSON string or coordinate pair 'longitude, latitude'", geo_str)
+        ));
+    }
+
+    let lng: f64 = parts[0].parse()
+        .map_err(|_| PyValueError::new_err(format!("Invalid longitude: '{}'", parts[0])))?;
+    let lat: f64 = parts[1].parse()
+        .map_err(|_| PyValueError::new_err(format!("Invalid latitude: '{}'", parts[1])))?;
+
+    // Create GeoJSON Point structure
+    let point_dict = PyDict::new(py);
+    point_dict.set_item("type", "Point")?;
+    // Create coordinates list [lng, lat]
+    let coords_vec = vec![lng, lat];
+    point_dict.set_item("coordinates", coords_vec)?;
+
+    // Use GeoJSON constructor to create from dict
+    GeoJSON::new(py, &point_dict.as_any())
+}
+
 #[pymodule]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add all main classes to the top level for easy importing
@@ -4507,6 +4631,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     m.add_class::<BasePolicy>()?;
     m.add_class::<ReadPolicy>()?;
+
+    // Add helper functions
+    m.add_function(wrap_pyfunction!(null, m)?)?;
+    m.add_function(wrap_pyfunction!(geojson, m)?)?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
     m.add_class::<ScanPolicy>()?;

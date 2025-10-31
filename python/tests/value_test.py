@@ -1,5 +1,5 @@
 import pytest
-from aerospike_async import GeoJSON, List, Blob, HLL, Map
+from aerospike_async import GeoJSON, List, Blob, HLL, Map, geojson, null
 
 # Common test data
 TEST_BLOB_DATA_1 = [1, 7, 8, 4, 1]
@@ -47,6 +47,45 @@ def test_geo_json_str_repr():
     
     assert str(geo) == geo_str
     assert repr(geo) == f"GeoJSON({geo_str})"
+
+
+def test_geo_json_from_dict():
+    """Test GeoJSON creation from dictionary."""
+    geo_dict = {"type": "Point", "coordinates": [-80.590003, 28.60009]}
+    geo = GeoJSON(geo_dict)
+
+    # Python's json.dumps adds spaces, so we parse and compare the structure
+    import json
+    parsed = json.loads(geo.value)
+    assert parsed == geo_dict
+    assert geo.value.startswith('{"type":')
+    assert '"coordinates"' in geo.value
+
+
+def test_geo_json_from_dict_polygon():
+    """Test GeoJSON creation from dictionary with Polygon type."""
+    geo_dict = {
+        "type": "Polygon",
+        "coordinates": [[[-122.0, 37.0], [-121.0, 37.0], [-121.0, 38.0], [-122.0, 38.0], [-122.0, 37.0]]]
+    }
+    geo = GeoJSON(geo_dict)
+
+    assert "type" in geo.value
+    assert "Polygon" in geo.value
+    assert "coordinates" in geo.value
+
+
+def test_geo_json_from_dict_equality():
+    """Test that GeoJSON created from dict equals GeoJSON created from string."""
+    geo_dict = {"type": "Point", "coordinates": [-80.590003, 28.60009]}
+    geo_from_dict = GeoJSON(geo_dict)
+
+    geo_str = '{"type":"Point","coordinates":[-80.590003,28.60009]}'
+    geo_from_str = GeoJSON(geo_str)
+
+    # Note: JSON serialization may add/remove spaces, so compare parsed values
+    import json
+    assert json.loads(geo_from_dict.value) == json.loads(geo_from_str.value)
 
 def test_list_equality():
     """Test List object creation and equality."""
@@ -374,3 +413,86 @@ def test_hll_set_and_get():
     hll = HLL(bytes([1, 2, 3, 4]))
     hll.value = [5, 6, 7]
     assert hll.value == bytes([5, 6, 7])
+
+
+def test_geojson_helper_function():
+    """Test geojson() helper function that converts coordinate strings to GeoJSON."""
+    geo = geojson("-122.0, 37.5")
+
+    assert isinstance(geo, GeoJSON)
+    assert "type" in geo.value
+    assert "Point" in geo.value
+    assert "coordinates" in geo.value
+
+    # Check coordinates are correct
+    import json
+    geo_data = json.loads(geo.value)
+    assert geo_data["type"] == "Point"
+    assert geo_data["coordinates"] == [-122.0, 37.5]
+
+
+def test_geojson_helper_function_negative_coords():
+    """Test geojson() helper with negative coordinates."""
+    geo = geojson("-80.590003, 28.60009")
+
+    import json
+    geo_data = json.loads(geo.value)
+    assert geo_data["coordinates"] == [-80.590003, 28.60009]
+
+
+def test_geojson_helper_function_invalid():
+    """Test geojson() helper with invalid coordinate string."""
+    with pytest.raises(ValueError):
+        geojson("invalid")
+
+    with pytest.raises(ValueError):
+        geojson("122.0")  # Missing comma
+
+    with pytest.raises(ValueError):
+        geojson("122.0, 37.5, 10.0")  # Too many coordinates
+
+
+def test_null_function():
+    """Test null() helper function returns None."""
+    null_val = null()
+    assert null_val is None
+
+
+def test_none_converts_to_nil():
+    """Test that Python None converts to PythonValue::Nil."""
+    # This test verifies that None is handled correctly in value conversion
+    # None in a list should be preserved as None
+    from aerospike_async import List as ASList
+    test_list = ASList([1, None, 3])
+    # None should be preserved when converting back
+    assert test_list[1] is None
+
+
+def test_u64_large_integer():
+    """Test that large positive integers (u64) are handled correctly."""
+    from aerospike_async import List as ASList, Map as ASMap
+    
+    # i64::MAX is 9223372036854775807
+    # Test with a value larger than i64::MAX
+    large_uint = 2**63 + 1000  # 9223372036854775808 + 1000
+    
+    # This should work in a list or map
+    test_list = ASList([large_uint])
+    assert test_list[0] == large_uint
+    
+    # Test in a map value
+    test_map = ASMap({1: large_uint})
+    assert test_map.value[1] == large_uint
+
+
+def test_u64_boundary_values():
+    """Test u64 boundary values (i64::MAX and i64::MAX + 1)."""
+    from aerospike_async import List as ASList
+    
+    i64_max = 2**63 - 1  # 9223372036854775807
+    i64_max_plus_one = 2**63  # 9223372036854775808
+    
+    # Both should work
+    test_list = ASList([i64_max, i64_max_plus_one])
+    assert test_list[0] == i64_max
+    assert test_list[1] == i64_max_plus_one

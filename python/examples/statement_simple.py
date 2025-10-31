@@ -184,7 +184,7 @@ def show_statement_usage():
     
     print("\n5. Statement with Geo Filter:")
     print("""
-    geo_filter = Filter.within_radius("location", 43.0004, -89.0005, 1000.0, CollectionIndexType.Default)
+    geo_filter = Filter.within_radius("location", -89.0005, 43.0004, 1000.0, CollectionIndexType.Default)  # lng, lat order
     statement = Statement("test", "places", ["name", "location"])
     statement.filters = [geo_filter]
     
@@ -201,7 +201,7 @@ def show_statement_usage():
     - Filter.contains(bin_name, value, cit)                 # Contains value in list/map
     - Filter.contains_range(bin_name, begin, end, cit)      # Contains range in list/map
     - Filter.within_region(bin_name, region, cit)           # Geo region
-    - Filter.within_radius(bin_name, lat, lng, radius, cit) # Geo radius
+    - Filter.within_radius(bin_name, lng, lat, radius, cit) # Geo radius (lng, lat order)
     - Filter.regions_containing_point(bin_name, point, cit) # Geo point
     
     Where cit is CollectionIndexType (Default, List, MapKeys, MapValues)
