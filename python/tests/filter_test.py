@@ -31,8 +31,8 @@ class TestFilter:
         """Test creating a within_radius filter."""
         filter = Filter.within_radius(
             bin_name="bin",
-            lat=20.0,
-            lng=40.0,
+            lng=40.0,  # longitude first (GeoJSON standard: [lng, lat])
+            lat=20.0,  # latitude second
             radius=5.0,
             cit=CollectionIndexType.Default)
         assert isinstance(filter, Filter)

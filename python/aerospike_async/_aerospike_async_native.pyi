@@ -3,7 +3,7 @@
 
 import builtins
 import typing
-from ._aerospike_async_native import Key
+from ._aerospike_async_native import GeoJSON, Key
 from enum import Enum
 
 class BasePolicy:
@@ -95,6 +95,8 @@ class Filter:
     - `as_within_radius`
     - `as_regions_containing_point`
     """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
     @staticmethod
     def range(bin_name:builtins.str, begin:typing.Any, end:typing.Any) -> Filter: ...
     @staticmethod
@@ -104,7 +106,7 @@ class Filter:
     @staticmethod
     def within_region(bin_name:builtins.str, region:builtins.str, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
     @staticmethod
-    def within_radius(bin_name:builtins.str, lat:builtins.float, lng:builtins.float, radius:builtins.float, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
+    def within_radius(bin_name:builtins.str, lng:builtins.float, lat:builtins.float, radius:builtins.float, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
     @staticmethod
     def regions_containing_point(bin_name:builtins.str, point:builtins.str, cit:typing.Optional[CollectionIndexType]) -> Filter: ...
 
@@ -567,6 +569,10 @@ class QueryPolicy:
     def fail_on_cluster_change(self) -> builtins.bool: ...
     @fail_on_cluster_change.setter
     def fail_on_cluster_change(self, value: builtins.bool) -> None: ...
+    @property
+    def filter_expression(self) -> typing.Optional[FilterExpression]: ...
+    @filter_expression.setter
+    def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
     def __new__(cls) -> QueryPolicy: ...
 
 class ReadPolicy(BasePolicy):
@@ -768,5 +774,22 @@ class Replica(Enum):
     Sequence = ...
     PreferRack = ...
 
+def geojson(geo_str:builtins.str) -> GeoJSON:
+    r"""
+    Convert a GeoJSON string or coordinate pair to a GeoJSON object.
+    This matches the legacy client's aerospike.geojson() function.
+    
+    Accepts:
+    - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
+    - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
+    """
+
 def new_client(policy:ClientPolicy, seeds:builtins.str) -> typing.Awaitable[Client]: ...
+
+def null() -> typing.Any:
+    r"""
+    Return a null value for use in Aerospike operations.
+    This is equivalent to Python None but represents an Aerospike null value.
+    Matches the legacy client's aerospike.null() function.
+    """
 
