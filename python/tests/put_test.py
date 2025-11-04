@@ -166,7 +166,23 @@ async def test_put_dict(client_and_key):
 
     rec = await client.get(rp, key)
     assert rec is not None
-    assert rec.bins == {"bin": d}
+    
+    # List and Blob are returned as native Python types
+    # Blob objects become bytes, List objects become lists
+    expected = {
+        "bin": {
+            "str": 1,
+            1: "str",
+            b"Some bytes": 1,  # Blob converted to bytes
+            2: b"Some bytes",  # Blob converted to bytes
+            "true_key": 1.761,
+            9182: False,
+            3: [123, 981, 4.12345, [1858673, "str"]],
+            "false_key": {"something": [123, 981, 4.12345, [1858673, "str"]]},
+            "list_key": [1572, 3.1415],  # List converted to list
+        }
+    }
+    assert rec.bins == expected
 
 async def test_put_GeoJSON(client_and_key):
     """Test putting GeoJSON values."""
@@ -225,6 +241,7 @@ async def test_put_edge_types(client_and_key):
     assert rec is not None
     assert rec.bins["placeholder"] == 1
     # Verify u64 in List (2**63 is stored as UInt internally)
-    assert isinstance(rec.bins["c"], List)
+    # List returns as Python native list
+    assert isinstance(rec.bins["c"], list)
     assert rec.bins["c"][0] == 2 ** 63
     assert isinstance(rec.bins["geo"], GeoJSON)

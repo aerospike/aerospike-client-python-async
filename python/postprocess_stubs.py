@@ -219,6 +219,49 @@ def ensure_exports(content: str) -> str:
     return content
 
 
+def add_client_stubs(content: str) -> str:
+    """Add Client class stubs if missing (pyo3_stub_gen doesn't generate it when only referenced in override_return_type)."""
+    client_stub = '''class Client:
+    r"""
+    Aerospike async client for database operations.
+    Create instances using new_client() function.
+    """
+    def seeds(self) -> builtins.str: ...
+    def close(self) -> None: ...
+    def put(self, policy: WritePolicy, key: Key, bins: typing.Dict[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]: ...
+    def get(self, policy: ReadPolicy, key: Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Any]: ...
+    def add(self, policy: WritePolicy, key: Key, bins: typing.Dict[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]: ...
+    def append(self, policy: WritePolicy, key: Key, bins: typing.Dict[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]: ...
+    def prepend(self, policy: WritePolicy, key: Key, bins: typing.Dict[builtins.str, typing.Any]) -> typing.Awaitable[typing.Any]: ...
+    def delete(self, policy: WritePolicy, key: Key) -> typing.Awaitable[typing.Any]: ...
+    def touch(self, policy: WritePolicy, key: Key) -> typing.Awaitable[typing.Any]: ...
+    def exists(self, policy: ReadPolicy, key: Key) -> typing.Awaitable[typing.Any]: ...
+    def exists_legacy(self, policy: ReadPolicy, key: Key) -> typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]: ...
+    def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None) -> typing.Awaitable[typing.Any]: ...
+    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None) -> typing.Awaitable[typing.Any]: ...
+    def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str) -> typing.Awaitable[typing.Any]: ...
+    def scan(self, policy: ScanPolicy, partition_filter: PartitionFilter, namespace: builtins.str, set_name: builtins.str, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Any]: ...
+    def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
+    def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
+    def drop_user(self, user: builtins.str) -> typing.Awaitable[typing.Any]: ...
+'''
+
+    # Check if Client class is missing
+    if 'class Client:' not in content:
+        # Insert before new_client function
+        new_client_match = re.search(r'^def new_client\(', content, re.MULTILINE)
+        if new_client_match:
+            insert_pos = new_client_match.start()
+            content = content[:insert_pos] + client_stub + '\n' + content[insert_pos:]
+            print("  ✓ Added Client class stubs (pyo3_stub_gen limitation)")
+        else:
+            # Insert at the end if new_client not found
+            content = content + '\n' + client_stub
+            print("  ✓ Added Client class stubs (at end)")
+    
+    return content
+
+
 def add_policy_stubs(content: str) -> str:
     """Add full method stubs for WritePolicy and ReadPolicy classes."""
     read_policy_stub = '''class ReadPolicy(BasePolicy):
@@ -294,39 +337,44 @@ def ensure_exceptions_submodule(package_dir: str):
     print(f"  ✓ Regenerated exceptions submodule stub: {init_stub_path}")
 
     # Always write runtime __init__.py (regenerate every time)
+    # PyO3's create_exception! creates exceptions in aerospike_async.exceptions
+    # The exceptions submodule is created by PyO3 when we call add_submodule
+    # We need to access it from the parent package
     init_py_path = os.path.join(exceptions_dir, '__init__.py')
     with open(init_py_path, 'w') as f:
-        f.write('# Import exceptions from the compiled native module\n')
-        f.write('# Exceptions are registered in Rust and available from the parent module\n')
-        f.write('from .._aerospike_async_native import (\n')
-        f.write('    AerospikeError,\n')
-        f.write('    ServerError,\n')
-        f.write('    UDFBadResponse,\n')
-        f.write('    TimeoutError,\n')
-        f.write('    BadResponse,\n')
-        f.write('    ConnectionError,\n')
-        f.write('    InvalidNodeError,\n')
-        f.write('    NoMoreConnections,\n')
-        f.write('    RecvError,\n')
-        f.write('    Base64DecodeError,\n')
-        f.write('    InvalidUTF8,\n')
-        f.write('    ParseAddressError,\n')
-        f.write('    ParseIntError,\n')
-        f.write('    ValueError,\n')
-        f.write('    IoError,\n')
-        f.write('    PasswordHashError,\n')
-        f.write('    InvalidRustClientArgs,\n')
-        f.write(')\n')
+        f.write('# Exceptions are created by PyO3 in this submodule\n')
+        f.write('# via create_exception!(aerospike_async.exceptions, ...) and add_submodule\n')
+        f.write('# Users can import: from aerospike_async.exceptions import AerospikeError\n')
+        f.write('\n')
+        f.write('import sys\n')
+        f.write('from .. import _aerospike_async_native\n')
+        f.write('\n')
+        f.write('# Access the exceptions submodule created by PyO3\n')
+        f.write('_exceptions = getattr(_aerospike_async_native, "exceptions", None)\n')
+        f.write('if _exceptions is None:\n')
+        f.write('    raise ImportError("Exceptions submodule not found in native module")\n')
+        f.write('\n')
+        f.write('# Re-export all exception classes\n')
+        f.write('AerospikeError = _exceptions.AerospikeError\n')
+        f.write('ServerError = _exceptions.ServerError\n')
+        f.write('UDFBadResponse = _exceptions.UDFBadResponse\n')
+        f.write('TimeoutError = _exceptions.TimeoutError\n')
+        f.write('BadResponse = _exceptions.BadResponse\n')
+        f.write('ConnectionError = _exceptions.ConnectionError\n')
+        f.write('InvalidNodeError = _exceptions.InvalidNodeError\n')
+        f.write('NoMoreConnections = _exceptions.NoMoreConnections\n')
+        f.write('RecvError = _exceptions.RecvError\n')
+        f.write('Base64DecodeError = _exceptions.Base64DecodeError\n')
+        f.write('InvalidUTF8 = _exceptions.InvalidUTF8\n')
+        f.write('ParseAddressError = _exceptions.ParseAddressError\n')
+        f.write('ParseIntError = _exceptions.ParseIntError\n')
+        f.write('ValueError = _exceptions.ValueError\n')
+        f.write('IoError = _exceptions.IoError\n')
+        f.write('PasswordHashError = _exceptions.PasswordHashError\n')
+        f.write('InvalidRustClientArgs = _exceptions.InvalidRustClientArgs\n')
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 
-def add_exception_stubs_to_content(content: str) -> str:
-    """Add exception class stubs to __init__.pyi content if not already present."""
-    if 'class AerospikeError(' not in content:
-        exception_stubs = '\n# Exception classes (added by post-processing script)\n' + EXCEPTION_STUB_CLASSES
-        content = content + exception_stubs
-        print("  ✓ Added exception class stubs")
-    return content
 
 
 def postprocess_stubs(pyi_file_path: str):
@@ -342,12 +390,14 @@ def postprocess_stubs(pyi_file_path: str):
     if '__init__.pyi' in pyi_file_path:
         # Process main package __init__.pyi
         content = ensure_exports(content)
-        content = add_exception_stubs_to_content(content)
+        # Exceptions are only available via aerospike_async.exceptions submodule
+        # (handled by ensure_exceptions_submodule)
         ensure_exceptions_submodule(package_dir)
 
     elif '_aerospike_async_native.pyi' in pyi_file_path:
-        # Process native module stub - replace placeholder policy stubs
+        # Process native module stub - replace placeholder policy stubs and add Client class
         content = add_policy_stubs(content)
+        content = add_client_stubs(content)
 
         # When processing native module, ensure package structure exists
         # Always create/regenerate main package __init__.pyi
