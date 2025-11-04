@@ -11,7 +11,7 @@ use std::time::Duration;
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyException, PyIndexError, PyValueError};
 use pyo3::exceptions::{PyStopIteration, PyTypeError};
-use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict};
+use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
 use pyo3::{prelude::*, IntoPyObjectExt};
 // use pyo3::conversion::IntoPy;
 
@@ -48,7 +48,7 @@ use pyo3::create_exception;
 
 // Create all exceptions using create_exception! macro
 // Base exception class
-create_exception!(aerospike_async, AerospikeError, PyException);
+create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::PyException);
 
 // Server-related exceptions
 create_exception!(aerospike_async.exceptions, ServerError, AerospikeError);
@@ -2741,7 +2741,7 @@ pub enum Replica {
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
-    struct Client {
+    pub struct Client {
         _as: Arc<RwLock<aerospike_core::Client>>,
         seeds: String,
     }
@@ -4082,6 +4082,11 @@ pub enum Replica {
                 return Ok(GeoJSON { v: s });
             }
 
+            // If it's already a GeoJSON object, extract its value
+            if let Ok(geo) = v.extract::<GeoJSON>() {
+                return Ok(geo);
+            }
+
             // Try to extract as dict and serialize to JSON
             if let Ok(dict) = v.downcast::<PyDict>() {
                 // Use Python's json module to serialize the dict
@@ -4091,10 +4096,6 @@ pub enum Replica {
                 return Ok(GeoJSON { v: json_string });
             }
 
-            // If it's already a GeoJSON object, extract its value
-            if let Ok(geo) = v.extract::<GeoJSON>() {
-                return Ok(geo);
-            }
 
             Err(PyTypeError::new_err(
                 "GeoJSON constructor requires a string, dict, or GeoJSON object"
@@ -4344,9 +4345,24 @@ pub enum Replica {
                 PythonValue::UInt(ui) => Ok(ui.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::Float(f) => Ok(f.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::String(s) => Ok(s.into_pyobject(py).map(|v| v.into_any()).unwrap()),
-                PythonValue::Blob(b) => Ok(Blob::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
-                PythonValue::List(l) => Ok(List::new(l).into_pyobject(py).map(|v| v.into_any()).unwrap()),
-                PythonValue::HashMap(h) => Ok(h.into_pyobject(py).map_err(|_| unreachable!()).map(|v| v.into_any()).unwrap()),
+                PythonValue::Blob(b) => Ok(PyBytes::new(py, &b).into_any()),
+                PythonValue::List(l) => {
+                    let py_list = PyList::empty(py);
+                    for item in l {
+                        let py_item = item.into_pyobject(py).unwrap();
+                        py_list.append(py_item).unwrap();
+                    }
+                    Ok(py_list.into_any())
+                }
+                PythonValue::HashMap(h) => {
+                    let py_dict = PyDict::new(py);
+                    for (k, v) in h {
+                        let py_key = k.into_pyobject(py).unwrap();
+                        let py_val = v.into_pyobject(py).unwrap();
+                        py_dict.set_item(py_key, py_val).unwrap();
+                    }
+                    Ok(py_dict.into_any())
+                }
                 PythonValue::GeoJSON(s) => {
                     let geo = GeoJSON { v: s };
                     Ok(geo.into_pyobject(py).map(|v| v.into_any()).unwrap())
@@ -4643,25 +4659,28 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
     
-    
-    // Register all exceptions at the top level for backward compatibility
-    m.add("AerospikeError", py.get_type::<AerospikeError>())?;
-    m.add("ServerError", py.get_type::<ServerError>())?;
-    m.add("UDFBadResponse", py.get_type::<UDFBadResponse>())?;
-    m.add("TimeoutError", py.get_type::<TimeoutError>())?;
-    m.add("BadResponse", py.get_type::<BadResponse>())?;
-    m.add("ConnectionError", py.get_type::<ConnectionError>())?;
-    m.add("InvalidNodeError", py.get_type::<InvalidNodeError>())?;
-    m.add("NoMoreConnections", py.get_type::<NoMoreConnections>())?;
-    m.add("RecvError", py.get_type::<RecvError>())?;
-    m.add("Base64DecodeError", py.get_type::<Base64DecodeError>())?;
-    m.add("InvalidUTF8", py.get_type::<InvalidUTF8>())?;
-    m.add("ParseAddressError", py.get_type::<ParseAddressError>())?;
-    m.add("ParseIntError", py.get_type::<ParseIntError>())?;
-    m.add("ValueError", py.get_type::<ValueError>())?;
-    m.add("IoError", py.get_type::<IoError>())?;
-    m.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
-    m.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
+    // Create and register the exceptions submodule
+    // Exceptions are only available via aerospike_async.exceptions submodule
+    // They are not exposed at the top level to avoid namespace pollution
+    let exceptions_module = PyModule::new(py, "exceptions")?;
+    exceptions_module.add("AerospikeError", py.get_type::<AerospikeError>())?;
+    exceptions_module.add("ServerError", py.get_type::<ServerError>())?;
+    exceptions_module.add("UDFBadResponse", py.get_type::<UDFBadResponse>())?;
+    exceptions_module.add("TimeoutError", py.get_type::<TimeoutError>())?;
+    exceptions_module.add("BadResponse", py.get_type::<BadResponse>())?;
+    exceptions_module.add("ConnectionError", py.get_type::<ConnectionError>())?;
+    exceptions_module.add("InvalidNodeError", py.get_type::<InvalidNodeError>())?;
+    exceptions_module.add("NoMoreConnections", py.get_type::<NoMoreConnections>())?;
+    exceptions_module.add("RecvError", py.get_type::<RecvError>())?;
+    exceptions_module.add("Base64DecodeError", py.get_type::<Base64DecodeError>())?;
+    exceptions_module.add("InvalidUTF8", py.get_type::<InvalidUTF8>())?;
+    exceptions_module.add("ParseAddressError", py.get_type::<ParseAddressError>())?;
+    exceptions_module.add("ParseIntError", py.get_type::<ParseIntError>())?;
+    exceptions_module.add("ValueError", py.get_type::<ValueError>())?;
+    exceptions_module.add("IoError", py.get_type::<IoError>())?;
+    exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
+    exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
+    m.add_submodule(&exceptions_module)?;
     
     Ok(())
 }
