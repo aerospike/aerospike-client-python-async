@@ -123,7 +123,7 @@ async def simple_statement_example():
     
     finally:
         if 'client' in locals() and client is not None:
-            client.close()  # close() is synchronous, not async
+            await client.close()
 
 
 def show_statement_usage():

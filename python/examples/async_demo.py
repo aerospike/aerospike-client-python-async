@@ -55,7 +55,7 @@ class AsyncAerospikeDemo:
     async def disconnect(self):
         """Close the connection."""
         if self.client:
-            self.client.close()
+            await self.client.close()
             print("✓ Disconnected\n")
 
     async def store_records(self, count: int = 10):

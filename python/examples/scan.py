@@ -47,7 +47,7 @@ async def scan_all_records():
         print(f"❌ Error: {e}")
     finally:
         if 'client' in locals() and client is not None:
-            client.close()
+            await client.close()
 
 
 async def scan_specific_bins():
@@ -88,7 +88,7 @@ async def scan_specific_bins():
         print(f"❌ Error: {e}")
     finally:
         if 'client' in locals() and client is not None:
-            client.close()
+            await client.close()
 
 
 async def scan_specific_partition():
@@ -130,7 +130,7 @@ async def scan_specific_partition():
         print(f"❌ Error: {e}")
     finally:
         if 'client' in locals() and client is not None:
-            client.close()
+            await client.close()
 
 
 async def scan_partition_range():
@@ -172,7 +172,7 @@ async def scan_partition_range():
         print(f"❌ Error: {e}")
     finally:
         if 'client' in locals() and client is not None:
-            client.close()
+            await client.close()
 
 
 def show_usage_examples():

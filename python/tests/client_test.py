@@ -28,4 +28,22 @@ async def test_close():
     cp = ClientPolicy()
     client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
-    client.close()
+    await client.close()
+
+
+async def test_is_connected():
+    """Test is_connected() method returns True when connected and False after closing."""
+    cp = ClientPolicy()
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
+    assert client is not None
+
+    # After successful connection, should be connected
+    connected = await client.is_connected()
+    assert connected is True, "Client should be connected after successful new_client()"
+
+    # Close the client (now async)
+    await client.close()
+
+    # After closing, should not be connected
+    connected = await client.is_connected()
+    assert connected is False, "Client should not be connected after close()"

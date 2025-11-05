@@ -28,7 +28,7 @@ class TestSecurityFeatures:
             pytest.skip(f"Could not connect to security server at {host}: {e}")
         finally:
             if 'client' in locals() and client is not None:
-                client.close()
+                await client.close()
 
     @pytest.fixture(autouse=True)
     async def cleanup_users(self, client):
@@ -474,7 +474,7 @@ class TestAuthentication:
 
         with pytest.raises(Exception):
             client = await new_client(client_policy, host)
-            client.close()
+            await client.close()
 
     @pytest.mark.asyncio
     async def test_connection_with_wrong_credentials(self):
@@ -486,7 +486,7 @@ class TestAuthentication:
 
         with pytest.raises(Exception):
             client = await new_client(client_policy, host)
-            client.close()
+            await client.close()
 
     @pytest.mark.asyncio
     async def test_connection_with_correct_credentials(self):
@@ -498,7 +498,7 @@ class TestAuthentication:
 
         try:
             client = await new_client(client_policy, host)
-            client.close()
+            await client.close()
         except Exception as e:
             pytest.skip(f"Could not connect to security server: {e}")
 

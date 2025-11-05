@@ -210,7 +210,7 @@ async def main():
         
     finally:
         # Clean up: close the client connection
-        client.close()
+        await client.close()
         print("Closed client connection")
 
 

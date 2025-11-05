@@ -268,7 +268,7 @@ async def main():
         print("=" * 70)
         
     finally:
-        client.close()
+        await client.close()
         print("\nClosed client connection")
 
 

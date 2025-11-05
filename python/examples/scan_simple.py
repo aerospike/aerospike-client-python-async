@@ -64,7 +64,7 @@ async def simple_scan_example():
     
     finally:
         if 'client' in locals() and client is not None:
-            client.close()  # close() is synchronous, not async
+            await client.close()
 
 
 if __name__ == "__main__":

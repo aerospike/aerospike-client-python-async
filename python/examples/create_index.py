@@ -163,7 +163,7 @@ async def create_index_examples():
     finally:
         # Clean up
         if 'aerospike_client' in locals() and aerospike_client is not None:
-            aerospike_client.close()
+            await aerospike_client.close()
             print("\n✅ Client connection closed")
         else:
             print("\n⚠️ No client to close")
