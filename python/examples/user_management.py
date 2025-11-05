@@ -147,7 +147,7 @@ async def user_management_examples():
     
     finally:
         if 'client' in locals() and client is not None:
-            client.close()
+            await client.close()
             print("✅ Client connection closed")
 
 

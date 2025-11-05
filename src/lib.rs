@@ -2770,8 +2770,34 @@ pub enum Replica {
             &self.seeds
         }
 
-        pub fn close(&self) -> PyResult<()> {
-            Ok(())
+        /// Closes the connection to the Aerospike cluster.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        pub fn close<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                client
+                    .read()
+                    .await
+                    .close()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(())
+            })
+        }
+
+        /// Returns true if the client is connected to any cluster nodes.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        pub fn is_connected<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                Ok(client
+                    .read()
+                    .await
+                    .is_connected()
+                    .await)
+            })
         }
 
         /// Write record bin(s). The policy specifies the transaction timeout, record expiration and

@@ -30,7 +30,7 @@ async def client_and_key():
 
     # Cleanup
     await client.delete(wp, key)
-    client.close()
+    await client.close()
 
 
 class TestGetBinsStandardTypes:

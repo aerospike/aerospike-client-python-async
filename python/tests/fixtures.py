@@ -13,7 +13,7 @@ class TestFixtureConnection:
         cp = ClientPolicy()
         client = await new_client(cp, host)
         yield client
-        client.close()
+        await client.close()
 
 
 class TestFixtureCleanDB(TestFixtureConnection):
@@ -30,7 +30,7 @@ class TestFixtureCleanDB(TestFixtureConnection):
         await client.truncate("test", "test")
         
         yield client
-        client.close()
+        await client.close()
 
     @pytest.fixture
     def key(self):
@@ -80,4 +80,4 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         await client.put(wp, key, original_bin_val)
         
         yield client
-        client.close()
+        await client.close()

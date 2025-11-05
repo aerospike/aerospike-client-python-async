@@ -38,7 +38,7 @@ async def simple_create_index_example():
     
     finally:
         if 'client' in locals() and client is not None:
-            client.close()  # close() is synchronous, not async
+            await client.close()
 
 
 # Quick reference examples
