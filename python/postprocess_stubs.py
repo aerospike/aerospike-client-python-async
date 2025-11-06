@@ -259,7 +259,7 @@ def add_client_stubs(content: str) -> str:
             # Insert at the end if new_client not found
             content = content + '\n' + client_stub
             print("  ✓ Added Client class stubs (at end)")
-    
+
     return content
 
 
@@ -376,8 +376,6 @@ def ensure_exceptions_submodule(package_dir: str):
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 
-
-
 def postprocess_stubs(pyi_file_path: str):
     """Post-process the generated .pyi file to fix all stub issues."""
     print(f"Post-processing stubs: {pyi_file_path}")
@@ -410,6 +408,15 @@ def postprocess_stubs(pyi_file_path: str):
         postprocess_stubs(package_init_path)
 
         ensure_exceptions_submodule(package_dir)
+
+    # Clean up blank lines - remove trailing whitespace from blank lines
+    lines = content.split('\n')
+    cleaned_lines = [line.rstrip() if line.strip() == '' else line for line in lines]
+    content = '\n'.join(cleaned_lines)
+
+    # Ensure file ends with a newline
+    if not content.endswith('\n'):
+        content += '\n'
 
     with open(pyi_file_path, 'w') as f:
         f.write(content)
