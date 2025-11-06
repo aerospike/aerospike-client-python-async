@@ -2035,6 +2035,144 @@ pub enum Replica {
             self._as.conn_pools_per_node = sz;
         }
 
+        /// UseServicesAlternate determines if the client should use "services-alternate"
+        /// instead of "services" in info request during cluster tending.
+        /// "services-alternate" returns server configured external IP addresses that client
+        /// uses to talk to nodes.  "services-alternate" can be used in place of
+        /// providing a client "ipMap".
+        /// This feature is recommended instead of using the client-side IpMap above.
+        ///
+        /// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+        #[getter]
+        pub fn get_use_services_alternate(&self) -> bool {
+            self._as.use_services_alternate
+        }
+
+        #[setter]
+        pub fn set_use_services_alternate(&mut self, value: bool) {
+            self._as.use_services_alternate = value;
+        }
+
+        /// Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to 
+        /// the server node that contains the key and exists on the same rack as the client.
+        /// This serves to lower cloud provider costs when nodes are distributed across different
+        /// racks/data centers.
+        ///
+        /// Replica.PreferRack and server rack configuration must
+        /// also be set to enable this functionality.
+        #[getter]
+        pub fn get_rack_ids(&self) -> Option<Vec<usize>> {
+            self._as.rack_ids.as_ref().map(|set| set.iter().cloned().collect())
+        }
+
+        #[setter]
+        pub fn set_rack_ids(&mut self, value: Option<Vec<usize>>) {
+            self._as.rack_ids = value.map(|v| v.into_iter().collect());
+        }
+
+        /// Size of the thread pool used in scan and query commands. These commands are often sent to
+        /// multiple server nodes in parallel threads. A thread pool improves performance because
+        /// threads do not have to be created/destroyed for each command.
+        #[getter]
+        pub fn get_thread_pool_size(&self) -> usize {
+            self._as.thread_pool_size
+        }
+
+        #[setter]
+        pub fn set_thread_pool_size(&mut self, value: usize) {
+            self._as.thread_pool_size = value;
+        }
+
+        /// Throw exception if host connection fails during addHost().
+        #[getter]
+        pub fn get_fail_if_not_connected(&self) -> bool {
+            self._as.fail_if_not_connected
+        }
+
+        #[setter]
+        pub fn set_fail_if_not_connected(&mut self, value: bool) {
+            self._as.fail_if_not_connected = value;
+        }
+
+        /// Threshold at which the buffer attached to the connection will be shrunk by deallocating
+        /// memory instead of just resetting the size of the underlying vec.
+        /// Should be set to a value that covers as large a percentile of payload sizes as possible,
+        /// while also being small enough not to occupy a significant amount of memory for the life
+        /// of the connection pool.
+        #[getter]
+        pub fn get_buffer_reclaim_threshold(&self) -> usize {
+            self._as.buffer_reclaim_threshold
+        }
+
+        #[setter]
+        pub fn set_buffer_reclaim_threshold(&mut self, value: usize) {
+            self._as.buffer_reclaim_threshold = value;
+        }
+
+        /// TendInterval determines interval for checking for cluster state changes.
+        /// Minimum possible interval is 10 Milliseconds.
+        #[getter]
+        pub fn get_tend_interval(&self) -> u64 {
+            self._as.tend_interval.as_millis() as u64
+        }
+
+        #[setter]
+        pub fn set_tend_interval(&mut self, interval_millis: u64) {
+            self._as.tend_interval = Duration::from_millis(interval_millis);
+        }
+
+        /// A IP translation table is used in cases where different clients
+        /// use different server IP addresses.  This may be necessary when
+        /// using clients from both inside and outside a local area
+        /// network. Default is no translation.
+        /// The key is the IP address returned from friend info requests to other servers.
+        /// The value is the real IP address used to connect to the server.
+        #[getter]
+        pub fn get_ip_map(&self, py: Python) -> PyResult<Py<PyAny>> {
+            match &self._as.ip_map {
+                Some(map) => {
+                    let py_dict = PyDict::new(py);
+                    for (k, v) in map {
+                        py_dict.set_item(k, v)?;
+                    }
+                    Ok(py_dict.into())
+                }
+                None => Ok(py.None().into()),
+            }
+        }
+
+        #[setter]
+        pub fn set_ip_map(&mut self, value: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+            match value {
+                Some(dict) => {
+                    let mut map = HashMap::new();
+                    for (k, v) in dict.iter() {
+                        let key: String = k.extract()?;
+                        let val: String = v.extract()?;
+                        map.insert(key, val);
+                    }
+                    self._as.ip_map = Some(map);
+                }
+                None => {
+                    self._as.ip_map = None;
+                }
+            }
+            Ok(())
+        }
+
+        /// Expected cluster name. It not `None`, server nodes must return this cluster name in order
+        /// to join the client's view of the cluster. Should only be set when connecting to servers
+        /// that support the "cluster-name" info command.
+        #[getter]
+        pub fn get_cluster_name(&self) -> Option<String> {
+            self._as.cluster_name.clone()
+        }
+
+        #[setter]
+        pub fn set_cluster_name(&mut self, value: Option<String>) {
+            self._as.cluster_name = value;
+        }
+
         fn __str__(&self) -> PyResult<String> {
             Ok("".to_string())
         }

@@ -65,6 +65,89 @@ class ClientPolicy:
         """
     @conn_pools_per_node.setter
     def conn_pools_per_node(self, value: builtins.int) -> None: ...
+    @property
+    def use_services_alternate(self) -> builtins.bool:
+        r"""
+        UseServicesAlternate determines if the client should use "services-alternate"
+        instead of "services" in info request during cluster tending.
+        "services-alternate" returns server configured external IP addresses that client
+        uses to talk to nodes.  "services-alternate" can be used in place of
+        providing a client "ipMap".
+        This feature is recommended instead of using the client-side IpMap above.
+
+        "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+        """
+    @use_services_alternate.setter
+    def use_services_alternate(self, value: builtins.bool) -> None: ...
+    @property
+    def rack_ids(self) -> typing.Optional[builtins.list[builtins.int]]:
+        r"""
+        Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to 
+        the server node that contains the key and exists on the same rack as the client.
+        This serves to lower cloud provider costs when nodes are distributed across different
+        racks/data centers.
+
+        Replica.PreferRack and server rack configuration must
+        also be set to enable this functionality.
+        """
+    @rack_ids.setter
+    def rack_ids(self, value: typing.Optional[builtins.list[builtins.int]]) -> None: ...
+    @property
+    def thread_pool_size(self) -> builtins.int:
+        r"""
+        Size of the thread pool used in scan and query commands. These commands are often sent to
+        multiple server nodes in parallel threads. A thread pool improves performance because
+        threads do not have to be created/destroyed for each command.
+        """
+    @thread_pool_size.setter
+    def thread_pool_size(self, value: builtins.int) -> None: ...
+    @property
+    def fail_if_not_connected(self) -> builtins.bool:
+        r"""
+        Throw exception if host connection fails during addHost().
+        """
+    @fail_if_not_connected.setter
+    def fail_if_not_connected(self, value: builtins.bool) -> None: ...
+    @property
+    def buffer_reclaim_threshold(self) -> builtins.int:
+        r"""
+        Threshold at which the buffer attached to the connection will be shrunk by deallocating
+        memory instead of just resetting the size of the underlying vec.
+        Should be set to a value that covers as large a percentile of payload sizes as possible,
+        while also being small enough not to occupy a significant amount of memory for the life
+        of the connection pool.
+        """
+    @buffer_reclaim_threshold.setter
+    def buffer_reclaim_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def tend_interval(self) -> builtins.int:
+        r"""
+        TendInterval determines interval for checking for cluster state changes.
+        Minimum possible interval is 10 Milliseconds.
+        """
+    @tend_interval.setter
+    def tend_interval(self, value: builtins.int) -> None: ...
+    @property
+    def ip_map(self) -> typing.Any:
+        r"""
+        A IP translation table is used in cases where different clients
+        use different server IP addresses.  This may be necessary when
+        using clients from both inside and outside a local area
+        network. Default is no translation.
+        The key is the IP address returned from friend info requests to other servers.
+        The value is the real IP address used to connect to the server.
+        """
+    @ip_map.setter
+    def ip_map(self, value: typing.Optional[dict]) -> None: ...
+    @property
+    def cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Expected cluster name. It not `None`, server nodes must return this cluster name in order
+        to join the client's view of the cluster. Should only be set when connecting to servers
+        that support the "cluster-name" info command.
+        """
+    @cluster_name.setter
+    def cluster_name(self, value: typing.Optional[builtins.str]) -> None: ...
     def __new__(cls) -> ClientPolicy: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
@@ -84,9 +167,9 @@ class Filter:
     r"""
     Query filter definition. Currently, only one filter is allowed in a Statement, and must be on a
     bin which has a secondary index defined.
-    
+
     Filter instances should be instantiated using one of the provided macros:
-    
+
     - `as_eq`
     - `as_range`
     - `as_contains`
@@ -778,7 +861,7 @@ def geojson(geo_str:builtins.str) -> GeoJSON:
     r"""
     Convert a GeoJSON string or coordinate pair to a GeoJSON object.
     This matches the legacy client's aerospike.geojson() function.
-    
+
     Accepts:
     - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
     - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
