@@ -12,7 +12,7 @@ class TestScan(TestFixtureInsertRecord):
         assert isinstance(records, Recordset)
 
         # RecordSet tests are in the query basic usage test
-        async for record in records:
+        for record in records:
             assert isinstance(record, Record)
 
     async def test_with_bins(self, client):

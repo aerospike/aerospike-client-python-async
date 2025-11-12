@@ -18,8 +18,10 @@ features = ["pyo3/extension-module"]
 module-name = "aerospike_async._aerospike_async_native"
 python-source = "python"
 
+[tool.pytest]
+log_cli = true
+log_cli_level = "DEBUG"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "-s"
-log_cli = true
-log_cli_level = "DEBUG"

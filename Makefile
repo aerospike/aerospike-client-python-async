@@ -6,29 +6,8 @@ user ?= ""
 pass ?= ""
 ns ?= "test"
 
-.PHONY: build test install clean stubs local-cargo git-cargo
+.PHONY: build test install clean stubs
 all: lint dev build test install clean
-
-local-cargo:
-	@if [ -f Cargo.toml.local ]; then \
-		cp Cargo.toml Cargo.toml.git.bak; \
-		cp Cargo.toml.local Cargo.toml; \
-		echo "Switched to local Cargo.toml (points to local rust client)"; \
-		echo "Original Cargo.toml backed up to Cargo.toml.git.bak"; \
-	else \
-		echo "Cargo.toml.local not found!"; \
-		exit 1; \
-	fi
-
-git-cargo:
-	@if [ -f Cargo.toml.git.bak ]; then \
-		cp Cargo.toml.git.bak Cargo.toml; \
-		rm Cargo.toml.git.bak; \
-		echo "Switched to git Cargo.toml (points to tls branch)"; \
-	else \
-		git checkout Cargo.toml; \
-		echo "Switched to git Cargo.toml (points to tls branch)"; \
-	fi
 
 stubs:
 	# Generate type stubs and organize them as a Python package
