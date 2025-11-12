@@ -41,7 +41,7 @@ class TestQuery(TestFixtureInsertRecord):
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         assert isinstance(records, Recordset)
 
-        for record in records:
+        async for record in records:
             assert isinstance(record, Record)
 
         # Wait for the recordset to become inactive (query finished processing)
@@ -86,4 +86,5 @@ class TestQuery(TestFixtureInsertRecord):
         # The error occurs during iteration, not during the query call
         with pytest.raises(InvalidNodeError):
             # Force iteration to trigger the error
-            list(records)
+            async for _ in records:
+                pass

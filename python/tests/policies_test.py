@@ -240,8 +240,10 @@ class TestQueryPolicy:
         qp = QueryPolicy()
         qp.max_concurrent_nodes = 1
         qp.record_queue_size = 1023
-        qp.fail_on_cluster_change = False
+        # Note: fail_on_cluster_change field doesn't exist in TLS branch
+        # qp.fail_on_cluster_change = False
 
         assert qp.max_concurrent_nodes == 1
         assert qp.record_queue_size == 1023
-        assert qp.fail_on_cluster_change is False
+        # Note: fail_on_cluster_change field doesn't exist in TLS branch
+        # assert qp.fail_on_cluster_change is False
