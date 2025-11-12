@@ -5,12 +5,13 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyException, PyIndexError, PyValueError};
-use pyo3::exceptions::{PyStopIteration, PyTypeError};
+use pyo3::exceptions::{PyStopAsyncIteration, PyTypeError};
 use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
 use pyo3::{prelude::*, IntoPyObjectExt};
 // use pyo3::conversion::IntoPy;
@@ -21,11 +22,12 @@ use pyo3_stub_gen::{
     derive::gen_stub_pymethods, PyStubType, TypeInfo,
 };
 
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use aerospike_core::as_geo;
 use aerospike_core::as_val;
 use aerospike_core::errors::Error;
+use aerospike_core::query::RecordStream;
 
 
 fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
@@ -87,7 +89,8 @@ impl From<RustClientError> for PyErr {
             Error::Base64(e) => Base64DecodeError::new_err(e.to_string()),
             Error::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
             Error::Io(e) => IoError::new_err(e.to_string()),
-            Error::MpscRecv(_) => RecvError::new_err("The sending half of a channel has been closed, so no messages can be received"),
+            // MpscRecv error variant doesn't exist in TLS branch
+            // Error::MpscRecv(_) => RecvError::new_err("The sending half of a channel has been closed, so no messages can be received"),
             Error::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
             Error::ParseInt(e) => ParseIntError::new_err(e.to_string()),
             Error::PwHash(e) => PasswordHashError::new_err(e.to_string()),
@@ -175,7 +178,7 @@ pub enum Replica {
             }
         }
     }
-    
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ConsistencyLevel
@@ -220,7 +223,7 @@ pub enum Replica {
             }
         }
     }
-    
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordExistsAction
@@ -366,7 +369,7 @@ pub enum Replica {
             }
         }
     }
-    
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  Expiration
@@ -1387,7 +1390,7 @@ pub enum Replica {
         #[new]
         pub fn new() -> Self {
             PartitionFilter {
-                _as: aerospike_core::query::PartitionFilter::default(),
+                _as: aerospike_core::query::PartitionFilter::all(),
             }
         }
 
@@ -1809,26 +1812,27 @@ pub enum Replica {
             self._as.record_queue_size = record_queue_size;
         }
 
-        #[getter]
-        pub fn get_fail_on_cluster_change(&self) -> bool {
-            self._as.fail_on_cluster_change
-        }
+        // fail_on_cluster_change field doesn't exist in TLS branch
+        // #[getter]
+        // pub fn get_fail_on_cluster_change(&self) -> bool {
+        //     self._as.fail_on_cluster_change
+        // }
 
-        #[setter]
-        pub fn set_fail_on_cluster_change(&mut self, fail_on_cluster_change: bool) {
-            self._as.fail_on_cluster_change = fail_on_cluster_change;
-        }
+        // #[setter]
+        // pub fn set_fail_on_cluster_change(&mut self, fail_on_cluster_change: bool) {
+        //     self._as.fail_on_cluster_change = fail_on_cluster_change;
+        // }
 
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.filter_expression().as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
         pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
             match filter_expression {
-                Some(fe) => self._as.filter_expression = Some(fe._as),
-                None => self._as.filter_expression = None,
+                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
+                None => self._as.base_policy.filter_expression = None,
             }
         }
     }
@@ -2073,15 +2077,16 @@ pub enum Replica {
         /// Size of the thread pool used in scan and query commands. These commands are often sent to
         /// multiple server nodes in parallel threads. A thread pool improves performance because
         /// threads do not have to be created/destroyed for each command.
-        #[getter]
-        pub fn get_thread_pool_size(&self) -> usize {
-            self._as.thread_pool_size
-        }
+        // thread_pool_size field doesn't exist in TLS branch
+        // #[getter]
+        // pub fn get_thread_pool_size(&self) -> usize {
+        //     self._as.thread_pool_size
+        // }
 
-        #[setter]
-        pub fn set_thread_pool_size(&mut self, value: usize) {
-            self._as.thread_pool_size = value;
-        }
+        // #[setter]
+        // pub fn set_thread_pool_size(&mut self, value: usize) {
+        //     self._as.thread_pool_size = value;
+        // }
 
         /// Throw exception if host connection fails during addHost().
         #[getter]
@@ -2575,7 +2580,7 @@ pub enum Replica {
         ) -> Self {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
-            
+
             // Manually construct AeroCircle GeoJSON string to match Java client format
             // Java: String.format("{ \"type\": \"AeroCircle\", \"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
             // Note: Must use "AeroCircle" (correct) not "Aeroircle" (macro typo)
@@ -2583,7 +2588,7 @@ pub enum Replica {
                 "{{ \"type\": \"AeroCircle\", \"coordinates\": [[{:.8}, {:.8}], {}] }}",
                 lng, lat, radius
             );
-            
+
             // Use within_region with correctly formatted AeroCircle string
             Filter {
                 _as: aerospike_core::as_within_region!(
@@ -2632,9 +2637,18 @@ pub enum Replica {
         subclass,
         freelist = 1000
     )]
-    #[derive(Clone)]
     pub struct Recordset {
         _as: Arc<aerospike_core::Recordset>,
+        _stream: Arc<Mutex<Option<Pin<Box<RecordStream>>>>>,
+    }
+
+    impl Clone for Recordset {
+        fn clone(&self) -> Self {
+            Recordset {
+                _as: self._as.clone(),
+                _stream: Arc::new(Mutex::new(None)),
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -2649,20 +2663,43 @@ pub enum Replica {
             self._as.is_active()
         }
 
-        fn __iter__(&self) -> Self {
+        fn __aiter__(&self) -> Self {
             self.clone()
         }
 
-        fn __next__<'a>(&mut self, py: Python<'a>) -> PyResult<Option<Py<PyAny>>> {
-            let rcs = self._as.clone();
-            match rcs.next_record() {
-                None => Err(PyStopIteration::new_err("Recordset iteration complete")),
-                Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
-                Some(Ok(rec)) => {
-                    let res = Record { _as: rec };
-                    Ok(Some(res.into_pyobject(py).unwrap().unbind().into()))
+        fn __anext__<'a>(&'a mut self, py: Python<'a>) -> PyResult<Py<PyAny>> {
+            let recordset = self._as.clone();
+            let stream_mutex = self._stream.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                // Initialize stream if needed, then poll
+                let mut stream_opt = stream_mutex.lock().await;
+                if stream_opt.is_none() {
+                    *stream_opt = Some(Box::pin(recordset.clone().into_stream()));
                 }
-            }
+
+                if let Some(ref mut stream) = *stream_opt {
+                    use futures::StreamExt;
+                    match stream.as_mut().next().await {
+                        Some(Ok(rec)) => {
+                            Python::attach(|py| {
+                                let res = Record { _as: rec };
+                                let py_obj: Py<PyAny> = res.into_pyobject(py).unwrap().unbind().into();
+                                Ok(Some(py_obj))
+                            })
+                        }
+                        Some(Err(e)) => {
+                            Err(PyErr::from(RustClientError(e)))
+                        }
+                        None => {
+                            Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
+                        }
+                    }
+                } else {
+                    Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
+                }
+            })
+            .map(|bound| bound.unbind().into())
         }
     }
 
@@ -2983,7 +3020,7 @@ pub enum Replica {
         ) -> PyResult<Bound<'a, PyAny>> {
             // Get the filter expression from the ReadPolicy
             let has_filter_expression = policy.get_filter_expression().is_some();
-            
+
             // The filter expression should already be properly set in the base_policy
             let policy = policy._as.clone();
             let key = key._as.clone();
@@ -3197,10 +3234,11 @@ pub enum Replica {
                 // If record exists, get metadata (generation, ttl)
                 let meta_record = if exists {
                     // Get metadata by calling get() with empty bins
+                    let read_policy = aerospike_core::ReadPolicy::default();
                     Some(client
                         .read()
                         .await
-                        .get(&policy, &key, aerospike_core::Bins::None)
+                        .get(&read_policy, &key, aerospike_core::Bins::None)
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?)
                 } else {
@@ -3345,7 +3383,10 @@ pub enum Replica {
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Recordset { _as: res })
+                Ok(Recordset {
+                    _as: res,
+                    _stream: Arc::new(Mutex::new(None)),
+                })
             })
         }
 
@@ -3362,7 +3403,7 @@ pub enum Replica {
         ) -> PyResult<Bound<'a, PyAny>> {
             let policy = policy._as.clone();
             let client = self._as.clone();
-            let stmt = statement._as.clone();
+            let stmt = statement.clone()._as;
 
             pyo3_asyncio::future_into_py(py, async move {
                 let res = client
@@ -3372,7 +3413,10 @@ pub enum Replica {
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Recordset { _as: res })
+                Ok(Recordset {
+                    _as: res,
+                    _stream: Arc::new(Mutex::new(None)),
+                })
             })
         }
 
@@ -3812,14 +3856,14 @@ pub enum Replica {
                 result.extend_from_slice(&other_blob.v);
                 return Ok(Blob::new(result));
             }
-            
+
             // Handle Blob + Vec<u8>
             if let Ok(other_vec) = other.extract::<Vec<u8>>() {
                 let mut result = self.v.clone();
                 result.extend_from_slice(&other_vec);
                 return Ok(Blob::new(result));
             }
-            
+
             Err(PyTypeError::new_err("unsupported operand type(s) for +: 'Blob' and other type"))
         }
 
@@ -3835,7 +3879,7 @@ pub enum Replica {
                 }
                 return Ok(Blob::new(result));
             }
-            
+
             Err(PyTypeError::new_err("unsupported operand type(s) for *: 'Blob' and other type"))
         }
 
@@ -3845,13 +3889,13 @@ pub enum Replica {
                 self.v.extend_from_slice(&other_blob.v);
                 return Ok(());
             }
-            
+
             // Handle Blob += Vec<u8>
             if let Ok(other_vec) = other.extract::<Vec<u8>>() {
                 self.v.extend_from_slice(&other_vec);
                 return Ok(());
             }
-            
+
             Err(PyTypeError::new_err("unsupported operand type(s) for +=: 'Blob' and other type"))
         }
 
@@ -3868,7 +3912,7 @@ pub enum Replica {
                 }
                 return Ok(());
             }
-            
+
             Err(PyTypeError::new_err("unsupported operand type(s) for *=: 'Blob' and other type"))
         }
 
@@ -4051,7 +4095,7 @@ pub enum Replica {
                 // Sort by key to ensure consistent ordering
                 let mut sorted_entries: Vec<_> = h.iter().collect();
                 sorted_entries.sort_by_key(|(k, _)| format_python_value(k));
-                
+
                 for (k, v) in sorted_entries {
                     let key_str = format_python_value(k);
                     let val_str = format_python_value(v);
@@ -4751,7 +4795,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
         let json_module = PyModule::import(py, "json")?;
         let json_loads = json_module.getattr("loads")?;
         let geo_dict = json_loads.call1((geo_str,))?;
-        
+
         // Use GeoJSON constructor which accepts dict
         return GeoJSON::new(py, &geo_dict.into_bound_py_any(py)?.as_any());
     }
@@ -4780,8 +4824,45 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     GeoJSON::new(py, &point_dict.as_any())
 }
 
+// Simple logger implementation that writes to stderr
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        // Check RUST_LOG environment variable
+        if let Ok(rust_log) = std::env::var("RUST_LOG") {
+            let level = match rust_log.to_lowercase().as_str() {
+                s if s.contains("trace") => log::Level::Trace,
+                s if s.contains("debug") => log::Level::Debug,
+                s if s.contains("info") => log::Level::Info,
+                s if s.contains("warn") => log::Level::Warn,
+                s if s.contains("error") => log::Level::Error,
+                _ => log::Level::Error,
+            };
+            metadata.level() <= level
+        } else {
+            false
+        }
+    }
+
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            eprintln!("[{}] {}: {}", record.level(), record.target(), record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: SimpleLogger = SimpleLogger;
+
 #[pymodule]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Initialize logger if RUST_LOG is set
+    if std::env::var("RUST_LOG").is_ok() {
+        let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(log::LevelFilter::Trace));
+    }
+
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;
     m.add_class::<Replica>()?;
@@ -4822,7 +4903,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<PartitionFilter>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
-    
+
     // Create and register the exceptions submodule
     // Exceptions are only available via aerospike_async.exceptions submodule
     // They are not exposed at the top level to avoid namespace pollution
@@ -4845,6 +4926,6 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     m.add_submodule(&exceptions_module)?;
-    
+
     Ok(())
 }
