@@ -16,6 +16,8 @@ async def test_failed_connect():
     """Test basic client connection failure."""
     client = None
     cp = ClientPolicy()
+    # Set a shorter timeout for faster test execution
+    cp.timeout = 2000  # 2 seconds instead of default 30 seconds
     # Use a non-existent host and port to ensure connection failure
     with pytest.raises(ConnectionError) as exc_info:
         client = await new_client(cp, "nonexistent-host:9999")
@@ -62,7 +64,8 @@ def test_client_policy_properties():
     cp.conn_pools_per_node = 2
     cp.use_services_alternate = True
     cp.rack_ids = [1, 2, 3]
-    cp.thread_pool_size = 64
+    # thread_pool_size doesn't exist in TLS branch
+    # cp.thread_pool_size = 64
     cp.fail_if_not_connected = False
     cp.buffer_reclaim_threshold = 32768
     cp.tend_interval = 2000
@@ -79,7 +82,8 @@ def test_client_policy_properties():
     assert cp.conn_pools_per_node == 2
     assert cp.use_services_alternate is True
     assert set(cp.rack_ids) == {1, 2, 3}  # HashSet doesn't preserve order
-    assert cp.thread_pool_size == 64
+    # thread_pool_size doesn't exist in TLS branch
+    # assert cp.thread_pool_size == 64
     assert cp.fail_if_not_connected is False
     assert cp.buffer_reclaim_threshold == 32768
     assert cp.tend_interval == 2000
@@ -108,7 +112,8 @@ def test_client_policy_properties():
     cp2 = ClientPolicy()
     assert cp2.use_services_alternate is False
     assert cp2.rack_ids is None
-    assert cp2.thread_pool_size == 128
+    # thread_pool_size doesn't exist in TLS branch
+    # assert cp2.thread_pool_size == 128
     assert cp2.fail_if_not_connected is True
     assert cp2.buffer_reclaim_threshold == 65536
     assert cp2.tend_interval == 1000
