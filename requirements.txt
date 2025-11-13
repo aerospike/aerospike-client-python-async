@@ -2,4 +2,3 @@ maturin==1.9.6
 pyperf==2.9.0
 pytest==8.4.2
 pytest_asyncio==1.2.0
-pytest-env==1.1.5
