@@ -9,6 +9,7 @@ async def test_connect():
     """Test basic client connection."""
 
     cp = ClientPolicy()
+    cp.use_services_alternate = True
     client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
 
@@ -16,6 +17,7 @@ async def test_failed_connect():
     """Test basic client connection failure."""
     client = None
     cp = ClientPolicy()
+    cp.use_services_alternate = True
     # Set a shorter timeout for faster test execution
     cp.timeout = 2000  # 2 seconds instead of default 30 seconds
     # Use a non-existent host and port to ensure connection failure
@@ -28,6 +30,7 @@ async def test_close():
     """Test client connection and proper closing."""
 
     cp = ClientPolicy()
+    cp.use_services_alternate = True
     client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
     await client.close()
@@ -36,6 +39,7 @@ async def test_close():
 async def test_is_connected():
     """Test is_connected() method returns True when connected and False after closing."""
     cp = ClientPolicy()
+    cp.use_services_alternate = True
     client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
     assert client is not None
 

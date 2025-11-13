@@ -470,6 +470,7 @@ class TestAuthentication:
         """Test connection without credentials should fail."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
         client_policy = ClientPolicy()
+        client_policy.use_services_alternate = True
         # Don't set user/password
 
         with pytest.raises(Exception):
@@ -481,6 +482,7 @@ class TestAuthentication:
         """Test connection with wrong credentials should fail."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
         client_policy = ClientPolicy()
+        client_policy.use_services_alternate = True
         client_policy.user = "wrong_user"
         client_policy.password = "wrong_password"
 
@@ -493,6 +495,7 @@ class TestAuthentication:
         """Test connection with correct credentials should succeed."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
         client_policy = ClientPolicy()
+        client_policy.use_services_alternate = True
         client_policy.user = "admin"
         client_policy.password = "admin"
 

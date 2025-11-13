@@ -11,6 +11,7 @@ class TestFixtureConnection:
         """Create a client connection for testing."""
         host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
         cp = ClientPolicy()
+        cp.use_services_alternate = True
         client = await new_client(cp, host)
         yield client
         await client.close()
@@ -24,6 +25,7 @@ class TestFixtureCleanDB(TestFixtureConnection):
         """Create a client connection and clean the test namespace."""
         host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
         cp = ClientPolicy()
+        cp.use_services_alternate = True
         client = await new_client(cp, host)
         
         # Clean the test namespace
@@ -70,6 +72,7 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         """Create a client connection and insert a test record."""
         host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
         cp = ClientPolicy()
+        cp.use_services_alternate = True
         client = await new_client(cp, host)
         
         # Clean the test namespace

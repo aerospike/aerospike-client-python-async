@@ -9,6 +9,7 @@ async def client_and_key():
     """Setup client and prepare test key."""
 
     cp = ClientPolicy()
+    cp.use_services_alternate = True
     client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
 
     # make a record
