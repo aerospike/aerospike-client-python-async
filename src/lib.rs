@@ -28,8 +28,6 @@ use aerospike_core::as_geo;
 use aerospike_core::as_val;
 use aerospike_core::errors::Error;
 use aerospike_core::query::RecordStream;
-use aerospike_core::ParticleType;
-use aerospike_core::Value;
 
 
 fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
