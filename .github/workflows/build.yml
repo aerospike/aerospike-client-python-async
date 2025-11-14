@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Aerospike server
         run: |
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.1
           # Wait for Aerospike server to be ready (max 10 seconds)
           for i in {1..10}; do
             if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
@@ -195,7 +195,7 @@ jobs:
           brew install podman
           podman machine init
           podman machine start
-          podman run -d -p 3000:3000 aerospike/aerospike-server
+          podman run -d -p 3000:3000 aerospike/aerospike-server:8.1.0.1
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
