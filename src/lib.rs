@@ -24,7 +24,6 @@ use pyo3_stub_gen::{
 
 use tokio::sync::{Mutex, RwLock};
 
-use aerospike_core::as_geo;
 use aerospike_core::as_val;
 use aerospike_core::errors::Error;
 use aerospike_core::query::RecordStream;
