@@ -185,57 +185,9 @@ jobs:
           args: --release --out aerospike_async --find-interpreter
           sccache: 'true'
       
-      - name: Run Aerospike server
-        run: |
-          # Run Linux container on Windows (Docker Desktop uses WSL2 backend)
-          # Remove any existing container first
-          docker rm -f aerospike-server 2>$null
-          # Run the container with explicit Linux platform flag
-          docker run -d -p 3000:3000 --platform linux/amd64 --name aerospike-server aerospike/aerospike-server
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Failed to start Aerospike server container"
-            Write-Host "Docker version info:"
-            docker version
-            Write-Host "Docker info:"
-            docker info
-            docker ps -a
-            exit 1
-          }
-          # Wait for Aerospike server to be ready (max 10 seconds)
-          for ($i=1; $i -le 10; $i++) {
-            if (docker exec aerospike-server asinfo -v "statistics" 2>$null) {
-              Write-Host "Aerospike server is ready after $i seconds"
-              break
-            }
-            if ($i -eq 10) {
-              Write-Host "Aerospike server failed to start after 10 seconds"
-              docker ps -a
-              docker logs aerospike-server
-              exit 1
-            }
-            Write-Host "Waiting for Aerospike server... ($i/10)"
-            Start-Sleep -Seconds 1
-          }
-      
-      - name: Install wheel
-        run: python -m pip install --find-links=aerospike_async/ aerospike_client_python_async
-      - name: Install pytest
-        run: python -m pip install pytest pytest-asyncio
-      - name: Run tests
-        run: |
-          # Remove only the __init__.py file to prevent import conflicts with installed package
-          # Keep the exceptions/ directory as it's needed by the tests
-          Remove-Item -Force python/aerospike_async/__init__.py -ErrorAction SilentlyContinue
-          # Remove .env file so tests use default localhost:3000 (matches our server)
-          Remove-Item -Force aerospike.env -ErrorAction SilentlyContinue
-          # Run all tests
-          python -m pytest python/tests -v -s
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 aerospike-server
-            Write-Host "=== End of Server Log ==="
-            exit 1
-          }
+      # Note: Tests are skipped on Windows because the Windows runner uses Windows containers
+      # and cannot run Linux containers (Aerospike server requires Linux).
+      # Windows wheels are built and uploaded, but tests run on Linux/macOS only.
       
       - name: Upload wheels
         uses: actions/upload-artifact@v4
