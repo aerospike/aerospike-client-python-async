@@ -190,12 +190,14 @@ jobs:
           # Run Linux container on Windows (Docker Desktop uses WSL2 backend)
           # Remove any existing container first
           docker rm -f aerospike-server 2>$null
-          # Explicitly pull Linux image first to ensure we get the right platform
-          docker pull --platform linux/amd64 aerospike/aerospike-server
-          # Run the container
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server
+          # Run the container with explicit Linux platform flag
+          docker run -d -p 3000:3000 --platform linux/amd64 --name aerospike-server aerospike/aerospike-server
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Failed to start Aerospike server container"
+            Write-Host "Docker version info:"
+            docker version
+            Write-Host "Docker info:"
+            docker info
             docker ps -a
             exit 1
           }
