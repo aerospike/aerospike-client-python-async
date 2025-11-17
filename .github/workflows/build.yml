@@ -25,7 +25,12 @@ jobs:
           [aarch64, linux/arm64],
           [armv7, linux/arm/v7]
         ]
-        python: ['python3.13']
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13'
+        ]
         # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
@@ -54,7 +59,7 @@ jobs:
 
       - name: Run Aerospike server
         run: |
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.1
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server
           # Wait for Aerospike server to be ready (max 10 seconds)
           for i in {1..10}; do
             if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
@@ -93,7 +98,7 @@ jobs:
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
-      - name: Run GeoJSON test (non-x86 wheels)
+      - name: Run tests (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
@@ -101,23 +106,11 @@ jobs:
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
-          # Run only the GeoJSON test
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          # Run all tests
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
-            # Try multiple possible log locations
-            if docker exec aerospike-server test -f /var/log/aerospike/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /var/log/aerospike/aerospike.log
-            elif docker exec aerospike-server test -f /opt/aerospike/var/log/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /opt/aerospike/var/log/aerospike.log
-            elif docker exec aerospike-server test -f /var/log/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /var/log/aerospike.log
-            else
-              echo "Could not find server log file. Listing available log files:"
-              docker exec aerospike-server find /var/log /opt/aerospike -name "*.log" 2>/dev/null || echo "No log files found"
-              echo "Server container logs:"
-              docker logs --tail 100 aerospike-server
-            fi
+            docker logs --tail 100 aerospike-server
             echo "=== End of Server Log ==="
             exit 1
           fi
@@ -145,7 +138,7 @@ jobs:
         run: |
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-      - name: Run GeoJSON test (x86 wheels)
+      - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
@@ -153,23 +146,11 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          # Run only the GeoJSON test
-          ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          # Run all tests
+          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
-            # Try multiple possible log locations
-            if docker exec aerospike-server test -f /var/log/aerospike/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /var/log/aerospike/aerospike.log
-            elif docker exec aerospike-server test -f /opt/aerospike/var/log/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /opt/aerospike/var/log/aerospike.log
-            elif docker exec aerospike-server test -f /var/log/aerospike.log; then
-              docker exec aerospike-server tail -n 100 /var/log/aerospike.log
-            else
-              echo "Could not find server log file. Listing available log files:"
-              docker exec aerospike-server find /var/log /opt/aerospike -name "*.log" 2>/dev/null || echo "No log files found"
-              echo "Server container logs:"
-              docker logs --tail 100 aerospike-server
-            fi
+            docker logs --tail 100 aerospike-server
             echo "=== End of Server Log ==="
             exit 1
           fi
@@ -206,7 +187,8 @@ jobs:
       
       - name: Run Aerospike server
         run: |
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.1
+          # Run Linux container on Windows (Docker Desktop uses WSL2 backend)
+          docker run -d -p 3000:3000 --platform linux/amd64 --name aerospike-server aerospike/aerospike-server:8.1.0.1
           # Wait for Aerospike server to be ready (max 10 seconds)
           for ($i=1; $i -le 10; $i++) {
             if (docker exec aerospike-server asinfo -v "statistics" 2>$null) {
@@ -226,30 +208,18 @@ jobs:
         run: python -m pip install --find-links=aerospike_async/ aerospike_client_python_async
       - name: Install pytest
         run: python -m pip install pytest pytest-asyncio
-      - name: Run GeoJSON test
+      - name: Run tests
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           Remove-Item -Force python/aerospike_async/__init__.py -ErrorAction SilentlyContinue
           # Remove .env file so tests use default localhost:3000 (matches our server)
           Remove-Item -Force aerospike.env -ErrorAction SilentlyContinue
-          # Run only the GeoJSON test
-          python -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s
+          # Run all tests
+          python -m pytest python/tests -v -s
           if ($LASTEXITCODE -ne 0) {
             Write-Host "=== Aerospike Server Log (last 100 lines) ==="
-            # Try multiple possible log locations
-            if (docker exec aerospike-server test -f /var/log/aerospike/aerospike.log 2>$null) {
-              docker exec aerospike-server tail -n 100 /var/log/aerospike/aerospike.log
-            } elseif (docker exec aerospike-server test -f /opt/aerospike/var/log/aerospike.log 2>$null) {
-              docker exec aerospike-server tail -n 100 /opt/aerospike/var/log/aerospike.log
-            } elseif (docker exec aerospike-server test -f /var/log/aerospike.log 2>$null) {
-              docker exec aerospike-server tail -n 100 /var/log/aerospike.log
-            } else {
-              Write-Host "Could not find server log file. Listing available log files:"
-              docker exec aerospike-server find /var/log /opt/aerospike -name "*.log" 2>$null
-              Write-Host "Server container logs:"
-              docker logs --tail 100 aerospike-server
-            }
+            docker logs --tail 100 aerospike-server
             Write-Host "=== End of Server Log ==="
             exit 1
           }
@@ -264,7 +234,12 @@ jobs:
     runs-on: macos-latest-large
     strategy:
       matrix:
-        python: ['python3.13']
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13'
+        ]
         # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
@@ -274,7 +249,7 @@ jobs:
           brew install podman
           podman machine init
           podman machine start
-          podman run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.1
+          podman run -d -p 3000:3000 aerospike/aerospike-server
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -304,30 +279,18 @@ jobs:
         run: |
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-      - name: Run GeoJSON test
+      - name: Run tests
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          # Run only the GeoJSON test
-          ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          # Run all tests
+          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
-            # Try multiple possible log locations (macOS uses podman)
-            if podman exec aerospike-server test -f /var/log/aerospike/aerospike.log 2>/dev/null; then
-              podman exec aerospike-server tail -n 100 /var/log/aerospike/aerospike.log
-            elif podman exec aerospike-server test -f /opt/aerospike/var/log/aerospike.log 2>/dev/null; then
-              podman exec aerospike-server tail -n 100 /opt/aerospike/var/log/aerospike.log
-            elif podman exec aerospike-server test -f /var/log/aerospike.log 2>/dev/null; then
-              podman exec aerospike-server tail -n 100 /var/log/aerospike.log
-            else
-              echo "Could not find server log file. Listing available log files:"
-              podman exec aerospike-server find /var/log /opt/aerospike -name "*.log" 2>/dev/null || echo "No log files found"
-              echo "Server container logs:"
-              podman logs --tail 100 aerospike-server 2>/dev/null || echo "Could not read container logs"
-            fi
+            podman logs --tail 100 aerospike-server
             echo "=== End of Server Log ==="
             exit 1
           fi
