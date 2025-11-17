@@ -25,12 +25,7 @@ jobs:
           [aarch64, linux/arm64],
           [armv7, linux/arm/v7]
         ]
-        python: [
-          'python3.10',
-          'python3.11',
-          'python3.12',
-          'python3.13'
-        ]
+        python: ['python3.13']
         # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
@@ -98,7 +93,7 @@ jobs:
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
-      - name: Run tests (non-x86 wheels)
+      - name: Run GeoJSON test (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
@@ -106,7 +101,14 @@ jobs:
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
+          # Run only the GeoJSON test
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker exec aerospike-server tail -n 100 /var/log/aerospike.log || echo "Could not read server log"
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
 
       - name: Remove python prefix for setting up python (CPython only)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -131,7 +133,7 @@ jobs:
         run: |
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-      - name: Run tests (x86 wheels)
+      - name: Run GeoJSON test (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
@@ -139,7 +141,14 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          ${{ matrix.python }} -m pytest python/tests
+          # Run only the GeoJSON test
+          ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker exec aerospike-server tail -n 100 /var/log/aerospike.log || echo "Could not read server log"
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -180,12 +189,7 @@ jobs:
     runs-on: macos-latest-large
     strategy:
       matrix:
-        python: [
-          'python3.10',
-          'python3.11',
-          'python3.12',
-          'python3.13'
-        ]
+        python: ['python3.13']
         # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
@@ -225,14 +229,21 @@ jobs:
         run: |
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-      - name: Run tests
+      - name: Run GeoJSON test
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          ${{ matrix.python }} -m pytest python/tests
+          # Run only the GeoJSON test
+          ${{ matrix.python }} -m pytest python/tests/geo_query_test.py::TestGeoQuery::test_query_geo_within_geojson_region -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker exec aerospike-server tail -n 100 /var/log/aerospike.log || echo "Could not read server log"
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:

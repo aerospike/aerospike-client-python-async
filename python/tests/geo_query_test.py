@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 import pytest
 from aerospike_async import (
     Key,
@@ -100,6 +102,7 @@ class TestGeoQuery(TestFixtureConnection):
         # Note: Filter.within_region expects a GeoJSON string, not a GeoJSON object
         # Use str(region) to get the JSON string representation (equivalent to region.dumps() in legacy client)
         region_str = str(region)  # This gets the JSON string representation
+        logging.debug(f"region_str: {region_str}")
         predicate = Filter.within_region(
             bin_name=LOCBIN,
             region=region_str,
