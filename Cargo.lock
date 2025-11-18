@@ -5,7 +5,6 @@ version = 4
 [[package]]
 name = "aerospike-core"
 version = "2.0.0-alpha.6"
-source = "git+https://github.com/aerospike/aerospike-client-rust.git?branch=tls#c9802faa92b600150f4e5379ab6db39a672066ea"
 dependencies = [
  "aerospike-rt",
  "async-channel",
@@ -28,7 +27,6 @@ dependencies = [
 [[package]]
 name = "aerospike-rt"
 version = "2.0.0-alpha.6"
-source = "git+https://github.com/aerospike/aerospike-client-rust.git?branch=tls#c9802faa92b600150f4e5379ab6db39a672066ea"
 dependencies = [
  "tokio",
 ]

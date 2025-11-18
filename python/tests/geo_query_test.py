@@ -1,5 +1,4 @@
 import asyncio
-import pytest
 from aerospike_async import (
     Key,
     GeoJSON,
@@ -21,7 +20,6 @@ LOCBIN = "location"
 class TestGeoQuery(TestFixtureConnection):
     """Test geo query functionality with GeoJSON regions."""
 
-    @pytest.mark.skip(reason="GeoJSON query test temporarily skipped")
     async def test_query_geo_within_geojson_region(self, client):
         """Test querying with geo_within_geojson_region predicate (adapted from legacy client)."""
         namespace = "test"

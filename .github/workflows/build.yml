@@ -106,7 +106,14 @@ jobs:
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests
+          # Run all tests
+          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker logs --tail 100 aerospike-server
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
 
       - name: Remove python prefix for setting up python (CPython only)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
@@ -139,7 +146,14 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          ${{ matrix.python }} -m pytest python/tests
+          # Run all tests
+          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker logs --tail 100 aerospike-server
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -162,7 +176,7 @@ jobs:
           components: rustfmt, clippy
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.13'
           architecture: ${{ matrix.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -170,6 +184,11 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out aerospike_async --find-interpreter
           sccache: 'true'
+      
+      # Note: Tests are skipped on Windows because the Windows runner uses Windows containers
+      # and cannot run Linux containers (Aerospike server requires Linux).
+      # Windows wheels are built and uploaded, but tests run on Linux/macOS only.
+      
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -232,7 +251,14 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          ${{ matrix.python }} -m pytest python/tests
+          # Run all tests
+          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            podman logs --tail 100 aerospike-server
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
