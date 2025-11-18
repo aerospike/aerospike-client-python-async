@@ -43,7 +43,7 @@ class TestGeoQuery(TestFixtureConnection):
             # Try to drop index first in case it exists from previous test run
             try:
                 await client.drop_index(namespace, set_name, index_name)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.2)  # Brief wait for index drop to complete
             except:
                 pass
 
@@ -57,15 +57,15 @@ class TestGeoQuery(TestFixtureConnection):
             )
             index_created = True
             print(f"Index {index_name} created successfully")
-            # Wait for index to be ready (geo2dsphere indexes can take 5-10+ seconds)
-            await asyncio.sleep(10.0)  # Increased wait time
+            # Wait for index to be ready (geo2dsphere indexes typically ready in 1-2 seconds)
+            await asyncio.sleep(2.0)
         except Exception as e:
             # Index might already exist
             error_msg = str(e).lower()
             if "already exists" in error_msg or "already" in error_msg:
                 print(f"Index {index_name} already exists, continuing...")
                 index_created = True
-                await asyncio.sleep(2.0)  # Wait a bit for existing index
+                await asyncio.sleep(0.5)  # Brief wait for existing index
             else:
                 print(f"Failed to create index: {e}")
                 raise  # Fail the test if index creation fails
@@ -92,8 +92,8 @@ class TestGeoQuery(TestFixtureConnection):
             LOCBIN: GeoJSON({"type": "Point", "coordinates": [-120.0, 37.5]})
         })
 
-        # Wait for newly written records to be indexed
-        await asyncio.sleep(5.0)  # Increased wait time
+        # Wait for newly written records to be indexed (typically very fast, < 1 second)
+        await asyncio.sleep(1.0)
 
         # Construct the query predicate using Filter.within_region
         # Note: Filter.within_region expects a GeoJSON string, not a GeoJSON object
@@ -128,7 +128,6 @@ class TestGeoQuery(TestFixtureConnection):
             records.close()
 
             # Verify we got the records inside the region
-            # With proper timing (5s for index + 3s for records), we should get results
             print(f"Query returned {len(records_list)} records")
             if len(records_list) >= 2:
                 # Verify records have the location bin
