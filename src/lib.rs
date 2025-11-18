@@ -3760,6 +3760,89 @@ pub enum Replica {
             // fast bitwise copy instead of python's pickling process
             self.clone()
         }
+
+        /// Returns a list of the names of the active server nodes in the cluster.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[str]]", imports=("typing")))]
+        pub fn node_names<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let node_names = client
+                    .read()
+                    .await
+                    .node_names()
+                    .await;
+
+                Ok(node_names)
+            })
+        }
+
+        /// Execute an info command on a random cluster node.
+        /// 
+        /// Args:
+        ///     command: The info command to execute (e.g., "namespaces", "statistics", "build").
+        /// 
+        /// Returns:
+        ///     A dictionary containing the info command response as key-value pairs.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Dict[str, str]]", imports=("typing")))]
+        pub fn info<'a>(&self, command: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let node = client
+                    .read()
+                    .await
+                    .cluster
+                    .get_random_node()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                let response = node
+                    .info(&[&command])
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Ok(response)
+            })
+        }
+
+        /// Execute an info command on all cluster nodes.
+        /// 
+        /// Args:
+        ///     command: The info command to execute (e.g., "namespaces", "statistics", "build").
+        /// 
+        /// Returns:
+        ///     A dictionary mapping node names to their info command responses.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Dict[str, typing.Dict[str, str]]]", imports=("typing")))]
+        pub fn info_on_all_nodes<'a>(&self, command: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let nodes = client
+                    .read()
+                    .await
+                    .nodes()
+                    .await;
+
+                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+
+                for node in nodes {
+                    let node_name = node.name().to_string();
+                    match node.info(&[&command]).await {
+                        Ok(response) => {
+                            results.insert(node_name, response);
+                        }
+                        Err(e) => {
+                            // Log error but continue with other nodes
+                            // We could also collect errors, but for now just skip failed nodes
+                            eprintln!("Failed to get info from node {}: {}", node_name, e);
+                        }
+                    }
+                }
+
+                Ok(results)
+            })
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
