@@ -1664,6 +1664,18 @@ pub enum Replica {
             }
         }
 
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
+
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
+
         // Override filter expression methods to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
@@ -1832,6 +1844,18 @@ pub enum Replica {
         #[setter]
         pub fn set_durable_delete(&mut self, durable_delete: bool) {
             self._as.durable_delete = durable_delete;
+        }
+
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
+
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
         }
     }
 
