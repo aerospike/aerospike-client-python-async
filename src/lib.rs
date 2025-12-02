@@ -1625,7 +1625,8 @@ pub enum Replica {
         name = "ReadPolicy",
         freelist = 1000,
         module = "_aerospike_async_native",
-        extends = BasePolicy
+        extends = BasePolicy,
+        subclass
     )]
     #[derive(Debug, Clone)]
     pub struct ReadPolicy {
@@ -1683,6 +1684,7 @@ pub enum Replica {
         name = "WritePolicy",
         module = "_aerospike_async_native",
         extends = BasePolicy,
+        subclass,
         freelist = 1000
     )]
     #[derive(Debug, Clone)]
@@ -1843,22 +1845,26 @@ pub enum Replica {
     #[pyclass(
         name = "QueryPolicy",
         module = "_aerospike_async_native",
+        extends = BasePolicy,
         subclass,
         freelist = 1000
     )]
+    #[derive(Debug, Clone)]
     pub struct QueryPolicy {
         _as: aerospike_core::QueryPolicy,
     }
 
     /// `QueryPolicy` encapsulates parameters for query operations.
-    #[gen_stub_pymethods]
     #[pymethods]
     impl QueryPolicy {
         #[new]
-        pub fn __construct() -> Self {
-            QueryPolicy {
+        pub fn new() -> PyClassInitializer<Self> {
+            let query_policy = QueryPolicy {
                 _as: aerospike_core::QueryPolicy::default(),
-            }
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(query_policy)
         }
 
         #[getter]
@@ -1972,35 +1978,39 @@ pub enum Replica {
     #[pyclass(
         name = "ScanPolicy",
         module = "_aerospike_async_native",
+        extends = BasePolicy,
         subclass,
         freelist = 1000
     )]
+    #[derive(Debug, Clone)]
     pub struct ScanPolicy {
         _as: aerospike_core::ScanPolicy,
     }
 
     /// `ScanPolicy` encapsulates optional parameters used in scan operations.
-    #[gen_stub_pymethods]
     #[pymethods]
     impl ScanPolicy {
         #[new]
-        pub fn __construct() -> Self {
-            ScanPolicy {
+        pub fn new() -> PyClassInitializer<Self> {
+            let scan_policy = ScanPolicy {
                 _as: aerospike_core::ScanPolicy::default(),
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(scan_policy)
+        }
+
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
             }
         }
 
-        // #[getter]
-        // pub fn get_base_policy(&self) -> BasePolicy {
-        //     BasePolicy {
-        //         _as: self._as.base_policy.clone(),
-        //     }
-        // }
-
-        // #[setter]
-        // pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
-        //     self._as.base_policy = base_policy._as;
-        // }
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
 
         #[getter]
         pub fn get_max_concurrent_nodes(&self) -> usize {
