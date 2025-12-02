@@ -85,6 +85,10 @@ class InvalidNodeError(AerospikeError):
 class NoMoreConnections(AerospikeError):
     """Exception raised when no more connections are available."""
     def __init__(self, message: builtins.str) -> None: ...
+
+class ClientError(AerospikeError):
+    """Exception raised for client-side errors."""
+    def __init__(self, message: builtins.str) -> None: ...
 '''
 
 EXCEPTION_STUB__ALL__ = '''
@@ -106,6 +110,7 @@ __all__ = [
     "IoError",
     "PasswordHashError",
     "InvalidRustClientArgs",
+    "ClientError",
 ]
 '''
 
@@ -373,6 +378,7 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('IoError = _exceptions.IoError\n')
         f.write('PasswordHashError = _exceptions.PasswordHashError\n')
         f.write('InvalidRustClientArgs = _exceptions.InvalidRustClientArgs\n')
+        f.write('ClientError = _exceptions.ClientError\n')
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 

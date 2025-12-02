@@ -1,5 +1,5 @@
 from aerospike_async import (
-    ReadPolicy, WritePolicy, ScanPolicy, QueryPolicy,
+    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, ScanPolicy, QueryPolicy,
     ConsistencyLevel, RecordExistsAction, GenerationPolicy, 
     CommitLevel, Expiration, FilterExpression as fe
 )
@@ -80,7 +80,7 @@ class TestWritePolicy:
         filter_exp = fe.eq(fe.string_bin("name"), fe.string_val("test"))
         wp.filter_expression = filter_exp
         assert wp.filter_expression == filter_exp
-        
+
         # Clear the filter expression
         wp.filter_expression = None
         assert wp.filter_expression is None
@@ -88,7 +88,7 @@ class TestWritePolicy:
     def test_all_record_exists_action_values(self):
         """Test all possible RecordExistsAction enum values."""
         wp = WritePolicy()
-        
+
         actions = [
             RecordExistsAction.Update,
             RecordExistsAction.UpdateOnly,
@@ -96,7 +96,7 @@ class TestWritePolicy:
             RecordExistsAction.ReplaceOnly,
             RecordExistsAction.CreateOnly,
         ]
-        
+
         for action in actions:
             wp.record_exists_action = action
             assert wp.record_exists_action == action
@@ -104,13 +104,13 @@ class TestWritePolicy:
     def test_all_generation_policy_values(self):
         """Test all possible GenerationPolicy enum values."""
         wp = WritePolicy()
-        
+
         policies = [
             GenerationPolicy.None_,
             GenerationPolicy.ExpectGenEqual,
             GenerationPolicy.ExpectGenGreater,
         ]
-        
+
         for policy in policies:
             wp.generation_policy = policy
             assert wp.generation_policy == policy
@@ -118,12 +118,12 @@ class TestWritePolicy:
     def test_all_commit_level_values(self):
         """Test all possible CommitLevel enum values."""
         wp = WritePolicy()
-        
+
         commit_levels = [
             CommitLevel.CommitAll,
             CommitLevel.CommitMaster,
         ]
-        
+
         for level in commit_levels:
             wp.commit_level = level
             assert wp.commit_level == level
@@ -131,19 +131,19 @@ class TestWritePolicy:
     def test_expiration_values(self):
         """Test different Expiration values."""
         wp = WritePolicy()
-        
+
         # Test NEVER_EXPIRE
         wp.expiration = Expiration.NEVER_EXPIRE
         assert wp.expiration == Expiration.NEVER_EXPIRE
-        
+
         # Test NAMESPACE_DEFAULT
         wp.expiration = Expiration.NAMESPACE_DEFAULT
         assert wp.expiration == Expiration.NAMESPACE_DEFAULT
-        
+
         # Test DONT_UPDATE
         wp.expiration = Expiration.DONT_UPDATE
         assert wp.expiration == Expiration.DONT_UPDATE
-        
+
         # Test seconds
         exp_seconds = Expiration.seconds(3600)
         wp.expiration = exp_seconds
@@ -154,22 +154,22 @@ class TestWritePolicy:
         wp = WritePolicy()
         wp.max_retries = 5
         assert wp.max_retries == 5
-        
+
         wp.max_retries = None
         assert wp.max_retries is None
 
     def test_generation_edge_cases(self):
         """Test generation field with various values."""
         wp = WritePolicy()
-        
+
         # Test zero
         wp.generation = 0
         assert wp.generation == 0
-        
+
         # Test large value
         wp.generation = 4294967295  # max u32
         assert wp.generation == 4294967295
-        
+
         # Test typical value
         wp.generation = 100
         assert wp.generation == 100
@@ -177,19 +177,19 @@ class TestWritePolicy:
     def test_boolean_fields_all_combinations(self):
         """Test all combinations of boolean fields."""
         wp = WritePolicy()
-        
+
         # Test send_key
         wp.send_key = True
         assert wp.send_key is True
         wp.send_key = False
         assert wp.send_key is False
-        
+
         # Test respond_per_each_op
         wp.respond_per_each_op = True
         assert wp.respond_per_each_op is True
         wp.respond_per_each_op = False
         assert wp.respond_per_each_op is False
-        
+
         # Test durable_delete
         wp.durable_delete = True
         assert wp.durable_delete is True
@@ -247,3 +247,130 @@ class TestQueryPolicy:
         assert qp.record_queue_size == 1023
         # Note: fail_on_cluster_change field doesn't exist in TLS branch
         # assert qp.fail_on_cluster_change is False
+
+    def test_records_per_second(self):
+        """Test records_per_second field."""
+        qp = QueryPolicy()
+
+        # Test default value
+        assert qp.records_per_second == 0
+
+        # Test setting values
+        qp.records_per_second = 1000
+        assert qp.records_per_second == 1000
+
+        qp.records_per_second = 5000
+        assert qp.records_per_second == 5000
+
+        # Test zero (no limit)
+        qp.records_per_second = 0
+        assert qp.records_per_second == 0
+
+    def test_max_records(self):
+        """Test max_records field."""
+        qp = QueryPolicy()
+
+        # Test default value
+        assert qp.max_records == 0
+
+        # Test setting values
+        qp.max_records = 10000
+        assert qp.max_records == 10000
+
+        qp.max_records = 50000
+        assert qp.max_records == 50000
+
+        # Test zero (no limit)
+        qp.max_records = 0
+        assert qp.max_records == 0
+
+        # Test large value
+        qp.max_records = 18446744073709551615  # max u64
+        assert qp.max_records == 18446744073709551615
+
+    def test_expected_duration(self):
+        """Test expected_duration field with QueryDuration enum."""
+        qp = QueryPolicy()
+
+        # Test default value
+        assert qp.expected_duration == QueryDuration.Long
+
+        # Test all enum values
+        qp.expected_duration = QueryDuration.Long
+        assert qp.expected_duration == QueryDuration.Long
+
+        qp.expected_duration = QueryDuration.Short
+        assert qp.expected_duration == QueryDuration.Short
+
+        qp.expected_duration = QueryDuration.LongRelaxAP
+        assert qp.expected_duration == QueryDuration.LongRelaxAP
+
+        # Test inequality
+        assert qp.expected_duration != QueryDuration.Long
+        assert qp.expected_duration != QueryDuration.Short
+
+    def test_replica(self):
+        """Test replica field with Replica enum."""
+        qp = QueryPolicy()
+
+        # Test default value
+        assert qp.replica == Replica.Sequence
+
+        # Test all enum values
+        qp.replica = Replica.Master
+        assert qp.replica == Replica.Master
+
+        qp.replica = Replica.Sequence
+        assert qp.replica == Replica.Sequence
+
+        qp.replica = Replica.PreferRack
+        assert qp.replica == Replica.PreferRack
+
+        # Test inequality
+        assert qp.replica != Replica.Master
+        assert qp.replica != Replica.Sequence
+
+    def test_base_policy(self):
+        """Test base_policy field."""
+        qp = QueryPolicy()
+
+        # Test default base_policy exists
+        assert qp.base_policy is not None
+        assert isinstance(qp.base_policy, BasePolicy)
+
+        # Test setting a new base_policy
+        new_base = BasePolicy()
+        new_base.timeout = 5000
+        new_base.max_retries = 3
+
+        qp.base_policy = new_base
+        assert qp.base_policy is not None
+        assert qp.base_policy.timeout == 5000
+        assert qp.base_policy.max_retries == 3
+
+    def test_all_fields_together(self):
+        """Test setting all QueryPolicy fields together."""
+        qp = QueryPolicy()
+
+        # Set all fields
+        qp.max_concurrent_nodes = 4
+        qp.record_queue_size = 2048
+        qp.records_per_second = 2000
+        qp.max_records = 50000
+        qp.expected_duration = QueryDuration.Short
+        qp.replica = Replica.PreferRack
+
+        base = BasePolicy()
+        base.timeout = 10000
+        base.max_retries = 5
+        qp.base_policy = base
+
+        # Verify all fields
+        assert qp.max_concurrent_nodes == 4
+        assert qp.record_queue_size == 2048
+        assert qp.records_per_second == 2000
+        assert qp.max_records == 50000
+        assert qp.expected_duration == QueryDuration.Short
+        assert qp.replica == Replica.PreferRack
+        assert qp.base_policy.timeout == 10000
+        assert qp.base_policy.max_retries == 5

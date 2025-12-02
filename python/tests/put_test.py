@@ -1,7 +1,9 @@
 import os
+import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
+from aerospike_async.exceptions import ServerError
 
 
 @pytest_asyncio.fixture
@@ -167,7 +169,7 @@ async def test_put_dict(client_and_key):
 
     rec = await client.get(rp, key)
     assert rec is not None
-    
+
     # List and Blob are returned as native Python types
     # Blob objects become bytes, List objects become lists
     expected = {
@@ -246,3 +248,40 @@ async def test_put_edge_types(client_and_key):
     assert isinstance(rec.bins["c"], list)
     assert rec.bins["c"][0] == 2 ** 63
     assert isinstance(rec.bins["geo"], GeoJSON)
+
+async def test_put_bin_name_int_negative(client_and_key):
+    """Negative test: bin names must be strings, not integers."""
+    client, rp, key = client_and_key
+
+    wp = WritePolicy()
+
+    # Attempt to use an integer as a bin name - this should raise a TypeError
+    # with a helpful error message
+    with pytest.raises(TypeError, match="A bin name must be a string or unicode string"):
+        await client.put(
+            wp,
+            key,
+            {
+                123: "value",  # Using int as bin name - should fail
+            },
+        )
+
+async def test_put_bin_limit(client_and_key):
+    """Test that putting more than 32767 bins raises an error."""
+    client, rp, key = client_and_key
+
+    wp = WritePolicy()
+
+    # Create bins dict with more than 32767 bins (the limit)
+    BIN_LIMIT_PER_RECORD = 32767
+
+    bins = {}
+    for num in range(0, BIN_LIMIT_PER_RECORD + 1):
+        bins[str(num)] = num
+
+    # Try to put the record - should fail with too many bins
+    # The server will reject this with a ParameterError
+    with pytest.raises(ServerError) as exi:
+        await client.put(wp, key, bins)
+    # Verify it's a ParameterError from the server
+    assert "ParameterError" in str(exi.value)

@@ -14,7 +14,8 @@ from aerospike_async.exceptions import (
     ParseAddressError,
     ParseIntError,
     ConnectionError,
-    ValueError
+    ValueError,
+    ClientError
 )
 
 
@@ -42,7 +43,8 @@ class TestException:
             ParseAddressError,
             ParseIntError,
             ConnectionError,
-            ValueError
+            ValueError,
+            ClientError
         ]
         
         for exception in exceptions:

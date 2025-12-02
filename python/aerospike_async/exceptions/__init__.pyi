@@ -72,6 +72,10 @@ class NoMoreConnections(AerospikeError):
     """Exception raised when no more connections are available."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class ClientError(AerospikeError):
+    """Exception raised for client-side errors."""
+    def __init__(self, message: builtins.str) -> None: ...
+
 __all__ = [
     "AerospikeError",
     "ServerError",
@@ -90,4 +94,5 @@ __all__ = [
     "IoError",
     "PasswordHashError",
     "InvalidRustClientArgs",
+    "ClientError",
 ]

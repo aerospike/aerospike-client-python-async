@@ -45,9 +45,9 @@ def test_key_with_digest():
 
 def test_key_types():
     """Test creating keys with different value types."""
-    # Integer key
+    # Integer key (converted to string since Aerospike key values must be strings)
     key_int = Key("ns", "set", 12345)
-    assert key_int.value == 12345
+    assert key_int.value == "12345"
 
     # String key
     key_str = Key("ns", "set", "string_key")
@@ -61,9 +61,9 @@ def test_key_types():
     key_empty = Key("ns", "set", "")
     assert key_empty.value == ""
 
-    # Zero key
+    # Zero key (converted to string since Aerospike key values must be strings)
     key_zero = Key("ns", "set", 0)
-    assert key_zero.value == 0
+    assert key_zero.value == "0"
 
 def test_key_properties():
     """Test key properties are correctly set and retrieved."""
