@@ -24,6 +24,7 @@ use pyo3_stub_gen::{
 
 use tokio::sync::{Mutex, RwLock};
 
+#[allow(unused_imports)]
 use aerospike_core::as_geo;
 use aerospike_core::as_val;
 use aerospike_core::errors::Error;
@@ -80,6 +81,9 @@ create_exception!(aerospike_async.exceptions, PasswordHashError, AerospikeError)
 // Client configuration exceptions
 create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeError);
 
+// Client-side errors
+create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
+
 
 // Must define a wrapper type because of the orphan rule
 struct RustClientError(Error);
@@ -102,8 +106,7 @@ impl From<RustClientError> for PyErr {
             Error::InvalidNode(string) => InvalidNodeError::new_err(string),
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
             Error::ServerError(result_code, in_doubt, node) => {
-                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", 
-                    result_code, in_doubt, node))
+                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string, client_side) => TimeoutError::new_err(format!("{}, Client-Side: {}", string, client_side)),
@@ -112,8 +115,7 @@ impl From<RustClientError> for PyErr {
                 // Check first error
                 match first.as_ref() {
                     Error::ServerError(result_code, in_doubt, node) => {
-                        ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", 
-                            result_code, in_doubt, node))
+                        ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
                     },
                     Error::BadResponse(msg) => {
                         BadResponse::new_err(msg.clone())
@@ -122,8 +124,7 @@ impl From<RustClientError> for PyErr {
                         // Check second error for more specific type
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", 
-                                    result_code, in_doubt, node))
+                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -135,8 +136,7 @@ impl From<RustClientError> for PyErr {
                         // Check second error
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", 
-                                    result_code, in_doubt, node))
+                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -149,22 +149,82 @@ impl From<RustClientError> for PyErr {
                     }
                 }
             },
+            Error::ClientError(msg) => ClientError::new_err(msg),
             other => AerospikeError::new_err(format!("Unknown error: {:?}", other)),
         }
     }
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////
-//
-//  Replica
-//
-////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  QueryDuration
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expected query duration. The server treats the query in different ways depending on the expected duration.
+    /// This enum is ignored for aggregation queries, background queries and server versions < 6.0.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum QueryDuration {
+        /// Long specifies that the query is expected to return more than 100 records per node.
+        Long = 0,
+        /// Short specifies that the query is expected to return less than 100 records per node.
+        Short = 1,
+        /// LongRelaxAP will treat query as a Long query, but relax read consistency for AP namespaces.
+        LongRelaxAP = 2,
+    }
+
+    impl From<&QueryDuration> for aerospike_core::policy::QueryDuration {
+        fn from(input: &QueryDuration) -> Self {
+            match input {
+                QueryDuration::Long => aerospike_core::policy::QueryDuration::Long,
+                QueryDuration::Short => aerospike_core::policy::QueryDuration::Short,
+                QueryDuration::LongRelaxAP => aerospike_core::policy::QueryDuration::LongRelaxAP,
+            }
+        }
+    }
+
+    impl From<aerospike_core::policy::QueryDuration> for QueryDuration {
+        fn from(input: aerospike_core::policy::QueryDuration) -> Self {
+            match input {
+                aerospike_core::policy::QueryDuration::Long => QueryDuration::Long,
+                aerospike_core::policy::QueryDuration::Short => QueryDuration::Short,
+                aerospike_core::policy::QueryDuration::LongRelaxAP => QueryDuration::LongRelaxAP,
+            }
+        }
+    }
+
+    #[pymethods]
+    impl QueryDuration {
+        fn __richcmp__(&self, other: &QueryDuration, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Replica
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Priority of operations on database server.
 #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
 #[pyclass(module = "_aerospike_async_native")]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Replica {
     Master,
     Sequence,
@@ -178,6 +238,25 @@ pub enum Replica {
                 Replica::Sequence => aerospike_core::policy::Replica::Sequence,
                 Replica::PreferRack => aerospike_core::policy::Replica::PreferRack,
             }
+        }
+    }
+
+    #[pymethods]
+    impl Replica {
+        fn __richcmp__(&self, other: &Replica, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
         }
     }
 
@@ -1782,17 +1861,17 @@ pub enum Replica {
             }
         }
 
-        // #[getter]
-        // pub fn get_base_policy(&self) -> BasePolicy {
-        //     BasePolicy {
-        //         _as: self._as.base_policy.clone(),
-        //     }
-        // }
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
 
-        // #[setter]
-        // pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
-        //     self._as.base_policy = base_policy._as;
-        // }
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
 
         #[getter]
         pub fn get_max_concurrent_nodes(&self) -> usize {
@@ -1812,6 +1891,50 @@ pub enum Replica {
         #[setter]
         pub fn set_record_queue_size(&mut self, record_queue_size: usize) {
             self._as.record_queue_size = record_queue_size;
+        }
+
+        #[getter]
+        pub fn get_records_per_second(&self) -> u32 {
+            self._as.records_per_second
+        }
+
+        #[setter]
+        pub fn set_records_per_second(&mut self, records_per_second: u32) {
+            self._as.records_per_second = records_per_second;
+        }
+
+        #[getter]
+        pub fn get_max_records(&self) -> u64 {
+            self._as.max_records
+        }
+
+        #[setter]
+        pub fn set_max_records(&mut self, max_records: u64) {
+            self._as.max_records = max_records;
+        }
+
+        #[getter]
+        pub fn get_expected_duration(&self) -> QueryDuration {
+            QueryDuration::from(self._as.expected_duration.clone())
+        }
+
+        #[setter]
+        pub fn set_expected_duration(&mut self, expected_duration: QueryDuration) {
+            self._as.expected_duration = aerospike_core::policy::QueryDuration::from(&expected_duration);
+        }
+
+        #[getter]
+        pub fn get_replica(&self) -> Replica {
+            match self._as.replica {
+                aerospike_core::policy::Replica::Master => Replica::Master,
+                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
+                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
+            }
+        }
+
+        #[setter]
+        pub fn set_replica(&mut self, replica: Replica) {
+            self._as.replica = aerospike_core::policy::Replica::from(&replica);
         }
 
         // fail_on_cluster_change field doesn't exist in TLS branch
@@ -2312,7 +2435,12 @@ pub enum Replica {
     impl Key {
         #[new]
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
-            let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
+            // Convert integers to strings since Aerospike key values must be strings, bytes, or None
+            let key_value = match key {
+                PythonValue::Int(i) => PythonValue::String(i.to_string()),
+                other => other,
+            };
+            let _as = aerospike_core::Key::new(namespace, set, key_value.into()).unwrap();
             Key { _as }
         }
 
@@ -2360,9 +2488,20 @@ pub enum Replica {
             self._as.set_name.clone()
         }
 
-        #[getter]
+        #[getter(value)]
         pub fn get_value(&self) -> Option<PythonValue> {
-            self._as.user_key.clone().map(|v| v.into())
+            // Convert integers to strings since Aerospike key values must be strings
+            // This ensures consistency even if the stored value is an integer
+            match &self._as.user_key {
+                Some(v) => {
+                    let pv: PythonValue = v.clone().into();
+                    match pv {
+                        PythonValue::Int(i) => Some(PythonValue::String(i.to_string())),
+                        other => Some(other),
+                    }
+                }
+                None => None,
+            }
         }
 
         #[getter]
@@ -2490,6 +2629,16 @@ pub enum Replica {
 
         fn __repr__(&self) -> PyResult<String> {
             Ok(format!("Filter({:?})", self._as))
+        }
+
+        #[staticmethod]
+        pub fn equal(bin_name: &str, value: PythonValue) -> Self {
+            Filter {
+                _as: aerospike_core::as_eq!(
+                    bin_name,
+                    aerospike_core::Value::from(value)
+                ),
+            }
         }
 
         #[staticmethod]
@@ -2984,23 +3133,32 @@ pub enum Replica {
             &self,
             policy: &WritePolicy,
             key: &Key,
-            bins: HashMap<String, PythonValue>,
+            bins: &Bound<'a, PyDict>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let policy = policy._as.clone();
             let key = key._as.clone();
             let client = self._as.clone();
 
-            let bins: Vec<aerospike_core::Bin> = bins
-                .into_iter()
-                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
-                .collect();
+            // Convert PyDict to Vec<Bin>, validating that all keys are strings
+            let mut bin_vec = Vec::new();
+            for (py_key, py_val) in bins.iter() {
+                // Validate that the key is a string
+                let name = py_key.extract::<String>().map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                        "A bin name must be a string or unicode string"
+                    )
+                })?;
+                
+                let val: PythonValue = py_val.extract()?;
+                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+            }
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
                     .read()
                     .await
-                    .put(&policy, &key, &bins)
+                    .put(&policy, &key, &bin_vec)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -4950,6 +5108,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;
+    m.add_class::<QueryDuration>()?;
     m.add_class::<Replica>()?;
     m.add_class::<Expiration>()?;
     m.add_class::<CommitLevel>()?;
@@ -5010,6 +5169,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("IoError", py.get_type::<IoError>())?;
     exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
+    exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
     m.add_submodule(&exceptions_module)?;
 
     Ok(())

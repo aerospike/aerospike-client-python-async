@@ -28,3 +28,4 @@ ValueError = _exceptions.ValueError
 IoError = _exceptions.IoError
 PasswordHashError = _exceptions.PasswordHashError
 InvalidRustClientArgs = _exceptions.InvalidRustClientArgs
+ClientError = _exceptions.ClientError
