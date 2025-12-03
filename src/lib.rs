@@ -2469,12 +2469,8 @@ pub enum Replica {
     impl Key {
         #[new]
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
-            // Convert integers to strings since Aerospike key values must be strings, bytes, or None
-            let key_value = match key {
-                PythonValue::Int(i) => PythonValue::String(i.to_string()),
-                other => other,
-            };
-            let _as = aerospike_core::Key::new(namespace, set, key_value.into()).unwrap();
+            // Pass key value directly to core client - supports strings, bytes, integers, and None
+            let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
             Key { _as }
         }
 
@@ -2524,15 +2520,11 @@ pub enum Replica {
 
         #[getter(value)]
         pub fn get_value(&self) -> Option<PythonValue> {
-            // Convert integers to strings since Aerospike key values must be strings
-            // This ensures consistency even if the stored value is an integer
+            // Return key value as-is (preserves integer, string, bytes, etc.)
             match &self._as.user_key {
                 Some(v) => {
                     let pv: PythonValue = v.clone().into();
-                    match pv {
-                        PythonValue::Int(i) => Some(PythonValue::String(i.to_string())),
-                        other => Some(other),
-                    }
+                    Some(pv)
                 }
                 None => None,
             }

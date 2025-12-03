@@ -45,9 +45,10 @@ def test_key_with_digest():
 
 def test_key_types():
     """Test creating keys with different value types."""
-    # Integer key (converted to string since Aerospike key values must be strings)
+    # Integer key (preserved as integer - core client supports integer keys)
     key_int = Key("ns", "set", 12345)
-    assert key_int.value == "12345"
+    assert key_int.value == 12345
+    assert isinstance(key_int.value, int)
 
     # String key
     key_str = Key("ns", "set", "string_key")
@@ -61,9 +62,10 @@ def test_key_types():
     key_empty = Key("ns", "set", "")
     assert key_empty.value == ""
 
-    # Zero key (converted to string since Aerospike key values must be strings)
+    # Zero key (preserved as integer - core client supports integer keys)
     key_zero = Key("ns", "set", 0)
-    assert key_zero.value == "0"
+    assert key_zero.value == 0
+    assert isinstance(key_zero.value, int)
 
 def test_key_properties():
     """Test key properties are correctly set and retrieved."""
@@ -207,3 +209,28 @@ def test_key_from_digest_missing_user_key():
 
     # But should still be equal to original (digest-based comparison)
     assert key_from_digest == original
+
+def test_integer_key_vs_string_key():
+    """Test that integer keys and string keys with same numeric value are different."""
+    # Integer key
+    key_int = Key("test", "test", 12345)
+    assert key_int.value == 12345
+    assert isinstance(key_int.value, int)
+    
+    # String key with same numeric value
+    key_str = Key("test", "test", "12345")
+    assert key_str.value == "12345"
+    assert isinstance(key_str.value, str)
+    
+    # They should have different digests (different keys)
+    assert key_int.digest != key_str.digest
+    assert key_int != key_str
+    
+    # Verify integer keys preserve type
+    key_zero = Key("test", "test", 0)
+    assert key_zero.value == 0
+    assert isinstance(key_zero.value, int)
+    
+    key_negative = Key("test", "test", -123)
+    assert key_negative.value == -123
+    assert isinstance(key_negative.value, int)

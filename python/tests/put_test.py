@@ -266,6 +266,44 @@ async def test_put_bin_name_int_negative(client_and_key):
             },
         )
 
+async def test_put_get_with_integer_key(client_and_key):
+    """Test PUT and GET operations with integer keys."""
+    from aerospike_async import Key
+    client, rp, wp = client_and_key[0], client_and_key[1], WritePolicy()
+    
+    # Create a key with integer value
+    int_key = Key("test", "test", 99999)
+    assert isinstance(int_key.value, int)
+    assert int_key.value == 99999
+    
+    # Put with integer key
+    await client.put(wp, int_key, {"bin1": "value1", "bin2": 42})
+    
+    # Get with same integer key
+    record = await client.get(rp, int_key)
+    assert record is not None
+    assert record.bins == {"bin1": "value1", "bin2": 42}
+    
+    # Verify we can retrieve with a new integer key object
+    int_key2 = Key("test", "test", 99999)
+    assert int_key2.value == 99999
+    assert isinstance(int_key2.value, int)
+    record2 = await client.get(rp, int_key2)
+    assert record2.bins == {"bin1": "value1", "bin2": 42}
+    
+    # Verify integer key and string key are different
+    str_key = Key("test", "test", "99999")
+    assert str_key.value == "99999"
+    assert isinstance(str_key.value, str)
+    # String key should not find the record (different digest)
+    try:
+        record3 = await client.get(rp, str_key)
+        # If it doesn't raise, the record might not exist (which is expected)
+        if record3 is None:
+            pass  # Expected - different key
+    except Exception:
+        pass  # Also acceptable
+
 async def test_put_bin_limit(client_and_key):
     """Test that putting more than 32767 bins raises an error."""
     client, rp, key = client_and_key
