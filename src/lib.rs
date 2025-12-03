@@ -1625,7 +1625,8 @@ pub enum Replica {
         name = "ReadPolicy",
         freelist = 1000,
         module = "_aerospike_async_native",
-        extends = BasePolicy
+        extends = BasePolicy,
+        subclass
     )]
     #[derive(Debug, Clone)]
     pub struct ReadPolicy {
@@ -1663,6 +1664,18 @@ pub enum Replica {
             }
         }
 
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
+
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
+
         // Override filter expression methods to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
@@ -1683,6 +1696,7 @@ pub enum Replica {
         name = "WritePolicy",
         module = "_aerospike_async_native",
         extends = BasePolicy,
+        subclass,
         freelist = 1000
     )]
     #[derive(Debug, Clone)]
@@ -1831,6 +1845,18 @@ pub enum Replica {
         pub fn set_durable_delete(&mut self, durable_delete: bool) {
             self._as.durable_delete = durable_delete;
         }
+
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
+
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1843,22 +1869,26 @@ pub enum Replica {
     #[pyclass(
         name = "QueryPolicy",
         module = "_aerospike_async_native",
+        extends = BasePolicy,
         subclass,
         freelist = 1000
     )]
+    #[derive(Debug, Clone)]
     pub struct QueryPolicy {
         _as: aerospike_core::QueryPolicy,
     }
 
     /// `QueryPolicy` encapsulates parameters for query operations.
-    #[gen_stub_pymethods]
     #[pymethods]
     impl QueryPolicy {
         #[new]
-        pub fn __construct() -> Self {
-            QueryPolicy {
+        pub fn new() -> PyClassInitializer<Self> {
+            let query_policy = QueryPolicy {
                 _as: aerospike_core::QueryPolicy::default(),
-            }
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(query_policy)
         }
 
         #[getter]
@@ -1972,35 +2002,39 @@ pub enum Replica {
     #[pyclass(
         name = "ScanPolicy",
         module = "_aerospike_async_native",
+        extends = BasePolicy,
         subclass,
         freelist = 1000
     )]
+    #[derive(Debug, Clone)]
     pub struct ScanPolicy {
         _as: aerospike_core::ScanPolicy,
     }
 
     /// `ScanPolicy` encapsulates optional parameters used in scan operations.
-    #[gen_stub_pymethods]
     #[pymethods]
     impl ScanPolicy {
         #[new]
-        pub fn __construct() -> Self {
-            ScanPolicy {
+        pub fn new() -> PyClassInitializer<Self> {
+            let scan_policy = ScanPolicy {
                 _as: aerospike_core::ScanPolicy::default(),
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(scan_policy)
+        }
+
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
             }
         }
 
-        // #[getter]
-        // pub fn get_base_policy(&self) -> BasePolicy {
-        //     BasePolicy {
-        //         _as: self._as.base_policy.clone(),
-        //     }
-        // }
-
-        // #[setter]
-        // pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
-        //     self._as.base_policy = base_policy._as;
-        // }
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
 
         #[getter]
         pub fn get_max_concurrent_nodes(&self) -> usize {
@@ -2435,12 +2469,8 @@ pub enum Replica {
     impl Key {
         #[new]
         fn new(namespace: &str, set: &str, key: PythonValue) -> Self {
-            // Convert integers to strings since Aerospike key values must be strings, bytes, or None
-            let key_value = match key {
-                PythonValue::Int(i) => PythonValue::String(i.to_string()),
-                other => other,
-            };
-            let _as = aerospike_core::Key::new(namespace, set, key_value.into()).unwrap();
+            // Pass key value directly to core client - supports strings, bytes, integers, and None
+            let _as = aerospike_core::Key::new(namespace, set, key.into()).unwrap();
             Key { _as }
         }
 
@@ -2490,15 +2520,11 @@ pub enum Replica {
 
         #[getter(value)]
         pub fn get_value(&self) -> Option<PythonValue> {
-            // Convert integers to strings since Aerospike key values must be strings
-            // This ensures consistency even if the stored value is an integer
+            // Return key value as-is (preserves integer, string, bytes, etc.)
             match &self._as.user_key {
                 Some(v) => {
                     let pv: PythonValue = v.clone().into();
-                    match pv {
-                        PythonValue::Int(i) => Some(PythonValue::String(i.to_string())),
-                        other => Some(other),
-                    }
+                    Some(pv)
                 }
                 None => None,
             }
