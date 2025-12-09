@@ -15,6 +15,7 @@ class TestStatement:
         stmt = Statement(namespace="test", set_name="test", bins=["test_bin"])
         # Test defaults
         assert stmt.filters is None
+        assert stmt.index_name is None
 
     def test_set_filters(self):
         """Test setting filters on Statement."""

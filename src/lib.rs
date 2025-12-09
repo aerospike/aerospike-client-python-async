@@ -2585,10 +2585,28 @@ pub enum Replica {
     #[pymethods]
     impl Statement {
         #[new]
-        pub fn __construct(namespace: &str, set_name: &str, bins: Option<Vec<String>>) -> Self {
-            Statement {
+        #[pyo3(signature = (namespace, set_name, bins = None, index_name = None))]
+        pub fn __construct(
+            namespace: &str,
+            set_name: &str,
+            bins: Option<Vec<String>>,
+            index_name: Option<String>,
+        ) -> Self {
+            let mut stmt = Statement {
                 _as: aerospike_core::Statement::new(namespace, set_name, bins_flag(bins)),
-            }
+            };
+            stmt._as.index_name = index_name;
+            stmt
+        }
+
+        #[getter]
+        pub fn get_index_name(&self) -> Option<String> {
+            self._as.index_name.clone()
+        }
+
+        #[setter]
+        pub fn set_index_name(&mut self, index_name: Option<String>) {
+            self._as.index_name = index_name;
         }
 
         #[getter]
