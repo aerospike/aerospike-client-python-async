@@ -126,9 +126,17 @@ class TestClientError:
         value_error = ValueError("value error")
         timeout_error = TimeoutError("timeout error")
         
-        # All errors are AerospikeError subclasses
+        # All errors are exceptions
+        assert isinstance(client_error, Exception)
+        assert isinstance(server_error, Exception)
+        assert isinstance(connection_error, Exception)
+        assert isinstance(value_error, Exception)
+        assert isinstance(timeout_error, Exception)
+        
+        # Most errors are AerospikeError subclasses (ServerError is a special case)
         assert isinstance(client_error, AerospikeError)
-        assert isinstance(server_error, AerospikeError)
+        # ServerError extends PyException directly, not AerospikeError
+        assert not isinstance(server_error, AerospikeError)
         assert isinstance(connection_error, AerospikeError)
         assert isinstance(value_error, AerospikeError)
         assert isinstance(timeout_error, AerospikeError)

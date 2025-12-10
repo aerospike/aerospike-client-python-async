@@ -38,6 +38,33 @@ make test
 ```
 <br>
 
+### macOS File Descriptor Limit
+
+On macOS, you may encounter `ConnectionError: Failed to connect to host(s)` errors when running the full test suite. This occurs because:
+
+- **Default macOS limit**: The default file descriptor limit on macOS is 256 (`ulimit -n` shows the current limit)
+- **Why it's not enough**: The async client creates multiple connections, event loops, and file handles during testing. Running the full test suite can easily exceed 256 open file descriptors, especially with async operations that maintain multiple concurrent connections.
+
+**Solution**: Increase the file descriptor limit before running tests:
+
+```bash
+# Check current limit
+ulimit -n
+
+# Increase limit (recommended: 4096)
+ulimit -n 4096
+
+# Verify the new limit
+ulimit -n
+
+# Now run tests
+make test
+```
+
+**Note**: This change is temporary for the current shell session. To make it permanent, add `ulimit -n 4096` to your shell profile (e.g., `~/.zshrc` or `~/.bash_profile`).
+
+<br>
+
 ### Optional - only needed if updating the Rust code
 ### Build the Python stubs for the Rust code:
 ```commandline
@@ -46,20 +73,21 @@ make stubs
 <br>
 
 ### Known TODOs:
-*   Tests:
-    - Move / port more of the legacy python tests to the new client
-    - Go through Java client tests and check for analogous test coverage 
 *  Pipeline benchmarks: track performance between runs.
 *  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
-*  Move more API:
-    - CDTs
+*  Next APIs:
+   - Security/Admin operations — exposed but tests skipped; may need updates to match current Rust core API
+   - Batch operations — not wrapped
+   - UDF operations — not wrapped
+   - TLS configuration — not wrapped
+   - Transactions — not wrapped
+   - Exposed but needs work (tests skipped, may need updates)
 *  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
 *  Cross-Python Client compatibility testing - esp data types
     - Write from legacy, read from new
     - Write from new, read from legacy
 *  Track known remaining "core" (Rust Client) items:
-    - TLS
     - AP/SC
     - MRT
     - smaller items

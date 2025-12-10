@@ -29,6 +29,21 @@ class BasePolicy:
     def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
     def __new__(cls) -> BasePolicy: ...
 
+class BitPolicy:
+    def __new__(cls, write_flags:typing.Optional[BitwiseWriteFlags]) -> BitPolicy:
+        r"""
+        Create a new BitPolicy with the specified write flags.
+        Default is default write flags.
+        """
+    def get_write_flags(self) -> builtins.int:
+        r"""
+        Get the write flags.
+        """
+    def set_write_flags(self, flags:BitwiseWriteFlags) -> None:
+        r"""
+        Set the write flags.
+        """
+
 class ClientPolicy:
     @property
     def user(self) -> typing.Optional[builtins.str]: ...
@@ -82,7 +97,7 @@ class ClientPolicy:
     @property
     def rack_ids(self) -> typing.Optional[builtins.list[builtins.int]]:
         r"""
-        Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to 
+        Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to
         the server node that contains the key and exists on the same rack as the client.
         This serves to lower cloud provider costs when nodes are distributed across different
         racks/data centers.
@@ -611,6 +626,36 @@ class FilterExpression:
         Requires server version 5.6.0+.
         """
 
+class ListPolicy:
+    @property
+    def order(self) -> ListOrderType: ...
+    @order.setter
+    def order(self, value: ListOrderType) -> None: ...
+    @property
+    def write_flags(self) -> ListWriteFlags: ...
+    @write_flags.setter
+    def write_flags(self, value: ListWriteFlags) -> None: ...
+    def __new__(cls, order:typing.Optional[ListOrderType], write_flags:typing.Optional[ListWriteFlags]) -> ListPolicy:
+        r"""
+        Create a new ListPolicy with the specified order and write flags.
+        Default is unordered list with default write flags.
+        """
+
+class MapPolicy:
+    @property
+    def order(self) -> MapOrder: ...
+    @order.setter
+    def order(self, value: MapOrder) -> None: ...
+    @property
+    def write_mode(self) -> MapWriteMode: ...
+    @write_mode.setter
+    def write_mode(self, value: MapWriteMode) -> None: ...
+    def __new__(cls, order:typing.Optional[MapOrder], write_mode:typing.Optional[MapWriteMode]) -> MapPolicy:
+        r"""
+        Create a new MapPolicy with the specified order and write mode.
+        Default is unordered map with update write mode.
+        """
+
 class PartitionFilter:
     def __new__(cls) -> PartitionFilter: ...
     def done(self) -> builtins.bool: ...
@@ -698,6 +743,47 @@ class Recordset:
     def __aiter__(self) -> Recordset: ...
     def __anext__(self) -> typing.Any: ...
 
+class ResultCode:
+    OK: builtins.int
+    SERVER_ERROR: builtins.int
+    KEY_NOT_FOUND_ERROR: builtins.int
+    GENERATION_ERROR: builtins.int
+    PARAMETER_ERROR: builtins.int
+    KEY_EXISTS_ERROR: builtins.int
+    BIN_EXISTS_ERROR: builtins.int
+    CLUSTER_KEY_MISMATCH: builtins.int
+    SERVER_MEM_ERROR: builtins.int
+    TIMEOUT: builtins.int
+    ALWAYS_FORBIDDEN: builtins.int
+    PARTITION_UNAVAILABLE: builtins.int
+    BIN_TYPE_ERROR: builtins.int
+    RECORD_TOO_BIG: builtins.int
+    KEY_BUSY: builtins.int
+    SCAN_ABORT: builtins.int
+    UNSUPPORTED_FEATURE: builtins.int
+    BIN_NOT_FOUND: builtins.int
+    DEVICE_OVERLOAD: builtins.int
+    KEY_MISMATCH: builtins.int
+    INVALID_NAMESPACE: builtins.int
+    BIN_NAME_TOO_LONG: builtins.int
+    FAIL_FORBIDDEN: builtins.int
+    ELEMENT_NOT_FOUND: builtins.int
+    ELEMENT_EXISTS: builtins.int
+    ENTERPRISE_ONLY: builtins.int
+    OP_NOT_APPLICABLE: builtins.int
+    FILTERED_OUT: builtins.int
+    LOST_CONFLICT: builtins.int
+    XDR_KEY_BUSY: builtins.int
+    QUERY_END: builtins.int
+    SECURITY_NOT_SUPPORTED: builtins.int
+    SECURITY_NOT_ENABLED: builtins.int
+    SECURITY_SCHEME_NOT_SUPPORTED: builtins.int
+    INVALID_COMMAND: builtins.int
+    INVALID_FIELD: builtins.int
+    ILLEGAL_STATE: builtins.int
+    INVALID_USER: builtins.int
+    USER_ALREADY_EXISTS: builtins.int
+
 class ScanPolicy(BasePolicy):
     def __new__(cls) -> ScanPolicy: ...
     @property
@@ -770,6 +856,24 @@ class WritePolicy(BasePolicy):
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
 
+class BitwiseOverflowActions(Enum):
+    Fail = ...
+    Saturate = ...
+    Wrap = ...
+
+class BitwiseResizeFlags(Enum):
+    Default = ...
+    FromFront = ...
+    GrowOnly = ...
+    ShrinkOnly = ...
+
+class BitwiseWriteFlags(Enum):
+    Default = ...
+    CreateOnly = ...
+    UpdateOnly = ...
+    NoFail = ...
+    Partial = ...
+
 class CollectionIndexType(Enum):
     r"""
     Secondary index collection type.
@@ -814,6 +918,167 @@ class IndexType(Enum):
     Numeric = ...
     String = ...
     Geo2DSphere = ...
+
+class ListOrderType(Enum):
+    Unordered = ...
+    r"""
+    List is not ordered. This is the default.
+    """
+    Ordered = ...
+    r"""
+    List is ordered.
+    """
+
+class ListReturnType(Enum):
+    None = ...
+    r"""
+    Do not return a result.
+    """
+    Index = ...
+    r"""
+    Return index offset order.
+    """
+    ReverseIndex = ...
+    r"""
+    Return reverse index offset order.
+    """
+    Rank = ...
+    r"""
+    Return value order.
+    """
+    ReverseRank = ...
+    r"""
+    Return reverse value order.
+    """
+    Count = ...
+    r"""
+    Return count of items selected.
+    """
+    Value = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    Exists = ...
+    r"""
+    Return true if count > 0.
+    """
+    Inverted = ...
+    r"""
+    Invert meaning of list command and return values.
+    """
+
+class ListSortFlags(Enum):
+    Default = ...
+    r"""
+    Default. Preserve duplicate values when sorting list.
+    """
+    DropDuplicates = ...
+    r"""
+    Drop duplicate values when sorting list.
+    """
+
+class ListWriteFlags(Enum):
+    Default = ...
+    r"""
+    Default is the default behavior. It means: Allow duplicate values and insertions at any index.
+    """
+    AddUnique = ...
+    r"""
+    AddUnique means: Only add unique values.
+    """
+    InsertBounded = ...
+    r"""
+    InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
+    """
+    NoFail = ...
+    r"""
+    NoFail means: do not raise error if a list item fails due to write flag constraints.
+    """
+    Partial = ...
+    r"""
+    Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
+    """
+
+class MapOrder(Enum):
+    Unordered = ...
+    r"""
+    Map is not ordered. This is the default.
+    """
+    KeyOrdered = ...
+    r"""
+    Order map by key.
+    """
+    KeyValueOrdered = ...
+    r"""
+    Order map by key, then value.
+    """
+
+class MapReturnType(Enum):
+    None = ...
+    r"""
+    Do not return a result.
+    """
+    Index = ...
+    r"""
+    Return key index order.
+    """
+    ReverseIndex = ...
+    r"""
+    Return reverse key order.
+    """
+    Rank = ...
+    r"""
+    Return value order.
+    """
+    ReverseRank = ...
+    r"""
+    Return reverse value order.
+    """
+    Count = ...
+    r"""
+    Return count of items selected.
+    """
+    Key = ...
+    r"""
+    Return key for single key read and key list for range read.
+    """
+    Value = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    KeyValue = ...
+    r"""
+    Return key/value items.
+    """
+    Exists = ...
+    r"""
+    Returns true if count > 0.
+    """
+    UnorderedMap = ...
+    r"""
+    Returns an unordered map.
+    """
+    OrderedMap = ...
+    r"""
+    Returns an ordered map.
+    """
+
+class MapWriteMode(Enum):
+    Update = ...
+    r"""
+    If the key already exists, the item will be overwritten.
+    If the key does not exist, a new item will be created.
+    """
+    UpdateOnly = ...
+    r"""
+    If the key already exists, the item will be overwritten.
+    If the key does not exist, the write will fail.
+    """
+    CreateOnly = ...
+    r"""
+    If the key already exists, the write will fail.
+    If the key does not exist, a new item will be created.
+    """
 
 class PrivilegeCode(Enum):
     r"""
