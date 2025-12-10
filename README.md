@@ -77,10 +77,10 @@ make stubs
 *  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
 *  Next APIs:
    - Security/Admin operations — exposed but tests skipped; may need updates to match current Rust core API
-   - Batch operations — not wrapped
-   - UDF operations — not wrapped
-   - TLS configuration — not wrapped
-   - Transactions — not wrapped
+   - Batch operations
+   - UDF operations
+   - TLS configuration
+   - Transactions
 *  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
 *  Cross-Python Client compatibility testing - esp data types
