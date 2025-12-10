@@ -81,7 +81,6 @@ make stubs
    - UDF operations — not wrapped
    - TLS configuration — not wrapped
    - Transactions — not wrapped
-   - Exposed but needs work (tests skipped, may need updates)
 *  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
 *  Cross-Python Client compatibility testing - esp data types
