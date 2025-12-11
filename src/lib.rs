@@ -5557,7 +5557,37 @@ pub enum Replica {
                             // Store value for bit operations that require a value
                             value_storage.push(value.clone().into());
                         }
-                        _ => {}
+                        // Operations that don't require storage in first pass
+                        OperationType::Get() | OperationType::GetBin(_) | OperationType::GetHeader() |
+                        OperationType::Delete() | OperationType::Touch() |
+                        OperationType::ListGet(_, _) | OperationType::ListSize(_) | OperationType::ListPop(_, _) |
+                        OperationType::ListClear(_) | OperationType::ListGetRange(_, _, _) |
+                        OperationType::ListRemove(_, _) | OperationType::ListRemoveRange(_, _, _) |
+                        OperationType::ListGetRangeFrom(_, _) | OperationType::ListPopRange(_, _, _) |
+                        OperationType::ListPopRangeFrom(_, _) | OperationType::ListRemoveRangeFrom(_, _) |
+                        OperationType::ListTrim(_, _, _) | OperationType::ListIncrement(_, _, _, _) |
+                        OperationType::ListSort(_, _) | OperationType::ListSetOrder(_, _) |
+                        OperationType::ListGetByIndex(_, _, _) | OperationType::ListGetByIndexRange(_, _, _, _) |
+                        OperationType::ListGetByRank(_, _, _) | OperationType::ListGetByRankRange(_, _, _, _) |
+                        OperationType::ListRemoveByIndex(_, _, _) | OperationType::ListRemoveByIndexRange(_, _, _, _) |
+                        OperationType::ListRemoveByRank(_, _, _) | OperationType::ListRemoveByRankRange(_, _, _, _) |
+                        OperationType::ListCreate(_, _, _, _) |
+                        OperationType::MapSize(_) | OperationType::MapClear(_) |
+                        OperationType::MapGetByIndex(_, _, _) | OperationType::MapRemoveByIndex(_, _, _) |
+                        OperationType::MapGetByIndexRange(_, _, _, _) | OperationType::MapRemoveByIndexRange(_, _, _, _) |
+                        OperationType::MapGetByIndexRangeFrom(_, _, _) | OperationType::MapRemoveByIndexRangeFrom(_, _, _) |
+                        OperationType::MapGetByRank(_, _, _) | OperationType::MapRemoveByRank(_, _, _) |
+                        OperationType::MapGetByRankRange(_, _, _, _) | OperationType::MapRemoveByRankRange(_, _, _, _) |
+                        OperationType::MapGetByRankRangeFrom(_, _, _) | OperationType::MapRemoveByRankRangeFrom(_, _, _) |
+                        OperationType::MapSetMapPolicy(_, _) | OperationType::MapCreate(_, _) |
+                        OperationType::BitResize(_, _, _, _) | OperationType::BitRemove(_, _, _, _) |
+                        OperationType::BitNot(_, _, _, _) | OperationType::BitLShift(_, _, _, _, _) |
+                        OperationType::BitRShift(_, _, _, _, _) | OperationType::BitAdd(_, _, _, _, _, _, _) |
+                        OperationType::BitSubtract(_, _, _, _, _, _, _) | OperationType::BitSetInt(_, _, _, _, _) |
+                        OperationType::BitGet(_, _, _) | OperationType::BitCount(_, _, _) |
+                        OperationType::BitLScan(_, _, _, _) | OperationType::BitRScan(_, _, _, _) |
+                        OperationType::BitGetInt(_, _, _, _) => {
+                        }
                     }
                 }
 
