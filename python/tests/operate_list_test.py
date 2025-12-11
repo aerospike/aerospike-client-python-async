@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
-                             ListPolicy, ListOrderType, ListReturnType, ListSortFlags)
+                             ListPolicy, ListOrderType, ListReturnType, ListSortFlags, CTX)
 from aerospike_async.exceptions import ServerError
 
 
@@ -1193,4 +1193,197 @@ async def test_operate_list_inverted(client_and_key):
     # Verify we got results
     assert len(results) > 0
 
+
+async def test_operate_list_nested(client_and_key):
+    """Test operate with nested list using CTX.listIndex."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    list_policy = ListPolicy(None, None)
+
+    # Delete record first
+    await client.delete(wp, key)
+
+    # Create nested lists: [[7, 9, 5], [1, 2, 3], [6, 5, 4, 1]]
+    l1 = [7, 9, 5]
+    l2 = [1, 2, 3]
+    l3 = [6, 5, 4, 1]
+    input_list = [l1, l2, l3]
+
+    # Create list
+    await client.put(wp, key, {"oplistbin": input_list})
+
+    # Append value 11 to last nested list (index -1) and retrieve all lists
+    record = await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.append("oplistbin", 11, list_policy).set_context([CTX.list_index(-1)]),
+            Operation.get_bin("oplistbin")
+        ]
+    )
+
+    assert record is not None
+    results = record.bins.get("oplistbin")
+    
+    if isinstance(results, list):
+        # First result: count from append (should be 5)
+        count = results[0] if isinstance(results[0], (int, float)) else results[1]
+        assert count == 5
+        
+        # Second result: the full list
+        full_list = results[1] if isinstance(results[0], (int, float)) else results[0]
+    else:
+        # Single result case
+        full_list = results
+    
+    assert isinstance(full_list, list)
+    assert len(full_list) == 3
+    
+    # Test last nested list (index 2) - should now have 5 elements with 11 appended
+    nested_list = full_list[2]
+    assert isinstance(nested_list, list)
+    assert len(nested_list) == 5
+    assert nested_list[0] == 6
+    assert nested_list[1] == 5
+    assert nested_list[2] == 4
+    assert nested_list[3] == 1
+    assert nested_list[4] == 11
+
+
+async def test_operate_nested_list_map(client_and_key):
+    """Test operate with nested list inside map using CTX.mapKey and CTX.listRank."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    list_policy = ListPolicy(None, None)
+
+    # Delete record first
+    await client.delete(wp, key)
+
+    # Create nested structure: map with lists
+    # key1 -> [[7, 9, 5], [13]]
+    # key2 -> [[9], [2, 4], [6, 1, 9]]
+    l11 = [7, 9, 5]
+    l12 = [13]
+    l1 = [l11, l12]
+    
+    l21 = [9]
+    l22 = [2, 4]
+    l23 = [6, 1, 9]
+    l2 = [l21, l22, l23]
+    
+    input_map = {
+        "key1": l1,
+        "key2": l2
+    }
+
+    # Create map
+    await client.put(wp, key, {"oplistbin": input_map})
+
+    # Append value 11 to list at rank 0 inside map key "key2" and retrieve map
+    record = await client.operate(
+        wp,
+        key,
+        [
+                ListOperation.append("oplistbin", 11, list_policy).set_context([
+                    CTX.map_key("key2"),
+                    CTX.list_rank(0)
+                ]),
+                Operation.get_bin("oplistbin")
+        ]
+    )
+
+    assert record is not None
+    results = record.bins.get("oplistbin")
+    
+    if isinstance(results, list):
+        # First result: count from append (should be 3)
+        count = results[0] if isinstance(results[0], (int, float)) else results[1]
+        assert count == 3
+        
+        # Second result: the full map
+        full_map = results[1] if isinstance(results[0], (int, float)) else results[0]
+    else:
+        full_map = results
+    
+    assert isinstance(full_map, dict)
+    assert len(full_map) == 2
+    
+    # Test affected nested list: key2 -> list at index 1 (rank 0) -> should have 3 elements with 11 appended
+    key2_list = full_map["key2"]
+    assert isinstance(key2_list, list)
+    assert len(key2_list) == 3
+    
+    # The list at index 1 (rank 0) should be [2, 4, 11]
+    affected_list = key2_list[1]
+    assert isinstance(affected_list, list)
+    assert len(affected_list) == 3
+    assert affected_list[0] == 2
+    assert affected_list[1] == 4
+    assert affected_list[2] == 11
+
+
+async def test_operate_list_create_context(client_and_key):
+    """Test operate with list create context using CTX.listIndexCreate."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    list_policy = ListPolicy(None, None)
+
+    # Delete record first
+    await client.delete(wp, key)
+
+    # Create initial nested lists
+    l1 = [7, 9, 5]
+    l2 = [1, 2, 3]
+    l3 = [6, 5, 4, 1]
+    input_list = [l1, l2, l3]
+
+    # Create list
+    record = await client.operate(
+        wp,
+        key,
+            [
+                ListOperation.append_items("oplistbin", input_list, list_policy),
+                Operation.get_bin("oplistbin")
+            ]
+    )
+
+    # Append value 2 to new list created at index 3 (after the original 3 lists)
+    record = await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.append("oplistbin", 2, list_policy).set_context([
+                CTX.list_index_create(3, ListOrderType.Ordered, False)
+            ]),
+            Operation.get_bin("oplistbin")
+        ]
+    )
+
+    assert record is not None
+    results = record.bins.get("oplistbin")
+    
+    if isinstance(results, list):
+        # First result: count from append (should be 1)
+        count = results[0] if isinstance(results[0], (int, float)) else results[1]
+        assert count == 1
+        
+        # Second result: the full list
+        full_list = results[1] if isinstance(results[0], (int, float)) else results[0]
+    else:
+        full_list = results
+    
+    assert isinstance(full_list, list)
+    assert len(full_list) == 4  # Original 3 lists + 1 new list
+    
+    # Test last nested list (index 3) - should have 1 element with value 2
+    new_list = full_list[3]
+    assert isinstance(new_list, list)
+    assert len(new_list) == 1
+    assert new_list[0] == 2
 

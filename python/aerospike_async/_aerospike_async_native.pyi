@@ -44,6 +44,62 @@ class BitPolicy:
         Set the write flags.
         """
 
+class CTX:
+    r"""
+    Context for nested CDT (Complex Data Type) operations.
+    Used to specify the location of nested lists/maps within a record.
+    """
+    @staticmethod
+    def list_index(index:builtins.int) -> CTX:
+        r"""
+        Lookup list by index offset.
+        If the index is negative, the resolved index starts backwards from end of list.
+        Examples: 0 = first item, 4 = fifth item, -1 = last item, -3 = third to last item.
+        """
+    @staticmethod
+    def list_index_create(index:builtins.int, order:ListOrderType, pad:builtins.bool) -> CTX:
+        r"""
+        Create list with given type at index offset, given an order and pad.
+        """
+    @staticmethod
+    def list_rank(rank:builtins.int) -> CTX:
+        r"""
+        Lookup list by rank.
+        0 = smallest value, N = Nth smallest value, -1 = largest value.
+        """
+    @staticmethod
+    def list_value(value:typing.Any) -> CTX:
+        r"""
+        Lookup list by value.
+        """
+    @staticmethod
+    def map_index(key:typing.Any) -> CTX:
+        r"""
+        Lookup map by index offset.
+        If the index is negative, the resolved index starts backwards from end of list.
+        """
+    @staticmethod
+    def map_rank(rank:builtins.int) -> CTX:
+        r"""
+        Lookup map by rank.
+        0 = smallest value, N = Nth smallest value, -1 = largest value.
+        """
+    @staticmethod
+    def map_key(key:typing.Any) -> CTX:
+        r"""
+        Lookup map by key.
+        """
+    @staticmethod
+    def map_key_create(key:typing.Any, order:MapOrder) -> CTX:
+        r"""
+        Create map with given type at map key.
+        """
+    @staticmethod
+    def map_value(value:typing.Any) -> CTX:
+        r"""
+        Lookup map by value.
+        """
+
 class ClientPolicy:
     @property
     def user(self) -> typing.Optional[builtins.str]: ...
