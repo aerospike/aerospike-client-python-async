@@ -407,6 +407,16 @@ class FilterExpression:
         Creates Blob bin value
         """
     @staticmethod
+    def list_val(val:typing.Sequence[typing.Any]) -> FilterExpression:
+        r"""
+        Create List bin value.
+        """
+    @staticmethod
+    def map_val(val:typing.Mapping[typing.Any, typing.Any]) -> FilterExpression:
+        r"""
+        Create Map bin value.
+        """
+    @staticmethod
     def geo_val(val:builtins.str) -> FilterExpression:
         r"""
         Create geospatial json string value.

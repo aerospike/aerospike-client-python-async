@@ -1509,23 +1509,34 @@ pub enum Replica {
             }
         }
 
-        // #[staticmethod]
-        // /// Create List bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn list_val(val: Vec<PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::list_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create List bin value.
+        pub fn list_val(val: Vec<PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::list_val(
+                    val.into_iter()
+                        .map(|v| aerospike_core::Value::from(v))
+                        .collect(),
+                ),
+            }
+        }
 
-        // #[staticmethod]
-        // /// Create Map bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::map_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create Map bin value.
+        pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_val(
+                    val.into_iter()
+                        .map(|(k, v)| {
+                            (
+                                aerospike_core::Value::from(k),
+                                aerospike_core::Value::from(v),
+                            )
+                        })
+                        .collect(),
+                ),
+            }
+        }
 
         #[staticmethod]
         /// Create geospatial json string value.
