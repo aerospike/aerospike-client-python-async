@@ -106,8 +106,8 @@ jobs:
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
-          # Run all tests
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          # Set AEROSPIKE_HOST environment variable to bypass env file and use CI server port
+          docker exec -e AEROSPIKE_HOST=localhost:3000 --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             docker logs --tail 100 aerospike-server
@@ -140,6 +140,8 @@ jobs:
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
       - name: Run tests (x86 wheels)
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+        env:
+          AEROSPIKE_HOST: localhost:3000
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
@@ -245,6 +247,8 @@ jobs:
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
       - name: Run tests
+        env:
+          AEROSPIKE_HOST: localhost:3000
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
