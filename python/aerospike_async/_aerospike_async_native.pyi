@@ -744,45 +744,47 @@ class Recordset:
     def __anext__(self) -> typing.Any: ...
 
 class ResultCode:
-    OK: builtins.int
-    SERVER_ERROR: builtins.int
-    KEY_NOT_FOUND_ERROR: builtins.int
-    GENERATION_ERROR: builtins.int
-    PARAMETER_ERROR: builtins.int
-    KEY_EXISTS_ERROR: builtins.int
-    BIN_EXISTS_ERROR: builtins.int
-    CLUSTER_KEY_MISMATCH: builtins.int
-    SERVER_MEM_ERROR: builtins.int
-    TIMEOUT: builtins.int
-    ALWAYS_FORBIDDEN: builtins.int
-    PARTITION_UNAVAILABLE: builtins.int
-    BIN_TYPE_ERROR: builtins.int
-    RECORD_TOO_BIG: builtins.int
-    KEY_BUSY: builtins.int
-    SCAN_ABORT: builtins.int
-    UNSUPPORTED_FEATURE: builtins.int
-    BIN_NOT_FOUND: builtins.int
-    DEVICE_OVERLOAD: builtins.int
-    KEY_MISMATCH: builtins.int
-    INVALID_NAMESPACE: builtins.int
-    BIN_NAME_TOO_LONG: builtins.int
-    FAIL_FORBIDDEN: builtins.int
-    ELEMENT_NOT_FOUND: builtins.int
-    ELEMENT_EXISTS: builtins.int
-    ENTERPRISE_ONLY: builtins.int
-    OP_NOT_APPLICABLE: builtins.int
-    FILTERED_OUT: builtins.int
-    LOST_CONFLICT: builtins.int
-    XDR_KEY_BUSY: builtins.int
-    QUERY_END: builtins.int
-    SECURITY_NOT_SUPPORTED: builtins.int
-    SECURITY_NOT_ENABLED: builtins.int
-    SECURITY_SCHEME_NOT_SUPPORTED: builtins.int
-    INVALID_COMMAND: builtins.int
-    INVALID_FIELD: builtins.int
-    ILLEGAL_STATE: builtins.int
-    INVALID_USER: builtins.int
-    USER_ALREADY_EXISTS: builtins.int
+    OK: ResultCode
+    SERVER_ERROR: ResultCode
+    KEY_NOT_FOUND_ERROR: ResultCode
+    GENERATION_ERROR: ResultCode
+    PARAMETER_ERROR: ResultCode
+    KEY_EXISTS_ERROR: ResultCode
+    BIN_EXISTS_ERROR: ResultCode
+    CLUSTER_KEY_MISMATCH: ResultCode
+    SERVER_MEM_ERROR: ResultCode
+    TIMEOUT: ResultCode
+    ALWAYS_FORBIDDEN: ResultCode
+    PARTITION_UNAVAILABLE: ResultCode
+    BIN_TYPE_ERROR: ResultCode
+    RECORD_TOO_BIG: ResultCode
+    KEY_BUSY: ResultCode
+    SCAN_ABORT: ResultCode
+    UNSUPPORTED_FEATURE: ResultCode
+    BIN_NOT_FOUND: ResultCode
+    DEVICE_OVERLOAD: ResultCode
+    KEY_MISMATCH: ResultCode
+    INVALID_NAMESPACE: ResultCode
+    BIN_NAME_TOO_LONG: ResultCode
+    FAIL_FORBIDDEN: ResultCode
+    ELEMENT_NOT_FOUND: ResultCode
+    ELEMENT_EXISTS: ResultCode
+    ENTERPRISE_ONLY: ResultCode
+    OP_NOT_APPLICABLE: ResultCode
+    FILTERED_OUT: ResultCode
+    LOST_CONFLICT: ResultCode
+    XDR_KEY_BUSY: ResultCode
+    QUERY_END: ResultCode
+    SECURITY_NOT_SUPPORTED: ResultCode
+    SECURITY_NOT_ENABLED: ResultCode
+    SECURITY_SCHEME_NOT_SUPPORTED: ResultCode
+    INVALID_COMMAND: ResultCode
+    INVALID_FIELD: ResultCode
+    ILLEGAL_STATE: ResultCode
+    INVALID_USER: ResultCode
+    USER_ALREADY_EXISTS: ResultCode
+    def __richcmp__(self, other:ResultCode, op:int) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
 
 class ScanPolicy(BasePolicy):
     def __new__(cls) -> ScanPolicy: ...

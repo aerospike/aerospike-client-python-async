@@ -3,7 +3,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, Expiration
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, ResultCode
 
 
 @pytest_asyncio.fixture
@@ -401,7 +401,7 @@ async def test_operate_touch_and_get_header(client_and_key):
         assert rec_after_expiry is None
     except ServerError as e:
         # Record expired - ServerError is expected
-        # The error message should contain "KeyNotFoundError"
-        assert "KeyNotFoundError" in str(e)
+        # The error should be KeyNotFoundError
+        assert e.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
 

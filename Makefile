@@ -33,7 +33,8 @@ git-cargo:
 stubs:
 	# Generate type stubs and organize them as a Python package
 	# stub_gen.rs will automatically move _aerospike_async_native.pyi to the correct location
-	source aerospike.env && cargo run --no-default-features --bin stub_gen
+	# Suppress warnings from dependencies (aerospike-core) to keep output clean
+	source aerospike.env && RUSTFLAGS="-A warnings" cargo run --no-default-features --bin stub_gen 2>&1 | grep -v "warning:.*aerospike-core" || true
 	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
 	@if [ -f python/aerospike_async/__init__.pyi ]; then \
 		python python/postprocess_stubs.py python/aerospike_async/__init__.pyi; \

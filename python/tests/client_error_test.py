@@ -117,11 +117,11 @@ class TestClientError:
     def test_client_error_vs_other_errors(self):
         """Test that ClientError is distinct from other error types."""
         from aerospike_async.exceptions import (
-            ServerError, ConnectionError, ValueError, TimeoutError
+            ServerError, ConnectionError, ValueError, TimeoutError, ResultCode
         )
         
         client_error = ClientError("client error")
-        server_error = ServerError("server error", 4)  # ParameterError
+        server_error = ServerError("server error", ResultCode.PARAMETER_ERROR)
         connection_error = ConnectionError("connection error")
         value_error = ValueError("value error")
         timeout_error = TimeoutError("timeout error")

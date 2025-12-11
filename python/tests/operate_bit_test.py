@@ -2,8 +2,8 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, BitOperation,
-                             BitPolicy, BitwiseWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions, ResultCode)
-from aerospike_async.exceptions import ServerError
+                             BitPolicy, BitwiseWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions)
+from aerospike_async.exceptions import ServerError, ResultCode
 
 
 @pytest_asyncio.fixture
@@ -115,12 +115,12 @@ async def test_operate_bit_bin(client_and_key):
     assert len(final_bytes) == 6  # Removed 2 bytes
 
     # Test error cases
-    # Error code 17 = BIN_NOT_FOUND (bin doesn't exist)
+    # Bin doesn't exist
     with pytest.raises(ServerError) as exi:
         await client.operate(wp, key, [BitOperation.set("b", 1, 1, bit0, put_mode)])
     assert exi.value.result_code == ResultCode.BIN_NOT_FOUND
 
-    # Error code 4 = PARAMETER_ERROR (CREATE_ONLY on existing bin)
+    # CREATE_ONLY on existing bin
     with pytest.raises(ServerError) as exi:
         await client.operate(wp, key, [BitOperation.set("bitbin", 1, 1, bit0, add_mode)])
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
@@ -482,8 +482,7 @@ async def test_operate_bit_add(client_and_key):
                 BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.Fail, put_mode),
             ]
         )
-    # Check result code using named constant
-    # Error code 26 = OP_NOT_APPLICABLE (operation cannot be applied to current bin value)
+    # Operation cannot be applied to current bin value
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
 
@@ -564,8 +563,7 @@ async def test_operate_bit_subtract(client_and_key):
                 BitOperation.subtract("bitbin", 0, 8, 1, False, BitwiseOverflowActions.Fail, put_mode),
             ]
         )
-    # Check result code using named constant
-    # Error code 26 = OP_NOT_APPLICABLE (operation cannot be applied to current bin value)
+    # Operation cannot be applied to current bin value
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
 
@@ -887,7 +885,7 @@ async def test_operate_bit_null_blob(client_and_key):
     await client.put(wp, key, {"bitbin": initial_bytes})
 
     # All these operations should fail with ServerError
-    # Most operations fail with OP_NOT_APPLICABLE (26), remove fails with PARAMETER_ERROR (4)
+    # Most operations fail with OP_NOT_APPLICABLE, remove fails with PARAMETER_ERROR
     with pytest.raises(ServerError) as exi:
         await client.operate(wp, key, [BitOperation.set("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
@@ -916,7 +914,7 @@ async def test_operate_bit_null_blob(client_and_key):
         await client.operate(wp, key, [BitOperation.rshift("bitbin", 0, 1, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    # Remove should fail with PARAMETER_ERROR (4)
+    # Remove should fail with PARAMETER_ERROR
     with pytest.raises(ServerError) as exi:
         await client.operate(wp, key, [BitOperation.remove("bitbin", 0, 1, policy)])
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
@@ -933,7 +931,7 @@ async def test_operate_bit_null_blob(client_and_key):
         await client.operate(wp, key, [BitOperation.set_int("bitbin", 0, 1, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    # Read operations should also fail with OP_NOT_APPLICABLE (26)
+    # Read operations should also fail with OP_NOT_APPLICABLE
     with pytest.raises(ServerError) as exi:
         await client.operate(wp, key, [BitOperation.get("bitbin", 0, 1)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE

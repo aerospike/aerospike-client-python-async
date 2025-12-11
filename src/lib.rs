@@ -56,46 +56,36 @@ use pyo3::create_exception;
 // Base exception class
 create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::PyException);
 
-// Helper function to extract result code from CoreResultCode enum
-// This uses unsafe code to read the enum discriminant as a u8
-// We use the actual aerospike_core::ResultCode in Rust code
-fn result_code_to_i32(rc: &CoreResultCode) -> i32 {
-    unsafe {
-        // Get a pointer to the first byte of the enum
-        let ptr = rc as *const _ as *const u8;
-        *ptr as i32
-    }
-}
-
 // Server-related exceptions
 // ServerError is a custom exception with a result_code property
 // Note: It extends PyException directly, but Python-side it should be treated as an AerospikeError subclass
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
 #[pyclass(extends = PyException)]
 pub struct ServerError {
-    result_code: i32,
+    result_code: CoreResultCode,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl ServerError {
     #[new]
-    fn new(_message: String, result_code: i32) -> PyResult<Self> {
+    fn new(_message: String, result_code: ResultCode) -> PyResult<Self> {
         // Note: message is handled by the base PyException, we only store result_code
-        Ok(ServerError { result_code })
+        Ok(ServerError { result_code: result_code.0 })
     }
 
     #[getter]
-    fn result_code(&self) -> i32 {
-        self.result_code
+    fn result_code(&self) -> ResultCode {
+        ResultCode(self.result_code)
     }
 }
 
 // Helper function to create ServerError as a PyErr
-fn create_server_error(message: String, result_code: i32) -> PyErr {
+fn create_server_error(message: String, result_code: CoreResultCode) -> PyErr {
     Python::attach(|py| -> PyErr {
         let server_error_type = py.get_type::<ServerError>();
-        match server_error_type.call1((message.clone(), result_code)) {
+        let result_code_wrapper = ResultCode(result_code);
+        match server_error_type.call1((message.clone(), result_code_wrapper)) {
             Ok(server_error_obj) => PyErr::from_value(server_error_obj),
             Err(e) => e,
         }
@@ -150,9 +140,8 @@ impl From<RustClientError> for PyErr {
             Error::InvalidNode(string) => InvalidNodeError::new_err(string),
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
             Error::ServerError(result_code, in_doubt, node) => {
-                let code = result_code_to_i32(&result_code);
                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                create_server_error(message, code)
+                create_server_error(message, result_code)
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string, client_side) => TimeoutError::new_err(format!("{}, Client-Side: {}", string, client_side)),
@@ -161,9 +150,8 @@ impl From<RustClientError> for PyErr {
                 // Check first error
                 match first.as_ref() {
                     Error::ServerError(result_code, in_doubt, node) => {
-                        let code = result_code_to_i32(&result_code);
                         let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                        create_server_error(message, code)
+                        create_server_error(message, *result_code)
                     },
                     Error::BadResponse(msg) => {
                         BadResponse::new_err(msg.clone())
@@ -172,9 +160,8 @@ impl From<RustClientError> for PyErr {
                         // Check second error for more specific type
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                let code = result_code_to_i32(&result_code);
                                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, code)
+                                create_server_error(message, *result_code)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -186,9 +173,8 @@ impl From<RustClientError> for PyErr {
                         // Check second error
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                let code = result_code_to_i32(&result_code);
                                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, code)
+                                create_server_error(message, *result_code)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -1889,7 +1875,13 @@ pub enum Replica {
         _as: aerospike_core::query::PartitionFilter,
     }
 
-
+    impl Default for PartitionFilter {
+        fn default() -> Self {
+            PartitionFilter {
+                _as: aerospike_core::query::PartitionFilter::all(),
+            }
+        }
+    }
 
     /// Trait implemented by most policy types; policies that implement this trait typically encompass
     /// an instance of `PartitionFilter`.
@@ -1898,9 +1890,7 @@ pub enum Replica {
     impl PartitionFilter {
         #[new]
         pub fn new() -> Self {
-            PartitionFilter {
-                _as: aerospike_core::query::PartitionFilter::all(),
-            }
+            Self::default()
         }
 
         pub fn done(&self) -> bool {
@@ -2729,7 +2719,7 @@ pub enum Replica {
                     }
                     Ok(py_dict.into())
                 }
-                None => Ok(py.None().into()),
+                None => Ok(py.None()),
             }
         }
 
@@ -3210,14 +3200,20 @@ pub enum Replica {
         op: OperationType,
     }
 
+    impl Default for Operation {
+        fn default() -> Self {
+            Operation {
+                op: OperationType::Get(),
+            }
+        }
+    }
+
     #[gen_stub_pymethods]
     #[pymethods]
     impl Operation {
         #[new]
         pub fn new() -> Self {
-            Operation {
-                op: OperationType::Get(),
-            }
+            Self::default()
         }
 
         /// Create a Get operation (reads all bins).
@@ -3892,94 +3888,107 @@ pub enum Replica {
     // Expose ResultCode constants from Rust core to Python
     // We use the actual CoreResultCode in Rust code, and expose matching constants to Python
     // PyO3's #[pyclass] can't be used on external types, so we create a simple class with constants
+    // ResultCode wrapper to expose enum values to Python
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "ResultCode", module = "_aerospike_async_native")]
-    pub struct ResultCode;
+    #[derive(Debug, Clone, Copy)]
+    pub struct ResultCode(CoreResultCode);
 
     #[gen_stub_pymethods]
     #[pymethods]
-    #[allow(non_snake_case)]  // Constants are intentionally UPPER_CASE to match server error codes
+    #[allow(non_snake_case)]  // Class attributes use PascalCase to match Rust enum variants
     impl ResultCode {
-        // Expose constants matching CoreResultCode enum values
-        // These match aerospike_core::ResultCode exactly
+        fn __richcmp__(&self, other: &ResultCode, op: CompareOp) -> PyResult<bool> {
+            match op {
+                CompareOp::Eq => Ok(std::mem::discriminant(&self.0) == std::mem::discriminant(&other.0)),
+                CompareOp::Ne => Ok(std::mem::discriminant(&self.0) != std::mem::discriminant(&other.0)),
+                _ => Ok(false),
+            }
+        }
+
+        fn __repr__(&self) -> String {
+            format!("ResultCode({:?})", self.0)
+        }
+
+        // Expose enum instances as class attributes (UPPER_SNAKE_CASE for Pythonic constants)
         #[classattr]
-        fn OK() -> i32 { 0 }
+        fn OK() -> ResultCode { ResultCode(CoreResultCode::Ok) }
         #[classattr]
-        fn SERVER_ERROR() -> i32 { 1 }
+        fn SERVER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerError) }
         #[classattr]
-        fn KEY_NOT_FOUND_ERROR() -> i32 { 2 }
+        fn KEY_NOT_FOUND_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyNotFoundError) }
         #[classattr]
-        fn GENERATION_ERROR() -> i32 { 3 }
+        fn GENERATION_ERROR() -> ResultCode { ResultCode(CoreResultCode::GenerationError) }
         #[classattr]
-        fn PARAMETER_ERROR() -> i32 { 4 }
+        fn PARAMETER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ParameterError) }
         #[classattr]
-        fn KEY_EXISTS_ERROR() -> i32 { 5 }
+        fn KEY_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyExistsError) }
         #[classattr]
-        fn BIN_EXISTS_ERROR() -> i32 { 6 }
+        fn BIN_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinExistsError) }
         #[classattr]
-        fn CLUSTER_KEY_MISMATCH() -> i32 { 7 }
+        fn CLUSTER_KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::ClusterKeyMismatch) }
         #[classattr]
-        fn SERVER_MEM_ERROR() -> i32 { 8 }
+        fn SERVER_MEM_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerMemError) }
         #[classattr]
-        fn TIMEOUT() -> i32 { 9 }
+        fn TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::Timeout) }
         #[classattr]
-        fn ALWAYS_FORBIDDEN() -> i32 { 10 }
+        fn ALWAYS_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::AlwaysForbidden) }
         #[classattr]
-        fn PARTITION_UNAVAILABLE() -> i32 { 11 }
+        fn PARTITION_UNAVAILABLE() -> ResultCode { ResultCode(CoreResultCode::PartitionUnavailable) }
         #[classattr]
-        fn BIN_TYPE_ERROR() -> i32 { 12 }
+        fn BIN_TYPE_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinTypeError) }
         #[classattr]
-        fn RECORD_TOO_BIG() -> i32 { 13 }
+        fn RECORD_TOO_BIG() -> ResultCode { ResultCode(CoreResultCode::RecordTooBig) }
         #[classattr]
-        fn KEY_BUSY() -> i32 { 14 }
+        fn KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::KeyBusy) }
         #[classattr]
-        fn SCAN_ABORT() -> i32 { 15 }
+        fn SCAN_ABORT() -> ResultCode { ResultCode(CoreResultCode::ScanAbort) }
         #[classattr]
-        fn UNSUPPORTED_FEATURE() -> i32 { 16 }
+        fn UNSUPPORTED_FEATURE() -> ResultCode { ResultCode(CoreResultCode::UnsupportedFeature) }
         #[classattr]
-        fn BIN_NOT_FOUND() -> i32 { 17 }
+        fn BIN_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::BinNotFound) }
         #[classattr]
-        fn DEVICE_OVERLOAD() -> i32 { 18 }
+        fn DEVICE_OVERLOAD() -> ResultCode { ResultCode(CoreResultCode::DeviceOverload) }
         #[classattr]
-        fn KEY_MISMATCH() -> i32 { 19 }
+        fn KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::KeyMismatch) }
         #[classattr]
-        fn INVALID_NAMESPACE() -> i32 { 20 }
+        fn INVALID_NAMESPACE() -> ResultCode { ResultCode(CoreResultCode::InvalidNamespace) }
         #[classattr]
-        fn BIN_NAME_TOO_LONG() -> i32 { 21 }
+        fn BIN_NAME_TOO_LONG() -> ResultCode { ResultCode(CoreResultCode::BinNameTooLong) }
         #[classattr]
-        fn FAIL_FORBIDDEN() -> i32 { 22 }
+        fn FAIL_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::FailForbidden) }
         #[classattr]
-        fn ELEMENT_NOT_FOUND() -> i32 { 23 }
+        fn ELEMENT_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::ElementNotFound) }
         #[classattr]
-        fn ELEMENT_EXISTS() -> i32 { 24 }
+        fn ELEMENT_EXISTS() -> ResultCode { ResultCode(CoreResultCode::ElementExists) }
         #[classattr]
-        fn ENTERPRISE_ONLY() -> i32 { 25 }
+        fn ENTERPRISE_ONLY() -> ResultCode { ResultCode(CoreResultCode::EnterpriseOnly) }
         #[classattr]
-        fn OP_NOT_APPLICABLE() -> i32 { 26 }
+        fn OP_NOT_APPLICABLE() -> ResultCode { ResultCode(CoreResultCode::OpNotApplicable) }
         #[classattr]
-        fn FILTERED_OUT() -> i32 { 27 }
+        fn FILTERED_OUT() -> ResultCode { ResultCode(CoreResultCode::FilteredOut) }
         #[classattr]
-        fn LOST_CONFLICT() -> i32 { 28 }
+        fn LOST_CONFLICT() -> ResultCode { ResultCode(CoreResultCode::LostConflict) }
         #[classattr]
-        fn XDR_KEY_BUSY() -> i32 { 32 }
+        fn XDR_KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::XDRKeyBusy) }
         #[classattr]
-        fn QUERY_END() -> i32 { 50 }
+        fn QUERY_END() -> ResultCode { ResultCode(CoreResultCode::QueryEnd) }
         #[classattr]
-        fn SECURITY_NOT_SUPPORTED() -> i32 { 51 }
+        fn SECURITY_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotSupported) }
         #[classattr]
-        fn SECURITY_NOT_ENABLED() -> i32 { 52 }
+        fn SECURITY_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotEnabled) }
         #[classattr]
-        fn SECURITY_SCHEME_NOT_SUPPORTED() -> i32 { 53 }
+        fn SECURITY_SCHEME_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecuritySchemeNotSupported) }
         #[classattr]
-        fn INVALID_COMMAND() -> i32 { 54 }
+        fn INVALID_COMMAND() -> ResultCode { ResultCode(CoreResultCode::InvalidCommand) }
         #[classattr]
-        fn INVALID_FIELD() -> i32 { 55 }
+        fn INVALID_FIELD() -> ResultCode { ResultCode(CoreResultCode::InvalidField) }
         #[classattr]
-        fn ILLEGAL_STATE() -> i32 { 56 }
+        fn ILLEGAL_STATE() -> ResultCode { ResultCode(CoreResultCode::IllegalState) }
         #[classattr]
-        fn INVALID_USER() -> i32 { 60 }
+        fn INVALID_USER() -> ResultCode { ResultCode(CoreResultCode::InvalidUser) }
         #[classattr]
-        fn USER_ALREADY_EXISTS() -> i32 { 61 }
+        fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::UserAlreadyExists) }
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
@@ -4754,7 +4763,7 @@ pub enum Replica {
                     Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
                 }
             })
-            .map(|bound| bound.unbind().into())
+            .map(|bound| bound.unbind())
         }
     }
 
@@ -5147,9 +5156,9 @@ pub enum Replica {
                     } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
                         rust_ops.push(py_op.op.clone());
                     } else {
-                        return Err(PyErr::from(PyTypeError::new_err(
+                        return Err(PyTypeError::new_err(
                             "Operation must be Operation, ListOperation, MapOperation, or BitOperation"
-                        )));
+                        ));
                     }
                     Ok::<(), PyErr>(())
                 })?;
@@ -6483,7 +6492,7 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let user = user.as_ref().map(|u| u.as_str());
+                let user = user.as_deref();
                 let res = client
                     .read()
                     .await
@@ -6508,7 +6517,7 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let role: Option<&str> = role.as_ref().map(|u| u.as_str());
+                let role: Option<&str> = role.as_deref();
                 let res = client
                     .read()
                     .await
@@ -7816,7 +7825,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
         let geo_dict = json_loads.call1((geo_str,))?;
 
         // Use GeoJSON constructor which accepts dict
-        return GeoJSON::new(py, &geo_dict.into_bound_py_any(py)?.as_any());
+        return GeoJSON::new(py, geo_dict.into_bound_py_any(py)?.as_any());
     }
 
     // Otherwise, try to parse as coordinate pair string like "122.0, 37.5"
@@ -7840,7 +7849,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     point_dict.set_item("coordinates", coords_vec)?;
 
     // Use GeoJSON constructor to create from dict
-    GeoJSON::new(py, &point_dict.as_any())
+    GeoJSON::new(py, point_dict.as_any())
 }
 
 // Simple logger implementation that writes to stderr
@@ -7965,6 +7974,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
+    exceptions_module.add("ResultCode", py.get_type::<ResultCode>())?;
     m.add_submodule(&exceptions_module)?;
 
     Ok(())
