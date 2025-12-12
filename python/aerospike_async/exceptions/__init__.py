@@ -29,3 +29,5 @@ IoError = _exceptions.IoError
 PasswordHashError = _exceptions.PasswordHashError
 InvalidRustClientArgs = _exceptions.InvalidRustClientArgs
 ClientError = _exceptions.ClientError
+# ResultCode is in the main native module, not in exceptions submodule
+ResultCode = _aerospike_async_native.ResultCode

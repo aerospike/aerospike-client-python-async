@@ -29,6 +29,7 @@ use aerospike_core::as_geo;
 use aerospike_core::as_val;
 use aerospike_core::errors::Error;
 use aerospike_core::query::RecordStream;
+use aerospike_core::ResultCode as CoreResultCode;
 use aerospike_core::Value;
 use aerospike_core::ParticleType;
 
@@ -56,7 +57,40 @@ use pyo3::create_exception;
 create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::PyException);
 
 // Server-related exceptions
-create_exception!(aerospike_async.exceptions, ServerError, AerospikeError);
+// ServerError is a custom exception with a result_code property
+// Note: It extends PyException directly, but Python-side it should be treated as an AerospikeError subclass
+#[gen_stub_pyclass(module = "_aerospike_async_native")]
+#[pyclass(extends = PyException)]
+pub struct ServerError {
+    result_code: CoreResultCode,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl ServerError {
+    #[new]
+    fn new(_message: String, result_code: ResultCode) -> PyResult<Self> {
+        // Note: message is handled by the base PyException, we only store result_code
+        Ok(ServerError { result_code: result_code.0 })
+    }
+
+    #[getter]
+    fn result_code(&self) -> ResultCode {
+        ResultCode(self.result_code)
+    }
+}
+
+// Helper function to create ServerError as a PyErr
+fn create_server_error(message: String, result_code: CoreResultCode) -> PyErr {
+    Python::attach(|py| -> PyErr {
+        let server_error_type = py.get_type::<ServerError>();
+        let result_code_wrapper = ResultCode(result_code);
+        match server_error_type.call1((message.clone(), result_code_wrapper)) {
+            Ok(server_error_obj) => PyErr::from_value(server_error_obj),
+            Err(e) => e,
+        }
+    })
+}
 create_exception!(aerospike_async.exceptions, UDFBadResponse, AerospikeError);
 create_exception!(aerospike_async.exceptions, TimeoutError, AerospikeError);
 create_exception!(aerospike_async.exceptions, BadResponse, AerospikeError);
@@ -106,7 +140,8 @@ impl From<RustClientError> for PyErr {
             Error::InvalidNode(string) => InvalidNodeError::new_err(string),
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
             Error::ServerError(result_code, in_doubt, node) => {
-                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
+                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+                create_server_error(message, result_code)
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string, client_side) => TimeoutError::new_err(format!("{}, Client-Side: {}", string, client_side)),
@@ -115,7 +150,8 @@ impl From<RustClientError> for PyErr {
                 // Check first error
                 match first.as_ref() {
                     Error::ServerError(result_code, in_doubt, node) => {
-                        ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
+                        let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+                        create_server_error(message, *result_code)
                     },
                     Error::BadResponse(msg) => {
                         BadResponse::new_err(msg.clone())
@@ -124,7 +160,8 @@ impl From<RustClientError> for PyErr {
                         // Check second error for more specific type
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
+                                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+                                create_server_error(message, *result_code)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -136,7 +173,8 @@ impl From<RustClientError> for PyErr {
                         // Check second error
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
-                                ServerError::new_err(format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node))
+                                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+                                create_server_error(message, *result_code)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -712,6 +750,499 @@ pub enum Replica {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListOrderType
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ListOrderType", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ListOrderType {
+        /// List is not ordered. This is the default.
+        Unordered,
+        /// List is ordered.
+        Ordered,
+    }
+
+    #[pymethods]
+    impl ListOrderType {
+        fn __richcmp__(&self, other: &ListOrderType, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&ListOrderType> for aerospike_core::operations::lists::ListOrderType {
+        fn from(input: &ListOrderType) -> Self {
+            match input {
+                ListOrderType::Unordered => aerospike_core::operations::lists::ListOrderType::Unordered,
+                ListOrderType::Ordered => aerospike_core::operations::lists::ListOrderType::Ordered,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListWriteFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ListWriteFlags", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ListWriteFlags {
+        /// Default is the default behavior. It means: Allow duplicate values and insertions at any index.
+        Default,
+        /// AddUnique means: Only add unique values.
+        AddUnique,
+        /// InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
+        InsertBounded,
+        /// NoFail means: do not raise error if a list item fails due to write flag constraints.
+        NoFail,
+        /// Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
+        Partial,
+    }
+
+    #[pymethods]
+    impl ListWriteFlags {
+        fn __richcmp__(&self, other: &ListWriteFlags, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&ListWriteFlags> for aerospike_core::operations::lists::ListWriteFlags {
+        fn from(input: &ListWriteFlags) -> Self {
+            match input {
+                ListWriteFlags::Default => aerospike_core::operations::lists::ListWriteFlags::Default,
+                ListWriteFlags::AddUnique => aerospike_core::operations::lists::ListWriteFlags::AddUnique,
+                ListWriteFlags::InsertBounded => aerospike_core::operations::lists::ListWriteFlags::InsertBounded,
+                ListWriteFlags::NoFail => aerospike_core::operations::lists::ListWriteFlags::NoFail,
+                ListWriteFlags::Partial => aerospike_core::operations::lists::ListWriteFlags::Partial,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListReturnType
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ListReturnType", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ListReturnType {
+        /// Do not return a result.
+        None,
+        /// Return index offset order.
+        Index,
+        /// Return reverse index offset order.
+        ReverseIndex,
+        /// Return value order.
+        Rank,
+        /// Return reverse value order.
+        ReverseRank,
+        /// Return count of items selected.
+        Count,
+        /// Return value for single key read and value list for range read.
+        Value,
+        /// Return true if count > 0.
+        Exists,
+        /// Invert meaning of list command and return values.
+        Inverted,
+    }
+
+    #[pymethods]
+    impl ListReturnType {
+        fn __richcmp__(&self, other: &ListReturnType, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&ListReturnType> for aerospike_core::operations::lists::ListReturnType {
+        fn from(input: &ListReturnType) -> Self {
+            match input {
+                ListReturnType::None => aerospike_core::operations::lists::ListReturnType::None,
+                ListReturnType::Index => aerospike_core::operations::lists::ListReturnType::Index,
+                ListReturnType::ReverseIndex => aerospike_core::operations::lists::ListReturnType::ReverseIndex,
+                ListReturnType::Rank => aerospike_core::operations::lists::ListReturnType::Rank,
+                ListReturnType::ReverseRank => aerospike_core::operations::lists::ListReturnType::ReverseRank,
+                ListReturnType::Count => aerospike_core::operations::lists::ListReturnType::Count,
+                ListReturnType::Value => aerospike_core::operations::lists::ListReturnType::Values,
+                ListReturnType::Exists => aerospike_core::operations::lists::ListReturnType::Exists,
+                ListReturnType::Inverted => aerospike_core::operations::lists::ListReturnType::Inverted,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListSortFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ListSortFlags", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ListSortFlags {
+        /// Default. Preserve duplicate values when sorting list.
+        Default,
+        /// Drop duplicate values when sorting list.
+        DropDuplicates,
+    }
+
+    #[pymethods]
+    impl ListSortFlags {
+        fn __richcmp__(&self, other: &ListSortFlags, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&ListSortFlags> for aerospike_core::operations::lists::ListSortFlags {
+        fn from(input: &ListSortFlags) -> Self {
+            match input {
+                ListSortFlags::Default => aerospike_core::operations::lists::ListSortFlags::Default,
+                ListSortFlags::DropDuplicates => aerospike_core::operations::lists::ListSortFlags::DropDuplicates,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapOrder
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "MapOrder", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum MapOrder {
+        /// Map is not ordered. This is the default.
+        Unordered,
+        /// Order map by key.
+        KeyOrdered,
+        /// Order map by key, then value.
+        KeyValueOrdered,
+    }
+
+    #[pymethods]
+    impl MapOrder {
+        fn __richcmp__(&self, other: &MapOrder, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&MapOrder> for aerospike_core::operations::maps::MapOrder {
+        fn from(input: &MapOrder) -> Self {
+            match input {
+                MapOrder::Unordered => aerospike_core::operations::maps::MapOrder::Unordered,
+                MapOrder::KeyOrdered => aerospike_core::operations::maps::MapOrder::KeyOrdered,
+                MapOrder::KeyValueOrdered => aerospike_core::operations::maps::MapOrder::KeyValueOrdered,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapWriteMode
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "MapWriteMode", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum MapWriteMode {
+        /// If the key already exists, the item will be overwritten.
+        /// If the key does not exist, a new item will be created.
+        Update,
+        /// If the key already exists, the item will be overwritten.
+        /// If the key does not exist, the write will fail.
+        UpdateOnly,
+        /// If the key already exists, the write will fail.
+        /// If the key does not exist, a new item will be created.
+        CreateOnly,
+    }
+
+    #[pymethods]
+    impl MapWriteMode {
+        fn __richcmp__(&self, other: &MapWriteMode, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&MapWriteMode> for aerospike_core::operations::maps::MapWriteMode {
+        fn from(input: &MapWriteMode) -> Self {
+            match input {
+                MapWriteMode::Update => aerospike_core::operations::maps::MapWriteMode::Update,
+                MapWriteMode::UpdateOnly => aerospike_core::operations::maps::MapWriteMode::UpdateOnly,
+                MapWriteMode::CreateOnly => aerospike_core::operations::maps::MapWriteMode::CreateOnly,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapReturnType
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "MapReturnType", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum MapReturnType {
+        /// Do not return a result.
+        None,
+        /// Return key index order.
+        Index,
+        /// Return reverse key order.
+        ReverseIndex,
+        /// Return value order.
+        Rank,
+        /// Return reverse value order.
+        ReverseRank,
+        /// Return count of items selected.
+        Count,
+        /// Return key for single key read and key list for range read.
+        Key,
+        /// Return value for single key read and value list for range read.
+        Value,
+        /// Return key/value items.
+        KeyValue,
+        /// Returns true if count > 0.
+        Exists,
+        /// Returns an unordered map.
+        UnorderedMap,
+        /// Returns an ordered map.
+        OrderedMap,
+    }
+
+    #[pymethods]
+    impl MapReturnType {
+        fn __richcmp__(&self, other: &MapReturnType, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&MapReturnType> for aerospike_core::operations::maps::MapReturnType {
+        fn from(input: &MapReturnType) -> Self {
+            match input {
+                MapReturnType::None => aerospike_core::operations::maps::MapReturnType::None,
+                MapReturnType::Index => aerospike_core::operations::maps::MapReturnType::Index,
+                MapReturnType::ReverseIndex => aerospike_core::operations::maps::MapReturnType::ReverseIndex,
+                MapReturnType::Rank => aerospike_core::operations::maps::MapReturnType::Rank,
+                MapReturnType::ReverseRank => aerospike_core::operations::maps::MapReturnType::ReverseRank,
+                MapReturnType::Count => aerospike_core::operations::maps::MapReturnType::Count,
+                MapReturnType::Key => aerospike_core::operations::maps::MapReturnType::Key,
+                MapReturnType::Value => aerospike_core::operations::maps::MapReturnType::Value,
+                MapReturnType::KeyValue => aerospike_core::operations::maps::MapReturnType::KeyValue,
+                MapReturnType::Exists => aerospike_core::operations::maps::MapReturnType::Exists,
+                MapReturnType::UnorderedMap => aerospike_core::operations::maps::MapReturnType::UnorderedMap,
+                MapReturnType::OrderedMap => aerospike_core::operations::maps::MapReturnType::OrderedMap,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  CTX (Context) for nested CDT operations
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Context for nested CDT (Complex Data Type) operations.
+    /// Used to specify the location of nested lists/maps within a record.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "CTX", module = "_aerospike_async_native")]
+    #[derive(Clone, Debug)]
+    pub struct CTX {
+        ctx: aerospike_core::operations::cdt_context::CdtContext,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl CTX {
+        /// Lookup list by index offset.
+        /// If the index is negative, the resolved index starts backwards from end of list.
+        /// Examples: 0 = first item, 4 = fifth item, -1 = last item, -3 = third to last item.
+        #[staticmethod]
+        pub fn list_index(index: i64) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_list_index(index),
+            }
+        }
+
+        /// Create list with given type at index offset, given an order and pad.
+        #[staticmethod]
+        pub fn list_index_create(index: i64, order: ListOrderType, pad: bool) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_list_index_create(
+                    index,
+                    (&order).into(),
+                    pad,
+                ),
+            }
+        }
+
+        /// Lookup list by rank.
+        /// 0 = smallest value, N = Nth smallest value, -1 = largest value.
+        #[staticmethod]
+        pub fn list_rank(rank: i64) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_list_rank(rank),
+            }
+        }
+
+        /// Lookup list by value.
+        #[staticmethod]
+        pub fn list_value(value: PythonValue) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_list_value(
+                    aerospike_core::Value::from(value),
+                ),
+            }
+        }
+
+        /// Lookup map by index offset.
+        /// If the index is negative, the resolved index starts backwards from end of list.
+        #[staticmethod]
+        pub fn map_index(key: PythonValue) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_index(
+                    aerospike_core::Value::from(key),
+                ),
+            }
+        }
+
+        /// Lookup map by rank.
+        /// 0 = smallest value, N = Nth smallest value, -1 = largest value.
+        #[staticmethod]
+        pub fn map_rank(rank: i64) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_rank(rank),
+            }
+        }
+
+        /// Lookup map by key.
+        #[staticmethod]
+        pub fn map_key(key: PythonValue) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_key(
+                    aerospike_core::Value::from(key),
+                ),
+            }
+        }
+
+        /// Create map with given type at map key.
+        #[staticmethod]
+        pub fn map_key_create(key: PythonValue, order: MapOrder) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_key_create(
+                    aerospike_core::Value::from(key),
+                    (&order).into(),
+                ),
+            }
+        }
+
+        /// Lookup map by value.
+        #[staticmethod]
+        pub fn map_value(value: PythonValue) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_value(
+                    aerospike_core::Value::from(value),
+                ),
+            }
+        }
+    }
+
+    impl From<&CTX> for aerospike_core::operations::cdt_context::CdtContext {
+        fn from(ctx: &CTX) -> Self {
+            ctx.ctx.clone()
+        }
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -978,23 +1509,34 @@ pub enum Replica {
             }
         }
 
-        // #[staticmethod]
-        // /// Create List bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn list_val(val: Vec<PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::list_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create List bin value.
+        pub fn list_val(val: Vec<PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::list_val(
+                    val.into_iter()
+                        .map(|v| aerospike_core::Value::from(v))
+                        .collect(),
+                ),
+            }
+        }
 
-        // #[staticmethod]
-        // /// Create Map bin PHPValue
-        // /// Not Supported in pre-alpha release
-        // pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
-        //     FilterExpression {
-        //         _as: aerospike_core::expressions::map_val(val)
-        //     }
-        // }
+        #[staticmethod]
+        /// Create Map bin value.
+        pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_val(
+                    val.into_iter()
+                        .map(|(k, v)| {
+                            (
+                                aerospike_core::Value::from(k),
+                                aerospike_core::Value::from(v),
+                            )
+                        })
+                        .collect(),
+                ),
+            }
+        }
 
         #[staticmethod]
         /// Create geospatial json string value.
@@ -1461,7 +2003,13 @@ pub enum Replica {
         _as: aerospike_core::query::PartitionFilter,
     }
 
-
+    impl Default for PartitionFilter {
+        fn default() -> Self {
+            PartitionFilter {
+                _as: aerospike_core::query::PartitionFilter::all(),
+            }
+        }
+    }
 
     /// Trait implemented by most policy types; policies that implement this trait typically encompass
     /// an instance of `PartitionFilter`.
@@ -1470,9 +2018,7 @@ pub enum Replica {
     impl PartitionFilter {
         #[new]
         pub fn new() -> Self {
-            PartitionFilter {
-                _as: aerospike_core::query::PartitionFilter::all(),
-            }
+            Self::default()
         }
 
         pub fn done(&self) -> bool {
@@ -2216,7 +2762,7 @@ pub enum Replica {
             self._as.use_services_alternate = value;
         }
 
-        /// Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to 
+        /// Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to
         /// the server node that contains the key and exists on the same rack as the client.
         /// This serves to lower cloud provider costs when nodes are distributed across different
         /// racks/data centers.
@@ -2301,7 +2847,7 @@ pub enum Replica {
                     }
                     Ok(py_dict.into())
                 }
-                None => Ok(py.None().into()),
+                None => Ok(py.None()),
             }
         }
 
@@ -2564,6 +3110,1548 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  OperationType (internal enum)
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Internal enum that owns all operation data, avoiding lifetime issues when converting to
+    /// the core client's operation types.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum OperationType {
+        /// Get operation - reads all bins from the record.
+        Get(),
+        /// Get operation - reads a specific bin from the record.
+        GetBin(String),
+        /// GetHeader operation - reads only record metadata (generation, TTL), no bin data.
+        GetHeader(),
+        /// Put operation - writes a bin to the record.
+        Put(String, PythonValue),
+        /// Add operation - increments/decrements an integer bin value.
+        Add(String, PythonValue),
+        /// Append operation - appends to a string bin value.
+        Append(String, PythonValue),
+        /// Prepend operation - prepends to a string bin value.
+        Prepend(String, PythonValue),
+        /// Delete operation - deletes the record.
+        Delete(),
+        /// Touch operation - updates the record's TTL without modifying bin data.
+        Touch(),
+        /// List get operation - gets element at index.
+        ListGet(String, i64),
+        /// List size operation - gets list size.
+        ListSize(String),
+        /// List pop operation - pops and returns element at index.
+        ListPop(String, i64),
+        /// List clear operation - clears the list.
+        ListClear(String),
+        /// List get_range operation - gets range of elements.
+        ListGetRange(String, i64, i64),
+        /// List set operation - sets element at index.
+        ListSet(String, i64, PythonValue),
+        /// List remove operation - removes element at index.
+        ListRemove(String, i64),
+        /// List remove_range operation - removes range of elements.
+        ListRemoveRange(String, i64, i64),
+        /// List get_range_from operation - gets range from index to end.
+        ListGetRangeFrom(String, i64),
+        /// List pop_range operation - pops range of elements.
+        ListPopRange(String, i64, i64),
+        /// List pop_range_from operation - pops range from index to end.
+        ListPopRangeFrom(String, i64),
+        /// List remove_range_from operation - removes range from index to end.
+        ListRemoveRangeFrom(String, i64),
+        /// List trim operation - trims list to range.
+        ListTrim(String, i64, i64),
+        /// List append operation - appends a value to the list (requires ListPolicy).
+        ListAppend(String, PythonValue, ListPolicy),
+        /// List append_items operation - appends multiple values to the list (requires ListPolicy).
+        ListAppendItems(String, Vec<PythonValue>, ListPolicy),
+        /// List insert operation - inserts a value at index (requires ListPolicy).
+        ListInsert(String, i64, PythonValue, ListPolicy),
+        /// List insert_items operation - inserts multiple values at index (requires ListPolicy).
+        ListInsertItems(String, i64, Vec<PythonValue>, ListPolicy),
+        /// List increment operation - increments element at index by value (requires ListPolicy).
+        ListIncrement(String, i64, i64, ListPolicy),
+        /// List sort operation - sorts the list (requires ListSortFlags).
+        ListSort(String, ListSortFlags),
+        /// List set_order operation - sets list order (ORDERED/UNORDERED).
+        ListSetOrder(String, ListOrderType),
+        /// List get_by_index operation - gets element by index with return type (requires ListReturnType).
+        ListGetByIndex(String, i64, ListReturnType),
+        /// List get_by_index_range operation - gets elements by index range with return type (requires ListReturnType).
+        ListGetByIndexRange(String, i64, Option<i64>, ListReturnType),
+        /// List get_by_rank operation - gets element by rank with return type (requires ListReturnType).
+        ListGetByRank(String, i64, ListReturnType),
+        /// List get_by_rank_range operation - gets elements by rank range with return type (requires ListReturnType).
+        ListGetByRankRange(String, i64, Option<i64>, ListReturnType),
+        /// List get_by_value operation - gets elements by value with return type (requires ListReturnType).
+        ListGetByValue(String, PythonValue, ListReturnType),
+        /// List get_by_value_range operation - gets elements by value range with return type (requires ListReturnType).
+        ListGetByValueRange(String, PythonValue, PythonValue, ListReturnType),
+        /// List get_by_value_list operation - gets elements by value list with return type (requires ListReturnType).
+        ListGetByValueList(String, Vec<PythonValue>, ListReturnType),
+        /// List get_by_value_relative_rank_range operation - gets elements by value relative rank range (requires ListReturnType).
+        ListGetByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, ListReturnType),
+        /// List remove_by_index operation - removes element by index with return type (requires ListReturnType).
+        ListRemoveByIndex(String, i64, ListReturnType),
+        /// List remove_by_index_range operation - removes elements by index range with return type (requires ListReturnType).
+        ListRemoveByIndexRange(String, i64, Option<i64>, ListReturnType),
+        /// List remove_by_rank operation - removes element by rank with return type (requires ListReturnType).
+        ListRemoveByRank(String, i64, ListReturnType),
+        /// List remove_by_rank_range operation - removes elements by rank range with return type (requires ListReturnType).
+        ListRemoveByRankRange(String, i64, Option<i64>, ListReturnType),
+        /// List remove_by_value operation - removes elements by value with return type (requires ListReturnType).
+        ListRemoveByValue(String, PythonValue, ListReturnType),
+        /// List remove_by_value_list operation - removes elements by value list with return type (requires ListReturnType).
+        ListRemoveByValueList(String, Vec<PythonValue>, ListReturnType),
+        /// List remove_by_value_range operation - removes elements by value range with return type (requires ListReturnType).
+        ListRemoveByValueRange(String, PythonValue, PythonValue, ListReturnType),
+        /// List remove_by_value_relative_rank_range operation - removes elements by value relative rank range (requires ListReturnType).
+        ListRemoveByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, ListReturnType),
+        /// List create operation - creates a list with order and persisted index.
+        ListCreate(String, ListOrderType, bool, bool),
+        /// Map size operation - gets map size.
+        MapSize(String),
+        /// Map clear operation - clears the map.
+        MapClear(String),
+        /// Map put operation - puts a key-value pair (requires MapPolicy).
+        MapPut(String, PythonValue, PythonValue, MapPolicy),
+        /// Map put_items operation - puts multiple key-value pairs (requires MapPolicy).
+        MapPutItems(String, Vec<(PythonValue, PythonValue)>, MapPolicy),
+        /// Map increment_value operation - increments value by key (requires MapPolicy).
+        MapIncrementValue(String, PythonValue, i64, MapPolicy),
+        /// Map decrement_value operation - decrements value by key (requires MapPolicy).
+        MapDecrementValue(String, PythonValue, i64, MapPolicy),
+        /// Map get_by_key operation - gets value by key (requires MapReturnType).
+        MapGetByKey(String, PythonValue, MapReturnType),
+        /// Map remove_by_key operation - removes item by key (requires MapReturnType).
+        MapRemoveByKey(String, PythonValue, MapReturnType),
+        /// Map get_by_key_range operation - gets items by key range (requires MapReturnType).
+        MapGetByKeyRange(String, PythonValue, PythonValue, MapReturnType),
+        /// Map remove_by_key_range operation - removes items by key range (requires MapReturnType).
+        MapRemoveByKeyRange(String, PythonValue, PythonValue, MapReturnType),
+        /// Map get_by_index operation - gets item by index (requires MapReturnType).
+        MapGetByIndex(String, i64, MapReturnType),
+        /// Map remove_by_index operation - removes item by index (requires MapReturnType).
+        MapRemoveByIndex(String, i64, MapReturnType),
+        /// Map get_by_index_range operation - gets items by index range (requires MapReturnType).
+        MapGetByIndexRange(String, i64, i64, MapReturnType),
+        /// Map remove_by_index_range operation - removes items by index range (requires MapReturnType).
+        MapRemoveByIndexRange(String, i64, i64, MapReturnType),
+        /// Map get_by_index_range_from operation - gets items from index to end (requires MapReturnType).
+        MapGetByIndexRangeFrom(String, i64, MapReturnType),
+        /// Map remove_by_index_range_from operation - removes items from index to end (requires MapReturnType).
+        MapRemoveByIndexRangeFrom(String, i64, MapReturnType),
+        /// Map get_by_rank operation - gets item by rank (requires MapReturnType).
+        MapGetByRank(String, i64, MapReturnType),
+        /// Map remove_by_rank operation - removes item by rank (requires MapReturnType).
+        MapRemoveByRank(String, i64, MapReturnType),
+        /// Map get_by_rank_range operation - gets items by rank range (requires MapReturnType).
+        MapGetByRankRange(String, i64, i64, MapReturnType),
+        /// Map remove_by_rank_range operation - removes items by rank range (requires MapReturnType).
+        MapRemoveByRankRange(String, i64, i64, MapReturnType),
+        /// Map get_by_rank_range_from operation - gets items from rank to end (requires MapReturnType).
+        MapGetByRankRangeFrom(String, i64, MapReturnType),
+        /// Map remove_by_rank_range_from operation - removes items from rank to end (requires MapReturnType).
+        MapRemoveByRankRangeFrom(String, i64, MapReturnType),
+        /// Map get_by_value operation - gets items by value (requires MapReturnType).
+        MapGetByValue(String, PythonValue, MapReturnType),
+        /// Map remove_by_value operation - removes items by value (requires MapReturnType).
+        MapRemoveByValue(String, PythonValue, MapReturnType),
+        /// Map get_by_value_range operation - gets items by value range (requires MapReturnType).
+        MapGetByValueRange(String, PythonValue, PythonValue, MapReturnType),
+        /// Map remove_by_value_range operation - removes items by value range (requires MapReturnType).
+        MapRemoveByValueRange(String, PythonValue, PythonValue, MapReturnType),
+        /// Map get_by_key_list operation - gets items by a list of keys (requires MapReturnType).
+        MapGetByKeyList(String, Vec<PythonValue>, MapReturnType),
+        /// Map remove_by_key_list operation - removes items by a list of keys (requires MapReturnType).
+        MapRemoveByKeyList(String, Vec<PythonValue>, MapReturnType),
+        /// Map get_by_value_list operation - gets items by a list of values (requires MapReturnType).
+        MapGetByValueList(String, Vec<PythonValue>, MapReturnType),
+        /// Map remove_by_value_list operation - removes items by a list of values (requires MapReturnType).
+        MapRemoveByValueList(String, Vec<PythonValue>, MapReturnType),
+        /// Map set_map_policy operation - sets map policy.
+        MapSetMapPolicy(String, MapPolicy),
+        /// Map get_by_key_relative_index_range operation - gets items by key relative index range (requires MapReturnType).
+        MapGetByKeyRelativeIndexRange(String, PythonValue, i64, Option<i64>, MapReturnType),
+        /// Map get_by_value_relative_rank_range operation - gets items by value relative rank range (requires MapReturnType).
+        MapGetByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, MapReturnType),
+        /// Map remove_by_key_relative_index_range operation - removes items by key relative index range (requires MapReturnType).
+        MapRemoveByKeyRelativeIndexRange(String, PythonValue, i64, Option<i64>, MapReturnType),
+        /// Map remove_by_value_relative_rank_range operation - removes items by value relative rank range (requires MapReturnType).
+        MapRemoveByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, MapReturnType),
+        /// Map create operation - creates a map with order.
+        MapCreate(String, MapOrder),
+        /// Bit resize operation - resizes byte array (requires BitPolicy).
+        BitResize(String, i64, Option<BitwiseResizeFlags>, BitPolicy),
+        /// Bit insert operation - inserts bytes (requires BitPolicy).
+        BitInsert(String, i64, PythonValue, BitPolicy),
+        /// Bit remove operation - removes bytes (requires BitPolicy).
+        BitRemove(String, i64, i64, BitPolicy),
+        /// Bit set operation - sets bits (requires BitPolicy).
+        BitSet(String, i64, i64, PythonValue, BitPolicy),
+        /// Bit or operation - performs bitwise OR (requires BitPolicy).
+        BitOr(String, i64, i64, PythonValue, BitPolicy),
+        /// Bit xor operation - performs bitwise XOR (requires BitPolicy).
+        BitXor(String, i64, i64, PythonValue, BitPolicy),
+        /// Bit and operation - performs bitwise AND (requires BitPolicy).
+        BitAnd(String, i64, i64, PythonValue, BitPolicy),
+        /// Bit not operation - performs bitwise NOT (requires BitPolicy).
+        BitNot(String, i64, i64, BitPolicy),
+        /// Bit lshift operation - performs left shift (requires BitPolicy).
+        BitLShift(String, i64, i64, i64, BitPolicy),
+        /// Bit rshift operation - performs right shift (requires BitPolicy).
+        BitRShift(String, i64, i64, i64, BitPolicy),
+        /// Bit add operation - adds to integer value (requires BitPolicy).
+        BitAdd(String, i64, i64, i64, bool, BitwiseOverflowActions, BitPolicy),
+        /// Bit subtract operation - subtracts from integer value (requires BitPolicy).
+        BitSubtract(String, i64, i64, i64, bool, BitwiseOverflowActions, BitPolicy),
+        /// Bit set_int operation - sets integer value (requires BitPolicy).
+        BitSetInt(String, i64, i64, i64, BitPolicy),
+        /// Bit get operation - gets bits (read-only).
+        BitGet(String, i64, i64),
+        /// Bit count operation - counts set bits (read-only).
+        BitCount(String, i64, i64),
+        /// Bit lscan operation - scans left for value (read-only).
+        BitLScan(String, i64, i64, bool),
+        /// Bit rscan operation - scans right for value (read-only).
+        BitRScan(String, i64, i64, bool),
+        /// Bit get_int operation - gets integer value (read-only).
+        BitGetInt(String, i64, i64, bool),
+    }
+
+    /// Python wrapper for Operation enum.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct Operation {
+        op: OperationType,
+    }
+
+    impl Default for Operation {
+        fn default() -> Self {
+            Operation {
+                op: OperationType::Get(),
+            }
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl Operation {
+        #[new]
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Create a Get operation (reads all bins).
+        #[staticmethod]
+        pub fn get() -> Self {
+            Operation {
+                op: OperationType::Get(),
+            }
+        }
+
+        /// Create a Get operation for a specific bin.
+        #[staticmethod]
+        pub fn get_bin(bin_name: String) -> Self {
+            Operation {
+                op: OperationType::GetBin(bin_name),
+            }
+        }
+
+        /// Create a Put operation.
+        #[staticmethod]
+        pub fn put(bin_name: String, value: PythonValue) -> Self {
+            Operation {
+                op: OperationType::Put(bin_name, value),
+            }
+        }
+
+        /// Create a GetHeader operation (metadata only, no bin data).
+        #[staticmethod]
+        pub fn get_header() -> Self {
+            Operation {
+                op: OperationType::GetHeader(),
+            }
+        }
+
+        /// Create a Delete operation.
+        #[staticmethod]
+        pub fn delete() -> Self {
+            Operation {
+                op: OperationType::Delete(),
+            }
+        }
+
+        /// Create a Touch operation (updates TTL).
+        #[staticmethod]
+        pub fn touch() -> Self {
+            Operation {
+                op: OperationType::Touch(),
+            }
+        }
+
+        /// Create an Add operation (increments/decrements integer bin value).
+        #[staticmethod]
+        pub fn add(bin_name: String, value: PythonValue) -> Self {
+            Operation {
+                op: OperationType::Add(bin_name, value),
+            }
+        }
+
+        /// Create an Append operation (appends to string bin value).
+        #[staticmethod]
+        pub fn append(bin_name: String, value: PythonValue) -> Self {
+            Operation {
+                op: OperationType::Append(bin_name, value),
+            }
+        }
+
+        /// Create a Prepend operation (prepends to string bin value).
+        #[staticmethod]
+        pub fn prepend(bin_name: String, value: PythonValue) -> Self {
+            Operation {
+                op: OperationType::Prepend(bin_name, value),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// List bin operations. Create list operations used by the client's `operate()` method.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct ListOperation {
+        op: OperationType,
+        ctx: Option<Vec<CTX>>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl ListOperation {
+        /// Create a List get operation (gets element at index).
+        #[staticmethod]
+        pub fn get(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                op: OperationType::ListGet(bin_name, index),
+                ctx: None,
+            }
+        }
+
+        /// Create a List size operation (gets list size).
+        #[staticmethod]
+        pub fn size(bin_name: String) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSize(bin_name),
+            }
+        }
+
+        /// Create a List pop operation (pops and returns element at index).
+        #[staticmethod]
+        pub fn pop(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListPop(bin_name, index),
+            }
+        }
+
+        /// Create a List clear operation (clears the list).
+        #[staticmethod]
+        pub fn clear(bin_name: String) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListClear(bin_name),
+            }
+        }
+
+        /// Create a List get_range operation (gets range of elements).
+        #[staticmethod]
+        pub fn get_range(bin_name: String, index: i64, count: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetRange(bin_name, index, count),
+            }
+        }
+
+        /// Create a List set operation (sets element at index).
+        #[staticmethod]
+        pub fn set(bin_name: String, index: i64, value: PythonValue) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSet(bin_name, index, value),
+            }
+        }
+
+        /// Create a List remove operation (removes element at index).
+        #[staticmethod]
+        pub fn remove(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemove(bin_name, index),
+            }
+        }
+
+        /// Create a List remove_range operation (removes range of elements).
+        #[staticmethod]
+        pub fn remove_range(bin_name: String, index: i64, count: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveRange(bin_name, index, count),
+            }
+        }
+
+        /// Create a List get_range_from operation (gets range from index to end).
+        #[staticmethod]
+        pub fn get_range_from(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetRangeFrom(bin_name, index),
+            }
+        }
+
+        /// Create a List pop_range operation (pops range of elements).
+        #[staticmethod]
+        pub fn pop_range(bin_name: String, index: i64, count: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListPopRange(bin_name, index, count),
+            }
+        }
+
+        /// Create a List pop_range_from operation (pops range from index to end).
+        #[staticmethod]
+        pub fn pop_range_from(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListPopRangeFrom(bin_name, index),
+            }
+        }
+
+        /// Create a List remove_range_from operation (removes range from index to end).
+        #[staticmethod]
+        pub fn remove_range_from(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveRangeFrom(bin_name, index),
+            }
+        }
+
+        /// Create a List trim operation (trims list to range).
+        #[staticmethod]
+        pub fn trim(bin_name: String, index: i64, count: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListTrim(bin_name, index, count),
+            }
+        }
+
+        /// Create a List append operation (appends a value to the list, requires ListPolicy).
+        #[staticmethod]
+        pub fn append(bin_name: String, value: PythonValue, policy: ListPolicy) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListAppend(bin_name, value, policy),
+            }
+        }
+
+        /// Create a List append_items operation (appends multiple values to the list, requires ListPolicy).
+        #[staticmethod]
+        pub fn append_items(bin_name: String, values: Vec<PythonValue>, policy: ListPolicy) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListAppendItems(bin_name, values, policy),
+            }
+        }
+
+        /// Create a List insert operation (inserts a value at index, requires ListPolicy).
+        #[staticmethod]
+        pub fn insert(bin_name: String, index: i64, value: PythonValue, policy: ListPolicy) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListInsert(bin_name, index, value, policy),
+            }
+        }
+
+        /// Create a List insert_items operation (inserts multiple values at index, requires ListPolicy).
+        #[staticmethod]
+        pub fn insert_items(bin_name: String, index: i64, values: Vec<PythonValue>, policy: ListPolicy) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListInsertItems(bin_name, index, values, policy),
+            }
+        }
+
+        /// Create a List increment operation (increments element at index by value, requires ListPolicy).
+        #[staticmethod]
+        pub fn increment(bin_name: String, index: i64, value: i64, policy: ListPolicy) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListIncrement(bin_name, index, value, policy),
+            }
+        }
+
+        /// Create a List sort operation (sorts the list, requires ListSortFlags).
+        #[staticmethod]
+        pub fn sort(bin_name: String, flags: ListSortFlags) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSort(bin_name, flags),
+            }
+        }
+
+        /// Create a List set_order operation (sets list order ORDERED/UNORDERED).
+        #[staticmethod]
+        pub fn set_order(bin_name: String, order: ListOrderType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSetOrder(bin_name, order),
+            }
+        }
+
+        /// Create a List get_by_index operation (gets element by index with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_index(bin_name: String, index: i64, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByIndex(bin_name, index, return_type),
+            }
+        }
+
+        /// Create a List get_by_index_range operation (gets elements by index range with return type, requires ListReturnType).
+        /// If count is None, gets from index to end of list.
+        #[staticmethod]
+        pub fn get_by_index_range(bin_name: String, index: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByIndexRange(bin_name, index, count, return_type),
+            }
+        }
+
+        /// Create a List get_by_rank operation (gets element by rank with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_rank(bin_name: String, rank: i64, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByRank(bin_name, rank, return_type),
+            }
+        }
+
+        /// Create a List get_by_rank_range operation (gets elements by rank range with return type, requires ListReturnType).
+        /// If count is None, gets from rank to end of list.
+        #[staticmethod]
+        pub fn get_by_rank_range(bin_name: String, rank: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByRankRange(bin_name, rank, count, return_type),
+            }
+        }
+
+        /// Create a List get_by_value operation (gets elements by value with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_value(bin_name: String, value: PythonValue, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByValue(bin_name, value, return_type),
+            }
+        }
+
+        /// Create a List get_by_value_range operation (gets elements by value range with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_value_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByValueRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        /// Create a List get_by_value_list operation (gets elements by value list with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_value_list(bin_name: String, values: Vec<PythonValue>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByValueList(bin_name, values, return_type),
+            }
+        }
+
+        /// Create a List get_by_value_relative_rank_range operation (gets elements by value relative rank range, requires ListReturnType).
+        #[staticmethod]
+        pub fn get_by_value_relative_rank_range(bin_name: String, value: PythonValue, rank: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListGetByValueRelativeRankRange(bin_name, value, rank, count, return_type),
+            }
+        }
+
+        /// Create a List remove_by_index operation (removes element by index with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_index(bin_name: String, index: i64, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByIndex(bin_name, index, return_type),
+            }
+        }
+
+        /// Create a List remove_by_index_range operation (removes elements by index range with return type, requires ListReturnType).
+        /// If count is None, removes from index to end of list.
+        #[staticmethod]
+        pub fn remove_by_index_range(bin_name: String, index: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByIndexRange(bin_name, index, count, return_type),
+            }
+        }
+
+        /// Create a List remove_by_rank operation (removes element by rank with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_rank(bin_name: String, rank: i64, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByRank(bin_name, rank, return_type),
+            }
+        }
+
+        /// Create a List remove_by_rank_range operation (removes elements by rank range with return type, requires ListReturnType).
+        /// If count is None, removes from rank to end of list.
+        #[staticmethod]
+        pub fn remove_by_rank_range(bin_name: String, rank: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByRankRange(bin_name, rank, count, return_type),
+            }
+        }
+
+        /// Create a List remove_by_value operation (removes elements by value with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_value(bin_name: String, value: PythonValue, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByValue(bin_name, value, return_type),
+            }
+        }
+
+        /// Create a List remove_by_value_list operation (removes elements by value list with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_value_list(bin_name: String, values: Vec<PythonValue>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByValueList(bin_name, values, return_type),
+            }
+        }
+
+        /// Create a List remove_by_value_range operation (removes elements by value range with return type, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_value_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByValueRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        /// Create a List remove_by_value_relative_rank_range operation (removes elements by value relative rank range, requires ListReturnType).
+        #[staticmethod]
+        pub fn remove_by_value_relative_rank_range(bin_name: String, value: PythonValue, rank: i64, count: Option<i64>, return_type: ListReturnType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListRemoveByValueRelativeRankRange(bin_name, value, rank, count, return_type),
+            }
+        }
+
+        /// Create a List create operation (creates a list with order and persisted index).
+        #[staticmethod]
+        pub fn create(bin_name: String, order: ListOrderType, pad: bool, persist_index: bool) -> Self {
+            ListOperation {
+                op: OperationType::ListCreate(bin_name, order, pad, persist_index),
+                ctx: None,
+            }
+        }
+
+        /// Set the context for this operation. Used for nested CDT operations.
+        pub fn set_context(&self, ctx: Vec<CTX>) -> Self {
+            ListOperation {
+                op: self.op.clone(),
+                ctx: Some(ctx),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Map bin operations. Create map operations used by the client's `operate()` method.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct MapOperation {
+        op: OperationType,
+        ctx: Option<Vec<CTX>>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl MapOperation {
+        /// Create a Map size operation (gets map size).
+        #[staticmethod]
+        pub fn size(bin_name: String) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapSize(bin_name),
+            }
+        }
+
+        #[staticmethod]
+        pub fn clear(bin_name: String) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapClear(bin_name),
+            }
+        }
+
+        #[staticmethod]
+        pub fn put(bin_name: String, key: PythonValue, value: PythonValue, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapPut(bin_name, key, value, policy),
+            }
+        }
+
+        #[staticmethod]
+        pub fn put_items(bin_name: String, items: Vec<(PythonValue, PythonValue)>, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapPutItems(bin_name, items, policy),
+            }
+        }
+
+        #[staticmethod]
+        pub fn increment_value(bin_name: String, key: PythonValue, value: i64, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapIncrementValue(bin_name, key, value, policy),
+            }
+        }
+
+        #[staticmethod]
+        pub fn decrement_value(bin_name: String, key: PythonValue, value: i64, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapDecrementValue(bin_name, key, value, policy),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_key(bin_name: String, key: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByKey(bin_name, key, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_key(bin_name: String, key: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByKey(bin_name, key, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_key_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByKeyRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_key_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByKeyRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_index(bin_name: String, index: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByIndex(bin_name, index, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_index(bin_name: String, index: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByIndex(bin_name, index, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_index_range(bin_name: String, index: i64, count: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByIndexRange(bin_name, index, count, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_index_range(bin_name: String, index: i64, count: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByIndexRange(bin_name, index, count, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_index_range_from(bin_name: String, index: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByIndexRangeFrom(bin_name, index, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_index_range_from(bin_name: String, index: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByIndexRangeFrom(bin_name, index, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_rank(bin_name: String, rank: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByRank(bin_name, rank, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_rank(bin_name: String, rank: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByRank(bin_name, rank, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_rank_range(bin_name: String, rank: i64, count: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByRankRange(bin_name, rank, count, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_rank_range(bin_name: String, rank: i64, count: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByRankRange(bin_name, rank, count, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_rank_range_from(bin_name: String, rank: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByRankRangeFrom(bin_name, rank, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_rank_range_from(bin_name: String, rank: i64, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByRankRangeFrom(bin_name, rank, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_value(bin_name: String, value: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByValue(bin_name, value, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_value(bin_name: String, value: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByValue(bin_name, value, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_value_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByValueRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_value_range(bin_name: String, begin: PythonValue, end: PythonValue, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByValueRange(bin_name, begin, end, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_key_list(bin_name: String, keys: Vec<PythonValue>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByKeyList(bin_name, keys, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_key_list(bin_name: String, keys: Vec<PythonValue>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByKeyList(bin_name, keys, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn get_by_value_list(bin_name: String, values: Vec<PythonValue>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByValueList(bin_name, values, return_type),
+            }
+        }
+
+        #[staticmethod]
+        pub fn remove_by_value_list(bin_name: String, values: Vec<PythonValue>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByValueList(bin_name, values, return_type),
+            }
+        }
+
+        /// Create a Map set_map_policy operation (sets map policy).
+        #[staticmethod]
+        pub fn set_map_policy(bin_name: String, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapSetMapPolicy(bin_name, policy),
+            }
+        }
+
+        /// Create a Map get_by_key_relative_index_range operation (gets items by key relative index range, requires MapReturnType).
+        #[staticmethod]
+        pub fn get_by_key_relative_index_range(bin_name: String, key: PythonValue, index: i64, count: Option<i64>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByKeyRelativeIndexRange(bin_name, key, index, count, return_type),
+            }
+        }
+
+        /// Create a Map get_by_value_relative_rank_range operation (gets items by value relative rank range, requires MapReturnType).
+        #[staticmethod]
+        pub fn get_by_value_relative_rank_range(bin_name: String, value: PythonValue, rank: i64, count: Option<i64>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapGetByValueRelativeRankRange(bin_name, value, rank, count, return_type),
+            }
+        }
+
+        /// Create a Map remove_by_key_relative_index_range operation (removes items by key relative index range, requires MapReturnType).
+        #[staticmethod]
+        pub fn remove_by_key_relative_index_range(bin_name: String, key: PythonValue, index: i64, count: Option<i64>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByKeyRelativeIndexRange(bin_name, key, index, count, return_type),
+            }
+        }
+
+        /// Create a Map remove_by_value_relative_rank_range operation (removes items by value relative rank range, requires MapReturnType).
+        #[staticmethod]
+        pub fn remove_by_value_relative_rank_range(bin_name: String, value: PythonValue, rank: i64, count: Option<i64>, return_type: MapReturnType) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapRemoveByValueRelativeRankRange(bin_name, value, rank, count, return_type),
+            }
+        }
+
+        /// Create a Map create operation (creates a map with order).
+        #[staticmethod]
+        pub fn create(bin_name: String, order: MapOrder) -> Self {
+            MapOperation {
+                op: OperationType::MapCreate(bin_name, order),
+                ctx: None,
+            }
+        }
+
+        /// Set the context for this operation. Used for nested CDT operations.
+        pub fn set_context(&self, ctx: Vec<CTX>) -> Self {
+            MapOperation {
+                op: self.op.clone(),
+                ctx: Some(ctx),
+            }
+        }
+    }
+
+
+    // Expose ResultCode constants from Rust core to Python
+    // We use the actual CoreResultCode in Rust code, and expose matching constants to Python
+    // PyO3's #[pyclass] can't be used on external types, so we create a simple class with constants
+    // ResultCode wrapper to expose enum values to Python
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "ResultCode", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy)]
+    pub struct ResultCode(CoreResultCode);
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    #[allow(non_snake_case)]  // Class attributes use PascalCase to match Rust enum variants
+    impl ResultCode {
+        fn __richcmp__(&self, other: &ResultCode, op: CompareOp) -> PyResult<bool> {
+            match op {
+                CompareOp::Eq => Ok(std::mem::discriminant(&self.0) == std::mem::discriminant(&other.0)),
+                CompareOp::Ne => Ok(std::mem::discriminant(&self.0) != std::mem::discriminant(&other.0)),
+                _ => Ok(false),
+            }
+        }
+
+        fn __repr__(&self) -> String {
+            format!("ResultCode({:?})", self.0)
+        }
+
+        // Expose enum instances as class attributes (UPPER_SNAKE_CASE for Pythonic constants)
+        #[classattr]
+        fn OK() -> ResultCode { ResultCode(CoreResultCode::Ok) }
+        #[classattr]
+        fn SERVER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerError) }
+        #[classattr]
+        fn KEY_NOT_FOUND_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyNotFoundError) }
+        #[classattr]
+        fn GENERATION_ERROR() -> ResultCode { ResultCode(CoreResultCode::GenerationError) }
+        #[classattr]
+        fn PARAMETER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ParameterError) }
+        #[classattr]
+        fn KEY_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyExistsError) }
+        #[classattr]
+        fn BIN_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinExistsError) }
+        #[classattr]
+        fn CLUSTER_KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::ClusterKeyMismatch) }
+        #[classattr]
+        fn SERVER_MEM_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerMemError) }
+        #[classattr]
+        fn TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::Timeout) }
+        #[classattr]
+        fn ALWAYS_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::AlwaysForbidden) }
+        #[classattr]
+        fn PARTITION_UNAVAILABLE() -> ResultCode { ResultCode(CoreResultCode::PartitionUnavailable) }
+        #[classattr]
+        fn BIN_TYPE_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinTypeError) }
+        #[classattr]
+        fn RECORD_TOO_BIG() -> ResultCode { ResultCode(CoreResultCode::RecordTooBig) }
+        #[classattr]
+        fn KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::KeyBusy) }
+        #[classattr]
+        fn SCAN_ABORT() -> ResultCode { ResultCode(CoreResultCode::ScanAbort) }
+        #[classattr]
+        fn UNSUPPORTED_FEATURE() -> ResultCode { ResultCode(CoreResultCode::UnsupportedFeature) }
+        #[classattr]
+        fn BIN_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::BinNotFound) }
+        #[classattr]
+        fn DEVICE_OVERLOAD() -> ResultCode { ResultCode(CoreResultCode::DeviceOverload) }
+        #[classattr]
+        fn KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::KeyMismatch) }
+        #[classattr]
+        fn INVALID_NAMESPACE() -> ResultCode { ResultCode(CoreResultCode::InvalidNamespace) }
+        #[classattr]
+        fn BIN_NAME_TOO_LONG() -> ResultCode { ResultCode(CoreResultCode::BinNameTooLong) }
+        #[classattr]
+        fn FAIL_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::FailForbidden) }
+        #[classattr]
+        fn ELEMENT_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::ElementNotFound) }
+        #[classattr]
+        fn ELEMENT_EXISTS() -> ResultCode { ResultCode(CoreResultCode::ElementExists) }
+        #[classattr]
+        fn ENTERPRISE_ONLY() -> ResultCode { ResultCode(CoreResultCode::EnterpriseOnly) }
+        #[classattr]
+        fn OP_NOT_APPLICABLE() -> ResultCode { ResultCode(CoreResultCode::OpNotApplicable) }
+        #[classattr]
+        fn FILTERED_OUT() -> ResultCode { ResultCode(CoreResultCode::FilteredOut) }
+        #[classattr]
+        fn LOST_CONFLICT() -> ResultCode { ResultCode(CoreResultCode::LostConflict) }
+        #[classattr]
+        fn XDR_KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::XDRKeyBusy) }
+        #[classattr]
+        fn QUERY_END() -> ResultCode { ResultCode(CoreResultCode::QueryEnd) }
+        #[classattr]
+        fn SECURITY_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotSupported) }
+        #[classattr]
+        fn SECURITY_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotEnabled) }
+        #[classattr]
+        fn SECURITY_SCHEME_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecuritySchemeNotSupported) }
+        #[classattr]
+        fn INVALID_COMMAND() -> ResultCode { ResultCode(CoreResultCode::InvalidCommand) }
+        #[classattr]
+        fn INVALID_FIELD() -> ResultCode { ResultCode(CoreResultCode::InvalidField) }
+        #[classattr]
+        fn ILLEGAL_STATE() -> ResultCode { ResultCode(CoreResultCode::IllegalState) }
+        #[classattr]
+        fn INVALID_USER() -> ResultCode { ResultCode(CoreResultCode::InvalidUser) }
+        #[classattr]
+        fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::UserAlreadyExists) }
+    }
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "BitwiseResizeFlags", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum BitwiseResizeFlags {
+        Default = 0,
+        FromFront = 1,
+        GrowOnly = 2,
+        ShrinkOnly = 4,
+    }
+
+    impl From<BitwiseResizeFlags> for aerospike_core::operations::bitwise::BitwiseResizeFlags {
+        fn from(flags: BitwiseResizeFlags) -> Self {
+            match flags {
+                BitwiseResizeFlags::Default => aerospike_core::operations::bitwise::BitwiseResizeFlags::Default,
+                BitwiseResizeFlags::FromFront => aerospike_core::operations::bitwise::BitwiseResizeFlags::FromFront,
+                BitwiseResizeFlags::GrowOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::GrowOnly,
+                BitwiseResizeFlags::ShrinkOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::ShrinkOnly,
+            }
+        }
+    }
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "BitwiseWriteFlags", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum BitwiseWriteFlags {
+        Default = 0,
+        CreateOnly = 1,
+        UpdateOnly = 2,
+        NoFail = 4,
+        Partial = 8,
+    }
+
+    impl From<BitwiseWriteFlags> for u8 {
+        fn from(flags: BitwiseWriteFlags) -> Self {
+            flags as u8
+        }
+    }
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "BitwiseOverflowActions", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum BitwiseOverflowActions {
+        Fail = 0,
+        Saturate = 2,
+        Wrap = 4,
+    }
+
+    impl From<BitwiseOverflowActions> for aerospike_core::operations::bitwise::BitwiseOverflowActions {
+        fn from(action: BitwiseOverflowActions) -> Self {
+            match action {
+                BitwiseOverflowActions::Fail => aerospike_core::operations::bitwise::BitwiseOverflowActions::Fail,
+                BitwiseOverflowActions::Saturate => aerospike_core::operations::bitwise::BitwiseOverflowActions::Saturate,
+                BitwiseOverflowActions::Wrap => aerospike_core::operations::bitwise::BitwiseOverflowActions::Wrap,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BitPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BitPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone, Copy)]
+    pub struct BitPolicy {
+        _as: aerospike_core::operations::bitwise::BitPolicy,
+    }
+
+    impl PartialEq for BitPolicy {
+        fn eq(&self, other: &Self) -> bool {
+            self._as.flags == other._as.flags
+        }
+    }
+
+    impl Eq for BitPolicy {}
+
+    impl Default for BitPolicy {
+        fn default() -> Self {
+            Self::new(None)
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BitPolicy {
+        #[new]
+        /// Create a new BitPolicy with the specified write flags.
+        /// Default is default write flags.
+        pub fn new(write_flags: Option<BitwiseWriteFlags>) -> Self {
+            let write_flags = write_flags.unwrap_or(BitwiseWriteFlags::Default);
+            BitPolicy {
+                _as: aerospike_core::operations::bitwise::BitPolicy::new(write_flags.into()),
+            }
+        }
+
+        /// Get the write flags.
+        pub fn get_write_flags(&self) -> u8 {
+            self._as.flags
+        }
+
+        /// Set the write flags.
+        pub fn set_write_flags(&mut self, flags: BitwiseWriteFlags) {
+            self._as.flags = flags.into();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ListPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "ListPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone, Copy)]
+    pub struct ListPolicy {
+        _as: aerospike_core::operations::lists::ListPolicy,
+    }
+
+    impl PartialEq for ListPolicy {
+        fn eq(&self, other: &Self) -> bool {
+            // Compare the underlying policy fields manually since core client doesn't implement PartialEq
+            self._as.attributes as u8 == other._as.attributes as u8 && self._as.flags == other._as.flags
+        }
+    }
+
+    impl Eq for ListPolicy {}
+
+    impl Default for ListPolicy {
+        fn default() -> Self {
+            Self::new(None, None)
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl ListPolicy {
+        #[new]
+        /// Create a new ListPolicy with the specified order and write flags.
+        /// Default is unordered list with default write flags.
+        pub fn new(order: Option<ListOrderType>, write_flags: Option<ListWriteFlags>) -> Self {
+            let order = order.unwrap_or(ListOrderType::Unordered);
+            let write_flags = write_flags.unwrap_or(ListWriteFlags::Default);
+            ListPolicy {
+                _as: aerospike_core::operations::lists::ListPolicy::new(
+                    (&order).into(),
+                    (&write_flags).into(),
+                ),
+            }
+        }
+
+        #[getter]
+        pub fn get_order(&self) -> ListOrderType {
+            match self._as.attributes {
+                aerospike_core::operations::lists::ListOrderType::Unordered => ListOrderType::Unordered,
+                aerospike_core::operations::lists::ListOrderType::Ordered => ListOrderType::Ordered,
+            }
+        }
+
+        #[setter]
+        pub fn set_order(&mut self, order: ListOrderType) {
+            self._as.attributes = (&order).into();
+        }
+
+        #[getter]
+        pub fn get_write_flags(&self) -> ListWriteFlags {
+            match self._as.flags {
+                0 => ListWriteFlags::Default,
+                1 => ListWriteFlags::AddUnique,
+                2 => ListWriteFlags::InsertBounded,
+                4 => ListWriteFlags::NoFail,
+                8 => ListWriteFlags::Partial,
+                _ => ListWriteFlags::Default,
+            }
+        }
+
+        #[setter]
+        pub fn set_write_flags(&mut self, write_flags: ListWriteFlags) {
+            self._as.flags = match write_flags {
+                ListWriteFlags::Default => 0,
+                ListWriteFlags::AddUnique => 1,
+                ListWriteFlags::InsertBounded => 2,
+                ListWriteFlags::NoFail => 4,
+                ListWriteFlags::Partial => 8,
+            };
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BitOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Bit operations. Create bit operations used by the client's `operate()` method.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct BitOperation {
+        op: OperationType,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BitOperation {
+        /// Create a Bit resize operation (resizes byte array, requires BitPolicy).
+        #[staticmethod]
+        pub fn resize(bin_name: String, byte_size: i64, resize_flags: Option<BitwiseResizeFlags>, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitResize(bin_name, byte_size, resize_flags, policy),
+            }
+        }
+        /// Create a Bit insert operation (inserts bytes, requires BitPolicy).
+        #[staticmethod]
+        pub fn insert(bin_name: String, byte_offset: i64, value: PythonValue, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitInsert(bin_name, byte_offset, value, policy),
+            }
+        }
+
+        /// Create a Bit remove operation (removes bytes, requires BitPolicy).
+        #[staticmethod]
+        pub fn remove(bin_name: String, byte_offset: i64, byte_size: i64, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitRemove(bin_name, byte_offset, byte_size, policy),
+            }
+        }
+
+        /// Create a Bit set operation (sets bits, requires BitPolicy).
+        #[staticmethod]
+        pub fn set(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitSet(bin_name, bit_offset, bit_size, value, policy),
+            }
+        }
+
+        /// Create a Bit or operation (performs bitwise OR, requires BitPolicy).
+        #[staticmethod]
+        pub fn or(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitOr(bin_name, bit_offset, bit_size, value, policy),
+            }
+        }
+
+        /// Create a Bit xor operation (performs bitwise XOR, requires BitPolicy).
+        #[staticmethod]
+        pub fn xor(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitXor(bin_name, bit_offset, bit_size, value, policy),
+            }
+        }
+
+        /// Create a Bit and operation (performs bitwise AND, requires BitPolicy).
+        #[staticmethod]
+        pub fn and(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitAnd(bin_name, bit_offset, bit_size, value, policy),
+            }
+        }
+
+        /// Create a Bit not operation (performs bitwise NOT, requires BitPolicy).
+        #[staticmethod]
+        pub fn not(bin_name: String, bit_offset: i64, bit_size: i64, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitNot(bin_name, bit_offset, bit_size, policy),
+            }
+        }
+
+        /// Create a Bit lshift operation (performs left shift, requires BitPolicy).
+        #[staticmethod]
+        pub fn lshift(bin_name: String, bit_offset: i64, bit_size: i64, shift: i64, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitLShift(bin_name, bit_offset, bit_size, shift, policy),
+            }
+        }
+
+        /// Create a Bit rshift operation (performs right shift, requires BitPolicy).
+        #[staticmethod]
+        pub fn rshift(bin_name: String, bit_offset: i64, bit_size: i64, shift: i64, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitRShift(bin_name, bit_offset, bit_size, shift, policy),
+            }
+        }
+
+        /// Create a Bit add operation (adds to integer value, requires BitPolicy).
+        #[staticmethod]
+        pub fn add(bin_name: String, bit_offset: i64, bit_size: i64, value: i64, signed: bool, action: BitwiseOverflowActions, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitAdd(bin_name, bit_offset, bit_size, value, signed, action, policy),
+            }
+        }
+
+        /// Create a Bit subtract operation (subtracts from integer value, requires BitPolicy).
+        #[staticmethod]
+        pub fn subtract(bin_name: String, bit_offset: i64, bit_size: i64, value: i64, signed: bool, action: BitwiseOverflowActions, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitSubtract(bin_name, bit_offset, bit_size, value, signed, action, policy),
+            }
+        }
+
+        /// Create a Bit set_int operation (sets integer value, requires BitPolicy).
+        #[staticmethod]
+        pub fn set_int(bin_name: String, bit_offset: i64, bit_size: i64, value: i64, policy: BitPolicy) -> Self {
+            BitOperation {
+                op: OperationType::BitSetInt(bin_name, bit_offset, bit_size, value, policy),
+            }
+        }
+
+        /// Create a Bit get operation (gets bits, read-only).
+        #[staticmethod]
+        pub fn get(bin_name: String, bit_offset: i64, bit_size: i64) -> Self {
+            BitOperation {
+                op: OperationType::BitGet(bin_name, bit_offset, bit_size),
+            }
+        }
+
+        /// Create a Bit count operation (counts set bits, read-only).
+        #[staticmethod]
+        pub fn count(bin_name: String, bit_offset: i64, bit_size: i64) -> Self {
+            BitOperation {
+                op: OperationType::BitCount(bin_name, bit_offset, bit_size),
+            }
+        }
+
+        /// Create a Bit lscan operation (scans left for value, read-only).
+        #[staticmethod]
+        pub fn lscan(bin_name: String, bit_offset: i64, bit_size: i64, value: bool) -> Self {
+            BitOperation {
+                op: OperationType::BitLScan(bin_name, bit_offset, bit_size, value),
+            }
+        }
+
+        /// Create a Bit rscan operation (scans right for value, read-only).
+        #[staticmethod]
+        pub fn rscan(bin_name: String, bit_offset: i64, bit_size: i64, value: bool) -> Self {
+            BitOperation {
+                op: OperationType::BitRScan(bin_name, bit_offset, bit_size, value),
+            }
+        }
+
+        /// Create a Bit get_int operation (gets integer value, read-only).
+        #[staticmethod]
+        pub fn get_int(bin_name: String, bit_offset: i64, bit_size: i64, signed: bool) -> Self {
+            BitOperation {
+                op: OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "MapPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone, Copy)]
+    pub struct MapPolicy {
+        _as: aerospike_core::operations::maps::MapPolicy,
+    }
+
+    impl PartialEq for MapPolicy {
+        fn eq(&self, other: &Self) -> bool {
+            // Compare the underlying policy fields manually since core client doesn't implement PartialEq
+            self._as.order as u8 == other._as.order as u8 && self._as.write_mode as u8 == other._as.write_mode as u8
+        }
+    }
+
+    impl Eq for MapPolicy {}
+
+    impl Default for MapPolicy {
+        fn default() -> Self {
+            Self::new(None, None)
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl MapPolicy {
+        #[new]
+        /// Create a new MapPolicy with the specified order and write mode.
+        /// Default is unordered map with update write mode.
+        pub fn new(order: Option<MapOrder>, write_mode: Option<MapWriteMode>) -> Self {
+            let order = order.unwrap_or(MapOrder::Unordered);
+            let write_mode = write_mode.unwrap_or(MapWriteMode::Update);
+            MapPolicy {
+                _as: aerospike_core::operations::maps::MapPolicy::new(
+                    (&order).into(),
+                    (&write_mode).into(),
+                ),
+            }
+        }
+
+        #[getter]
+        pub fn get_order(&self) -> MapOrder {
+            match self._as.order {
+                aerospike_core::operations::maps::MapOrder::Unordered => MapOrder::Unordered,
+                aerospike_core::operations::maps::MapOrder::KeyOrdered => MapOrder::KeyOrdered,
+                aerospike_core::operations::maps::MapOrder::KeyValueOrdered => MapOrder::KeyValueOrdered,
+            }
+        }
+
+        #[setter]
+        pub fn set_order(&mut self, order: MapOrder) {
+            self._as.order = (&order).into();
+        }
+
+        #[getter]
+        pub fn get_write_mode(&self) -> MapWriteMode {
+            match self._as.write_mode {
+                aerospike_core::operations::maps::MapWriteMode::Update => MapWriteMode::Update,
+                aerospike_core::operations::maps::MapWriteMode::UpdateOnly => MapWriteMode::UpdateOnly,
+                aerospike_core::operations::maps::MapWriteMode::CreateOnly => MapWriteMode::CreateOnly,
+            }
+        }
+
+        #[setter]
+        pub fn set_write_mode(&mut self, write_mode: MapWriteMode) {
+            self._as.write_mode = (&write_mode).into();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  Statement
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2760,7 +4848,7 @@ pub enum Replica {
         // $filter = Filter::withinRadius("binName", $lng, $lat, $radius);
         // Note: Public API uses (lng, lat) to match GeoJSON standard [longitude, latitude]
         // This matches Java's geoWithinRadius(name, lng, lat, radius) signature
-        // 
+        //
         // WORKAROUND: The as_within_radius! macro has bugs:
         // 1. It expects parameters in (lat, lng) order, not (lng, lat)
         // 2. It has a typo: generates "Aeroircle" instead of "AeroCircle"
@@ -2894,7 +4982,7 @@ pub enum Replica {
                     Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
                 }
             })
-            .map(|bound| bound.unbind().into())
+            .map(|bound| bound.unbind())
         }
     }
 
@@ -3193,7 +5281,7 @@ pub enum Replica {
                         "A bin name must be a string or unicode string"
                     )
                 })?;
-                
+
                 let val: PythonValue = py_val.extract()?;
                 bin_vec.push(aerospike_core::Bin::new(name, val.into()));
             }
@@ -3243,6 +5331,981 @@ pub enum Replica {
                 if res.bins.is_empty() && has_filter_expression {
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
+
+                Ok(Record { _as: res })
+            })
+        }
+
+        /// Execute multiple operations atomically on a single record.
+        ///
+        /// The policy specifies the transaction timeout, record expiration and how the transaction
+        /// is handled when the record already exists.
+        ///
+        /// Args:
+        ///     policy: The write policy for the operation.
+        ///     key: The key of the record to operate on.
+        ///     operations: A list of Operation objects to execute.
+        ///
+        /// Returns:
+        ///     A Record containing the results of the operations.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Record]", imports=("typing", "aerospike_async")))]
+        pub fn operate<'a>(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            operations: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+
+            // Extract Operation objects from Python list
+            // Support Operation, ListOperation, MapOperation, and BitOperation
+            // Store both operation type and optional context
+            struct OpWithCtx {
+                op: OperationType,
+                ctx: Option<Vec<aerospike_core::operations::cdt_context::CdtContext>>,
+            }
+            let mut rust_ops: Vec<OpWithCtx> = Vec::new();
+            for op_obj in operations {
+                Python::attach(|py| {
+                    // Try to extract as each operation type
+                    if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx: None,
+                        });
+                    } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
+                        let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
+                            ctx_vec.iter().map(|c| c.ctx.clone()).collect()
+                        });
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx,
+                        });
+                    } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
+                        let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
+                            ctx_vec.iter().map(|c| c.ctx.clone()).collect()
+                        });
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx,
+                        });
+                    } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx: None,
+                        });
+                    } else {
+                        return Err(PyTypeError::new_err(
+                            "Operation must be Operation, ListOperation, MapOperation, or BitOperation"
+                        ));
+                    }
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+
+            // Move rust_ops into the async block for conversion
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::operations;
+
+                // First pass: collect all bins/values that need to live as long as the operations
+                let mut bin_storage: Vec<aerospike_core::Bin> = Vec::new();
+                let mut value_storage: Vec<aerospike_core::Value> = Vec::new();
+                let mut map_storage: Vec<HashMap<aerospike_core::Value, aerospike_core::Value>> = Vec::new();
+                let mut list_storage: Vec<Vec<aerospike_core::Value>> = Vec::new();
+                for op_with_ctx in &rust_ops {
+                    match &op_with_ctx.op {
+                        OperationType::Put(bin_name, value) |
+                        OperationType::Add(bin_name, value) |
+                        OperationType::Append(bin_name, value) |
+                        OperationType::Prepend(bin_name, value) => {
+                            let bin = aerospike_core::Bin::new(bin_name.clone(), value.clone().into());
+                            bin_storage.push(bin);
+                        }
+                        OperationType::ListSet(_, _, value) => {
+                            // Store the value for list_set operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListAppend(_, value, _) => {
+                            // Store the value for list_append operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListAppendItems(_, values, _) => {
+                            // Store all values for list_append_items operation
+                            for value in values {
+                                value_storage.push(value.clone().into());
+                            }
+                        }
+                        OperationType::ListInsert(_, _, value, _) => {
+                            // Store the value for list_insert operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListInsertItems(_, _, values, _) => {
+                            // Store all values for list_insert_items operation
+                            for value in values {
+                                value_storage.push(value.clone().into());
+                            }
+                        }
+                        OperationType::ListGetByValue(_, value, _) => {
+                            // Store value for list get_by_value operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListGetByValueRange(_, begin, end, _) => {
+                            // Store begin and end values for list get_by_value_range operation
+                            value_storage.push(begin.clone().into());
+                            value_storage.push(end.clone().into());
+                        }
+                        OperationType::ListGetByValueList(_, values, _) => {
+                            // Store list of values for list get_by_value_list operation
+                            let mut value_list = Vec::new();
+                            for value in values {
+                                value_list.push(value.clone().into());
+                            }
+                            list_storage.push(value_list);
+                        }
+                        OperationType::ListGetByValueRelativeRankRange(_, value, _, _, _) => {
+                            // Store value for list get_by_value_relative_rank_range operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListRemoveByValue(_, value, _) => {
+                            // Store value for list remove_by_value operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::ListRemoveByValueList(_, values, _) => {
+                            // Store list of values for list remove_by_value_list operation
+                            let mut value_list = Vec::new();
+                            for value in values {
+                                value_list.push(value.clone().into());
+                            }
+                            list_storage.push(value_list);
+                        }
+                        OperationType::ListRemoveByValueRange(_, begin, end, _) => {
+                            // Store begin and end values for list remove_by_value_range operation
+                            value_storage.push(begin.clone().into());
+                            value_storage.push(end.clone().into());
+                        }
+                        OperationType::ListRemoveByValueRelativeRankRange(_, value, _, _, _) => {
+                            // Store value for list remove_by_value_relative_rank_range operation
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::MapPut(_, key, value, _) => {
+                            // Store key and value for map_put operation
+                            value_storage.push(key.clone().into());
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::MapPutItems(_, items, _) => {
+                            // Store all keys and values for map_put_items operation
+                            use std::collections::HashMap;
+                            let mut map = HashMap::new();
+                            for (key, value) in items {
+                                map.insert(key.clone().into(), value.clone().into());
+                            }
+                            map_storage.push(map);
+                        }
+                        OperationType::MapIncrementValue(_, key, value, _) | OperationType::MapDecrementValue(_, key, value, _) => {
+                            // Store key and increment/decrement value for map increment/decrement operations
+                            value_storage.push(key.clone().into());
+                            value_storage.push(aerospike_core::Value::Int(*value));
+                        }
+                        OperationType::MapGetByKey(_, key, _) | OperationType::MapRemoveByKey(_, key, _) => {
+                            // Store key for map get_by_key and remove_by_key operations
+                            value_storage.push(key.clone().into());
+                        }
+                        OperationType::MapGetByKeyRange(_, begin, end, _) | OperationType::MapRemoveByKeyRange(_, begin, end, _) => {
+                            // Store begin and end keys for map get_by_key_range and remove_by_key_range operations
+                            value_storage.push(begin.clone().into());
+                            value_storage.push(end.clone().into());
+                        }
+                        OperationType::MapGetByValue(_, value, _) | OperationType::MapRemoveByValue(_, value, _) => {
+                            // Store value for map get_by_value and remove_by_value operations
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::MapGetByValueRange(_, begin, end, _) | OperationType::MapRemoveByValueRange(_, begin, end, _) => {
+                            // Store begin and end values for map get_by_value_range and remove_by_value_range operations
+                            value_storage.push(begin.clone().into());
+                            value_storage.push(end.clone().into());
+                        }
+                        OperationType::MapGetByKeyList(_, keys, _) | OperationType::MapRemoveByKeyList(_, keys, _) => {
+                            // Store list of keys for map get_by_key_list and remove_by_key_list operations
+                            let mut key_list = Vec::new();
+                            for key in keys {
+                                key_list.push(key.clone().into());
+                            }
+                            list_storage.push(key_list);
+                        }
+                        OperationType::MapGetByValueList(_, values, _) | OperationType::MapRemoveByValueList(_, values, _) => {
+                            // Store list of values for map get_by_value_list and remove_by_value_list operations
+                            let mut value_list = Vec::new();
+                            for value in values {
+                                value_list.push(value.clone().into());
+                            }
+                            list_storage.push(value_list);
+                        }
+                        OperationType::MapGetByKeyRelativeIndexRange(_, key, _, _, _) | OperationType::MapRemoveByKeyRelativeIndexRange(_, key, _, _, _) => {
+                            // Store key for map get_by_key_relative_index_range and remove_by_key_relative_index_range operations
+                            value_storage.push(key.clone().into());
+                        }
+                        OperationType::MapGetByValueRelativeRankRange(_, value, _, _, _) | OperationType::MapRemoveByValueRelativeRankRange(_, value, _, _, _) => {
+                            // Store value for map get_by_value_relative_rank_range and remove_by_value_relative_rank_range operations
+                            value_storage.push(value.clone().into());
+                        }
+                        OperationType::BitInsert(_, _, value, _) | OperationType::BitSet(_, _, _, value, _) |
+                        OperationType::BitOr(_, _, _, value, _) | OperationType::BitXor(_, _, _, value, _) |
+                        OperationType::BitAnd(_, _, _, value, _) => {
+                            // Store value for bit operations that require a value
+                            value_storage.push(value.clone().into());
+                        }
+                        // Operations that don't require storage in first pass
+                        OperationType::Get() | OperationType::GetBin(_) | OperationType::GetHeader() |
+                        OperationType::Delete() | OperationType::Touch() |
+                        OperationType::ListGet(_, _) | OperationType::ListSize(_) | OperationType::ListPop(_, _) |
+                        OperationType::ListClear(_) | OperationType::ListGetRange(_, _, _) |
+                        OperationType::ListRemove(_, _) | OperationType::ListRemoveRange(_, _, _) |
+                        OperationType::ListGetRangeFrom(_, _) | OperationType::ListPopRange(_, _, _) |
+                        OperationType::ListPopRangeFrom(_, _) | OperationType::ListRemoveRangeFrom(_, _) |
+                        OperationType::ListTrim(_, _, _) | OperationType::ListIncrement(_, _, _, _) |
+                        OperationType::ListSort(_, _) | OperationType::ListSetOrder(_, _) |
+                        OperationType::ListGetByIndex(_, _, _) | OperationType::ListGetByIndexRange(_, _, _, _) |
+                        OperationType::ListGetByRank(_, _, _) | OperationType::ListGetByRankRange(_, _, _, _) |
+                        OperationType::ListRemoveByIndex(_, _, _) | OperationType::ListRemoveByIndexRange(_, _, _, _) |
+                        OperationType::ListRemoveByRank(_, _, _) | OperationType::ListRemoveByRankRange(_, _, _, _) |
+                        OperationType::ListCreate(_, _, _, _) |
+                        OperationType::MapSize(_) | OperationType::MapClear(_) |
+                        OperationType::MapGetByIndex(_, _, _) | OperationType::MapRemoveByIndex(_, _, _) |
+                        OperationType::MapGetByIndexRange(_, _, _, _) | OperationType::MapRemoveByIndexRange(_, _, _, _) |
+                        OperationType::MapGetByIndexRangeFrom(_, _, _) | OperationType::MapRemoveByIndexRangeFrom(_, _, _) |
+                        OperationType::MapGetByRank(_, _, _) | OperationType::MapRemoveByRank(_, _, _) |
+                        OperationType::MapGetByRankRange(_, _, _, _) | OperationType::MapRemoveByRankRange(_, _, _, _) |
+                        OperationType::MapGetByRankRangeFrom(_, _, _) | OperationType::MapRemoveByRankRangeFrom(_, _, _) |
+                        OperationType::MapSetMapPolicy(_, _) | OperationType::MapCreate(_, _) |
+                        OperationType::BitResize(_, _, _, _) | OperationType::BitRemove(_, _, _, _) |
+                        OperationType::BitNot(_, _, _, _) | OperationType::BitLShift(_, _, _, _, _) |
+                        OperationType::BitRShift(_, _, _, _, _) | OperationType::BitAdd(_, _, _, _, _, _, _) |
+                        OperationType::BitSubtract(_, _, _, _, _, _, _) | OperationType::BitSetInt(_, _, _, _, _) |
+                        OperationType::BitGet(_, _, _) | OperationType::BitCount(_, _, _) |
+                        OperationType::BitLScan(_, _, _, _) | OperationType::BitRScan(_, _, _, _) |
+                        OperationType::BitGetInt(_, _, _, _) => {
+                        }
+                    }
+                }
+
+                // Second pass: convert operations, using references to stored bins/values
+                let mut bin_idx = 0;
+                let mut value_idx = 0;
+                let mut map_idx = 0;
+                let mut list_idx = 0;
+                let mut core_ops: Vec<operations::Operation> = Vec::new();
+
+                for op_with_ctx in &rust_ops {
+                    let core_op = match &op_with_ctx.op {
+                        OperationType::Get() => {
+                            // Use the operations module's get() function to create a Get operation
+                            operations::get()
+                        }
+                        OperationType::GetBin(bin_name) => {
+                            // Use the operations module's get_bin() function to get a specific bin
+                            operations::get_bin(bin_name)
+                        }
+                        OperationType::GetHeader() => {
+                            // Use the operations module's get_header() function
+                            operations::get_header()
+                        }
+                        OperationType::Put(_, _) => {
+                            // Use a reference to the stored bin
+                            let op = operations::put(&bin_storage[bin_idx]);
+                            bin_idx += 1;
+                            op
+                        }
+                        OperationType::Add(_, _) => {
+                            // Use a reference to the stored bin
+                            let op = operations::add(&bin_storage[bin_idx]);
+                            bin_idx += 1;
+                            op
+                        }
+                        OperationType::Append(_, _) => {
+                            // Use a reference to the stored bin
+                            let op = operations::append(&bin_storage[bin_idx]);
+                            bin_idx += 1;
+                            op
+                        }
+                        OperationType::Prepend(_, _) => {
+                            // Use a reference to the stored bin
+                            let op = operations::prepend(&bin_storage[bin_idx]);
+                            bin_idx += 1;
+                            op
+                        }
+                        OperationType::Delete() => {
+                            // Use the operations module's delete() function
+                            operations::delete()
+                        }
+                        OperationType::Touch() => {
+                            // Use the operations module's touch() function
+                            operations::touch()
+                        }
+                        OperationType::ListGet(bin_name, index) => {
+                            // Use the operations module's list get() function
+                            use aerospike_core::operations::lists;
+                            lists::get(bin_name, *index)
+                        }
+                        OperationType::ListSize(bin_name) => {
+                            // Use the operations module's list size() function
+                            use aerospike_core::operations::lists;
+                            lists::size(bin_name)
+                        }
+                        OperationType::ListPop(bin_name, index) => {
+                            // Use the operations module's list pop() function
+                            use aerospike_core::operations::lists;
+                            lists::pop(bin_name, *index)
+                        }
+                        OperationType::ListClear(bin_name) => {
+                            // Use the operations module's list clear() function
+                            use aerospike_core::operations::lists;
+                            lists::clear(bin_name)
+                        }
+                        OperationType::ListGetRange(bin_name, index, count) => {
+                            // Use the operations module's list get_range() function
+                            use aerospike_core::operations::lists;
+                            lists::get_range(bin_name, *index, *count)
+                        }
+                        OperationType::ListSet(bin_name, index, _) => {
+                            // Use the operations module's list set() function with stored value
+                            use aerospike_core::operations::lists;
+                            let op = lists::set(bin_name, *index, &value_storage[value_idx]);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListRemove(bin_name, index) => {
+                            // Use the operations module's list remove() function
+                            use aerospike_core::operations::lists;
+                            lists::remove(bin_name, *index)
+                        }
+                        OperationType::ListRemoveRange(bin_name, index, count) => {
+                            // Use the operations module's list remove_range() function
+                            use aerospike_core::operations::lists;
+                            lists::remove_range(bin_name, *index, *count)
+                        }
+                        OperationType::ListGetRangeFrom(bin_name, index) => {
+                            // Use the operations module's list get_range_from() function
+                            use aerospike_core::operations::lists;
+                            lists::get_range_from(bin_name, *index)
+                        }
+                        OperationType::ListPopRange(bin_name, index, count) => {
+                            // Use the operations module's list pop_range() function
+                            use aerospike_core::operations::lists;
+                            lists::pop_range(bin_name, *index, *count)
+                        }
+                        OperationType::ListPopRangeFrom(bin_name, index) => {
+                            // Use the operations module's list pop_range_from() function
+                            use aerospike_core::operations::lists;
+                            lists::pop_range_from(bin_name, *index)
+                        }
+                        OperationType::ListRemoveRangeFrom(bin_name, index) => {
+                            // Use the operations module's list remove_range_from() function
+                            use aerospike_core::operations::lists;
+                            lists::remove_range_from(bin_name, *index)
+                        }
+                        OperationType::ListTrim(bin_name, index, count) => {
+                            // Use the operations module's list trim() function
+                            use aerospike_core::operations::lists;
+                            lists::trim(bin_name, *index, *count)
+                        }
+                        OperationType::ListAppend(bin_name, _, policy) => {
+                            // Use the operations module's list append() function with stored value and policy
+                            use aerospike_core::operations::lists;
+                            let op = lists::append(&policy._as, bin_name, &value_storage[value_idx]);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListAppendItems(bin_name, values, policy) => {
+                            // Use the operations module's list append_items() function with stored values and policy
+                            use aerospike_core::operations::lists;
+                            let values_slice: &[aerospike_core::Value] = &value_storage[value_idx..value_idx + values.len()];
+                            let op = lists::append_items(&policy._as, bin_name, values_slice);
+                            value_idx += values.len();
+                            op
+                        }
+                        OperationType::ListInsert(bin_name, index, _, policy) => {
+                            // Use the operations module's list insert() function with stored value and policy
+                            use aerospike_core::operations::lists;
+                            let op = lists::insert(&policy._as, bin_name, *index, &value_storage[value_idx]);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListInsertItems(bin_name, index, values, policy) => {
+                            // Use the operations module's list insert_items() function with stored values and policy
+                            use aerospike_core::operations::lists;
+                            let values_slice: &[aerospike_core::Value] = &value_storage[value_idx..value_idx + values.len()];
+                            let op = lists::insert_items(&policy._as, bin_name, *index, values_slice);
+                            value_idx += values.len();
+                            op
+                        }
+                        OperationType::ListIncrement(bin_name, index, value, policy) => {
+                            // Use the operations module's list increment() function with policy
+                            use aerospike_core::operations::lists;
+                            lists::increment(&policy._as, bin_name, *index, *value)
+                        }
+                        OperationType::ListSort(bin_name, flags) => {
+                            // Use the operations module's list sort() function
+                            use aerospike_core::operations::lists;
+                            let core_flags: aerospike_core::operations::lists::ListSortFlags = flags.into();
+                            lists::sort(bin_name, core_flags)
+                        }
+                        OperationType::ListSetOrder(bin_name, order) => {
+                            // Use the operations module's list set_order() function
+                            use aerospike_core::operations::lists;
+                            let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                            lists::set_order(bin_name, core_order, &[])
+                        }
+                        OperationType::ListGetByIndex(bin_name, index, return_type) => {
+                            // Use the operations module's list get_by_index() function with return type
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            lists::get_by_index(bin_name, *index, core_return_type)
+                        }
+                        OperationType::ListGetByIndexRange(bin_name, index, count, return_type) => {
+                            // Use the operations module's list get_by_index_range() or get_by_index_range_count() function
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            match count {
+                                Some(c) => lists::get_by_index_range_count(bin_name, *index, *c, core_return_type),
+                                None => lists::get_by_index_range(bin_name, *index, core_return_type),
+                            }
+                        }
+                        OperationType::ListGetByRank(bin_name, rank, return_type) => {
+                            // Use the operations module's list get_by_rank() function with return type
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            lists::get_by_rank(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::ListGetByRankRange(bin_name, rank, count, return_type) => {
+                            // Use the operations module's list get_by_rank_range() or get_by_rank_range_count() function
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            match count {
+                                Some(c) => lists::get_by_rank_range_count(bin_name, *rank, *c, core_return_type),
+                                None => lists::get_by_rank_range(bin_name, *rank, core_return_type),
+                            }
+                        }
+                        OperationType::ListGetByValue(bin_name, _, return_type) => {
+                            // Use the operations module's list get_by_value() function with stored value and return type
+                            use aerospike_core::operations::lists;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::get_by_value(bin_name, value, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListGetByValueRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's list get_by_value_range() function with stored values and return type
+                            use aerospike_core::operations::lists;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::get_by_value_range(bin_name, begin, end, core_return_type);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::ListGetByValueList(bin_name, _, return_type) => {
+                            // Use the operations module's list get_by_value_list() function with stored list and return type
+                            use aerospike_core::operations::lists;
+                            let values = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::get_by_value_list(bin_name, values, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::ListGetByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                            // Use the operations module's list get_by_value_relative_rank_range() function
+                            use aerospike_core::operations::lists;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => lists::get_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                None => lists::get_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListRemoveByIndex(bin_name, index, return_type) => {
+                            // Use the operations module's list remove_by_index() function with return type
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            lists::remove_by_index(bin_name, *index, core_return_type)
+                        }
+                        OperationType::ListRemoveByIndexRange(bin_name, index, count, return_type) => {
+                            // Use the operations module's list remove_by_index_range() or remove_by_index_range_count() function
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            match count {
+                                Some(c) => lists::remove_by_index_range_count(bin_name, *index, *c, core_return_type),
+                                None => lists::remove_by_index_range(bin_name, *index, core_return_type),
+                            }
+                        }
+                        OperationType::ListRemoveByRank(bin_name, rank, return_type) => {
+                            // Use the operations module's list remove_by_rank() function with return type
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            lists::remove_by_rank(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::ListRemoveByRankRange(bin_name, rank, count, return_type) => {
+                            // Use the operations module's list remove_by_rank_range() or remove_by_rank_range_count() function
+                            use aerospike_core::operations::lists;
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            match count {
+                                Some(c) => lists::remove_by_rank_range_count(bin_name, *rank, *c, core_return_type),
+                                None => lists::remove_by_rank_range(bin_name, *rank, core_return_type),
+                            }
+                        }
+                        OperationType::ListRemoveByValue(bin_name, _, return_type) => {
+                            // Use the operations module's list remove_by_value() function with stored value and return type
+                            use aerospike_core::operations::lists;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::remove_by_value(bin_name, value, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListRemoveByValueList(bin_name, _, return_type) => {
+                            // Use the operations module's list remove_by_value_list() function with stored list and return type
+                            use aerospike_core::operations::lists;
+                            let values = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::remove_by_value_list(bin_name, values, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::ListRemoveByValueRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's list remove_by_value_range() function with stored values and return type
+                            // Note: parameter order is (bin, return_type, begin, end)
+                            use aerospike_core::operations::lists;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = lists::remove_by_value_range(bin_name, core_return_type, begin, end);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::ListRemoveByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                            // Use the operations module's list remove_by_value_relative_rank_range() function
+                            // Note: parameter order is (bin, return_type, value, rank) for no-count version
+                            use aerospike_core::operations::lists;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => lists::remove_by_value_relative_rank_range_count(bin_name, core_return_type, value, *rank, *c),
+                                None => lists::remove_by_value_relative_rank_range(bin_name, core_return_type, value, *rank),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListCreate(bin_name, order, pad, _persist_index) => {
+                            // Use the operations module's list create() function
+                            // Note: Rust core client doesn't support persist_index parameter
+                            use aerospike_core::operations::lists;
+                            let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                            lists::create(bin_name, core_order, *pad)
+                        }
+                        OperationType::MapSize(bin_name) => {
+                            // Use the operations module's map size() function
+                            use aerospike_core::operations::maps;
+                            maps::size(bin_name)
+                        }
+                        OperationType::MapClear(bin_name) => {
+                            // Use the operations module's map clear() function
+                            use aerospike_core::operations::maps;
+                            maps::clear(bin_name)
+                        }
+                        OperationType::MapPut(bin_name, _, _, policy) => {
+                            // Use the operations module's map put() function with stored key, value, and policy
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let value = &value_storage[value_idx + 1];
+                            let op = maps::put(&policy._as, bin_name, key, value);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapPutItems(bin_name, _, policy) => {
+                            // Use the operations module's map put_items() function with stored items and policy
+                            use aerospike_core::operations::maps;
+                            let op = maps::put_items(&policy._as, bin_name, &map_storage[map_idx]);
+                            map_idx += 1;
+                            op
+                        }
+                        OperationType::MapIncrementValue(bin_name, _, _value, policy) => {
+                            // Use the operations module's map increment_value() function with stored key, value, and policy
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let incr_value = &value_storage[value_idx + 1];
+                            let op = maps::increment_value(&policy._as, bin_name, key, incr_value);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapDecrementValue(bin_name, _, _value, policy) => {
+                            // Use the operations module's map decrement_value() function with stored key, value, and policy
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let decr_value = &value_storage[value_idx + 1];
+                            let op = maps::decrement_value(&policy._as, bin_name, key, decr_value);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapGetByKey(bin_name, _, return_type) => {
+                            // Use the operations module's map get_by_key() function with stored key and return type
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_key(bin_name, key, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByKey(bin_name, _, return_type) => {
+                            // Use the operations module's map remove_by_key() function with stored key and return type
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_key(bin_name, key, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapGetByKeyRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's map get_by_key_range() function with stored keys and return type
+                            use aerospike_core::operations::maps;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_key_range(bin_name, begin, end, core_return_type);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapRemoveByKeyRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's map remove_by_key_range() function with stored keys and return type
+                            use aerospike_core::operations::maps;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_key_range(bin_name, begin, end, core_return_type);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapGetByIndex(bin_name, index, return_type) => {
+                            // Use the operations module's map get_by_index() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_index(bin_name, *index, core_return_type)
+                        }
+                        OperationType::MapRemoveByIndex(bin_name, index, return_type) => {
+                            // Use the operations module's map remove_by_index() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_index(bin_name, *index, core_return_type)
+                        }
+                        OperationType::MapGetByIndexRange(bin_name, index, count, return_type) => {
+                            // Use the operations module's map get_by_index_range() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_index_range(bin_name, *index, *count, core_return_type)
+                        }
+                        OperationType::MapRemoveByIndexRange(bin_name, index, count, return_type) => {
+                            // Use the operations module's map remove_by_index_range() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_index_range(bin_name, *index, *count, core_return_type)
+                        }
+                        OperationType::MapGetByIndexRangeFrom(bin_name, index, return_type) => {
+                            // Use the operations module's map get_by_index_range_from() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_index_range_from(bin_name, *index, core_return_type)
+                        }
+                        OperationType::MapRemoveByIndexRangeFrom(bin_name, index, return_type) => {
+                            // Use the operations module's map remove_by_index_range_from() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_index_range_from(bin_name, *index, core_return_type)
+                        }
+                        OperationType::MapGetByRank(bin_name, rank, return_type) => {
+                            // Use the operations module's map get_by_rank() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_rank(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::MapRemoveByRank(bin_name, rank, return_type) => {
+                            // Use the operations module's map remove_by_rank() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_rank(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::MapGetByRankRange(bin_name, rank, count, return_type) => {
+                            // Use the operations module's map get_by_rank_range() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_rank_range(bin_name, *rank, *count, core_return_type)
+                        }
+                        OperationType::MapRemoveByRankRange(bin_name, rank, count, return_type) => {
+                            // Use the operations module's map remove_by_rank_range() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_rank_range(bin_name, *rank, *count, core_return_type)
+                        }
+                        OperationType::MapGetByRankRangeFrom(bin_name, rank, return_type) => {
+                            // Use the operations module's map get_by_rank_range_from() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::get_by_rank_range_from(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::MapRemoveByRankRangeFrom(bin_name, rank, return_type) => {
+                            // Use the operations module's map remove_by_rank_range_from() function with return type
+                            use aerospike_core::operations::maps;
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            maps::remove_by_rank_range_from(bin_name, *rank, core_return_type)
+                        }
+                        OperationType::MapGetByValue(bin_name, _, return_type) => {
+                            // Use the operations module's map get_by_value() function with stored value and return type
+                            use aerospike_core::operations::maps;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_value(bin_name, value, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByValue(bin_name, _, return_type) => {
+                            // Use the operations module's map remove_by_value() function with stored value and return type
+                            use aerospike_core::operations::maps;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_value(bin_name, value, core_return_type);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapGetByValueRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's map get_by_value_range() function with stored values and return type
+                            use aerospike_core::operations::maps;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_value_range(bin_name, begin, end, core_return_type);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapRemoveByValueRange(bin_name, _, _, return_type) => {
+                            // Use the operations module's map remove_by_value_range() function with stored values and return type
+                            use aerospike_core::operations::maps;
+                            let begin = &value_storage[value_idx];
+                            let end = &value_storage[value_idx + 1];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_value_range(bin_name, begin, end, core_return_type);
+                            value_idx += 2;
+                            op
+                        }
+                        OperationType::MapGetByKeyList(bin_name, _, return_type) => {
+                            // Use the operations module's map get_by_key_list() function with stored key list and return type
+                            use aerospike_core::operations::maps;
+                            let keys = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_key_list(bin_name, keys, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByKeyList(bin_name, _, return_type) => {
+                            // Use the operations module's map remove_by_key_list() function with stored key list and return type
+                            use aerospike_core::operations::maps;
+                            let keys = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_key_list(bin_name, keys, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::MapGetByValueList(bin_name, _, return_type) => {
+                            // Use the operations module's map get_by_value_list() function with stored value list and return type
+                            use aerospike_core::operations::maps;
+                            let values = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::get_by_value_list(bin_name, values, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByValueList(bin_name, _, return_type) => {
+                            // Use the operations module's map remove_by_value_list() function with stored value list and return type
+                            use aerospike_core::operations::maps;
+                            let values = &list_storage[list_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = maps::remove_by_value_list(bin_name, values, core_return_type);
+                            list_idx += 1;
+                            op
+                        }
+                        OperationType::MapSetMapPolicy(bin_name, policy) => {
+                            // Use the operations module's map set_order() function
+                            // Note: Rust core client only has set_order, not full setMapPolicy
+                            // This sets the map order from the policy
+                            use aerospike_core::operations::maps;
+                            let core_order = policy._as.order;
+                            maps::set_order(bin_name, core_order)
+                        }
+                        OperationType::MapGetByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
+                            // Use the operations module's map get_by_key_relative_index_range() function
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => maps::get_by_key_relative_index_range_count(bin_name, key, *index, *c, core_return_type),
+                                None => maps::get_by_key_relative_index_range(bin_name, key, *index, core_return_type),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapGetByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                            // Use the operations module's map get_by_value_relative_rank_range() function
+                            use aerospike_core::operations::maps;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => maps::get_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                None => maps::get_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
+                            // Use the operations module's map remove_by_key_relative_index_range() function
+                            use aerospike_core::operations::maps;
+                            let key = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => maps::remove_by_key_relative_index_range_count(bin_name, key, *index, *c, core_return_type),
+                                None => maps::remove_by_key_relative_index_range(bin_name, key, *index, core_return_type),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapRemoveByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                            // Use the operations module's map remove_by_value_relative_rank_range() function
+                            use aerospike_core::operations::maps;
+                            let value = &value_storage[value_idx];
+                            let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                            let op = match count {
+                                Some(c) => maps::remove_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                None => maps::remove_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                            };
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::MapCreate(bin_name, order) => {
+                            // Use the operations module's map set_order() function
+                            // Note: Rust core client uses set_order instead of create for maps
+                            use aerospike_core::operations::maps;
+                            let core_order: aerospike_core::operations::maps::MapOrder = order.into();
+                            maps::set_order(bin_name, core_order)
+                        }
+                        OperationType::BitResize(bin_name, byte_size, resize_flags, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let flags = resize_flags.map(|f| f.into());
+                            bitwise::resize(bin_name, *byte_size, flags, &policy._as)
+                        }
+                        OperationType::BitInsert(bin_name, byte_offset, _, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let value = &value_storage[value_idx];
+                            let op = bitwise::insert(bin_name, *byte_offset, value, &policy._as);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::BitRemove(bin_name, byte_offset, byte_size, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::remove(bin_name, *byte_offset, *byte_size, &policy._as)
+                        }
+                        OperationType::BitSet(bin_name, bit_offset, bit_size, _, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let value = &value_storage[value_idx];
+                            let op = bitwise::set(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::BitOr(bin_name, bit_offset, bit_size, _, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let value = &value_storage[value_idx];
+                            let op = bitwise::or(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::BitXor(bin_name, bit_offset, bit_size, _, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let value = &value_storage[value_idx];
+                            let op = bitwise::xor(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::BitAnd(bin_name, bit_offset, bit_size, _, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let value = &value_storage[value_idx];
+                            let op = bitwise::and(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::BitNot(bin_name, bit_offset, bit_size, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::not(bin_name, *bit_offset, *bit_size, &policy._as)
+                        }
+                        OperationType::BitLShift(bin_name, bit_offset, bit_size, shift, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::lshift(bin_name, *bit_offset, *bit_size, *shift, &policy._as)
+                        }
+                        OperationType::BitRShift(bin_name, bit_offset, bit_size, shift, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::rshift(bin_name, *bit_offset, *bit_size, *shift, &policy._as)
+                        }
+                        OperationType::BitAdd(bin_name, bit_offset, bit_size, value, signed, action, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let core_action: aerospike_core::operations::bitwise::BitwiseOverflowActions = (*action).into();
+                            bitwise::add(bin_name, *bit_offset, *bit_size, *value, *signed, core_action, &policy._as)
+                        }
+                        OperationType::BitSubtract(bin_name, bit_offset, bit_size, value, signed, action, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            let core_action: aerospike_core::operations::bitwise::BitwiseOverflowActions = (*action).into();
+                            bitwise::subtract(bin_name, *bit_offset, *bit_size, *value, *signed, core_action, &policy._as)
+                        }
+                        OperationType::BitSetInt(bin_name, bit_offset, bit_size, value, policy) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::set_int(bin_name, *bit_offset, *bit_size, *value, &policy._as)
+                        }
+                        OperationType::BitGet(bin_name, bit_offset, bit_size) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::get(bin_name, *bit_offset, *bit_size)
+                        }
+                        OperationType::BitCount(bin_name, bit_offset, bit_size) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::count(bin_name, *bit_offset, *bit_size)
+                        }
+                        OperationType::BitLScan(bin_name, bit_offset, bit_size, value) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::lscan(bin_name, *bit_offset, *bit_size, *value)
+                        }
+                        OperationType::BitRScan(bin_name, bit_offset, bit_size, value) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::rscan(bin_name, *bit_offset, *bit_size, *value)
+                        }
+                        OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed) => {
+                            use aerospike_core::operations::bitwise;
+                            bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
+                        }
+                    };
+                    
+                    // Apply context if present
+                    let final_op = if let Some(ctx) = &op_with_ctx.ctx {
+                        core_op.set_context(ctx.as_slice())
+                    } else {
+                        core_op
+                    };
+                    core_ops.push(final_op);
+                }
+
+                // Execute the operations
+                let res = client
+                    .read()
+                    .await
+                    .operate(&policy, &key, &core_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 Ok(Record { _as: res })
             })
@@ -3751,7 +6814,7 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let user = user.as_ref().map(|u| u.as_str());
+                let user = user.as_deref();
                 let res = client
                     .read()
                     .await
@@ -3776,7 +6839,7 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let role: Option<&str> = role.as_ref().map(|u| u.as_str());
+                let role: Option<&str> = role.as_deref();
                 let res = client
                     .read()
                     .await
@@ -3980,10 +7043,10 @@ pub enum Replica {
         }
 
         /// Execute an info command on a random cluster node.
-        /// 
+        ///
         /// Args:
         ///     command: The info command to execute (e.g., "namespaces", "statistics", "build").
-        /// 
+        ///
         /// Returns:
         ///     A dictionary containing the info command response as key-value pairs.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Dict[str, str]]", imports=("typing")))]
@@ -4009,10 +7072,10 @@ pub enum Replica {
         }
 
         /// Execute an info command on all cluster nodes.
-        /// 
+        ///
         /// Args:
         ///     command: The info command to execute (e.g., "namespaces", "statistics", "build").
-        /// 
+        ///
         /// Returns:
         ///     A dictionary mapping node names to their info command responses.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Dict[str, typing.Dict[str, str]]]", imports=("typing")))]
@@ -5068,7 +8131,7 @@ pub fn null(py: Python) -> Bound<PyAny> {
 
 /// Convert a GeoJSON string or coordinate pair to a GeoJSON object.
 /// This matches the legacy client's aerospike.geojson() function.
-/// 
+///
 /// Accepts:
 /// - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
 /// - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
@@ -5084,7 +8147,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
         let geo_dict = json_loads.call1((geo_str,))?;
 
         // Use GeoJSON constructor which accepts dict
-        return GeoJSON::new(py, &geo_dict.into_bound_py_any(py)?.as_any());
+        return GeoJSON::new(py, geo_dict.into_bound_py_any(py)?.as_any());
     }
 
     // Otherwise, try to parse as coordinate pair string like "122.0, 37.5"
@@ -5108,7 +8171,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     point_dict.set_item("coordinates", coords_vec)?;
 
     // Use GeoJSON constructor to create from dict
-    GeoJSON::new(py, &point_dict.as_any())
+    GeoJSON::new(py, point_dict.as_any())
 }
 
 // Simple logger implementation that writes to stderr
@@ -5163,6 +8226,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<CollectionIndexType>()?;
     m.add_class::<PrivilegeCode>()?;
     m.add_class::<Privilege>()?;
+    m.add_class::<ResultCode>()?;
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;
@@ -5177,6 +8241,14 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<Statement>()?;
     m.add_class::<ExpType>()?;
     m.add_class::<FilterExpression>()?;
+    m.add_class::<ServerError>()?;
+    m.add_class::<Operation>()?;
+    m.add_class::<ListOperation>()?;
+    m.add_class::<MapOperation>()?;
+    m.add_class::<CTX>()?;
+    m.add_class::<ListReturnType>()?;
+    m.add_class::<ListSortFlags>()?;
+    m.add_class::<BitOperation>()?;
 
     m.add_class::<BasePolicy>()?;
     m.add_class::<ReadPolicy>()?;
@@ -5188,6 +8260,17 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<WritePolicy>()?;
     m.add_class::<ScanPolicy>()?;
     m.add_class::<QueryPolicy>()?;
+    m.add_class::<ListOrderType>()?;
+    m.add_class::<ListWriteFlags>()?;
+    m.add_class::<ListPolicy>()?;
+    m.add_class::<MapOrder>()?;
+    m.add_class::<MapWriteMode>()?;
+    m.add_class::<MapReturnType>()?;
+    m.add_class::<MapPolicy>()?;
+    m.add_class::<BitwiseResizeFlags>()?;
+    m.add_class::<BitwiseWriteFlags>()?;
+    m.add_class::<BitwiseOverflowActions>()?;
+    m.add_class::<BitPolicy>()?;
     m.add_class::<PartitionFilter>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
@@ -5214,6 +8297,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
+    exceptions_module.add("ResultCode", py.get_type::<ResultCode>())?;
     m.add_submodule(&exceptions_module)?;
 
     Ok(())

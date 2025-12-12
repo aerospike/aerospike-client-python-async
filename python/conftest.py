@@ -47,16 +47,16 @@ def pytest_configure(config):
 @pytest.fixture(scope="session")
 def aerospike_host():
     """Fixture providing the Aerospike host for tests"""
-    return os.environ.get('AEROSPIKE_HOST', 'localhost:3101')
+    return os.environ.get('AEROSPIKE_HOST')
 
 
 @pytest.fixture(scope="session") 
 def aerospike_host_tls():
     """Fixture providing the TLS-enabled Aerospike host for tests"""
-    return os.environ.get('AEROSPIKE_HOST_TLS', 'localhost:3107')
+    return os.environ.get('AEROSPIKE_HOST_TLS')
 
 
 @pytest.fixture(scope="session")
 def aerospike_host_sec():
     """Fixture providing the security-enabled Aerospike host for tests"""
-    return os.environ.get('AEROSPIKE_HOST_SEC', 'localhost:3109')
+    return os.environ.get('AEROSPIKE_HOST_SEC')

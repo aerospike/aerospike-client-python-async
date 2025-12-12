@@ -29,6 +29,77 @@ class BasePolicy:
     def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
     def __new__(cls) -> BasePolicy: ...
 
+class BitPolicy:
+    def __new__(cls, write_flags:typing.Optional[BitwiseWriteFlags]) -> BitPolicy:
+        r"""
+        Create a new BitPolicy with the specified write flags.
+        Default is default write flags.
+        """
+    def get_write_flags(self) -> builtins.int:
+        r"""
+        Get the write flags.
+        """
+    def set_write_flags(self, flags:BitwiseWriteFlags) -> None:
+        r"""
+        Set the write flags.
+        """
+
+class CTX:
+    r"""
+    Context for nested CDT (Complex Data Type) operations.
+    Used to specify the location of nested lists/maps within a record.
+    """
+    @staticmethod
+    def list_index(index:builtins.int) -> CTX:
+        r"""
+        Lookup list by index offset.
+        If the index is negative, the resolved index starts backwards from end of list.
+        Examples: 0 = first item, 4 = fifth item, -1 = last item, -3 = third to last item.
+        """
+    @staticmethod
+    def list_index_create(index:builtins.int, order:ListOrderType, pad:builtins.bool) -> CTX:
+        r"""
+        Create list with given type at index offset, given an order and pad.
+        """
+    @staticmethod
+    def list_rank(rank:builtins.int) -> CTX:
+        r"""
+        Lookup list by rank.
+        0 = smallest value, N = Nth smallest value, -1 = largest value.
+        """
+    @staticmethod
+    def list_value(value:typing.Any) -> CTX:
+        r"""
+        Lookup list by value.
+        """
+    @staticmethod
+    def map_index(key:typing.Any) -> CTX:
+        r"""
+        Lookup map by index offset.
+        If the index is negative, the resolved index starts backwards from end of list.
+        """
+    @staticmethod
+    def map_rank(rank:builtins.int) -> CTX:
+        r"""
+        Lookup map by rank.
+        0 = smallest value, N = Nth smallest value, -1 = largest value.
+        """
+    @staticmethod
+    def map_key(key:typing.Any) -> CTX:
+        r"""
+        Lookup map by key.
+        """
+    @staticmethod
+    def map_key_create(key:typing.Any, order:MapOrder) -> CTX:
+        r"""
+        Create map with given type at map key.
+        """
+    @staticmethod
+    def map_value(value:typing.Any) -> CTX:
+        r"""
+        Lookup map by value.
+        """
+
 class ClientPolicy:
     @property
     def user(self) -> typing.Optional[builtins.str]: ...
@@ -82,7 +153,7 @@ class ClientPolicy:
     @property
     def rack_ids(self) -> typing.Optional[builtins.list[builtins.int]]:
         r"""
-        Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to 
+        Mark this client as belonging to a rack, and track server rack data.  This field is useful when directing read commands to
         the server node that contains the key and exists on the same rack as the client.
         This serves to lower cloud provider costs when nodes are distributed across different
         racks/data centers.
@@ -334,6 +405,16 @@ class FilterExpression:
     def blob_val(val:typing.Sequence[builtins.int]) -> FilterExpression:
         r"""
         Creates Blob bin value
+        """
+    @staticmethod
+    def list_val(val:typing.Sequence[typing.Any]) -> FilterExpression:
+        r"""
+        Create List bin value.
+        """
+    @staticmethod
+    def map_val(val:typing.Mapping[typing.Any, typing.Any]) -> FilterExpression:
+        r"""
+        Create Map bin value.
         """
     @staticmethod
     def geo_val(val:builtins.str) -> FilterExpression:
@@ -611,6 +692,36 @@ class FilterExpression:
         Requires server version 5.6.0+.
         """
 
+class ListPolicy:
+    @property
+    def order(self) -> ListOrderType: ...
+    @order.setter
+    def order(self, value: ListOrderType) -> None: ...
+    @property
+    def write_flags(self) -> ListWriteFlags: ...
+    @write_flags.setter
+    def write_flags(self, value: ListWriteFlags) -> None: ...
+    def __new__(cls, order:typing.Optional[ListOrderType], write_flags:typing.Optional[ListWriteFlags]) -> ListPolicy:
+        r"""
+        Create a new ListPolicy with the specified order and write flags.
+        Default is unordered list with default write flags.
+        """
+
+class MapPolicy:
+    @property
+    def order(self) -> MapOrder: ...
+    @order.setter
+    def order(self, value: MapOrder) -> None: ...
+    @property
+    def write_mode(self) -> MapWriteMode: ...
+    @write_mode.setter
+    def write_mode(self, value: MapWriteMode) -> None: ...
+    def __new__(cls, order:typing.Optional[MapOrder], write_mode:typing.Optional[MapWriteMode]) -> MapPolicy:
+        r"""
+        Create a new MapPolicy with the specified order and write mode.
+        Default is unordered map with update write mode.
+        """
+
 class PartitionFilter:
     def __new__(cls) -> PartitionFilter: ...
     def done(self) -> builtins.bool: ...
@@ -698,6 +809,49 @@ class Recordset:
     def __aiter__(self) -> Recordset: ...
     def __anext__(self) -> typing.Any: ...
 
+class ResultCode:
+    OK: ResultCode
+    SERVER_ERROR: ResultCode
+    KEY_NOT_FOUND_ERROR: ResultCode
+    GENERATION_ERROR: ResultCode
+    PARAMETER_ERROR: ResultCode
+    KEY_EXISTS_ERROR: ResultCode
+    BIN_EXISTS_ERROR: ResultCode
+    CLUSTER_KEY_MISMATCH: ResultCode
+    SERVER_MEM_ERROR: ResultCode
+    TIMEOUT: ResultCode
+    ALWAYS_FORBIDDEN: ResultCode
+    PARTITION_UNAVAILABLE: ResultCode
+    BIN_TYPE_ERROR: ResultCode
+    RECORD_TOO_BIG: ResultCode
+    KEY_BUSY: ResultCode
+    SCAN_ABORT: ResultCode
+    UNSUPPORTED_FEATURE: ResultCode
+    BIN_NOT_FOUND: ResultCode
+    DEVICE_OVERLOAD: ResultCode
+    KEY_MISMATCH: ResultCode
+    INVALID_NAMESPACE: ResultCode
+    BIN_NAME_TOO_LONG: ResultCode
+    FAIL_FORBIDDEN: ResultCode
+    ELEMENT_NOT_FOUND: ResultCode
+    ELEMENT_EXISTS: ResultCode
+    ENTERPRISE_ONLY: ResultCode
+    OP_NOT_APPLICABLE: ResultCode
+    FILTERED_OUT: ResultCode
+    LOST_CONFLICT: ResultCode
+    XDR_KEY_BUSY: ResultCode
+    QUERY_END: ResultCode
+    SECURITY_NOT_SUPPORTED: ResultCode
+    SECURITY_NOT_ENABLED: ResultCode
+    SECURITY_SCHEME_NOT_SUPPORTED: ResultCode
+    INVALID_COMMAND: ResultCode
+    INVALID_FIELD: ResultCode
+    ILLEGAL_STATE: ResultCode
+    INVALID_USER: ResultCode
+    USER_ALREADY_EXISTS: ResultCode
+    def __richcmp__(self, other:ResultCode, op:int) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
 class ScanPolicy(BasePolicy):
     def __new__(cls) -> ScanPolicy: ...
     @property
@@ -770,6 +924,24 @@ class WritePolicy(BasePolicy):
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
 
+class BitwiseOverflowActions(Enum):
+    Fail = ...
+    Saturate = ...
+    Wrap = ...
+
+class BitwiseResizeFlags(Enum):
+    Default = ...
+    FromFront = ...
+    GrowOnly = ...
+    ShrinkOnly = ...
+
+class BitwiseWriteFlags(Enum):
+    Default = ...
+    CreateOnly = ...
+    UpdateOnly = ...
+    NoFail = ...
+    Partial = ...
+
 class CollectionIndexType(Enum):
     r"""
     Secondary index collection type.
@@ -814,6 +986,167 @@ class IndexType(Enum):
     Numeric = ...
     String = ...
     Geo2DSphere = ...
+
+class ListOrderType(Enum):
+    Unordered = ...
+    r"""
+    List is not ordered. This is the default.
+    """
+    Ordered = ...
+    r"""
+    List is ordered.
+    """
+
+class ListReturnType(Enum):
+    None = ...
+    r"""
+    Do not return a result.
+    """
+    Index = ...
+    r"""
+    Return index offset order.
+    """
+    ReverseIndex = ...
+    r"""
+    Return reverse index offset order.
+    """
+    Rank = ...
+    r"""
+    Return value order.
+    """
+    ReverseRank = ...
+    r"""
+    Return reverse value order.
+    """
+    Count = ...
+    r"""
+    Return count of items selected.
+    """
+    Value = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    Exists = ...
+    r"""
+    Return true if count > 0.
+    """
+    Inverted = ...
+    r"""
+    Invert meaning of list command and return values.
+    """
+
+class ListSortFlags(Enum):
+    Default = ...
+    r"""
+    Default. Preserve duplicate values when sorting list.
+    """
+    DropDuplicates = ...
+    r"""
+    Drop duplicate values when sorting list.
+    """
+
+class ListWriteFlags(Enum):
+    Default = ...
+    r"""
+    Default is the default behavior. It means: Allow duplicate values and insertions at any index.
+    """
+    AddUnique = ...
+    r"""
+    AddUnique means: Only add unique values.
+    """
+    InsertBounded = ...
+    r"""
+    InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
+    """
+    NoFail = ...
+    r"""
+    NoFail means: do not raise error if a list item fails due to write flag constraints.
+    """
+    Partial = ...
+    r"""
+    Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
+    """
+
+class MapOrder(Enum):
+    Unordered = ...
+    r"""
+    Map is not ordered. This is the default.
+    """
+    KeyOrdered = ...
+    r"""
+    Order map by key.
+    """
+    KeyValueOrdered = ...
+    r"""
+    Order map by key, then value.
+    """
+
+class MapReturnType(Enum):
+    None = ...
+    r"""
+    Do not return a result.
+    """
+    Index = ...
+    r"""
+    Return key index order.
+    """
+    ReverseIndex = ...
+    r"""
+    Return reverse key order.
+    """
+    Rank = ...
+    r"""
+    Return value order.
+    """
+    ReverseRank = ...
+    r"""
+    Return reverse value order.
+    """
+    Count = ...
+    r"""
+    Return count of items selected.
+    """
+    Key = ...
+    r"""
+    Return key for single key read and key list for range read.
+    """
+    Value = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    KeyValue = ...
+    r"""
+    Return key/value items.
+    """
+    Exists = ...
+    r"""
+    Returns true if count > 0.
+    """
+    UnorderedMap = ...
+    r"""
+    Returns an unordered map.
+    """
+    OrderedMap = ...
+    r"""
+    Returns an ordered map.
+    """
+
+class MapWriteMode(Enum):
+    Update = ...
+    r"""
+    If the key already exists, the item will be overwritten.
+    If the key does not exist, a new item will be created.
+    """
+    UpdateOnly = ...
+    r"""
+    If the key already exists, the item will be overwritten.
+    If the key does not exist, the write will fail.
+    """
+    CreateOnly = ...
+    r"""
+    If the key already exists, the write will fail.
+    If the key does not exist, a new item will be created.
+    """
 
 class PrivilegeCode(Enum):
     r"""

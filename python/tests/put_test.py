@@ -3,7 +3,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, ResultCode
 
 
 @pytest_asyncio.fixture
@@ -322,4 +322,4 @@ async def test_put_bin_limit(client_and_key):
     with pytest.raises(ServerError) as exi:
         await client.put(wp, key, bins)
     # Verify it's a ParameterError from the server
-    assert "ParameterError" in str(exi.value)
+    assert exi.value.result_code == ResultCode.PARAMETER_ERROR

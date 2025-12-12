@@ -445,6 +445,8 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('PasswordHashError = _exceptions.PasswordHashError\n')
         f.write('InvalidRustClientArgs = _exceptions.InvalidRustClientArgs\n')
         f.write('ClientError = _exceptions.ClientError\n')
+        f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
+        f.write('ResultCode = _aerospike_async_native.ResultCode\n')
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 
