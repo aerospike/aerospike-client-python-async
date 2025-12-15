@@ -615,7 +615,6 @@ async def test_operate_bit_get(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Delete the record first
     await client.delete(wp, key)
@@ -1023,7 +1022,6 @@ async def test_operate_bit_rshift_exhaustive(client_and_key):
 
     wp = WritePolicy()
     policy = BitPolicy(None)
-    partial_policy = BitPolicy(BitwiseWriteFlags.Partial)
     bin_sz = 15
     bin_bit_sz = bin_sz * 8
 

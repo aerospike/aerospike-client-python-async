@@ -1988,6 +1988,89 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  PartitionStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "PartitionStatus", module = "_aerospike_async_native")]
+    #[derive(Debug)]
+    pub struct PartitionStatus {
+        _as: aerospike_core::query::PartitionStatus,
+    }
+    
+    // Note: We can't derive Clone because PartitionStatus has private fields
+    // If cloning is needed, we'd need to add a method in the Rust core
+
+    // Note: PartitionStatus can't be constructed from Python because the constructor is pub(crate)
+    // Users typically get PartitionStatus instances from query/scan operations, not by constructing them
+    // If direct construction is needed, we'd need to add a public constructor in the Rust core
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl PartitionStatus {
+        // Note: No #[new] method because PartitionStatus::new is pub(crate) in the Rust core
+        // Users get PartitionStatus instances from query/scan operations
+
+        #[getter]
+        pub fn get_bval(&self) -> Option<u64> {
+            self._as.bval
+        }
+
+        #[setter]
+        pub fn set_bval(&mut self, bval: Option<u64>) {
+            self._as.bval = bval;
+        }
+
+        #[getter]
+        pub fn get_id(&self) -> u16 {
+            self._as.id
+        }
+
+        #[setter]
+        pub fn set_id(&mut self, id: u16) {
+            self._as.id = id;
+        }
+
+        #[getter]
+        pub fn get_retry(&self) -> bool {
+            self._as.retry
+        }
+
+        #[setter]
+        pub fn set_retry(&mut self, retry: bool) {
+            self._as.retry = retry;
+        }
+
+        #[getter]
+        pub fn get_digest(&self) -> Option<String> {
+            self._as.digest.map(|d| hex::encode(d))
+        }
+
+        #[setter]
+        pub fn set_digest(&mut self, digest: Option<String>) -> PyResult<()> {
+            match digest {
+                None => {
+                    self._as.digest = None;
+                }
+                Some(hex_str) => {
+                    let bytes = hex::decode(&hex_str)
+                        .map_err(|e| PyValueError::new_err(format!("Invalid hex digest: {}", e)))?;
+                    if bytes.len() != 20 {
+                        return Err(PyValueError::new_err(format!(
+                            "Digest must be exactly 20 bytes (40 hex chars), got {} bytes",
+                            bytes.len()
+                        )));
+                    }
+                    let mut digest_array = [0u8; 20];
+                    digest_array.copy_from_slice(&bytes);
+                    self._as.digest = Some(digest_array);
+                }
+            }
+            Ok(())
+        }
+    }
+
     //  PartitionFilter
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2051,6 +2134,130 @@ pub enum Replica {
             Self {
                 _as: aerospike_core::query::PartitionFilter::by_range(begin, count),
             }
+        }
+
+        #[getter]
+        pub fn get_begin(&self) -> usize {
+            self._as.begin
+        }
+
+        #[setter]
+        pub fn set_begin(&mut self, begin: usize) {
+            self._as.begin = begin;
+        }
+
+        #[getter]
+        pub fn get_count(&self) -> usize {
+            self._as.count
+        }
+
+        #[setter]
+        pub fn set_count(&mut self, count: usize) {
+            self._as.count = count;
+        }
+
+        #[getter]
+        pub fn get_digest(&self) -> Option<String> {
+            self._as.digest.map(|d| hex::encode(d))
+        }
+
+        #[setter]
+        pub fn set_digest(&mut self, digest: Option<String>) -> PyResult<()> {
+            match digest {
+                None => {
+                    self._as.digest = None;
+                }
+                Some(hex_str) => {
+                    let bytes = hex::decode(&hex_str)
+                        .map_err(|e| PyValueError::new_err(format!("Invalid hex digest: {}", e)))?;
+                    if bytes.len() != 20 {
+                        return Err(PyValueError::new_err(format!(
+                            "Digest must be exactly 20 bytes (40 hex chars), got {} bytes",
+                            bytes.len()
+                        )));
+                    }
+                    let mut digest_array = [0u8; 20];
+                    digest_array.copy_from_slice(&bytes);
+                    self._as.digest = Some(digest_array);
+                }
+            }
+            Ok(())
+        }
+
+        #[getter]
+        pub fn get_partitions(&self, py: Python) -> PyResult<Py<PyAny>> {
+            match &self._as.partitions {
+                None => Ok(py.None()),
+                Some(partitions) => {
+                    let rt = tokio::runtime::Handle::try_current()
+                        .map_err(|_| PyValueError::new_err("No Tokio runtime available. This method must be called from within an async context."))?;
+                    
+                    let mut py_partitions = Vec::new();
+                    for arc_mutex_status in partitions.iter() {
+                        let status_guard = rt.block_on(arc_mutex_status.lock());
+                        let status = &*status_guard;
+                        // Construct PartitionStatus with public fields only (node/sequence are private)
+                        let py_status = PartitionStatus {
+                            _as: unsafe {
+                                let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
+                                s.bval = status.bval;
+                                s.id = status.id;
+                                s.retry = status.retry;
+                                s.digest = status.digest;
+                                s
+                            },
+                        };
+                        py_partitions.push(Py::new(py, py_status)?);
+                    }
+                    let list = PyList::empty(py);
+                    for item in py_partitions {
+                        list.append(item)?;
+                    }
+                    Ok(list.into())
+                }
+            }
+        }
+
+        #[setter]
+        pub fn set_partitions(&mut self, partitions: Option<Bound<'_, PyList>>) -> PyResult<()> {
+            match partitions {
+                None => {
+                    self._as.partitions = None;
+                }
+                Some(py_partitions) => {
+                    let py = py_partitions.py();
+                    let mut rust_partitions = Vec::new();
+                    for item in py_partitions.iter() {
+                        let py_status: Py<PartitionStatus> = item.extract()?;
+                        let status = py_status.bind(py);
+                        let bval: Option<u64> = status.call_method0("get_bval")?.extract()?;
+                        let id: u16 = status.call_method0("get_id")?.extract()?;
+                        let retry: bool = status.call_method0("get_retry")?.extract()?;
+                        let digest_hex: Option<String> = status.call_method0("get_digest")?.extract()?;
+                        let digest_bytes = digest_hex.and_then(|hex_str| {
+                            hex::decode(hex_str).ok().and_then(|bytes| {
+                                (bytes.len() == 20).then(|| {
+                                    let mut arr = [0u8; 20];
+                                    arr.copy_from_slice(&bytes);
+                                    arr
+                                })
+                            })
+                        });
+                        // Construct PartitionStatus with public fields only (node/sequence are private)
+                        let core_status = unsafe {
+                            let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
+                            s.bval = bval;
+                            s.id = id;
+                            s.retry = retry;
+                            s.digest = digest_bytes;
+                            s
+                        };
+                        rust_partitions.push(Arc::new(tokio::sync::Mutex::new(core_status)));
+                    }
+                    self._as.partitions = Some(rust_partitions);
+                }
+            }
+            Ok(())
         }
     }
 
@@ -2610,6 +2817,16 @@ pub enum Replica {
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_max_records(&self) -> u64 {
+            self._as.max_records
+        }
+
+        #[setter]
+        pub fn set_max_records(&mut self, max_records: u64) {
+            self._as.max_records = max_records;
         }
 
         // #[getter]
@@ -8271,6 +8488,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitwiseWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
+    m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;

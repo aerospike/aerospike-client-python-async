@@ -90,3 +90,6 @@ make stubs
     - AP/SC
     - MRT
     - smaller items
+*  Address `unsafe` Rust sections in PyO3:
+    - PartitionStatus constructor: because it has private fields (node, sequence) that block struct literal syntax, so 
+        we zero-initialize and only set the public fields (bval, id, retry, digest).

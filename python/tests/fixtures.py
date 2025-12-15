@@ -1,5 +1,4 @@
 import pytest
-import os
 from aerospike_async import Key, new_client, WritePolicy, ClientPolicy, GeoJSON
 
 
@@ -20,7 +19,7 @@ class TestFixtureCleanDB(TestFixtureConnection):
     """Base fixture for tests that need a clean database."""
 
     @pytest.fixture
-    async def client(self, aerospike_host):
+    async def client(self, aerospike_host):  # type: ignore[override]
         """Create a client connection and clean the test namespace."""
         cp = ClientPolicy()
         cp.use_services_alternate = True
@@ -70,7 +69,7 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         }
 
     @pytest.fixture
-    async def client(self, key, original_bin_val, aerospike_host):
+    async def client(self, key, original_bin_val, aerospike_host):  # type: ignore[override]
         """Create a client connection and insert a test record."""
         cp = ClientPolicy()
         cp.use_services_alternate = True
