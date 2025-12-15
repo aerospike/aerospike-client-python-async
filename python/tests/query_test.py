@@ -20,8 +20,8 @@ class TestStatement:
     def test_set_filters(self):
         """Test setting filters on Statement."""
         stmt = Statement("test", "test", [self.bin_name])
-        filter = Filter.range(self.bin_name, 1, 3)
-        stmt.filters = [filter]
+        a_filter = Filter.range(self.bin_name, 1, 3)
+        stmt.filters = [a_filter]
         assert isinstance(stmt.filters, list)
 
         stmt.filters = None

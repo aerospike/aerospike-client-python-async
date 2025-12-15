@@ -1,9 +1,7 @@
-import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
                              ListPolicy, ListOrderType, ListReturnType, ListSortFlags, CTX)
-from aerospike_async.exceptions import ServerError
 
 
 @pytest_asyncio.fixture
@@ -74,7 +72,6 @@ async def test_operate_list_get(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Delete record first
     await client.delete(wp, key)
@@ -156,7 +153,6 @@ async def test_operate_list_get_range(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Delete record first
     await client.delete(wp, key)
@@ -316,7 +312,6 @@ async def test_operate_list_get_range_from(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Delete record first
     await client.delete(wp, key)
@@ -610,7 +605,6 @@ async def test_operate_list_append_items(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Delete record first
     await client.delete(wp, key)
@@ -1013,7 +1007,6 @@ async def test_operate_list_get_by_value_relative_rank_range(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     # Use ordered list for relative rank operations
     list_policy = ListPolicy(ListOrderType.Ordered, None)
 
@@ -1161,7 +1154,6 @@ async def test_operate_list_inverted(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     list_policy = ListPolicy(None, None)
 
     # Create an ordered list
@@ -1199,7 +1191,6 @@ async def test_operate_list_nested(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     list_policy = ListPolicy(None, None)
 
     # Delete record first
@@ -1257,7 +1248,6 @@ async def test_operate_nested_list_map(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     list_policy = ListPolicy(None, None)
 
     # Delete record first
@@ -1331,7 +1321,6 @@ async def test_operate_list_create_context(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     list_policy = ListPolicy(None, None)
 
     # Delete record first

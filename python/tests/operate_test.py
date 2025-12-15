@@ -27,7 +27,6 @@ async def test_operate_put_and_get(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Write initial record
     await client.put(wp, key, {
@@ -62,7 +61,6 @@ async def test_operate_get_only(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Write initial record
     await client.put(wp, key, {
@@ -127,7 +125,6 @@ async def test_operate_add_and_put(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Write initial record
     await client.put(wp, key, {
@@ -264,7 +261,6 @@ async def test_operate_get_header(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
 
     # Write initial record
     await client.put(wp, key, {

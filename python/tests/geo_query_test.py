@@ -7,7 +7,6 @@ from aerospike_async import (
     QueryPolicy,
     PartitionFilter,
     WritePolicy,
-    ReadPolicy,
     CollectionIndexType,
     IndexType,
 )
@@ -38,7 +37,6 @@ class TestGeoQuery(TestFixtureConnection):
         # Create a geo2dsphere index first (required for geo queries)
         # Important: Create index BEFORE writing records so they get indexed
         index_name = "geo_idx_location_test"
-        index_created = False
         try:
             # Try to drop index first in case it exists from previous test run
             try:
@@ -55,7 +53,6 @@ class TestGeoQuery(TestFixtureConnection):
                 index_type=IndexType.Geo2DSphere,
                 cit=CollectionIndexType.Default
             )
-            index_created = True
             print(f"Index {index_name} created successfully")
             # Wait for index to be ready (geo2dsphere indexes typically ready in 1-2 seconds)
             await asyncio.sleep(2.0)
@@ -64,7 +61,6 @@ class TestGeoQuery(TestFixtureConnection):
             error_msg = str(e).lower()
             if "already exists" in error_msg or "already" in error_msg:
                 print(f"Index {index_name} already exists, continuing...")
-                index_created = True
                 await asyncio.sleep(0.5)  # Brief wait for existing index
             else:
                 print(f"Failed to create index: {e}")
@@ -73,7 +69,6 @@ class TestGeoQuery(TestFixtureConnection):
         # Create some test records with locations inside and outside the region
         # Write records AFTER index exists so they get indexed
         wp = WritePolicy()
-        rp = ReadPolicy()
 
         # Records inside the polygon
         key1 = Key(namespace, set_name, "point1")

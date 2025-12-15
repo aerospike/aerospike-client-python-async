@@ -129,27 +129,27 @@ def test_key_digest_consistency():
 def test_key_with_digest_invalid():
     """Test key_with_digest with invalid inputs."""
     # Invalid digest length (too short)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", "1234")  # Too short
 
     # Invalid digest length (too long)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", "a" * 42)  # Too long (21 bytes = 42 hex chars)
 
     # Invalid digest format (non-hex string)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", "invalid_hex_string_!!!!!!")
 
     # Invalid type
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", 12345)  # Not bytes or string
 
     # Invalid bytes length (too short)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", b"short")  # Too short
 
     # Invalid bytes length (too long)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError)):  # type: ignore[arg-type]
         Key.key_with_digest("ns", "set", b"x" * 21)  # Too long
 
 def test_key_with_digest_namespace_set():

@@ -27,7 +27,6 @@ async def test_operate_map_size(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Create a map with some items
@@ -61,7 +60,6 @@ async def test_operate_map_clear(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Create a map with some items
@@ -961,7 +959,6 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Create a map with ordered keys
@@ -1008,7 +1005,6 @@ async def test_operate_map_get_by_value_relative_rank_range(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Create a map
@@ -1174,7 +1170,6 @@ async def test_operate_nested_map(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Delete record first
@@ -1226,7 +1221,6 @@ async def test_operate_double_nested_map(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Delete record first
@@ -1372,7 +1366,6 @@ async def test_operate_map_create_context(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    rp = ReadPolicy()
     map_policy = MapPolicy(None, None)
 
     # Delete record first
