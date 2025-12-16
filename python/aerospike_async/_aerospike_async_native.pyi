@@ -16,9 +16,9 @@ class BasePolicy:
     @timeout.setter
     def timeout(self, value: builtins.int) -> None: ...
     @property
-    def max_retries(self) -> typing.Optional[builtins.int]: ...
+    def max_retries(self) -> builtins.int: ...
     @max_retries.setter
-    def max_retries(self, value: typing.Optional[builtins.int]) -> None: ...
+    def max_retries(self, value: builtins.int) -> None: ...
     @property
     def sleep_between_retries(self) -> builtins.int: ...
     @sleep_between_retries.setter
@@ -336,6 +336,7 @@ class FilterExpression:
         r"""
         Create function that returns record size on disk.
         If server storage-engine is memory, then zero is returned.
+        Note: device_size() is deprecated, use record_size() instead for server version 7.0+.
         """
     @staticmethod
     def last_update() -> FilterExpression:

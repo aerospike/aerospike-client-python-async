@@ -144,7 +144,7 @@ impl From<RustClientError> for PyErr {
                 create_server_error(message, result_code)
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
-            Error::Timeout(string, client_side) => TimeoutError::new_err(format!("{}, Client-Side: {}", string, client_side)),
+            Error::Timeout(string) => TimeoutError::new_err(string),
             Error::Chain(first, second) => {
                 // For Chain errors, look for the most specific error type
                 // Check first error
@@ -1261,7 +1261,7 @@ pub enum Replica {
     )]
     #[derive(Clone)]
     pub struct FilterExpression {
-        _as: aerospike_core::expressions::FilterExpression,
+        _as: aerospike_core::expressions::Expression,
     }
 
     impl PartialEq for FilterExpression {
@@ -1395,9 +1395,10 @@ pub enum Replica {
         #[staticmethod]
         /// Create function that returns record size on disk.
         /// If server storage-engine is memory, then zero is returned.
+        /// Note: device_size() is deprecated, use record_size() instead for server version 7.0+.
         pub fn device_size() -> Self {
             FilterExpression {
-                _as: aerospike_core::expressions::device_size(),
+                _as: aerospike_core::expressions::record_size(),
             }
         }
 
@@ -2323,25 +2324,21 @@ pub enum Replica {
 
         #[getter]
         pub fn get_timeout(&self) -> u64 {
-            self._as
-                .total_timeout
-                .map(|duration| duration.as_millis() as u64)
-                .unwrap_or_default()
+            self._as.total_timeout as u64
         }
 
         #[setter]
         pub fn set_timeout(&mut self, timeout_millis: u64) {
-            let timeout = Duration::from_millis(timeout_millis);
-            self._as.total_timeout = Some(timeout);
+            self._as.total_timeout = timeout_millis as u32;
         }
 
         #[getter]
-        pub fn get_max_retries(&self) -> Option<usize> {
+        pub fn get_max_retries(&self) -> usize {
             self._as.max_retries
         }
 
         #[setter]
-        pub fn set_max_retries(&mut self, max_retries: Option<usize>) {
+        pub fn set_max_retries(&mut self, max_retries: usize) {
             self._as.max_retries = max_retries;
         }
 
@@ -2811,12 +2808,12 @@ pub enum Replica {
 
         #[getter]
         pub fn get_socket_timeout(&self) -> u32 {
-            self._as.socket_timeout
+            self._as.base_policy.socket_timeout
         }
 
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
-            self._as.socket_timeout = socket_timeout;
+            self._as.base_policy.socket_timeout = socket_timeout;
         }
 
         #[getter]
@@ -2872,52 +2869,77 @@ pub enum Replica {
 
         #[getter]
         fn get_user(&self) -> Option<String> {
-            self._as.user_password.clone().map(|(user, _)| user)
+            match &self._as.auth_mode {
+                aerospike_core::AuthMode::Internal(user, _) | aerospike_core::AuthMode::External(user, _) => {
+                    Some(user.clone())
+                }
+                _ => None,
+            }
         }
 
         #[setter]
         pub fn set_user(&mut self, user: Option<String>) {
-            match (user, &self._as.user_password) {
-                (Some(user), Some((_, password))) => {
-                    self._as.user_password = Some((user, password.into()))
+            match (user, &self._as.auth_mode) {
+                (Some(user), aerospike_core::AuthMode::Internal(_, password)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal(user, password.clone());
                 }
-                (Some(user), None) => self._as.user_password = Some((user, "".into())),
-                (None, Some((_, password))) => {
-                    self._as.user_password = Some(("".into(), password.into()))
+                (Some(user), aerospike_core::AuthMode::External(_, password)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::External(user, password.clone());
                 }
-                (None, None) => {}
+                (Some(user), _) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal(user, "".to_string());
+                }
+                (None, aerospike_core::AuthMode::Internal(_, _) | aerospike_core::AuthMode::External(_, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::None;
+                }
+                _ => {}
             }
         }
 
         #[getter]
         pub fn get_password(&self) -> Option<String> {
-            self._as.user_password.clone().map(|(_, password)| password)
+            match &self._as.auth_mode {
+                aerospike_core::AuthMode::Internal(_, password) | aerospike_core::AuthMode::External(_, password) => {
+                    Some(password.clone())
+                }
+                _ => None,
+            }
         }
 
         #[setter]
         pub fn set_password(&mut self, password: Option<String>) {
-            match (password, &self._as.user_password) {
-                (Some(password), Some((user, _))) => {
-                    self._as.user_password = Some((user.into(), password))
+            match (password, &self._as.auth_mode) {
+                (Some(password), aerospike_core::AuthMode::Internal(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal(user.clone(), password);
                 }
-                (Some(password), None) => self._as.user_password = Some(("".into(), password)),
-                (None, Some((user, _))) => self._as.user_password = Some((user.into(), "".into())),
-                (None, None) => {}
+                (Some(password), aerospike_core::AuthMode::External(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::External(user.clone(), password);
+                }
+                (Some(password), aerospike_core::AuthMode::None) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal("".to_string(), password);
+                }
+                (Some(_), aerospike_core::AuthMode::PKI) => {
+                    // PKI mode doesn't use passwords, ignore
+                }
+                (None, aerospike_core::AuthMode::Internal(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal(user.clone(), "".to_string());
+                }
+                (None, aerospike_core::AuthMode::External(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::External(user.clone(), "".to_string());
+                }
+                (None, aerospike_core::AuthMode::None) => {}
+                (None, aerospike_core::AuthMode::PKI) => {}
             }
         }
 
         #[getter]
         pub fn get_timeout(&self) -> u64 {
-            self._as
-                .timeout
-                .map(|duration| duration.as_millis() as u64)
-                .unwrap_or_default()
+            self._as.timeout as u64
         }
 
         #[setter]
         pub fn set_timeout(&mut self, timeout_millis: u64) {
-            let timeout = Duration::from_millis(timeout_millis);
-            self._as.timeout = Some(timeout);
+            self._as.timeout = timeout_millis as u32;
         }
 
         /// Connection idle timeout. Every time a connection is used, its idle
@@ -2925,16 +2947,12 @@ pub enum Replica {
         /// the connection will be closed and discarded from the connection pool.
         #[getter]
         pub fn get_idle_timeout(&self) -> u64 {
-            self._as
-                .idle_timeout
-                .map(|duration| duration.as_millis() as u64)
-                .unwrap_or_default()
+            self._as.idle_timeout as u64
         }
 
         #[setter]
         pub fn set_idle_timeout(&mut self, timeout_millis: u64) {
-            let timeout = Duration::from_millis(timeout_millis);
-            self._as.idle_timeout = Some(timeout);
+            self._as.idle_timeout = timeout_millis as u32;
         }
 
         #[getter]
@@ -5064,7 +5082,6 @@ pub enum Replica {
         // $radius = 1000;
         // $filter = Filter::withinRadius("binName", $lng, $lat, $radius);
         // Note: Public API uses (lng, lat) to match GeoJSON standard [longitude, latitude]
-        // This matches Java's geoWithinRadius(name, lng, lat, radius) signature
         //
         // WORKAROUND: The as_within_radius! macro has bugs:
         // 1. It expects parameters in (lat, lng) order, not (lng, lat)
@@ -5081,8 +5098,8 @@ pub enum Replica {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
 
-            // Manually construct AeroCircle GeoJSON string to match Java client format
-            // Java: String.format("{ \"type\": \"AeroCircle\", \"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
+            // Manually construct AeroCircle GeoJSON string
+            // Format: { "type": "AeroCircle", "coordinates": [[lng, lat], radius] }
             // Note: Must use "AeroCircle" (correct) not "Aeroircle" (macro typo)
             let aero_circle = format!(
                 "{{ \"type\": \"AeroCircle\", \"coordinates\": [[{:.8}, {:.8}], {}] }}",
@@ -6765,10 +6782,11 @@ pub enum Replica {
             let before_nanos = before_nanos.unwrap_or_default();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .truncate(&namespace, &set_name, before_nanos)
+                    .truncate(&policy, &namespace, &set_name, before_nanos)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -6798,13 +6816,15 @@ pub enum Replica {
                 client
                     .read()
                     .await
-                    .create_complex_index(
+                    .create_index_on_bin(
+                        &aerospike_core::AdminPolicy::default(),
                         &namespace,
                         &set_name,
                         &bin_name,
                         &index_name,
                         index_type,
                         cit,
+                        None,
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -6824,10 +6844,11 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_index(&namespace, &set_name, &index_name)
+                    .drop_index(&policy, &namespace, &set_name, &index_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -6918,11 +6939,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .create_user(&user, &password, &roles)
+                    .create_user(&policy, &user, &password, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -6937,10 +6959,11 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_user(&user)
+                    .drop_user(&policy, &user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -6960,10 +6983,11 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .change_password(&user, &password)
+                    .change_password(&policy, &user, &password)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -6983,11 +7007,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .grant_roles(&user, &roles)
+                    .grant_roles(&policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7007,11 +7032,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .revoke_roles(&user, &roles)
+                    .revoke_roles(&policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7031,11 +7057,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let user = user.as_deref();
                 let res = client
                     .read()
                     .await
-                    .query_users(user)
+                    .query_users(&policy, user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7056,11 +7083,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let role: Option<&str> = role.as_deref();
                 let res = client
                     .read()
                     .await
-                    .query_roles(role)
+                    .query_roles(&policy, role)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7086,13 +7114,14 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|r| r._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .create_role(&role_name, &privileges, &allowlist, read_quota, write_quota)
+                    .create_role(&policy, &role_name, &privileges, &allowlist, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7112,10 +7141,11 @@ pub enum Replica {
 
             pyo3_asyncio::future_into_py(py, async move {
                 let role_name = role_name.clone();
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_role(&role_name)
+                    .drop_role(&policy, &role_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7135,12 +7165,13 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .grant_privileges(&role_name, &privileges)
+                    .grant_privileges(&policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7160,12 +7191,13 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .revoke_privileges(&role_name, &privileges)
+                    .revoke_privileges(&policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7186,11 +7218,12 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 client
                     .read()
                     .await
-                    .set_allowlist(&role_name, &allowlist)
+                    .set_allowlist(&policy, &role_name, &allowlist)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7214,10 +7247,11 @@ pub enum Replica {
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
+                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .set_quotas(&role_name, read_quota, write_quota)
+                    .set_quotas(&policy, &role_name, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7279,8 +7313,9 @@ pub enum Replica {
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
+                let policy = aerospike_core::AdminPolicy::default();
                 let response = node
-                    .info(&[&command])
+                    .info(&policy, &[&command])
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -7310,7 +7345,8 @@ pub enum Replica {
 
                 for node in nodes {
                     let node_name = node.name().to_string();
-                    match node.info(&[&command]).await {
+                    let policy = aerospike_core::AdminPolicy::default();
+                    match node.info(&policy, &[&command]).await {
                         Ok(response) => {
                             results.insert(node_name, response);
                         }

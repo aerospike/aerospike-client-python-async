@@ -1302,7 +1302,7 @@ async def test_operate_nested_map_value(client_and_key):
         pass  # Ignore if record doesn't exist
 
     # Create nested map
-    # Match Java test exactly: m1.put(1, "in"), m1.put(3, "order"), m1.put(2, "key")
+    # Create map with specific key order: m1.put(1, "in"), m1.put(3, "order"), m1.put(2, "key")
     m1 = {1: "in", 3: "order", 2: "key"}
     input_map = [("first", m1)]
 

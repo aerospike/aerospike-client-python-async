@@ -1,6 +1,6 @@
 import pytest
 from aerospike_async import IndexType, CollectionIndexType
-from aerospike_async.exceptions import AerospikeError
+from aerospike_async.exceptions import ServerError
 from fixtures import TestFixtureConnection
 
 
@@ -85,16 +85,16 @@ class TestIndex(TestFixtureConnection):
         """Test that creating duplicate index names fails."""
         # Clean up any existing index first
         try:
-            await client.drop_index("test", "test", "index_name")
+            await client.drop_index("test", "test", "indexname")
         except:
             pass  # Index might not exist
             
         # Create first index
-        await client.create_index("test", "test", "brand", "index_name", IndexType.String, cit=CollectionIndexType.Default)
+        await client.create_index("test", "test", "brand", "indexname", IndexType.String, cit=CollectionIndexType.Default)
 
         # Try to create another index with same name should fail
-        with pytest.raises(AerospikeError):
-            await client.create_index("test", "test", "year", "index_name", IndexType.Numeric, cit=CollectionIndexType.Default)
+        with pytest.raises(ServerError):
+            await client.create_index("test", "test", "year", "indexname", IndexType.Numeric, cit=CollectionIndexType.Default)
             
         # Clean up
         try:

@@ -306,8 +306,6 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
     async def test_map_val_equality(self, client, key):
         """Test comparing a map bin to a map value in filter expression.
         
-        Based on Java TestMapExp.sortedMapEquality()
-        
         NOTE: This test is skipped due to serialization order issues. Map comparison
         in filter expressions requires exact byte-level matching. When Python dicts
         are converted to Rust HashMap for serialization, the iteration order is

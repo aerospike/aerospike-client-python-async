@@ -1,6 +1,6 @@
 import pytest
 import time
-from aerospike_async.exceptions import BadResponse
+from aerospike_async.exceptions import ServerError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -18,8 +18,8 @@ class TestTruncate(TestFixtureInsertRecord):
         assert retval is None
 
     async def test_truncate_fail(self, client):
-        """Test truncate operation with future timestamp raises BadResponse."""
+        """Test truncate operation with future timestamp raises ServerError."""
         seconds_in_future = 1000
         future_threshold = time.time_ns() + seconds_in_future * 10**9
-        with pytest.raises(BadResponse):
+        with pytest.raises(ServerError):
             await client.truncate("test", "test", future_threshold)

@@ -1,6 +1,6 @@
 import pytest
 from aerospike_async import WritePolicy, Expiration
-from aerospike_async.exceptions import ConnectionError
+from aerospike_async.exceptions import TimeoutError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -24,9 +24,9 @@ class TestDelete(TestFixtureInsertRecord):
         assert rec_existed is True
 
     async def test_delete_with_nonexistent_namespace(self, client, key_invalid_namespace):
-        """Test delete operation with invalid namespace raises ConnectionError (timeout)."""
+        """Test delete operation with invalid namespace raises TimeoutError."""
         wp = WritePolicy()
         wp.expiration = Expiration.NEVER_EXPIRE
-        with pytest.raises(ConnectionError) as exi:
+        with pytest.raises(TimeoutError) as exi:
             await client.delete(wp, key_invalid_namespace)
-        assert exi.value.args[0] == "Timeout after 4 tries"
+        assert "Timeout" in str(exi.value)
