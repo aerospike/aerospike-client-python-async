@@ -206,14 +206,13 @@ class TestGetBinsWrapperTypes:
         assert bins["bin"] == blob_data
 
     async def test_get_bins_hll_wrapper(self, client_and_key):
-        """Test get_bins() returns HLL wrapper class (consistent with Java client)."""
+        """Test get_bins() returns HLL wrapper class."""
         # Note: HLL cannot be created via put() - it requires server-side HLL operations
         # However, if HLL values exist in the database (from server-side operations),
         # they will be returned as HLL wrapper objects (not native bytes)
-        # This matches the Java client's behavior which returns HLLValue wrapper class
         # This test documents the expected behavior but cannot easily create HLL values
         # to test with. In practice, HLL values retrieved from Aerospike will be
-        # returned as HLL wrapper objects, similar to Java's HLLValue.
+        # returned as HLL wrapper objects.
         pass
 
 

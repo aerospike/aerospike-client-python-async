@@ -1,5 +1,6 @@
 import pytest
 from aerospike_async import ReadPolicy
+from aerospike_async.exceptions import TimeoutError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -23,9 +24,8 @@ class TestExists(TestFixtureInsertRecord):
         assert retval is True
 
     async def test_exists_fail(self, client, key_invalid_namespace):
-        """Test exists operation with invalid namespace raises ConnectionError (timeout)."""
-        from aerospike_async.exceptions import ConnectionError
-        with pytest.raises(ConnectionError):
+        """Test exists operation with invalid namespace raises TimeoutError."""
+        with pytest.raises(TimeoutError):
             await client.exists(ReadPolicy(), key_invalid_namespace)
 
 
@@ -62,7 +62,6 @@ class TestExistsLegacy(TestFixtureInsertRecord):
         assert retval[0] == key
 
     async def test_exists_legacy_fail(self, client, key_invalid_namespace):
-        """Test exists_legacy operation with invalid namespace raises ConnectionError (timeout)."""
-        from aerospike_async.exceptions import ConnectionError
-        with pytest.raises(ConnectionError):
+        """Test exists_legacy operation with invalid namespace raises TimeoutError."""
+        with pytest.raises(TimeoutError):
             await client.exists_legacy(ReadPolicy(), key_invalid_namespace)

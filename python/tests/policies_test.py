@@ -154,14 +154,18 @@ class TestWritePolicy:
         wp.expiration = exp_seconds
         assert wp.expiration == exp_seconds
 
-    def test_max_retries_none(self):
-        """Test setting max_retries to None."""
+    def test_max_retries_default(self):
+        """Test max_retries default value (int, not nullable)."""
         wp = WritePolicy()
+        # Default should be 2 (per Rust core default)
+        assert wp.max_retries == 2
+        
         wp.max_retries = 5
         assert wp.max_retries == 5
 
-        wp.max_retries = None
-        assert wp.max_retries is None
+        # Setting to 0 is valid (no retries)
+        wp.max_retries = 0
+        assert wp.max_retries == 0
 
     def test_generation_edge_cases(self):
         """Test generation field with various values."""
