@@ -758,8 +758,6 @@ class PartitionStatus:
     def bval(self, value: typing.Optional[builtins.int]) -> None: ...
     @property
     def id(self) -> builtins.int: ...
-    @id.setter
-    def id(self, value: builtins.int) -> None: ...
     @property
     def retry(self) -> builtins.bool: ...
     @retry.setter
@@ -773,6 +771,18 @@ class PartitionStatus:
         Create a new PartitionStatus with the specified partition ID.
 
         The `retry` field defaults to `true`, and other fields can be set via setters.
+        """
+    def __getitem__(self, key:typing.Any) -> typing.Any:
+        r"""
+        Dictionary-style access for convenience (in addition to getters/setters).
+        Supported keys: 'id', 'bval', 'retry', 'digest'
+        Example: ps['id'], ps['bval'] = 123
+        """
+    def __setitem__(self, key:typing.Any, value:typing.Any) -> None:
+        r"""
+        Dictionary-style assignment for convenience (in addition to getters/setters).
+        Supported keys: 'bval', 'retry', 'digest'
+        Note: 'id' is read-only and cannot be set.
         """
 
 class Privilege:
