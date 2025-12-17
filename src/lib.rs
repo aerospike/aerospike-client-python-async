@@ -2003,15 +2003,27 @@ pub enum Replica {
     // Note: We can't derive Clone because PartitionStatus has private fields
     // If cloning is needed, we'd need to add a method in the Rust core
 
-    // Note: PartitionStatus can't be constructed from Python because the constructor is pub(crate)
-    // Users typically get PartitionStatus instances from query/scan operations, not by constructing them
-    // If direct construction is needed, we'd need to add a public constructor in the Rust core
+    // Note: PartitionStatus can be constructed from Python using PartitionStatus(id)
+    // Users typically get PartitionStatus instances from query/scan operations,
+    // but can also create new instances manually when needed.
 
     #[gen_stub_pymethods]
     #[pymethods]
     impl PartitionStatus {
-        // Note: No #[new] method because PartitionStatus::new is pub(crate) in the Rust core
-        // Users get PartitionStatus instances from query/scan operations
+        /// Create a new PartitionStatus with the specified partition ID.
+        /// 
+        /// The `retry` field defaults to `true`, and other fields can be set via setters.
+        #[new]
+        pub fn new(id: u16) -> Self {
+            PartitionStatus {
+                _as: unsafe {
+                    let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
+                    s.id = id;
+                    s.retry = true;  // Default value
+                    s
+                },
+            }
+        }
 
         #[getter]
         pub fn get_bval(&self) -> Option<u64> {

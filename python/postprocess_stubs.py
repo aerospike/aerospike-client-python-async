@@ -4,7 +4,7 @@ Post-process the generated .pyi stub files to fix issues that pyo3_stub_gen cann
 
 This consolidated script replaces multiple separate stub processing scripts and handles:
 1. Exception classes: create_exception! macro doesn't generate stubs, so we manually add them
-2. Policy classes: PyClassInitializer return types don't generate complete method stubs for 
+2. Policy classes: PyClassInitializer return types don't generate complete method stubs for
    ReadPolicy and WritePolicy, so we replace the placeholder with full method definitions
 3. Import/export fixes: Ensures Key, Client, and Record are properly exported in __init__.pyi
 4. Import cleanup: Fixes circular imports and uses relative imports where appropriate
@@ -259,6 +259,17 @@ def add_client_stubs(content: str) -> str:
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
     def drop_user(self, user: builtins.str) -> typing.Awaitable[typing.Any]: ...
+    def change_password(self, user: builtins.str, password: builtins.str) -> typing.Awaitable[typing.Any]: ...
+    def grant_roles(self, user: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
+    def revoke_roles(self, user: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
+    def query_users(self, user: typing.Optional[builtins.str] = None) -> typing.Awaitable[typing.Sequence[User]]: ...
+    def query_roles(self, role: typing.Optional[builtins.str] = None) -> typing.Awaitable[typing.Sequence[Role]]: ...
+    def create_role(self, role_name: builtins.str, privileges: typing.Sequence[Privilege], allowlist: typing.Sequence[builtins.str], read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...
+    def drop_role(self, role_name: builtins.str) -> typing.Awaitable[typing.Any]: ...
+    def grant_privileges(self, role_name: builtins.str, privileges: typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]: ...
+    def revoke_privileges(self, role_name: builtins.str, privileges: typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]: ...
+    def set_allowlist(self, role_name: builtins.str, allowlist: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
+    def set_quotas(self, role_name: builtins.str, read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...
 '''
 
     # Check if Client class is missing
@@ -273,6 +284,65 @@ def add_client_stubs(content: str) -> str:
             # Insert at the end if new_client not found
             content = content + '\n' + client_stub
             print("  ✓ Added Client class stubs (at end)")
+    else:
+        # Client class exists - check if security methods are missing and add them
+        security_methods = [
+            'change_password', 'grant_roles', 'revoke_roles', 'query_users', 'query_roles',
+            'create_role', 'drop_role', 'grant_privileges', 'revoke_privileges',
+            'set_allowlist', 'set_quotas'
+        ]
+        missing_methods = []
+        for method in security_methods:
+            if not re.search(rf'^\s+def {method}\(', content, re.MULTILINE):
+                missing_methods.append(method)
+
+        if missing_methods:
+            # Find the end of the Client class (before the next class or function)
+            client_match = re.search(r'^class Client:', content, re.MULTILINE)
+            if client_match:
+                # Find the end of the class (next class, function, or end of file)
+                class_start = client_match.start()
+                next_class = re.search(r'\n\n(?=class\s|\ndef\s)', content[class_start:], re.MULTILINE)
+                if next_class:
+                    insert_pos = class_start + next_class.start() + 1
+                else:
+                    # Insert before new_client if it exists
+                    new_client_match = re.search(r'^def new_client\(', content[class_start:], re.MULTILINE)
+                    if new_client_match:
+                        insert_pos = class_start + new_client_match.start()
+                    else:
+                        insert_pos = len(content)
+
+                # Extract just the missing method stubs
+                method_stubs = []
+                for method in missing_methods:
+                    if method == 'change_password':
+                        method_stubs.append('    def change_password(self, user: builtins.str, password: builtins.str) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'grant_roles':
+                        method_stubs.append('    def grant_roles(self, user: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'revoke_roles':
+                        method_stubs.append('    def revoke_roles(self, user: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'query_users':
+                        method_stubs.append('    def query_users(self, user: typing.Optional[builtins.str] = None) -> typing.Awaitable[typing.Sequence[User]]: ...')
+                    elif method == 'query_roles':
+                        method_stubs.append('    def query_roles(self, role: typing.Optional[builtins.str] = None) -> typing.Awaitable[typing.Sequence[Role]]: ...')
+                    elif method == 'create_role':
+                        method_stubs.append('    def create_role(self, role_name: builtins.str, privileges: typing.Sequence[Privilege], allowlist: typing.Sequence[builtins.str], read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'drop_role':
+                        method_stubs.append('    def drop_role(self, role_name: builtins.str) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'grant_privileges':
+                        method_stubs.append('    def grant_privileges(self, role_name: builtins.str, privileges: typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'revoke_privileges':
+                        method_stubs.append('    def revoke_privileges(self, role_name: builtins.str, privileges: typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'set_allowlist':
+                        method_stubs.append('    def set_allowlist(self, role_name: builtins.str, allowlist: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'set_quotas':
+                        method_stubs.append('    def set_quotas(self, role_name: builtins.str, read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...')
+
+                # Insert methods before the closing of the class or before new_client
+                methods_to_add = '\n' + '\n'.join(method_stubs) + '\n'
+                content = content[:insert_pos] + methods_to_add + content[insert_pos:]
+                print(f"  ✓ Added missing security methods to Client class: {', '.join(missing_methods)}")
 
     return content
 
