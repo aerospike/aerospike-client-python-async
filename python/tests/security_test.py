@@ -267,11 +267,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_create_role_basic(self, client):
-        """Test basic role creation.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test basic role creation."""
         role_name = "test_role_1"
         privileges = [
             Privilege(PrivilegeCode.Read, "test", None),
@@ -287,8 +283,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         # Verify role exists
@@ -297,11 +291,7 @@ class TestSecurityFeatures:
         assert roles[0].name == role_name
     @pytest.mark.asyncio
     async def test_create_role_global_privileges(self, client):
-        """Test role creation with global privileges.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test role creation with global privileges."""
         role_name = "test_role_2"
         privileges = [
             Privilege(PrivilegeCode.UserAdmin, None, None),
@@ -317,8 +307,6 @@ class TestSecurityFeatures:
             error_str = str(e)
             if "QuotasNotEnabled" in error_str:
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in error_str:
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             # Server may reject zero quotas - retry with non-zero
             if "InvalidQuota" in error_str:
                 try:
@@ -336,11 +324,7 @@ class TestSecurityFeatures:
         assert roles[0].name == role_name
     @pytest.mark.asyncio
     async def test_create_role_duplicate(self, client):
-        """Test creating duplicate role fails.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test creating duplicate role fails."""
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -352,15 +336,20 @@ class TestSecurityFeatures:
         except:
             pass
 
+        # Create the role first
+        try:
+            await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+        except ServerError as e:
+            if "QuotasNotEnabled" in str(e):
+                pytest.skip("Quotas are not enabled on the server")
+            raise
+
+        # Now try to create it again - should raise an exception
         with pytest.raises(Exception):
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
-        """Test querying all roles.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test querying all roles."""
         try:
             await client.create_role("test_role_1", [Privilege(PrivilegeCode.Read, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
@@ -369,8 +358,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         # Query all roles
@@ -381,11 +368,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_query_roles_specific(self, client):
-        """Test querying specific role.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test querying specific role."""
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -412,11 +395,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_drop_role(self, client):
-        """Test role deletion.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test role deletion."""
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -428,8 +407,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         roles = await client.query_roles(role_name)
@@ -453,11 +430,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_grant_privileges(self, client):
-        """Test granting privileges to role.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test granting privileges to role."""
         role_name = "test_role_1"
         initial_privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         new_privileges = [Privilege(PrivilegeCode.Write, "test", None)]
@@ -470,8 +443,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         await client.grant_privileges(role_name, new_privileges)
@@ -489,11 +460,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_revoke_privileges(self, client):
-        """Test revoking privileges from role.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test revoking privileges from role."""
         role_name = "test_role_1"
         initial_privileges = [
             Privilege(PrivilegeCode.Read, "test", None),
@@ -509,8 +476,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         await client.revoke_privileges(role_name, privileges_to_revoke)
@@ -528,11 +493,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_set_allowlist(self, client):
-        """Test setting IP allowlist for role.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test setting IP allowlist for role."""
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         initial_allowlist = ["192.168.1.0/24"]
@@ -545,8 +506,6 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidField" in str(e):
-                pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
             raise
 
         await client.set_allowlist(role_name, new_allowlist)
@@ -564,11 +523,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
 
     async def test_set_quotas(self, client):
-        """Test setting quotas for role.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test setting quotas for role."""
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -599,11 +554,7 @@ class TestSecurityFeatures:
 
     @pytest.mark.asyncio
     async def test_create_role_invalid_quota(self, client):
-        """Test that creating a role with invalid quota values raises an error.
-
-        Skipped: Waiting for Rust core fixes for role creation field count and privilege serialization.
-        """
-        pytest.skip("Skipping until Rust core fixes for role creation are merged to tls branch")
+        """Test that creating a role with invalid quota values raises an error."""
         role_name = "test_role_invalid_quota"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
