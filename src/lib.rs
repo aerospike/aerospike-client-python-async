@@ -10,11 +10,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::{PyException, PyIndexError, PyValueError};
+use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyValueError};
 use pyo3::exceptions::{PyStopAsyncIteration, PyTypeError};
 use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
 use pyo3::{prelude::*, IntoPyObjectExt};
-// use pyo3::conversion::IntoPy;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
 use pyo3_stub_gen::{
@@ -2016,11 +2015,13 @@ pub enum Replica {
         #[new]
         pub fn new(id: u16) -> Self {
             PartitionStatus {
-                _as: unsafe {
-                    let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
-                    s.id = id;
-                    s.retry = true;  // Default value
-                    s
+                _as: aerospike_core::query::PartitionStatus {
+                    id,
+                    retry: true,
+                    bval: None,
+                    digest: None,
+                    node: None,
+                    sequence: None,
                 },
             }
         }
@@ -2040,10 +2041,7 @@ pub enum Replica {
             self._as.id
         }
 
-        #[setter]
-        pub fn set_id(&mut self, id: u16) {
-            self._as.id = id;
-        }
+        // Note: id is read-only (matches Java's final int id)
 
         #[getter]
         pub fn get_retry(&self) -> bool {
@@ -2081,6 +2079,54 @@ pub enum Replica {
                 }
             }
             Ok(())
+        }
+
+
+        /// Dictionary-style access for convenience (in addition to getters/setters).
+        /// Supported keys: 'id', 'bval', 'retry', 'digest'
+        /// Example: ps['id'], ps['bval'] = 123
+        pub fn __getitem__(&self, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+            let py = key.py();
+            let key_str = key.extract::<String>()?;
+            match key_str.as_str() {
+                "id" => Ok(self.get_id().into_pyobject(py).unwrap().into_any().into()),
+                "bval" => match self.get_bval() {
+                    Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
+                    None => Ok(py.None().into()),
+                },
+                "retry" => Ok(PyBool::new(py, self.get_retry()).into_bound_py_any(py).unwrap().into()),
+                "digest" => match self.get_digest() {
+                    Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
+                    None => Ok(py.None().into()),
+                },
+                _ => Err(PyKeyError::new_err(format!("Unknown key: '{}'. Valid keys: 'id', 'bval', 'retry', 'digest'", key_str))),
+            }
+        }
+
+        /// Dictionary-style assignment for convenience (in addition to getters/setters).
+        /// Supported keys: 'bval', 'retry', 'digest'
+        /// Note: 'id' is read-only and cannot be set.
+        pub fn __setitem__(&mut self, key: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+            let key_str = key.extract::<String>()?;
+            match key_str.as_str() {
+                "id" => Err(PyValueError::new_err("'id' is read-only and cannot be set")),
+                "bval" => {
+                    let bval: Option<u64> = value.extract()?;
+                    self.set_bval(bval);
+                    Ok(())
+                }
+                "retry" => {
+                    let retry: bool = value.extract()?;
+                    self.set_retry(retry);
+                    Ok(())
+                }
+                "digest" => {
+                    let digest: Option<String> = value.extract()?;
+                    self.set_digest(digest)?;
+                    Ok(())
+                }
+                _ => Err(PyKeyError::new_err(format!("Unknown key: '{}'. Valid keys: 'bval', 'retry', 'digest'", key_str))),
+            }
         }
     }
 
@@ -2209,15 +2255,14 @@ pub enum Replica {
                     for arc_mutex_status in partitions.iter() {
                         let status_guard = rt.block_on(arc_mutex_status.lock());
                         let status = &*status_guard;
-                        // Construct PartitionStatus with public fields only (node/sequence are private)
                         let py_status = PartitionStatus {
-                            _as: unsafe {
-                                let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
-                                s.bval = status.bval;
-                                s.id = status.id;
-                                s.retry = status.retry;
-                                s.digest = status.digest;
-                                s
+                            _as: aerospike_core::query::PartitionStatus {
+                                id: status.id,
+                                retry: status.retry,
+                                bval: status.bval,
+                                digest: status.digest,
+                                node: status.node.clone(),
+                                sequence: status.sequence,
                             },
                         };
                         py_partitions.push(Py::new(py, py_status)?);
@@ -2256,14 +2301,13 @@ pub enum Replica {
                                 })
                             })
                         });
-                        // Construct PartitionStatus with public fields only (node/sequence are private)
-                        let core_status = unsafe {
-                            let mut s = std::mem::zeroed::<aerospike_core::query::PartitionStatus>();
-                            s.bval = bval;
-                            s.id = id;
-                            s.retry = retry;
-                            s.digest = digest_bytes;
-                            s
+                        let core_status = aerospike_core::query::PartitionStatus {
+                            id,
+                            retry,
+                            bval,
+                            digest: digest_bytes,
+                            node: None,
+                            sequence: None,
                         };
                         rust_partitions.push(Arc::new(tokio::sync::Mutex::new(core_status)));
                     }

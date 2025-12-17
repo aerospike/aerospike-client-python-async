@@ -166,7 +166,21 @@ class TestSecurityFeatures:
         # Create user
         await client.create_user(username, password, roles)
 
-        # Query specific user
+        # Retry for eventual consistency
+        import asyncio
+        for attempt in range(3):
+            try:
+                users = await client.query_users(username)
+                if len(users) > 0 and users[0].user == username:
+                    break
+            except ServerError as e:
+                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
+                    await asyncio.sleep(0.1)
+                    continue
+                raise
+            if attempt < 2:
+                await asyncio.sleep(0.1)
+        
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
@@ -186,6 +200,21 @@ class TestSecurityFeatures:
 
         # Create user
         await client.create_user(username, password, roles)
+
+        # Retry for eventual consistency
+        import asyncio
+        for attempt in range(3):
+            try:
+                users = await client.query_users(username)
+                if len(users) > 0 and users[0].user == username:
+                    break
+            except ServerError as e:
+                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
+                    await asyncio.sleep(0.1)
+                    continue
+                raise
+            if attempt < 2:
+                await asyncio.sleep(0.1)
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -211,7 +240,20 @@ class TestSecurityFeatures:
         roles = ["read:test"]
 
         await client.create_user(username, password, roles)
-        await client.change_password(username, new_password)
+        
+        # Retry for eventual consistency before changing password
+        import asyncio
+        for attempt in range(3):
+            try:
+                await client.change_password(username, new_password)
+                break
+            except ServerError as e:
+                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
+                    await asyncio.sleep(0.1)
+                    continue
+                raise
+            if attempt < 2:
+                await asyncio.sleep(0.1)
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -232,7 +274,20 @@ class TestSecurityFeatures:
         new_roles = ["write:test", "read:analytics"]
 
         await client.create_user(username, password, initial_roles)
-        await client.grant_roles(username, new_roles)
+        
+        # Retry for eventual consistency before granting roles
+        import asyncio
+        for attempt in range(3):
+            try:
+                await client.grant_roles(username, new_roles)
+                break
+            except ServerError as e:
+                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
+                    await asyncio.sleep(0.1)
+                    continue
+                raise
+            if attempt < 2:
+                await asyncio.sleep(0.1)
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -253,7 +308,20 @@ class TestSecurityFeatures:
         roles_to_revoke = ["write:test"]
 
         await client.create_user(username, password, initial_roles)
-        await client.revoke_roles(username, roles_to_revoke)
+        
+        # Retry for eventual consistency before revoking roles
+        import asyncio
+        for attempt in range(3):
+            try:
+                await client.revoke_roles(username, roles_to_revoke)
+                break
+            except ServerError as e:
+                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
+                    await asyncio.sleep(0.1)
+                    continue
+                raise
+            if attempt < 2:
+                await asyncio.sleep(0.1)
 
         users = await client.query_users(username)
         assert len(users) > 0
