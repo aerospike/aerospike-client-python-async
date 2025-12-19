@@ -658,6 +658,47 @@ class BitOperation:
 # No postprocessing needed for these classes
 
 
+def ensure_statement_set_name(content: str) -> str:
+    """Ensure Statement class has set_name property with correct type annotations."""
+    # Only fix Statement.__new__ signature - other methods (truncate, create_index, etc.) require set_name
+    # Ensure __new__ signature uses typing.Optional[str] = None for Statement
+    content = re.sub(
+        r'def __new__\(cls, namespace:builtins\.str, set_name:([^,)]+), bins:',
+        r'def __new__(cls, namespace:builtins.str, set_name:typing.Optional[str] = None, bins:',
+        content
+    )
+    
+    # Fix property to use str instead of builtins.str for PyCharm
+    content = re.sub(
+        r'@property\s+def set_name\(self\) -> typing\.Optional\[builtins\.str\]:',
+        '@property\n    def set_name(self) -> typing.Optional[str]:',
+        content
+    )
+    content = re.sub(
+        r'@set_name\.setter\s+def set_name\(self, value: typing\.Optional\[builtins\.str\]\) -> None:',
+        '@set_name.setter\n    def set_name(self, value: typing.Optional[str]) -> None:',
+        content
+    )
+    
+    # Check if set_name property already exists
+    if '@property\n    def set_name(self) -> typing.Optional[str]:' in content:
+        return content
+
+    # Find Statement class and insert set_name after filters property
+    filters_setter_match = re.search(
+        r'@filters\.setter\s+def filters\(self, value: typing\.Optional\[builtins\.list\[Filter\]\]\) -> None: \.\.\.',
+        content,
+        re.MULTILINE
+    )
+    if filters_setter_match:
+        insert_pos = filters_setter_match.end()
+        set_name_stub = '\n    @property\n    def set_name(self) -> typing.Optional[str]: ...\n    @set_name.setter\n    def set_name(self, value: typing.Optional[str]) -> None: ...'
+        content = content[:insert_pos] + set_name_stub + content[insert_pos:]
+        print("  ✓ Added set_name property to Statement class")
+
+    return content
+
+
 def add_policy_stubs(content: str) -> str:
     """Add full method stubs for WritePolicy, ReadPolicy, QueryPolicy, and ScanPolicy classes."""
     read_policy_stub = '''class ReadPolicy(BasePolicy):
@@ -868,6 +909,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_key_stubs(content)
         content = add_operation_stubs(content)
         content = add_client_stubs(content)
+        content = ensure_statement_set_name(content)
 
         # When processing native module, ensure package structure exists
         # Always create/regenerate main package __init__.pyi

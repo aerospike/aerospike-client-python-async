@@ -4964,15 +4964,16 @@ pub enum Replica {
     #[pymethods]
     impl Statement {
         #[new]
-        #[pyo3(signature = (namespace, set_name, bins = None, index_name = None))]
+        #[pyo3(signature = (namespace, set_name = None, bins = None, index_name = None))]
         pub fn __construct(
             namespace: &str,
-            set_name: &str,
+            set_name: Option<&str>,
             bins: Option<Vec<String>>,
             index_name: Option<String>,
         ) -> Self {
+            let set_name_str = set_name.unwrap_or("");
             let mut stmt = Statement {
-                _as: aerospike_core::Statement::new(namespace, set_name, bins_flag(bins)),
+                _as: aerospike_core::Statement::new(namespace, set_name_str, bins_flag(bins)),
             };
             stmt._as.index_name = index_name;
             stmt
@@ -5004,6 +5005,20 @@ pub enum Replica {
                     self._as.filters = Some(filters.iter().map(|qf| qf._as.clone()).collect());
                 }
             };
+        }
+
+        #[getter]
+        pub fn get_set_name(&self) -> Option<String> {
+            if self._as.set_name.is_empty() {
+                None
+            } else {
+                Some(self._as.set_name.clone())
+            }
+        }
+
+        #[setter]
+        pub fn set_set_name(&mut self, set_name: Option<String>) {
+            self._as.set_name = set_name.unwrap_or_default();
         }
     }
 

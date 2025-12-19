@@ -69,7 +69,8 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         }
 
     @pytest.fixture
-    async def client(self, key, original_bin_val, aerospike_host):  # type: ignore[override]
+    # noinspection PyMethodOverriding
+    async def client(self, key, original_bin_val, aerospike_host):
         """Create a client connection and insert a test record."""
         cp = ClientPolicy()
         cp.use_services_alternate = True
