@@ -2,7 +2,7 @@ import asyncio
 import pytest
 from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy, PartitionFilter
 from aerospike_async.exceptions import InvalidNodeError
-from fixtures import TestFixtureInsertRecord
+from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
 class TestStatement:
@@ -89,3 +89,52 @@ class TestQuery(TestFixtureInsertRecord):
             # Force iteration to trigger the error
             async for _ in records:
                 pass
+
+
+class TestQueryEmptySet(TestFixtureConnection):
+    """Test query with empty set name."""
+
+    async def test_query_empty_set_name_none(self, client):
+        """Test query operation with None set name (queries all sets in namespace)."""
+        stmt = Statement("test", set_name=None, bins=None)
+        qp = QueryPolicy()
+        pf = PartitionFilter.all()
+
+        assert stmt.set_name is None
+
+        rs = await client.query(qp, pf, stmt)
+        # Empty set name should not raise an error - it queries all sets in namespace
+        assert isinstance(rs, Recordset)
+        record_count = 0
+        async for _ in rs:
+            record_count += 1
+        # Query completed successfully (may return 0 or more records depending on namespace)
+        assert record_count >= 0
+
+    async def test_query_empty_set_name_empty_string(self, client):
+        """Test query operation with empty string set name (queries all sets in namespace)."""
+        stmt = Statement("test", set_name="", bins=None)
+        qp = QueryPolicy()
+        pf = PartitionFilter.all()
+
+        # Assert that empty string is converted to None
+        assert stmt.set_name is None
+
+        rs = await client.query(qp, pf, stmt)
+        # Empty set name should not raise an error - it queries all sets in namespace
+        assert isinstance(rs, Recordset)
+        record_count = 0
+        async for _ in rs:
+            record_count += 1
+        # Query completed successfully (may return 0 or more records depending on namespace)
+        assert record_count >= 0
+
+    async def test_query_empty_set_name_equivalence(self, client):
+        """Test that None and empty string are equivalent for set_name."""
+        stmt1 = Statement("test", set_name=None, bins=None)
+        stmt2 = Statement("test", set_name="", bins=None)
+
+        # Both should result in None
+        assert stmt1.set_name is None
+        assert stmt2.set_name is None
+        assert stmt1.set_name == stmt2.set_name

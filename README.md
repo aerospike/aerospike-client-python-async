@@ -76,7 +76,6 @@ make stubs
 *  Pipeline benchmarks: track performance between runs.
 *  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
 *  Next APIs:
-   - Security/Admin operations — exposed but tests skipped; may need updates to match current Rust core API
    - Batch operations
    - UDF operations
    - TLS configuration
@@ -90,6 +89,3 @@ make stubs
     - AP/SC
     - MRT
     - smaller items
-*  Address `unsafe` Rust sections in PyO3:
-    - PartitionStatus constructor: because it has private fields (node, sequence) that block struct literal syntax, so 
-        we zero-initialize and only set the public fields (bval, id, retry, digest).

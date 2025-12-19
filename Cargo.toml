@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.26", default-features = false }
 pyo3-async-runtimes = { version = "0.26", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "a61a32e9120662e296290fae5cb616f4c91d3728", package = "aerospike-core", features = ["rt-tokio"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "tls", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.14.1"

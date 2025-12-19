@@ -240,7 +240,7 @@ class TestSecurityFeatures:
         roles = ["read:test"]
 
         await client.create_user(username, password, roles)
-        
+
         # Retry for eventual consistency before changing password
         import asyncio
         for attempt in range(3):
@@ -274,7 +274,7 @@ class TestSecurityFeatures:
         new_roles = ["write:test", "read:analytics"]
 
         await client.create_user(username, password, initial_roles)
-        
+
         # Retry for eventual consistency before granting roles
         import asyncio
         for attempt in range(3):
@@ -308,7 +308,7 @@ class TestSecurityFeatures:
         roles_to_revoke = ["write:test"]
 
         await client.create_user(username, password, initial_roles)
-        
+
         # Retry for eventual consistency before revoking roles
         import asyncio
         for attempt in range(3):
