@@ -134,6 +134,16 @@ class TestPartitionFilter:
 class TestPartitionFilterUsage(TestFixtureInsertRecord):
     """Test PartitionFilter usage in actual scan/query operations."""
 
+    def test_partition_filter_partitions_setter_accepts_partition_status_objects(self):
+        """Test that PartitionFilter.partitions setter accepts PartitionStatus objects."""
+        pf = PartitionFilter.by_range(0, 1)
+        ps = PartitionStatus(0)
+        ps.retry = False
+        ps.bval = 0
+        ps.digest = None
+        pf.partitions = [ps]
+        # Test passes if no exception is raised
+
     async def test_scan_with_by_id(self, client):
         """Test scan with PartitionFilter.by_id()."""
         pf = PartitionFilter.by_id(0)

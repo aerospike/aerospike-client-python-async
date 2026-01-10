@@ -103,8 +103,8 @@ async def test_operate_map_put(client_and_key):
     wp = WritePolicy()
     rp = ReadPolicy()
     put_mode = MapPolicy(None, None)
-    add_mode = MapPolicy(MapOrder.Unordered, MapWriteMode.CreateOnly)
-    update_mode = MapPolicy(MapOrder.Unordered, MapWriteMode.UpdateOnly)
+    add_mode = MapPolicy(MapOrder.UNORDERED, MapWriteMode.CREATE_ONLY)
+    update_mode = MapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE_ONLY)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -170,8 +170,8 @@ async def test_operate_map_put_items(client_and_key):
     wp = WritePolicy()
     rp = ReadPolicy()
     put_mode = MapPolicy(None, None)
-    add_mode = MapPolicy(MapOrder.KeyOrdered, MapWriteMode.CreateOnly)
-    update_mode = MapPolicy(MapOrder.KeyOrdered, MapWriteMode.UpdateOnly)
+    add_mode = MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.CREATE_ONLY)
+    update_mode = MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE_ONLY)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -185,11 +185,11 @@ async def test_operate_map_put_items(client_and_key):
             MapOperation.put_items("mapbin", [(12, "myval12222"), (13, "str13")], put_mode),
             MapOperation.put_items("mapbin", [(13, "myval2")], update_mode),
             MapOperation.put_items("mapbin", [(12, 23), (-8734, "changed")], update_mode),
-            MapOperation.get_by_key("mapbin", 1, MapReturnType.Value),
-            MapOperation.get_by_key("mapbin", -8734, MapReturnType.Value),
-            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.KeyValue),
-            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.UnorderedMap),
-            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.OrderedMap),
+            MapOperation.get_by_key("mapbin", 1, MapReturnType.VALUE),
+            MapOperation.get_by_key("mapbin", -8734, MapReturnType.VALUE),
+            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.KEY_VALUE),
+            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.UNORDERED_MAP),
+            MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.ORDERED_MAP),
         ]
     )
 
@@ -383,7 +383,7 @@ async def test_operate_map_remove_by_key(client_and_key):
         wp,
         key,
         [
-            MapOperation.remove_by_key("mapbin", "key2", MapReturnType.Value),
+            MapOperation.remove_by_key("mapbin", "key2", MapReturnType.VALUE),
         ]
     )
 
@@ -434,7 +434,7 @@ async def test_operate_map_remove_by_key_range(client_and_key):
         wp,
         key,
         [
-            MapOperation.remove_by_key_range("mapbin", 2, 4, MapReturnType.Count),
+            MapOperation.remove_by_key_range("mapbin", 2, 4, MapReturnType.COUNT),
         ]
     )
 
@@ -478,8 +478,8 @@ async def test_operate_map_index_operations(client_and_key):
             MapOperation.put("mapbin", 3, 3, map_policy),
             MapOperation.put("mapbin", 2, 2, map_policy),
             MapOperation.put("mapbin", 1, 1, map_policy),
-            MapOperation.get_by_index("mapbin", 2, MapReturnType.KeyValue),
-            MapOperation.get_by_index_range("mapbin", 0, 10, MapReturnType.KeyValue),
+            MapOperation.get_by_index("mapbin", 2, MapReturnType.KEY_VALUE),
+            MapOperation.get_by_index_range("mapbin", 0, 10, MapReturnType.KEY_VALUE),
         ]
     )
 
@@ -511,7 +511,7 @@ async def test_operate_map_rank_operations(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    map_policy = MapPolicy(MapOrder.KeyValueOrdered, MapWriteMode.Update)
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -541,10 +541,10 @@ async def test_operate_map_rank_operations(client_and_key):
         wp,
         key,
         [
-            MapOperation.get_by_rank_range("mapbin", -2, 2, MapReturnType.Key),
-            MapOperation.get_by_rank_range("mapbin", 0, 2, MapReturnType.KeyValue),
-            MapOperation.get_by_rank("mapbin", 0, MapReturnType.Value),
-            MapOperation.get_by_rank("mapbin", 2, MapReturnType.Key),
+            MapOperation.get_by_rank_range("mapbin", -2, 2, MapReturnType.KEY),
+            MapOperation.get_by_rank_range("mapbin", 0, 2, MapReturnType.KEY_VALUE),
+            MapOperation.get_by_rank("mapbin", 0, MapReturnType.VALUE),
+            MapOperation.get_by_rank("mapbin", 2, MapReturnType.KEY),
         ]
     )
 
@@ -552,37 +552,30 @@ async def test_operate_map_rank_operations(client_and_key):
     assert record.bins is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    # Python client flattens nested lists, so getByRankRange returns individual elements
-    # getByRankRange(-2, 2, KEY) returns 2 keys, getByRankRange(0, 2, KEY_VALUE) returns a dict,
-    # getByRank(0, VALUE) returns 1 value, getByRank(2, KEY) returns 1 key
-    # So we expect at least 4 results (2 + 1 dict + 1 + 1)
-    assert len(results) >= 4
+    # MultiResult contains 4 results (no flattening):
+    # getByRankRange(-2, 2, KEY) returns a list of 2 keys ['Harry', 'Jim']
+    # getByRankRange(0, 2, KEY_VALUE) returns a dict
+    # getByRank(0, VALUE) returns a value (55)
+    # getByRank(2, KEY) returns a key ('Harry')
+    assert len(results) == 4
 
-    # First two results: getByRankRange(-2, 2, KEY) - returns keys for last 2 items (flattened)
-    assert "Harry" in results
-    assert "Jim" in results
-    # Find their positions
-    harry_idx = results.index("Harry") if "Harry" in results else -1
-    jim_idx = results.index("Jim") if "Jim" in results else -1
-    assert harry_idx >= 0
-    assert jim_idx >= 0
+    # First result: getByRankRange(-2, 2, KEY) - returns a list of keys
+    assert isinstance(results[0], list)
+    assert "Harry" in results[0]
+    assert "Jim" in results[0]
+    assert len(results[0]) == 2
 
-    # Find the dict result from getByRankRange(0, 2, KEY_VALUE)
-    key_value_dict = None
-    for r in results:
-        if isinstance(r, dict):
-            key_value_dict = r
-            break
-    assert key_value_dict is not None
-    assert len(key_value_dict) == 2
-    assert "Charlie" in key_value_dict
-    assert "John" in key_value_dict
+    # Second result: getByRankRange(0, 2, KEY_VALUE) - returns a dict
+    assert isinstance(results[1], dict)
+    assert len(results[1]) == 2
+    assert "Charlie" in results[1]
+    assert "John" in results[1]
 
-    # Find the value result from getByRank(0, VALUE) - should be 55
-    assert 55 in results
+    # Third result: getByRank(0, VALUE) - returns a value
+    assert results[2] == 55
 
-    # Find the key result from getByRank(2, KEY) - should be "Harry" (but we already found it above)
-    # Since "Harry" appears in the results, that's our confirmation
+    # Fourth result: getByRank(2, KEY) - returns a key
+    assert results[3] == "Harry"
 
 
 async def test_operate_map_value_operations(client_and_key):
@@ -590,7 +583,7 @@ async def test_operate_map_value_operations(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    map_policy = MapPolicy(MapOrder.KeyValueOrdered, MapWriteMode.Update)
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -610,12 +603,12 @@ async def test_operate_map_value_operations(client_and_key):
         wp,
         key,
         [
-            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.Rank),
-            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.Count),
-            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.KeyValue),
-            MapOperation.get_by_value_range("mapbin", 81, 82, MapReturnType.Key),
-            MapOperation.get_by_value("mapbin", 77, MapReturnType.Key),
-            MapOperation.get_by_value("mapbin", 81, MapReturnType.Rank),
+            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.RANK),
+            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.COUNT),
+            MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.KEY_VALUE),
+            MapOperation.get_by_value_range("mapbin", 81, 82, MapReturnType.KEY),
+            MapOperation.get_by_value("mapbin", 77, MapReturnType.KEY),
+            MapOperation.get_by_value("mapbin", 81, MapReturnType.RANK),
         ]
     )
 
@@ -623,59 +616,40 @@ async def test_operate_map_value_operations(client_and_key):
     assert record.bins is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    # Python flattens nested lists, so we need to find results by type/value
-    # getByValueRange(90, 95, RANK) returns a list that gets flattened
-    # getByValueRange(90, 95, COUNT) returns a count (int)
-    # getByValueRange(90, 95, KEY_VALUE) returns a dict
-    # getByValueRange(81, 82, KEY) returns a list that gets flattened
-    # getByValue(77, KEY) returns empty list (flattened = nothing)
-    # getByValue(81, RANK) returns a list that gets flattened
+    # MultiResult contains 6 results (no flattening):
+    # getByValueRange(90, 95, RANK) returns a list [3]
+    # getByValueRange(90, 95, COUNT) returns a count (int) 1
+    # getByValueRange(90, 95, KEY_VALUE) returns a dict {'Jim': 94}
+    # getByValueRange(81, 82, KEY) returns a list ['John']
+    # getByValue(77, KEY) returns empty list []
+    # getByValue(81, RANK) returns a list [2]
+    assert len(results) == 6
 
-    # Find the count result (should be 1)
-    assert 1 in results
+    # First result: getByValueRange(90, 95, RANK) - returns a list
+    assert isinstance(results[0], list)
+    assert results[0] == [3]
 
-    # Find the dict result from getByValueRange(90, 95, KEY_VALUE)
-    key_value_dict = None
-    for r in results:
-        if isinstance(r, dict):
-            key_value_dict = r
-            break
-    assert key_value_dict is not None
-    assert len(key_value_dict) == 1
-    assert "Jim" in key_value_dict
+    # Second result: getByValueRange(90, 95, COUNT) - returns an int
+    assert results[1] == 1
 
-    # Find the rank value (should be 3 from getByValueRange(90, 95, RANK))
-    # This gets flattened, so 3 is a direct element
-    assert 3 in results
+    # Third result: getByValueRange(90, 95, KEY_VALUE) - returns a dict
+    assert isinstance(results[2], dict)
+    assert len(results[2]) == 1
+    assert "Jim" in results[2]
+    assert results[2]["Jim"] == 94
 
-    # Find the keys from getByValueRange(81, 82, KEY) - range is exclusive on end, so only 81 (John) matches
-    # Results may be nested lists or flattened - check both
-    john_found = False
-    for r in results:
-        if isinstance(r, list):
-            if "John" in r:
-                john_found = True
-                break
-        elif r == "John":
-            john_found = True
-            break
-    assert john_found, f"John not found in results: {results}"
+    # Fourth result: getByValueRange(81, 82, KEY) - returns a list
+    assert isinstance(results[3], list)
+    assert results[3] == ["John"]
 
-    # getByValue(77, KEY) returns empty list, which may appear as [] in results
-    # (empty lists are preserved in the flattened structure)
+    # Fifth result: getByValue(77, KEY) - returns empty list
+    assert isinstance(results[4], list)
+    assert results[4] == []
 
-    # Find the rank value from getByValue(81, RANK) - should be 1
-    # This may be in a nested list [1] or flattened as 1
-    rank_one_found = False
-    for r in results:
-        if isinstance(r, list) and 1 in r:
-            rank_one_found = True
-            break
-        elif r == 1:
-            # Could be the count, but we already verified count is 1
-            rank_one_found = True
-    # We expect at least: 1 count, 1 dict, 1 rank (3), keys (John/Harry), 1 rank (1)
-    assert len(results) >= 5
+    # Sixth result: getByValue(81, RANK) - returns a list
+    # Value 81 (John) is at rank 1 when sorted by value
+    assert isinstance(results[5], list)
+    assert results[5] == [1]
 
 
 async def test_operate_map_get_by_list(client_and_key):
@@ -706,8 +680,8 @@ async def test_operate_map_get_by_list(client_and_key):
         wp,
         key,
         [
-            MapOperation.get_by_key_list("mapbin", key_list, MapReturnType.KeyValue),
-            MapOperation.get_by_value_list("mapbin", value_list, MapReturnType.KeyValue),
+            MapOperation.get_by_key_list("mapbin", key_list, MapReturnType.KEY_VALUE),
+            MapOperation.get_by_value_list("mapbin", value_list, MapReturnType.KEY_VALUE),
         ]
     )
 
@@ -775,10 +749,10 @@ async def test_operate_map_remove_by_key_list(client_and_key):
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-            MapOperation.remove_by_key("mapbin", "NOTFOUND", MapReturnType.Value),
-            MapOperation.remove_by_key("mapbin", "Jim", MapReturnType.Value),
-            MapOperation.remove_by_key_list("mapbin", remove_keys, MapReturnType.Count),
-            MapOperation.remove_by_value("mapbin", 55, MapReturnType.Key),
+            MapOperation.remove_by_key("mapbin", "NOTFOUND", MapReturnType.VALUE),
+            MapOperation.remove_by_key("mapbin", "Jim", MapReturnType.VALUE),
+            MapOperation.remove_by_key_list("mapbin", remove_keys, MapReturnType.COUNT),
+            MapOperation.remove_by_value("mapbin", 55, MapReturnType.KEY),
             MapOperation.size("mapbin"),
         ]
     )
@@ -846,7 +820,7 @@ async def test_operate_map_remove_by_key_list_for_non_existing_key(client_and_ke
             wp,
             key,
             [
-                MapOperation.remove_by_key_list("mapbin", ["key-1"], MapReturnType.Value),
+                MapOperation.remove_by_key_list("mapbin", ["key-1"], MapReturnType.VALUE),
             ]
         )
     assert exi.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -881,7 +855,7 @@ async def test_operate_map_remove_by_value_list(client_and_key):
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-            MapOperation.remove_by_value_list("mapbin", remove_values, MapReturnType.Count),
+            MapOperation.remove_by_value_list("mapbin", remove_values, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
         ]
     )
@@ -925,7 +899,7 @@ async def test_operate_map_set_map_policy(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    map_policy = MapPolicy(MapOrder.KeyOrdered, None)
+    map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
     # Create a map and then set its policy
     record = await client.operate(
@@ -934,7 +908,7 @@ async def test_operate_map_set_map_policy(client_and_key):
         [
             MapOperation.put("mapbin", "key1", "value1", map_policy),
             MapOperation.put("mapbin", "key2", "value2", map_policy),
-            MapOperation.set_map_policy("mapbin", MapPolicy(MapOrder.KeyValueOrdered, None)),
+            MapOperation.set_map_policy("mapbin", MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)),
             MapOperation.size("mapbin")
         ]
     )
@@ -979,14 +953,14 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
         wp,
         key,
         [
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, 1, None, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, -1, None, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 3, 2, None, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 3, -2, None, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, 1, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, 1, 2, MapReturnType.Key),
-            MapOperation.get_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.Key),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, 1, None, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, -1, None, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 3, 2, None, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 3, -2, None, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, 1, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, 1, 2, MapReturnType.KEY),
+            MapOperation.get_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.KEY),
         ]
     )
 
@@ -1025,10 +999,10 @@ async def test_operate_map_get_by_value_relative_rank_range(client_and_key):
         wp,
         key,
         [
-            MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.Value),
-            MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, None, MapReturnType.Value),
-            MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, 1, MapReturnType.Value),
-            MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.Value)
+            MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.VALUE),
+            MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, None, MapReturnType.VALUE),
+            MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, 1, MapReturnType.VALUE),
+            MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.VALUE)
         ]
     )
 
@@ -1067,9 +1041,9 @@ async def test_operate_map_remove_by_key_relative_index_range(client_and_key):
         wp,
         key,
         [
-            MapOperation.remove_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.Value),
-            MapOperation.remove_by_key_relative_index_range("mapbin", 5, 1, None, MapReturnType.Value),
-            MapOperation.remove_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.Value),
+            MapOperation.remove_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.VALUE),
+            MapOperation.remove_by_key_relative_index_range("mapbin", 5, 1, None, MapReturnType.VALUE),
+            MapOperation.remove_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.VALUE),
             MapOperation.size("mapbin")
         ]
     )
@@ -1112,8 +1086,8 @@ async def test_operate_map_remove_by_value_relative_rank_range(client_and_key):
         wp,
         key,
         [
-            MapOperation.remove_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.Value),
-            MapOperation.remove_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.Value),
+            MapOperation.remove_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.VALUE),
+            MapOperation.remove_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.VALUE),
             MapOperation.size("mapbin")
         ]
     )
@@ -1145,7 +1119,7 @@ async def test_operate_map_create(client_and_key):
         wp,
         key,
         [
-            MapOperation.create("mapbin", MapOrder.KeyOrdered),
+            MapOperation.create("mapbin", MapOrder.KEY_ORDERED),
             MapOperation.size("mapbin")
         ]
     )
@@ -1293,7 +1267,7 @@ async def test_operate_nested_map_value(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    map_policy = MapPolicy(MapOrder.KeyOrdered, None)
+    map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
     # Delete record first to ensure clean state
     try:
@@ -1313,7 +1287,7 @@ async def test_operate_nested_map_value(client_and_key):
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
             MapOperation.put("mapbin", "first", m1, map_policy),
-            MapOperation.get_by_key("mapbin", 3, MapReturnType.KeyValue).set_context([
+            MapOperation.get_by_key("mapbin", 3, MapReturnType.KEY_VALUE).set_context([
                 CTX.map_value(m1)
             ])
         ]
@@ -1384,7 +1358,7 @@ async def test_operate_map_create_context(client_and_key):
         wp,
         key,
         [
-                MapOperation.create("mapbin", MapOrder.KeyOrdered).set_context([CTX.map_key("key3")]),
+                MapOperation.create("mapbin", MapOrder.KEY_ORDERED).set_context([CTX.map_key("key3")]),
                 MapOperation.put("mapbin", "key31", 99, map_policy).set_context([CTX.map_key("key3")]),
                 Operation.get_bin("mapbin")
         ]

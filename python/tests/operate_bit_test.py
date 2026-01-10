@@ -86,8 +86,8 @@ async def test_operate_bit_bin(client_and_key):
 
     wp = WritePolicy()
     put_mode = BitPolicy(None)
-    update_mode = BitPolicy(BitwiseWriteFlags.UpdateOnly)
-    add_mode = BitPolicy(BitwiseWriteFlags.CreateOnly)
+    update_mode = BitPolicy(BitwiseWriteFlags.UPDATE_ONLY)
+    add_mode = BitPolicy(BitwiseWriteFlags.CREATE_ONLY)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -424,15 +424,15 @@ async def test_operate_bit_add(client_and_key):
         wp,
         key,
         [
-            BitOperation.add("bitbin", 0, 5, 1, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 9, 7, 1, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 23, 6, 0x21, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 32, 8, 1, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 40, 24, 0x7F7F7F, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 64, 20, 0x01010, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 113, 22, 0x8082, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.add("bitbin", 136, 23, 0x20202, False, BitwiseOverflowActions.Fail, put_mode),
+            BitOperation.add("bitbin", 0, 5, 1, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 9, 7, 1, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 23, 6, 0x21, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 32, 8, 1, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 40, 24, 0x7F7F7F, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 64, 20, 0x01010, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 113, 22, 0x8082, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.add("bitbin", 136, 23, 0x20202, False, BitwiseOverflowActions.FAIL, put_mode),
         ]
     )
 
@@ -453,18 +453,18 @@ async def test_operate_bit_add(client_and_key):
         wp,
         key,
         [
-            BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 8, 8, 0x7F, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 8, 8, 0x7F, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 16, 8, 0x80, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 16, 8, 0xFF, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.add("bitbin", 24, 8, 0x80, False, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.add("bitbin", 24, 8, 0x80, False, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.add("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.add("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.Saturate, put_mode),
+            BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 8, 8, 0x7F, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 8, 8, 0x7F, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 16, 8, 0x80, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 16, 8, 0xFF, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.add("bitbin", 24, 8, 0x80, False, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.add("bitbin", 24, 8, 0x80, False, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.add("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.add("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
         ]
     )
 
@@ -478,8 +478,8 @@ async def test_operate_bit_add(client_and_key):
             wp,
             key,
             [
-                BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.Fail, put_mode),
-                BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.Fail, put_mode),
+                BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.FAIL, put_mode),
+                BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.FAIL, put_mode),
             ]
         )
     # Operation cannot be applied to current bin value
@@ -508,15 +508,15 @@ async def test_operate_bit_subtract(client_and_key):
         wp,
         key,
         [
-            BitOperation.subtract("bitbin", 0, 5, 0x01, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 9, 7, 0x01, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 23, 6, 0x03, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 32, 8, 0x01, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 40, 24, 0x10101, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 64, 20, 0x101, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 113, 21, 0x101, False, BitwiseOverflowActions.Fail, put_mode),
-            BitOperation.subtract("bitbin", 136, 23, 0x11111, False, BitwiseOverflowActions.Fail, put_mode),
+            BitOperation.subtract("bitbin", 0, 5, 0x01, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 9, 7, 0x01, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 23, 6, 0x03, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 32, 8, 0x01, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 40, 24, 0x10101, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 64, 20, 0x101, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 113, 21, 0x101, False, BitwiseOverflowActions.FAIL, put_mode),
+            BitOperation.subtract("bitbin", 136, 23, 0x11111, False, BitwiseOverflowActions.FAIL, put_mode),
         ]
     )
 
@@ -537,16 +537,16 @@ async def test_operate_bit_subtract(client_and_key):
         wp,
         key,
         [
-            BitOperation.subtract("bitbin", 0, 8, 0x01, False, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.subtract("bitbin", 8, 8, 0x80, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.subtract("bitbin", 8, 8, 0x8A, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.subtract("bitbin", 16, 8, 0x7F, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.subtract("bitbin", 16, 8, 0x02, True, BitwiseOverflowActions.Wrap, put_mode),
-            BitOperation.subtract("bitbin", 24, 8, 0xAA, False, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.subtract("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.subtract("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.subtract("bitbin", 40, 8, 0x81, True, BitwiseOverflowActions.Saturate, put_mode),
-            BitOperation.subtract("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.Saturate, put_mode),
+            BitOperation.subtract("bitbin", 0, 8, 0x01, False, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.subtract("bitbin", 8, 8, 0x80, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.subtract("bitbin", 8, 8, 0x8A, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.subtract("bitbin", 16, 8, 0x7F, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.subtract("bitbin", 16, 8, 0x02, True, BitwiseOverflowActions.WRAP, put_mode),
+            BitOperation.subtract("bitbin", 24, 8, 0xAA, False, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.subtract("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.subtract("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.subtract("bitbin", 40, 8, 0x81, True, BitwiseOverflowActions.SATURATE, put_mode),
+            BitOperation.subtract("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
         ]
     )
 
@@ -560,7 +560,7 @@ async def test_operate_bit_subtract(client_and_key):
             wp,
             key,
             [
-                BitOperation.subtract("bitbin", 0, 8, 1, False, BitwiseOverflowActions.Fail, put_mode),
+                BitOperation.subtract("bitbin", 0, 8, 1, False, BitwiseOverflowActions.FAIL, put_mode),
             ]
         )
     # Operation cannot be applied to current bin value
@@ -831,7 +831,7 @@ async def test_operate_bit_resize(client_and_key):
 
     wp = WritePolicy()
     policy = BitPolicy(None)
-    no_fail = BitPolicy(BitwiseWriteFlags.NoFail)
+    no_fail = BitPolicy(BitwiseWriteFlags.NO_FAIL)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -840,18 +840,18 @@ async def test_operate_bit_resize(client_and_key):
         wp,
         key,
         [
-            BitOperation.resize("bitbin", 20, BitwiseResizeFlags.Default, policy),
+            BitOperation.resize("bitbin", 20, BitwiseResizeFlags.DEFAULT, policy),
             BitOperation.get("bitbin", 19 * 8, 8),
-            BitOperation.resize("bitbin", 10, BitwiseResizeFlags.GrowOnly, no_fail),
+            BitOperation.resize("bitbin", 10, BitwiseResizeFlags.GROW_ONLY, no_fail),
             BitOperation.get("bitbin", 19 * 8, 8),
-            BitOperation.resize("bitbin", 10, BitwiseResizeFlags.ShrinkOnly, policy),
+            BitOperation.resize("bitbin", 10, BitwiseResizeFlags.SHRINK_ONLY, policy),
             BitOperation.get("bitbin", 9 * 8, 8),
-            BitOperation.resize("bitbin", 30, BitwiseResizeFlags.ShrinkOnly, no_fail),
+            BitOperation.resize("bitbin", 30, BitwiseResizeFlags.SHRINK_ONLY, no_fail),
             BitOperation.get("bitbin", 9 * 8, 8),
-            BitOperation.resize("bitbin", 19, BitwiseResizeFlags.GrowOnly, policy),
+            BitOperation.resize("bitbin", 19, BitwiseResizeFlags.GROW_ONLY, policy),
             BitOperation.get("bitbin", 18 * 8, 8),
-            BitOperation.resize("bitbin", 0, BitwiseResizeFlags.GrowOnly, no_fail),
-            BitOperation.resize("bitbin", 0, BitwiseResizeFlags.ShrinkOnly, policy),
+            BitOperation.resize("bitbin", 0, BitwiseResizeFlags.GROW_ONLY, no_fail),
+            BitOperation.resize("bitbin", 0, BitwiseResizeFlags.SHRINK_ONLY, policy),
         ]
     )
 
@@ -919,11 +919,11 @@ async def test_operate_bit_null_blob(client_and_key):
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
 
     with pytest.raises(ServerError) as exi:
-        await client.operate(wp, key, [BitOperation.add("bitbin", 0, 1, 1, False, BitwiseOverflowActions.Fail, policy)])
+        await client.operate(wp, key, [BitOperation.add("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(ServerError) as exi:
-        await client.operate(wp, key, [BitOperation.subtract("bitbin", 0, 1, 1, False, BitwiseOverflowActions.Fail, policy)])
+        await client.operate(wp, key, [BitOperation.subtract("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(ServerError) as exi:
@@ -1155,7 +1155,7 @@ async def test_operate_bit_add_exhaustive(client_and_key):
             
             # Add operation with WRAP to avoid overflow errors
             await client.operate(wp, key, [
-                BitOperation.add("bitbin", offset, set_sz, 1, False, BitwiseOverflowActions.Wrap, policy),
+                BitOperation.add("bitbin", offset, set_sz, 1, False, BitwiseOverflowActions.WRAP, policy),
             ])
             
             rp = ReadPolicy()
@@ -1186,7 +1186,7 @@ async def test_operate_bit_subtract_exhaustive(client_and_key):
             
             # Subtract operation with WRAP to avoid underflow errors
             await client.operate(wp, key, [
-                BitOperation.subtract("bitbin", offset, set_sz, max_value, False, BitwiseOverflowActions.Wrap, policy),
+                BitOperation.subtract("bitbin", offset, set_sz, max_value, False, BitwiseOverflowActions.WRAP, policy),
             ])
             
             rp = ReadPolicy()

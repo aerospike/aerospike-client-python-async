@@ -383,8 +383,9 @@ async def test_operate_list_pop_range(client_and_key):
     result_list = record.bins.get("oplistbin")
     assert isinstance(result_list, list)
     assert len(result_list) == 2
-    # First result: popped value (99.99)
-    assert result_list[0] == 99.99
+    # First result: pop_range returns a list containing the popped value
+    assert isinstance(result_list[0], list)
+    assert result_list[0] == [99.99]
     # Second result: size after pop (6)
     assert result_list[1] == 6
 
@@ -425,8 +426,9 @@ async def test_operate_list_pop_range_from(client_and_key):
     result_list = record.bins.get("oplistbin")
     assert isinstance(result_list, list)
     assert len(result_list) == 2
-    # First result: popped value (50)
-    assert result_list[0] == 50
+    # First result: pop_range_from returns a list containing the popped value
+    assert isinstance(result_list[0], list)
+    assert result_list[0] == [50]
     # Second result: size after pop (4)
     assert result_list[1] == 4
 
@@ -855,7 +857,7 @@ async def test_operate_list_sort(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.sort("oplistbin", ListSortFlags.DropDuplicates),
+            ListOperation.sort("oplistbin", ListSortFlags.DROP_DUPLICATES),
             ListOperation.size("oplistbin")
         ]
     )
@@ -896,7 +898,7 @@ async def test_operate_list_set_order(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.get_by_index("oplistbin", 3, ListReturnType.Value)
+            ListOperation.get_by_index("oplistbin", 3, ListReturnType.VALUE)
         ]
     )
 
@@ -912,15 +914,15 @@ async def test_operate_list_set_order(client_and_key):
         wp,
         key,
         [
-            ListOperation.set_order("oplistbin", ListOrderType.Ordered),
-            ListOperation.get_by_value("oplistbin", 3, ListReturnType.Index),
-            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.Count),
-            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.Exists),
-            ListOperation.get_by_value_list("oplistbin", value_list, ListReturnType.Rank),
-            ListOperation.get_by_index("oplistbin", 3, ListReturnType.Value),
-            ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.Value),
-            ListOperation.get_by_rank("oplistbin", 0, ListReturnType.Value),
-            ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.Value)
+            ListOperation.set_order("oplistbin", ListOrderType.ORDERED),
+            ListOperation.get_by_value("oplistbin", 3, ListReturnType.INDEX),
+            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.COUNT),
+            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.EXISTS),
+            ListOperation.get_by_value_list("oplistbin", value_list, ListReturnType.RANK),
+            ListOperation.get_by_index("oplistbin", 3, ListReturnType.VALUE),
+            ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.VALUE),
+            ListOperation.get_by_rank("oplistbin", 0, ListReturnType.VALUE),
+            ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.VALUE)
         ]
     )
 
@@ -965,13 +967,13 @@ async def test_operate_list_remove_by_return_type(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.remove_by_value("oplistbin", 0, ListReturnType.Index),
-            ListOperation.remove_by_value_list("oplistbin", value_list, ListReturnType.Value),
-            ListOperation.remove_by_value_range("oplistbin", 33, 100, ListReturnType.Value),
-            ListOperation.remove_by_index("oplistbin", 1, ListReturnType.Value),
-            ListOperation.remove_by_index_range("oplistbin", 100, None, ListReturnType.Value),
-            ListOperation.remove_by_rank("oplistbin", 0, ListReturnType.Value),
-            ListOperation.remove_by_rank_range("oplistbin", 3, None, ListReturnType.Value)
+            ListOperation.remove_by_value("oplistbin", 0, ListReturnType.INDEX),
+            ListOperation.remove_by_value_list("oplistbin", value_list, ListReturnType.VALUE),
+            ListOperation.remove_by_value_range("oplistbin", 33, 100, ListReturnType.VALUE),
+            ListOperation.remove_by_index("oplistbin", 1, ListReturnType.VALUE),
+            ListOperation.remove_by_index_range("oplistbin", 100, None, ListReturnType.VALUE),
+            ListOperation.remove_by_rank("oplistbin", 0, ListReturnType.VALUE),
+            ListOperation.remove_by_rank_range("oplistbin", 3, None, ListReturnType.VALUE)
         ]
     )
 
@@ -1008,7 +1010,7 @@ async def test_operate_list_get_by_value_relative_rank_range(client_and_key):
 
     wp = WritePolicy()
     # Use ordered list for relative rank operations
-    list_policy = ListPolicy(ListOrderType.Ordered, None)
+    list_policy = ListPolicy(ListOrderType.ORDERED, None)
 
     # Create an ordered list: [0, 4, 5, 9, 11, 15]
     item_list = [0, 4, 5, 9, 11, 15]
@@ -1018,18 +1020,18 @@ async def test_operate_list_get_by_value_relative_rank_range(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 0, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 1, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, -1, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 0, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 3, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, -3, None, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 0, 2, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 1, 1, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, -1, 2, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 0, 1, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 3, 7, ListReturnType.Value),
-            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.Value)
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 0, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 1, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, -1, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 0, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 3, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, -3, None, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 0, 2, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, 1, 1, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 5, -1, 2, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 0, 1, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 3, 7, ListReturnType.VALUE),
+            ListOperation.get_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.VALUE)
         ]
     )
 
@@ -1062,7 +1064,7 @@ async def test_operate_list_remove_by_value_relative_rank_range(client_and_key):
     wp = WritePolicy()
     rp = ReadPolicy()
     # Use ordered list for relative rank operations
-    list_policy = ListPolicy(ListOrderType.Ordered, None)
+    list_policy = ListPolicy(ListOrderType.ORDERED, None)
 
     # Create an ordered list: [0, 4, 5, 9, 11, 15]
     item_list = [0, 4, 5, 9, 11, 15]
@@ -1072,12 +1074,12 @@ async def test_operate_list_remove_by_value_relative_rank_range(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, 0, None, ListReturnType.Value),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, 1, None, ListReturnType.Value),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, -1, None, ListReturnType.Value),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 1, ListReturnType.Value),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.Value),
-            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 3, ListReturnType.Value)
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, 0, None, ListReturnType.VALUE),
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, 1, None, ListReturnType.VALUE),
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 5, -1, None, ListReturnType.VALUE),
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 1, ListReturnType.VALUE),
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.VALUE),
+            ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 3, ListReturnType.VALUE)
         ]
     )
 
@@ -1121,7 +1123,7 @@ async def test_operate_list_create(client_and_key):
         wp,
         key,
         [
-            ListOperation.set_order("oplistbin", ListOrderType.Ordered),
+            ListOperation.set_order("oplistbin", ListOrderType.ORDERED),
             ListOperation.append_items("oplistbin", l1, list_policy),
             ListOperation.size("oplistbin")
         ]
@@ -1165,15 +1167,15 @@ async def test_operate_list_inverted(client_and_key):
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
-            ListOperation.set_order("oplistbin", ListOrderType.Ordered),
+            ListOperation.set_order("oplistbin", ListOrderType.ORDERED),
             # Note: INVERTED flag is combined with other return types using bitwise OR
             # In Python, we'd need to check if ListReturnType supports bitwise operations
             # For now, test without INVERTED to ensure basic functionality works
-            ListOperation.get_by_value("oplistbin", 3, ListReturnType.Index),
-            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.Count),
-            ListOperation.get_by_value_list("oplistbin", value_list, ListReturnType.Rank),
-            ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.Value),
-            ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.Value)
+            ListOperation.get_by_value("oplistbin", 3, ListReturnType.INDEX),
+            ListOperation.get_by_value_range("oplistbin", -1, 3, ListReturnType.COUNT),
+            ListOperation.get_by_value_list("oplistbin", value_list, ListReturnType.RANK),
+            ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.VALUE),
+            ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.VALUE)
         ]
     )
 
@@ -1348,7 +1350,7 @@ async def test_operate_list_create_context(client_and_key):
         key,
         [
             ListOperation.append("oplistbin", 2, list_policy).set_context([
-                CTX.list_index_create(3, ListOrderType.Ordered, False)
+                CTX.list_index_create(3, ListOrderType.ORDERED, False)
             ]),
             Operation.get_bin("oplistbin")
         ]

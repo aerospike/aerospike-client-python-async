@@ -11,18 +11,18 @@ class TestWritePolicy:
     def test_set_and_get_fields(self):
         """Test setting and getting WritePolicy fields."""
         wp = WritePolicy()
-        wp.record_exists_action = RecordExistsAction.UpdateOnly
-        wp.generation_policy = GenerationPolicy.ExpectGenEqual
-        wp.commit_level = CommitLevel.CommitMaster
+        wp.record_exists_action = RecordExistsAction.UPDATE_ONLY
+        wp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
+        wp.commit_level = CommitLevel.COMMIT_MASTER
         wp.generation = 4
         wp.expiration = Expiration.NEVER_EXPIRE
         wp.send_key = True
         wp.respond_per_each_op = True
         wp.durable_delete = True
 
-        assert wp.record_exists_action == RecordExistsAction.UpdateOnly
-        assert wp.generation_policy == GenerationPolicy.ExpectGenEqual
-        assert wp.commit_level == CommitLevel.CommitMaster
+        assert wp.record_exists_action == RecordExistsAction.UPDATE_ONLY
+        assert wp.generation_policy == GenerationPolicy.EXPECT_GEN_EQUAL
+        assert wp.commit_level == CommitLevel.COMMIT_MASTER
         assert wp.generation == 4
         assert wp.expiration == Expiration.NEVER_EXPIRE
         assert wp.send_key is True
@@ -32,14 +32,14 @@ class TestWritePolicy:
     def test_base_policy_inheritance(self):
         """Test that WritePolicy inherits BasePolicy fields."""
         wp = WritePolicy()
-        wp.consistency_level = ConsistencyLevel.ConsistencyAll
+        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
         wp.timeout = 15000
         wp.max_retries = 3
         wp.sleep_between_retries = 500
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         wp.filter_expression = filter_exp
 
-        assert wp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
         assert wp.timeout == 15000
         assert wp.max_retries == 3
         assert wp.sleep_between_retries == 500
@@ -49,26 +49,26 @@ class TestWritePolicy:
         """Test that WritePolicy can use both BasePolicy and WritePolicy fields together."""
         wp = WritePolicy()
         # Set BasePolicy fields
-        wp.consistency_level = ConsistencyLevel.ConsistencyOne
+        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
         wp.timeout = 10000
         wp.max_retries = 2
         # Set WritePolicy-specific fields
-        wp.record_exists_action = RecordExistsAction.ReplaceOnly
-        wp.generation_policy = GenerationPolicy.ExpectGenGreater
-        wp.commit_level = CommitLevel.CommitAll
+        wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
+        wp.generation_policy = GenerationPolicy.EXPECT_GEN_GREATER
+        wp.commit_level = CommitLevel.COMMIT_ALL
         wp.generation = 5
         wp.expiration = Expiration.NEVER_EXPIRE
         wp.send_key = False
         wp.durable_delete = True
 
         # Verify BasePolicy fields
-        assert wp.consistency_level == ConsistencyLevel.ConsistencyOne
+        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
         assert wp.timeout == 10000
         assert wp.max_retries == 2
         # Verify WritePolicy fields
-        assert wp.record_exists_action == RecordExistsAction.ReplaceOnly
-        assert wp.generation_policy == GenerationPolicy.ExpectGenGreater
-        assert wp.commit_level == CommitLevel.CommitAll
+        assert wp.record_exists_action == RecordExistsAction.REPLACE_ONLY
+        assert wp.generation_policy == GenerationPolicy.EXPECT_GEN_GREATER
+        assert wp.commit_level == CommitLevel.COMMIT_ALL
         assert wp.generation == 5
         assert wp.expiration == Expiration.NEVER_EXPIRE
         assert wp.send_key is False
@@ -95,11 +95,11 @@ class TestWritePolicy:
         wp = WritePolicy()
 
         actions = [
-            RecordExistsAction.Update,
-            RecordExistsAction.UpdateOnly,
-            RecordExistsAction.Replace,
-            RecordExistsAction.ReplaceOnly,
-            RecordExistsAction.CreateOnly,
+            RecordExistsAction.UPDATE,
+            RecordExistsAction.UPDATE_ONLY,
+            RecordExistsAction.REPLACE,
+            RecordExistsAction.REPLACE_ONLY,
+            RecordExistsAction.CREATE_ONLY,
         ]
 
         for action in actions:
@@ -111,9 +111,9 @@ class TestWritePolicy:
         wp = WritePolicy()
 
         policies = [
-            GenerationPolicy.None_,
-            GenerationPolicy.ExpectGenEqual,
-            GenerationPolicy.ExpectGenGreater,
+            GenerationPolicy.NONE,
+            GenerationPolicy.EXPECT_GEN_EQUAL,
+            GenerationPolicy.EXPECT_GEN_GREATER,
         ]
 
         for policy in policies:
@@ -125,8 +125,8 @@ class TestWritePolicy:
         wp = WritePolicy()
 
         commit_levels = [
-            CommitLevel.CommitAll,
-            CommitLevel.CommitMaster,
+            CommitLevel.COMMIT_ALL,
+            CommitLevel.COMMIT_MASTER,
         ]
 
         for level in commit_levels:
@@ -212,14 +212,14 @@ class TestReadPolicy:
     def test_set_and_get_fields(self):
         """Test setting and getting ReadPolicy fields."""
         rp = ReadPolicy()
-        rp.consistency_level = ConsistencyLevel.ConsistencyAll
+        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
         rp.timeout = 20000
         rp.max_retries = 4
         rp.sleep_between_retries = 1000
         filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
         rp.filter_expression = filter_exp
 
-        assert rp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
         assert rp.timeout == 20000
         assert rp.max_retries == 4
         assert rp.sleep_between_retries == 1000
@@ -228,14 +228,14 @@ class TestReadPolicy:
     def test_base_policy_inheritance(self):
         """Test that ReadPolicy inherits BasePolicy fields."""
         rp = ReadPolicy()
-        rp.consistency_level = ConsistencyLevel.ConsistencyAll
+        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
         rp.timeout = 15000
         rp.max_retries = 3
         rp.sleep_between_retries = 500
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         rp.filter_expression = filter_exp
 
-        assert rp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
         assert rp.timeout == 15000
         assert rp.max_retries == 3
         assert rp.sleep_between_retries == 500
@@ -264,14 +264,14 @@ class TestScanPolicy:
     def test_base_policy_inheritance(self):
         """Test that ScanPolicy inherits BasePolicy fields."""
         sp = ScanPolicy()
-        sp.consistency_level = ConsistencyLevel.ConsistencyAll
+        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
         sp.timeout = 15000
         sp.max_retries = 3
         sp.sleep_between_retries = 500
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         sp.filter_expression = filter_exp
 
-        assert sp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
         assert sp.timeout == 15000
         assert sp.max_retries == 3
         assert sp.sleep_between_retries == 500
@@ -281,7 +281,7 @@ class TestScanPolicy:
         """Test that ScanPolicy can use both BasePolicy and ScanPolicy fields together."""
         sp = ScanPolicy()
         # Set BasePolicy fields
-        sp.consistency_level = ConsistencyLevel.ConsistencyOne
+        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
         sp.timeout = 10000
         sp.max_retries = 2
         # Set ScanPolicy-specific fields
@@ -290,7 +290,7 @@ class TestScanPolicy:
         sp.socket_timeout = 5000
 
         # Verify BasePolicy fields
-        assert sp.consistency_level == ConsistencyLevel.ConsistencyOne
+        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
         assert sp.timeout == 10000
         assert sp.max_retries == 2
         # Verify ScanPolicy fields
@@ -365,54 +365,54 @@ class TestQueryPolicy:
         qp = QueryPolicy()
 
         # Test default value
-        assert qp.expected_duration == QueryDuration.Long
+        assert qp.expected_duration == QueryDuration.LONG
 
         # Test all enum values
-        qp.expected_duration = QueryDuration.Long
-        assert qp.expected_duration == QueryDuration.Long
+        qp.expected_duration = QueryDuration.LONG
+        assert qp.expected_duration == QueryDuration.LONG
 
-        qp.expected_duration = QueryDuration.Short
-        assert qp.expected_duration == QueryDuration.Short
+        qp.expected_duration = QueryDuration.SHORT
+        assert qp.expected_duration == QueryDuration.SHORT
 
-        qp.expected_duration = QueryDuration.LongRelaxAP
-        assert qp.expected_duration == QueryDuration.LongRelaxAP
+        qp.expected_duration = QueryDuration.LONG_RELAX_AP
+        assert qp.expected_duration == QueryDuration.LONG_RELAX_AP
 
         # Test inequality
-        assert qp.expected_duration != QueryDuration.Long
-        assert qp.expected_duration != QueryDuration.Short
+        assert qp.expected_duration != QueryDuration.LONG
+        assert qp.expected_duration != QueryDuration.SHORT
 
     def test_replica(self):
         """Test replica field with Replica enum."""
         qp = QueryPolicy()
 
         # Test default value
-        assert qp.replica == Replica.Sequence
+        assert qp.replica == Replica.SEQUENCE
 
         # Test all enum values
-        qp.replica = Replica.Master
-        assert qp.replica == Replica.Master
+        qp.replica = Replica.MASTER
+        assert qp.replica == Replica.MASTER
 
-        qp.replica = Replica.Sequence
-        assert qp.replica == Replica.Sequence
+        qp.replica = Replica.SEQUENCE
+        assert qp.replica == Replica.SEQUENCE
 
-        qp.replica = Replica.PreferRack
-        assert qp.replica == Replica.PreferRack
+        qp.replica = Replica.PREFER_RACK
+        assert qp.replica == Replica.PREFER_RACK
 
         # Test inequality
-        assert qp.replica != Replica.Master
-        assert qp.replica != Replica.Sequence
+        assert qp.replica != Replica.MASTER
+        assert qp.replica != Replica.SEQUENCE
 
     def test_base_policy_inheritance(self):
         """Test that QueryPolicy inherits BasePolicy fields."""
         qp = QueryPolicy()
-        qp.consistency_level = ConsistencyLevel.ConsistencyAll
+        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
         qp.timeout = 15000
         qp.max_retries = 3
         qp.sleep_between_retries = 500
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         qp.filter_expression = filter_exp
 
-        assert qp.consistency_level == ConsistencyLevel.ConsistencyAll
+        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
         assert qp.timeout == 15000
         assert qp.max_retries == 3
         assert qp.sleep_between_retries == 500
@@ -422,7 +422,7 @@ class TestQueryPolicy:
         """Test that QueryPolicy can use both BasePolicy and QueryPolicy fields together."""
         qp = QueryPolicy()
         # Set BasePolicy fields
-        qp.consistency_level = ConsistencyLevel.ConsistencyOne
+        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
         qp.timeout = 10000
         qp.max_retries = 2
         # Set QueryPolicy-specific fields
@@ -430,11 +430,11 @@ class TestQueryPolicy:
         qp.record_queue_size = 2048
         qp.records_per_second = 2000
         qp.max_records = 50000
-        qp.expected_duration = QueryDuration.Short
-        qp.replica = Replica.PreferRack
+        qp.expected_duration = QueryDuration.SHORT
+        qp.replica = Replica.PREFER_RACK
 
         # Verify BasePolicy fields
-        assert qp.consistency_level == ConsistencyLevel.ConsistencyOne
+        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
         assert qp.timeout == 10000
         assert qp.max_retries == 2
         # Verify QueryPolicy fields
@@ -442,8 +442,8 @@ class TestQueryPolicy:
         assert qp.record_queue_size == 2048
         assert qp.records_per_second == 2000
         assert qp.max_records == 50000
-        assert qp.expected_duration == QueryDuration.Short
-        assert qp.replica == Replica.PreferRack
+        assert qp.expected_duration == QueryDuration.SHORT
+        assert qp.replica == Replica.PREFER_RACK
 
     def test_isinstance_base_policy(self):
         """Test that QueryPolicy is an instance of BasePolicy."""
@@ -477,8 +477,8 @@ class TestQueryPolicy:
         qp.record_queue_size = 2048
         qp.records_per_second = 2000
         qp.max_records = 50000
-        qp.expected_duration = QueryDuration.Short
-        qp.replica = Replica.PreferRack
+        qp.expected_duration = QueryDuration.SHORT
+        qp.replica = Replica.PREFER_RACK
 
         base = BasePolicy()
         base.timeout = 10000
@@ -490,7 +490,7 @@ class TestQueryPolicy:
         assert qp.record_queue_size == 2048
         assert qp.records_per_second == 2000
         assert qp.max_records == 50000
-        assert qp.expected_duration == QueryDuration.Short
-        assert qp.replica == Replica.PreferRack
+        assert qp.expected_duration == QueryDuration.SHORT
+        assert qp.replica == Replica.PREFER_RACK
         assert qp.base_policy.timeout == 10000
         assert qp.base_policy.max_retries == 5
