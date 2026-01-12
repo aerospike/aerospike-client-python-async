@@ -284,6 +284,16 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::Replica> for Replica {
+        fn from(input: &aerospike_core::policy::Replica) -> Self {
+            match input {
+                aerospike_core::policy::Replica::Master => Replica::Master,
+                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
+                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
+            }
+        }
+    }
+
     #[pymethods]
     impl Replica {
         fn __richcmp__(&self, other: &Replica, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
@@ -350,6 +360,19 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::ConsistencyLevel> for ConsistencyLevel {
+        fn from(input: &aerospike_core::ConsistencyLevel) -> Self {
+            match input {
+                aerospike_core::policy::ConsistencyLevel::ConsistencyOne => {
+                    ConsistencyLevel::ConsistencyOne
+                }
+                aerospike_core::policy::ConsistencyLevel::ConsistencyAll => {
+                    ConsistencyLevel::ConsistencyAll
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordExistsAction
@@ -410,6 +433,24 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::RecordExistsAction> for RecordExistsAction {
+        fn from(input: &aerospike_core::policy::RecordExistsAction) -> Self {
+            match input {
+                aerospike_core::policy::RecordExistsAction::Update => RecordExistsAction::Update,
+                aerospike_core::policy::RecordExistsAction::UpdateOnly => {
+                    RecordExistsAction::UpdateOnly
+                }
+                aerospike_core::policy::RecordExistsAction::Replace => RecordExistsAction::Replace,
+                aerospike_core::policy::RecordExistsAction::ReplaceOnly => {
+                    RecordExistsAction::ReplaceOnly
+                }
+                aerospike_core::policy::RecordExistsAction::CreateOnly => {
+                    RecordExistsAction::CreateOnly
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  GenerationPolicy
@@ -461,6 +502,20 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::GenerationPolicy> for GenerationPolicy {
+        fn from(input: &aerospike_core::policy::GenerationPolicy) -> Self {
+            match input {
+                aerospike_core::policy::GenerationPolicy::None => GenerationPolicy::None,
+                aerospike_core::policy::GenerationPolicy::ExpectGenEqual => {
+                    GenerationPolicy::ExpectGenEqual
+                }
+                aerospike_core::policy::GenerationPolicy::ExpectGenGreater => {
+                    GenerationPolicy::ExpectGenGreater
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  CommitLevel
@@ -501,6 +556,15 @@ pub enum Replica {
             match &input {
                 CommitLevel::CommitAll => aerospike_core::policy::CommitLevel::CommitAll,
                 CommitLevel::CommitMaster => aerospike_core::policy::CommitLevel::CommitMaster,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::policy::CommitLevel> for CommitLevel {
+        fn from(input: &aerospike_core::policy::CommitLevel) -> Self {
+            match input {
+                aerospike_core::policy::CommitLevel::CommitAll => CommitLevel::CommitAll,
+                aerospike_core::policy::CommitLevel::CommitMaster => CommitLevel::CommitMaster,
             }
         }
     }
@@ -572,6 +636,25 @@ pub enum Replica {
                 _Expiration::NamespaceDefault => aerospike_core::Expiration::NamespaceDefault,
                 _Expiration::Never => aerospike_core::Expiration::Never,
                 _Expiration::DontUpdate => aerospike_core::Expiration::DontUpdate,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::Expiration> for Expiration {
+        fn from(input: &aerospike_core::Expiration) -> Self {
+            match input {
+                aerospike_core::Expiration::Seconds(s) => Expiration {
+                    v: _Expiration::Seconds(*s),
+                },
+                aerospike_core::Expiration::NamespaceDefault => Expiration {
+                    v: _Expiration::NamespaceDefault,
+                },
+                aerospike_core::Expiration::Never => Expiration {
+                    v: _Expiration::Never,
+                },
+                aerospike_core::Expiration::DontUpdate => Expiration {
+                    v: _Expiration::DontUpdate,
+                },
             }
         }
     }
@@ -2443,14 +2526,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            match &self._as.consistency_level {
-                aerospike_core::ConsistencyLevel::ConsistencyOne => {
-                    ConsistencyLevel::ConsistencyOne
-                }
-                aerospike_core::ConsistencyLevel::ConsistencyAll => {
-                    ConsistencyLevel::ConsistencyAll
-                }
-            }
+            (&self._as.consistency_level).into()
         }
 
         #[setter]
@@ -2580,11 +2656,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            match &self._as.replica {
-                aerospike_core::policy::Replica::Master => Replica::Master,
-                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
-                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
-            }
+            (&self._as.replica).into()
         }
 
         #[setter]
@@ -2653,13 +2725,7 @@ pub enum Replica {
 
         #[getter(record_exists_action)]
         pub fn get_record_exists_action(&self) -> RecordExistsAction {
-            match &self._as.record_exists_action {
-                aerospike_core::RecordExistsAction::Update => RecordExistsAction::Update,
-                aerospike_core::RecordExistsAction::UpdateOnly => RecordExistsAction::UpdateOnly,
-                aerospike_core::RecordExistsAction::Replace => RecordExistsAction::Replace,
-                aerospike_core::RecordExistsAction::ReplaceOnly => RecordExistsAction::ReplaceOnly,
-                aerospike_core::RecordExistsAction::CreateOnly => RecordExistsAction::CreateOnly,
-            }
+            (&self._as.record_exists_action).into()
         }
 
         #[setter(record_exists_action)]
@@ -2675,15 +2741,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_generation_policy(&self) -> GenerationPolicy {
-            match &self._as.generation_policy {
-                aerospike_core::GenerationPolicy::None => GenerationPolicy::None,
-                aerospike_core::GenerationPolicy::ExpectGenEqual => {
-                    GenerationPolicy::ExpectGenEqual
-                }
-                aerospike_core::GenerationPolicy::ExpectGenGreater => {
-                    GenerationPolicy::ExpectGenGreater
-                }
-            }
+            (&self._as.generation_policy).into()
         }
 
         #[setter]
@@ -2701,18 +2759,12 @@ pub enum Replica {
 
         #[getter]
         pub fn get_commit_level(&self) -> CommitLevel {
-            match &self._as.commit_level {
-                aerospike_core::CommitLevel::CommitAll => CommitLevel::CommitAll,
-                aerospike_core::CommitLevel::CommitMaster => CommitLevel::CommitMaster,
-            }
+            (&self._as.commit_level).into()
         }
 
         #[setter]
         pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
-            self._as.commit_level = match commit_level {
-                CommitLevel::CommitAll => aerospike_core::CommitLevel::CommitAll,
-                CommitLevel::CommitMaster => aerospike_core::CommitLevel::CommitMaster,
-            };
+            self._as.commit_level = (&commit_level).into();
         }
 
         #[getter]
@@ -2727,20 +2779,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_expiration(&self) -> Expiration {
-            match &self._as.expiration {
-                aerospike_core::Expiration::Seconds(s) => Expiration {
-                    v: _Expiration::Seconds(*s),
-                },
-                aerospike_core::Expiration::NamespaceDefault => Expiration {
-                    v: _Expiration::NamespaceDefault,
-                },
-                aerospike_core::Expiration::Never => Expiration {
-                    v: _Expiration::Never,
-                },
-                aerospike_core::Expiration::DontUpdate => Expiration {
-                    v: _Expiration::DontUpdate,
-                },
-            }
+            (&self._as.expiration).into()
         }
 
         #[setter]
@@ -2887,11 +2926,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            match self._as.replica {
-                aerospike_core::policy::Replica::Master => Replica::Master,
-                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
-                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
-            }
+            (&self._as.replica).into()
         }
 
         #[setter]
@@ -3160,11 +3195,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            match &self._as.replica {
-                aerospike_core::policy::Replica::Master => Replica::Master,
-                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
-                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
-            }
+            (&self._as.replica).into()
         }
 
         #[setter]
@@ -3311,20 +3342,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_expiration(&self) -> Expiration {
-            match &self._as.expiration {
-                aerospike_core::Expiration::Seconds(s) => Expiration {
-                    v: _Expiration::Seconds(*s),
-                },
-                aerospike_core::Expiration::NamespaceDefault => Expiration {
-                    v: _Expiration::NamespaceDefault,
-                },
-                aerospike_core::Expiration::Never => Expiration {
-                    v: _Expiration::Never,
-                },
-                aerospike_core::Expiration::DontUpdate => Expiration {
-                    v: _Expiration::DontUpdate,
-                },
-            }
+            (&self._as.expiration).into()
         }
 
         #[setter]

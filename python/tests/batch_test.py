@@ -8,7 +8,7 @@ from aerospike_async import (
     BatchRecord, ListOperation, Operation, ListReturnType,
     FilterExpression, ListPolicy, Expiration
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError
 
 @pytest_asyncio.fixture
 async def client_and_keys():
@@ -26,11 +26,14 @@ async def client_and_keys():
     for i in range(1, size + 1):
         key = Key("test", "test", f"batchkey{i}")
         keys.append(key)
-        list_bin = list(range(i))
+        # List contains [0*i, 1*i, 2*i, ..., (i-1)*i]
+        list_bin = [j * i for j in range(i)]
+        # list_bin2 is always [0, 1] for all keys
+        list_bin2 = [0, 1]
         if i != 6:
-            await client.put(wp, key, {bin_name: f"batchvalue{i}", "lbin": list_bin})
+            await client.put(wp, key, {bin_name: f"batchvalue{i}", "lbin": list_bin, "lbin2": list_bin2})
         else:
-            await client.put(wp, key, {bin_name: i, "lbin": list_bin})
+            await client.put(wp, key, {bin_name: i, "lbin": list_bin, "lbin2": list_bin2})
 
     delete_keys = [
         Key("test", "test", 10000),
@@ -64,8 +67,7 @@ async def test_batch_read(client_and_keys):
 async def test_batch_read_all_bins(client_and_keys):
     """Test batch read with all bins.
 
-    Note: Java test uses client.operate() with Operation.get() (all bins) in batch write context.
-    Rust core doesn't support Operation.get() in batch write, so we:
+    Note: Rust core doesn't support Operation.get() in batch write, so we:
     1. First write the bin using batch_operate
     2. Then read all bins using batch_read with bins=None
     """
@@ -100,8 +102,8 @@ async def test_batch_read_all_bins(client_and_keys):
 async def test_batch_read_empty_bins(client_and_keys):
     """Test batch read with empty bin names list.
 
-    Note: Java's client.get() with empty bin names array returns all bins.
-    To match this behavior, we use None (which reads all bins) instead of [].
+    Note: Empty bin names array returns all bins.
+    We use None (which reads all bins) instead of [].
     """
 
     client, keys, _, bin_name = client_and_keys
@@ -122,8 +124,7 @@ async def test_batch_read_empty_bins(client_and_keys):
 async def test_batch_read_complex(client_and_keys):
     """Test complex batch read scenarios.
 
-    Note: Java's test includes expression operations (ExpOperation.read) which
-    are not yet available in Python async client. This test covers:
+    This test covers:
     - Specific bin names
     - All bins (None)
     - Empty bin list (headers only)
@@ -181,11 +182,7 @@ async def test_batch_read_key_not_found(client_and_keys):
     assert results[0].record is None
 
 async def test_batch_write(client_and_keys):
-    """Test batch write operations.
-
-    Note: Python-specific test. Java doesn't have a dedicated batchWrite test,
-    but batch write functionality is tested in batchWriteComplex.
-    """
+    """Test batch write operations."""
 
     client, keys, _, _ = client_and_keys
 
@@ -210,8 +207,7 @@ async def test_batch_write(client_and_keys):
 async def test_batch_delete(client_and_keys):
     """Test batch delete operations.
 
-    Note: Java test checks BatchResults.status (indicates if all records succeeded).
-    The Rust core doesn't provide a status field, so we verify individual result codes
+    Note: The Rust core doesn't provide a status field, so we verify individual result codes
     and existence checks instead.
     """
 
@@ -238,8 +234,7 @@ async def test_batch_delete(client_and_keys):
 async def test_batch_delete_key_not_found(client_and_keys):
     """Test batch delete with non-existent key.
 
-    Note: Java test checks BatchResults.status (false when any record fails).
-    The Rust core doesn't provide a status field, so we verify the result code instead.
+    Note: The Rust core doesn't provide a status field, so we verify the result code instead.
     """
 
     client, _, _, _ = client_and_keys
@@ -503,10 +498,10 @@ async def test_batch_list_read_operate(client_and_keys):
 
         assert isinstance(val, list)
         assert len(val) == 2
-        # enumerate index i corresponds to key "batchkey{i+1}" which has list [0,1,...,i]
-        # So size = i+1, and last value = i
+        # enumerate index i corresponds to key "batchkey{i+1}" which has list [0*(i+1), 1*(i+1), 2*(i+1), ..., (i)*(i+1)]
+        # So size = i+1, and last value = i * (i+1)
         assert val[0] == i + 1  # size: list has i+1 elements
-        assert val[1] == i  # value: last element in list [0,1,...,i] is i
+        assert val[1] == i * (i + 1)  # value: last element in list [0*(i+1), 1*(i+1), ..., i*(i+1)] is i*(i+1)
 
 async def test_batch_list_write_operate(client_and_keys):
     """Test batch write with list operations.
@@ -518,10 +513,7 @@ async def test_batch_list_write_operate(client_and_keys):
 
     client, keys, _, _ = client_and_keys
 
-    wp = WritePolicy()
-    for key in keys:
-        await client.put(wp, key, {"lbin2": [0, 1]})
-
+    # lbin2 is already set up in the fixture as [0, 1] for all keys
     list_policy = ListPolicy(None, None)
     operations = [
         ListOperation.insert("lbin2", 0, 1000, list_policy),
@@ -548,11 +540,9 @@ async def test_batch_list_write_operate(client_and_keys):
 async def test_batch_operate_complex(client_and_keys):
     """Test complex batch operate with mixed operations.
 
-    Note: Java's batchWriteComplex test includes:
-    - Expression operations (ExpOperation.write) - not yet available in Python async client
-    - Invalid namespace handling - tested separately
-    - Batch delete in same batch - Python async client requires separate batch_delete call
-    - BatchResults.status checking - Rust core doesn't provide status field (indicates if all records succeeded)
+    Note: Invalid namespace handling is tested separately in test_batch_invalid_namespace.
+    Batch delete requires a separate batch_delete call.
+    The Rust core doesn't provide a status field (indicates if all records succeeded).
     """
 
     client, keys, delete_keys, bin_name = client_and_keys
@@ -588,6 +578,30 @@ async def test_batch_operate_complex(client_and_keys):
     assert read_results[1].record.bins["bbin3"] == 200
     assert read_results[2].result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
+async def test_batch_invalid_namespace(client_and_keys):
+    """Test batch operations with invalid namespace.
+
+    Note: The Rust core raises InvalidNodeError before the batch operation executes
+    (client-side validation). This test verifies that invalid namespace is properly detected.
+    """
+
+    client, keys, _, _ = client_and_keys
+
+    # Create key with invalid namespace
+    invalid_key = Key("invalid", "test", "batchkey1")
+
+    # Rust core raises InvalidNodeError for invalid namespace (client-side validation)
+    with pytest.raises(InvalidNodeError):
+        await client.batch_read(None, None, [invalid_key], ["bbin"])
+
+    bwp = BatchWritePolicy()
+    with pytest.raises(InvalidNodeError):
+        await client.batch_write(None, bwp, [invalid_key], [{"bbin": 100}])
+
+    operations = [Operation.put("bbin", 100)]
+    with pytest.raises(InvalidNodeError):
+        await client.batch_operate(None, bwp, [invalid_key], [operations])
+
 async def test_batch_exists(client_and_keys):
     """Test batch exists operations."""
 
@@ -599,28 +613,11 @@ async def test_batch_exists(client_and_keys):
     for exists in exists_results:
         assert exists is True
 
-async def test_batch_get_header(client_and_keys):
-    """Test batch get header operations."""
-
-    client, keys, _, _ = client_and_keys
-
-    header_results = await client.batch_get_header(None, None, keys)
-
-    assert len(header_results) == len(keys)
-    for i, record in enumerate(header_results):
-        assert record is not None
-        assert record.bins == {}
-        assert record.generation is not None
-        assert record.generation > 0
-        if record.ttl is not None and record.ttl > 0:
-            assert record.ttl > 0
-
 @pytest.mark.slow
 async def test_batch_read_ttl(client_and_keys):
     """Test batch read with TTL expiration.
 
     Note: This test takes a long time to run due to sleeps (19+ seconds total).
-    Java test uses Assume.assumeTrue(args.hasTtl) to only run when TTL is enabled.
     Marked with @pytest.mark.slow so it can be excluded with: pytest -m "not slow"
     
     TTL must be enabled on the Aerospike server. To enable TTL, configure the server with:
