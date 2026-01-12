@@ -31,7 +31,7 @@ class TestFilterExprCreate:
 
     def test_key(self):
         """Test creating key expression."""
-        expr = fe.key(exp_type=ExpType.String)
+        expr = fe.key(exp_type=ExpType.STRING)
         assert isinstance(expr, fe)
 
     def test_key_exists(self):

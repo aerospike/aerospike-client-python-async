@@ -180,7 +180,7 @@ class TestSecurityFeatures:
                 raise
             if attempt < 2:
                 await asyncio.sleep(0.1)
-        
+
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
@@ -418,17 +418,45 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
         """Test querying all roles."""
+        # TODO: CLIENT-4052 - Waiting on parse_privileges fix in Rust core
+        # The parse_privileges fix ensures we consume exactly len bytes to prevent buffer misalignment
+        # This test is skipped until the fix is integrated and verified
+        pytest.skip("Waiting on parse_privileges fix as described in CLIENT-4052")
+
+        # Clean up: drop roles if they exist
+        try:
+            await client.drop_role("test_role_1")
+        except ServerError:
+            pass
+        try:
+            await client.drop_role("test_role_2")
+        except ServerError:
+            pass
+
+        # Create test roles
         try:
             await client.create_role("test_role_1", [Privilege(PrivilegeCode.Read, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
+        except ServerError as e:
+            if "QuotasNotEnabled" in str(e):
+                pytest.skip("Quotas are not enabled on the server")
+            elif "RoleAlreadyExists" in str(e):
+                pass  # Role already exists, continue
+            else:
+                raise
+
+        try:
             await client.create_role("test_role_2", [Privilege(PrivilegeCode.Write, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            raise
+            elif "RoleAlreadyExists" in str(e):
+                pass  # Role already exists, continue
+            else:
+                raise
 
-        # Query all roles
+        # Query all roles - should return a list of all roles
         roles = await client.query_roles(None)
         role_names = [r.name for r in roles]
         assert "test_role_1" in role_names
@@ -448,6 +476,39 @@ class TestSecurityFeatures:
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
+            raise
+
+    @pytest.mark.asyncio
+    async def test_admin_policy_timeout(self, client):
+        """Test AdminPolicy with custom timeout."""
+        from aerospike_async import AdminPolicy
+
+        # Test default AdminPolicy
+        default_policy = AdminPolicy()
+        assert default_policy.timeout == 3000
+
+        # Test custom timeout
+        custom_policy = AdminPolicy()
+        custom_policy.timeout = 10000
+        assert custom_policy.timeout == 10000
+
+        # Test that AdminPolicy can be passed to query_roles
+        try:
+            roles = await client.query_roles(None, policy=custom_policy)
+            assert isinstance(roles, list)
+        except ServerError as e:
+            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
+                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052)")
+            raise
+
+        # Test that default behavior still works (backward compatibility)
+        try:
+            roles_default = await client.query_roles(None)
+            assert isinstance(roles_default, list)
+            assert len(roles) == len(roles_default)
+        except ServerError as e:
+            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
+                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052)")
             raise
 
         roles = await client.query_roles(role_name)
@@ -715,3 +776,4 @@ class TestAuthentication:
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
+

@@ -1,5 +1,27 @@
 # Aerospike Async Python Client
 
+## Prerequisites
+
+This project requires the Rust compiler (`rustc`) and package manager (`cargo`) to be installed, as it uses PyO3 to build a Rust extension for Python.
+
+### Install Rust
+
+If Rust is not already installed, install it using rustup:
+
+```bash
+# Install rustup (Rust toolchain installer)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# After installation, reload your shell or source the profile
+source $HOME/.cargo/env
+```
+
+Verify the installation:
+```bash
+rustc --version
+cargo --version
+```
+
 ## Setup Instructions
 
 ### Customize your aerospike environment file (aerospike.env)
