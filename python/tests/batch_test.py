@@ -479,17 +479,16 @@ async def test_batch_read_headers(client_and_keys):
 async def test_batch_list_read_operate(client_and_keys):
     """Test batch read with list operations.
 
-    Note: Unlike Java client which returns all operation results as a list
-    (e.g., record.getList("lbin") -> [size, value]), the Rust core currently
-    only returns the last operation's result when multiple operations target
-    the same bin. This test verifies the current behavior (last result only).
+    Note: The Rust core returns all operation results as a list when multiple
+    operations target the same bin (e.g., record.bins["lbin"] -> [size, value]).
+    This test verifies that all operation results are returned.
     """
 
     client, keys, _, _ = client_and_keys
 
     operations = [
         ListOperation.size("lbin"),
-        ListOperation.get_by_index("lbin", -1, ListReturnType.Value)
+        ListOperation.get_by_index("lbin", -1, ListReturnType.VALUE)
     ]
 
     results = await client.batch_operate(None, None, keys, [operations] * len(keys))
@@ -501,17 +500,20 @@ async def test_batch_list_read_operate(client_and_keys):
         assert result.result_code == ResultCode.OK
         assert result.record is not None
         val = result.record.bins["lbin"]
-        assert isinstance(val, int)
-        assert val == i
+
+        assert isinstance(val, list)
+        assert len(val) == 2
+        # enumerate index i corresponds to key "batchkey{i+1}" which has list [0,1,...,i]
+        # So size = i+1, and last value = i
+        assert val[0] == i + 1  # size: list has i+1 elements
+        assert val[1] == i  # value: last element in list [0,1,...,i] is i
 
 async def test_batch_list_write_operate(client_and_keys):
     """Test batch write with list operations.
 
-    Note: Unlike Java client which returns all operation results as a list
-    (e.g., record.getList("lbin2") -> [insert_result, size, value]), the Rust
-    core currently only returns the last operation's result when multiple
-    operations target the same bin. This test verifies the current behavior
-    (last result only, which is the get_by_index result: 1).
+    Note: The Rust core returns all operation results as a list when multiple
+    operations target the same bin (e.g., record.bins["lbin2"] -> [insert_result, size, value]).
+    This test verifies that all operation results are returned.
     """
 
     client, keys, _, _ = client_and_keys
@@ -524,7 +526,7 @@ async def test_batch_list_write_operate(client_and_keys):
     operations = [
         ListOperation.insert("lbin2", 0, 1000, list_policy),
         ListOperation.size("lbin2"),
-        ListOperation.get_by_index("lbin2", -1, ListReturnType.Value)
+        ListOperation.get_by_index("lbin2", -1, ListReturnType.VALUE)
     ]
 
     results = await client.batch_operate(None, None, keys, [operations] * len(keys))
@@ -536,8 +538,12 @@ async def test_batch_list_write_operate(client_and_keys):
         assert result.result_code == ResultCode.OK
         assert result.record is not None
         val = result.record.bins["lbin2"]
-        assert isinstance(val, int)
-        assert val == 1
+
+        assert isinstance(val, list)
+        assert len(val) == 3
+        assert val[0] == 3  # insert_result (new size after insert)
+        assert val[1] == 3  # size after insert
+        assert val[2] == 1  # value from get_by_index(-1)
 
 async def test_batch_operate_complex(client_and_keys):
     """Test complex batch operate with mixed operations.
@@ -616,6 +622,10 @@ async def test_batch_read_ttl(client_and_keys):
     Note: This test takes a long time to run due to sleeps (19+ seconds total).
     Java test uses Assume.assumeTrue(args.hasTtl) to only run when TTL is enabled.
     Marked with @pytest.mark.slow so it can be excluded with: pytest -m "not slow"
+    
+    TTL must be enabled on the Aerospike server. To enable TTL, configure the server with:
+    - namespace <namespace> { default-ttl 30D; nsup-period 120; }
+    See: https://aerospike.com/docs/database/manage/namespace/retention/
     """
 
     import asyncio
@@ -625,9 +635,22 @@ async def test_batch_read_ttl(client_and_keys):
     key1 = Key("test", "test", 88888)
     key2 = Key("test", "test", 88889)
 
+    # Check if TTL is supported by trying to set expiration and write, then verify TTL is actually set
     bwp = BatchWritePolicy()
-    bwp.expiration = Expiration.seconds(10)
+    try:
+        bwp.expiration = Expiration.seconds(10)
+        operations = [Operation.put("a", 1)]
+        await client.batch_operate(None, bwp, [key1], [operations])
+        # Verify TTL is actually working by reading the record and checking it has a TTL
+        rp = ReadPolicy()
+        test_rec = await client.get(rp, key1)
+        if test_rec is None or test_rec.ttl is None or test_rec.ttl == 0:
+            pytest.skip("TTL not enabled on this server (expiration was set but record has no TTL)")
+    except Exception as e:
+        # If setting expiration fails, TTL is not supported - skip the test
+        pytest.skip(f"TTL not supported on this server: {e}")
 
+    # Write to both keys for the actual test
     operations = [Operation.put("a", 1)]
     await client.batch_operate(None, bwp, [key1, key2], [operations, operations])
 

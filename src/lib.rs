@@ -206,10 +206,13 @@ impl From<RustClientError> for PyErr {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum QueryDuration {
         /// Long specifies that the query is expected to return more than 100 records per node.
+        #[pyo3(name = "LONG")]
         Long = 0,
         /// Short specifies that the query is expected to return less than 100 records per node.
+        #[pyo3(name = "SHORT")]
         Short = 1,
         /// LongRelaxAP will treat query as a Long query, but relax read consistency for AP namespaces.
+        #[pyo3(name = "LONG_RELAX_AP")]
         LongRelaxAP = 2,
     }
 
@@ -263,8 +266,11 @@ impl From<RustClientError> for PyErr {
 #[pyclass(module = "_aerospike_async_native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Replica {
+    #[pyo3(name = "MASTER")]
     Master,
+    #[pyo3(name = "SEQUENCE")]
     Sequence,
+    #[pyo3(name = "PREFER_RACK")]
     PreferRack,
 }
 
@@ -306,7 +312,9 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ConsistencyLevel {
+        #[pyo3(name = "CONSISTENCY_ONE")]
         ConsistencyOne,
+        #[pyo3(name = "CONSISTENCY_ALL")]
         ConsistencyAll,
     }
 
@@ -353,10 +361,15 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum RecordExistsAction {
+        #[pyo3(name = "UPDATE")]
         Update,
+        #[pyo3(name = "UPDATE_ONLY")]
         UpdateOnly,
+        #[pyo3(name = "REPLACE")]
         Replace,
+        #[pyo3(name = "REPLACE_ONLY")]
         ReplaceOnly,
+        #[pyo3(name = "CREATE_ONLY")]
         CreateOnly,
     }
 
@@ -407,9 +420,11 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum GenerationPolicy {
-        #[pyo3(name = "None_")]
+        #[pyo3(name = "NONE")]
         None,
+        #[pyo3(name = "EXPECT_GEN_EQUAL")]
         ExpectGenEqual,
+        #[pyo3(name = "EXPECT_GEN_GREATER")]
         ExpectGenGreater,
     }
 
@@ -456,7 +471,9 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum CommitLevel {
+        #[pyo3(name = "COMMIT_ALL")]
         CommitAll,
+        #[pyo3(name = "COMMIT_MASTER")]
         CommitMaster,
     }
 
@@ -578,8 +595,11 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum IndexType {
+        #[pyo3(name = "NUMERIC")]
         Numeric,
+        #[pyo3(name = "STRING")]
         String,
+        #[pyo3(name = "GEO2D_SPHERE")]
         Geo2DSphere,
     }
 
@@ -594,6 +614,10 @@ pub enum Replica {
         }
     }
 
+    #[pymethods]
+    impl IndexType {
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  CollectionIndexType
@@ -605,9 +629,13 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum CollectionIndexType {
+        #[pyo3(name = "DEFAULT")]
         Default,
+        #[pyo3(name = "LIST")]
         List,
+        #[pyo3(name = "MAP_KEYS")]
         MapKeys,
+        #[pyo3(name = "MAP_VALUES")]
         MapValues,
     }
 
@@ -623,6 +651,10 @@ pub enum Replica {
                 }
             }
         }
+    }
+
+    #[pymethods]
+    impl CollectionIndexType {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -672,6 +704,16 @@ pub enum Replica {
         /// User can truncate data only.
         /// Requires server version 6+
         Truncate,
+
+        /// User can perform data masking administration actions.
+        /// Global scope only.
+        MaskingAdmin,
+
+        /// User can read masked data only.
+        ReadMasked,
+
+        /// User can write masked data only.
+        WriteMasked,
     }
 
 
@@ -688,6 +730,9 @@ pub enum Replica {
                 PrivilegeCode::ReadWriteUDF => aerospike_core::PrivilegeCode::ReadWriteUDF,
                 PrivilegeCode::Write => aerospike_core::PrivilegeCode::Write,
                 PrivilegeCode::Truncate => aerospike_core::PrivilegeCode::Truncate,
+                PrivilegeCode::MaskingAdmin => aerospike_core::PrivilegeCode::MaskingAdmin,
+                PrivilegeCode::ReadMasked => aerospike_core::PrivilegeCode::ReadMasked,
+                PrivilegeCode::WriteMasked => aerospike_core::PrivilegeCode::WriteMasked,
             }
         }
     }
@@ -705,6 +750,9 @@ pub enum Replica {
                 aerospike_core::PrivilegeCode::ReadWriteUDF => PrivilegeCode::ReadWriteUDF,
                 aerospike_core::PrivilegeCode::Write => PrivilegeCode::Write,
                 aerospike_core::PrivilegeCode::Truncate => PrivilegeCode::Truncate,
+                aerospike_core::PrivilegeCode::MaskingAdmin => PrivilegeCode::MaskingAdmin,
+                aerospike_core::PrivilegeCode::ReadMasked => PrivilegeCode::ReadMasked,
+                aerospike_core::PrivilegeCode::WriteMasked => PrivilegeCode::WriteMasked,
             }
         }
     }
@@ -720,15 +768,25 @@ pub enum Replica {
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
+        #[pyo3(name = "NIL")]
         Nil,
+        #[pyo3(name = "BOOL")]
         Bool,
+        #[pyo3(name = "INT")]
         Int,
+        #[pyo3(name = "STRING")]
         String,
+        #[pyo3(name = "LIST")]
         List,
+        #[pyo3(name = "MAP")]
         Map,
+        #[pyo3(name = "BLOB")]
         Blob,
+        #[pyo3(name = "FLOAT")]
         Float,
+        #[pyo3(name = "GEO")]
         Geo,
+        #[pyo3(name = "HLL")]
         HLL,
     }
 
@@ -749,6 +807,10 @@ pub enum Replica {
         }
     }
 
+    #[pymethods]
+    impl ExpType {
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ListOrderType
@@ -760,8 +822,10 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListOrderType {
         /// List is not ordered. This is the default.
+        #[pyo3(name = "UNORDERED")]
         Unordered,
         /// List is ordered.
+        #[pyo3(name = "ORDERED")]
         Ordered,
     }
 
@@ -804,14 +868,19 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListWriteFlags {
         /// Default is the default behavior. It means: Allow duplicate values and insertions at any index.
+        #[pyo3(name = "DEFAULT")]
         Default,
         /// AddUnique means: Only add unique values.
+        #[pyo3(name = "ADD_UNIQUE")]
         AddUnique,
         /// InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
+        #[pyo3(name = "INSERT_BOUNDED")]
         InsertBounded,
         /// NoFail means: do not raise error if a list item fails due to write flag constraints.
+        #[pyo3(name = "NO_FAIL")]
         NoFail,
         /// Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
+        #[pyo3(name = "PARTIAL")]
         Partial,
     }
 
@@ -857,22 +926,31 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListReturnType {
         /// Do not return a result.
+        #[pyo3(name = "NONE")]
         None,
         /// Return index offset order.
+        #[pyo3(name = "INDEX")]
         Index,
         /// Return reverse index offset order.
+        #[pyo3(name = "REVERSE_INDEX")]
         ReverseIndex,
         /// Return value order.
+        #[pyo3(name = "RANK")]
         Rank,
         /// Return reverse value order.
+        #[pyo3(name = "REVERSE_RANK")]
         ReverseRank,
         /// Return count of items selected.
+        #[pyo3(name = "COUNT")]
         Count,
         /// Return value for single key read and value list for range read.
+        #[pyo3(name = "VALUE")]
         Value,
         /// Return true if count > 0.
+        #[pyo3(name = "EXISTS")]
         Exists,
         /// Invert meaning of list command and return values.
+        #[pyo3(name = "INVERTED")]
         Inverted,
     }
 
@@ -922,8 +1000,10 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListSortFlags {
         /// Default. Preserve duplicate values when sorting list.
+        #[pyo3(name = "DEFAULT")]
         Default,
         /// Drop duplicate values when sorting list.
+        #[pyo3(name = "DROP_DUPLICATES")]
         DropDuplicates,
     }
 
@@ -966,10 +1046,13 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapOrder {
         /// Map is not ordered. This is the default.
+        #[pyo3(name = "UNORDERED")]
         Unordered,
         /// Order map by key.
+        #[pyo3(name = "KEY_ORDERED")]
         KeyOrdered,
         /// Order map by key, then value.
+        #[pyo3(name = "KEY_VALUE_ORDERED")]
         KeyValueOrdered,
     }
 
@@ -1014,12 +1097,15 @@ pub enum Replica {
     pub enum MapWriteMode {
         /// If the key already exists, the item will be overwritten.
         /// If the key does not exist, a new item will be created.
+        #[pyo3(name = "UPDATE")]
         Update,
         /// If the key already exists, the item will be overwritten.
         /// If the key does not exist, the write will fail.
+        #[pyo3(name = "UPDATE_ONLY")]
         UpdateOnly,
         /// If the key already exists, the write will fail.
         /// If the key does not exist, a new item will be created.
+        #[pyo3(name = "CREATE_ONLY")]
         CreateOnly,
     }
 
@@ -1063,28 +1149,40 @@ pub enum Replica {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapReturnType {
         /// Do not return a result.
+        #[pyo3(name = "NONE")]
         None,
         /// Return key index order.
+        #[pyo3(name = "INDEX")]
         Index,
         /// Return reverse key order.
+        #[pyo3(name = "REVERSE_INDEX")]
         ReverseIndex,
         /// Return value order.
+        #[pyo3(name = "RANK")]
         Rank,
         /// Return reverse value order.
+        #[pyo3(name = "REVERSE_RANK")]
         ReverseRank,
         /// Return count of items selected.
+        #[pyo3(name = "COUNT")]
         Count,
         /// Return key for single key read and key list for range read.
+        #[pyo3(name = "KEY")]
         Key,
         /// Return value for single key read and value list for range read.
+        #[pyo3(name = "VALUE")]
         Value,
         /// Return key/value items.
+        #[pyo3(name = "KEY_VALUE")]
         KeyValue,
         /// Returns true if count > 0.
+        #[pyo3(name = "EXISTS")]
         Exists,
         /// Returns an unordered map.
+        #[pyo3(name = "UNORDERED_MAP")]
         UnorderedMap,
         /// Returns an ordered map.
+        #[pyo3(name = "ORDERED_MAP")]
         OrderedMap,
     }
 
@@ -2283,24 +2381,13 @@ pub enum Replica {
                     self._as.partitions = None;
                 }
                 Some(py_partitions) => {
-                    let py = py_partitions.py();
                     let mut rust_partitions = Vec::new();
                     for item in py_partitions.iter() {
-                        let py_status: Py<PartitionStatus> = item.extract()?;
-                        let status = py_status.bind(py);
-                        let bval: Option<u64> = status.call_method0("get_bval")?.extract()?;
-                        let id: u16 = status.call_method0("get_id")?.extract()?;
-                        let retry: bool = status.call_method0("get_retry")?.extract()?;
-                        let digest_hex: Option<String> = status.call_method0("get_digest")?.extract()?;
-                        let digest_bytes = digest_hex.and_then(|hex_str| {
-                            hex::decode(hex_str).ok().and_then(|bytes| {
-                                (bytes.len() == 20).then(|| {
-                                    let mut arr = [0u8; 20];
-                                    arr.copy_from_slice(&bytes);
-                                    arr
-                                })
-                            })
-                        });
+                        let status: PyRef<PartitionStatus> = item.extract()?;
+                        let bval = status._as.bval;
+                        let id = status._as.id;
+                        let retry = status._as.retry;
+                        let digest_bytes = status._as.digest;
                         let core_status = aerospike_core::query::PartitionStatus {
                             id,
                             retry,
@@ -2423,6 +2510,45 @@ pub enum Replica {
                 Some(fe) => self._as.filter_expression = Some(fe._as),
                 None => self._as.filter_expression = None,
             }
+        }
+    }
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "AdminPolicy",
+        freelist = 1000,
+        module = "_aerospike_async_native",
+        subclass
+    )]
+    #[derive(Debug, Clone)]
+    pub struct AdminPolicy {
+        _as: aerospike_core::AdminPolicy,
+    }
+
+    impl Default for AdminPolicy {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl AdminPolicy {
+        #[new]
+        pub fn new() -> Self {
+            AdminPolicy {
+                _as: aerospike_core::AdminPolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_timeout(&self) -> u32 {
+            self._as.timeout
+        }
+
+        #[setter]
+        pub fn set_timeout(&mut self, timeout: u32) {
+            self._as.timeout = timeout;
         }
     }
 
@@ -4930,6 +5056,8 @@ pub enum Replica {
         #[classattr]
         fn SECURITY_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotEnabled) }
         #[classattr]
+        fn NOT_AUTHENTICATED() -> ResultCode { ResultCode(CoreResultCode::NotAuthenticated) }
+        #[classattr]
         fn SECURITY_SCHEME_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecuritySchemeNotSupported) }
         #[classattr]
         fn INVALID_COMMAND() -> ResultCode { ResultCode(CoreResultCode::InvalidCommand) }
@@ -4947,9 +5075,13 @@ pub enum Replica {
     #[pyclass(name = "BitwiseResizeFlags", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BitwiseResizeFlags {
+        #[pyo3(name = "DEFAULT")]
         Default = 0,
+        #[pyo3(name = "FROM_FRONT")]
         FromFront = 1,
+        #[pyo3(name = "GROW_ONLY")]
         GrowOnly = 2,
+        #[pyo3(name = "SHRINK_ONLY")]
         ShrinkOnly = 4,
     }
 
@@ -4964,14 +5096,23 @@ pub enum Replica {
         }
     }
 
+    #[pymethods]
+    impl BitwiseResizeFlags {
+    }
+
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(name = "BitwiseWriteFlags", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BitwiseWriteFlags {
+        #[pyo3(name = "DEFAULT")]
         Default = 0,
+        #[pyo3(name = "CREATE_ONLY")]
         CreateOnly = 1,
+        #[pyo3(name = "UPDATE_ONLY")]
         UpdateOnly = 2,
+        #[pyo3(name = "NO_FAIL")]
         NoFail = 4,
+        #[pyo3(name = "PARTIAL")]
         Partial = 8,
     }
 
@@ -4981,12 +5122,19 @@ pub enum Replica {
         }
     }
 
+    #[pymethods]
+    impl BitwiseWriteFlags {
+    }
+
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(name = "BitwiseOverflowActions", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BitwiseOverflowActions {
+        #[pyo3(name = "FAIL")]
         Fail = 0,
+        #[pyo3(name = "SATURATE")]
         Saturate = 2,
+        #[pyo3(name = "WRAP")]
         Wrap = 4,
     }
 
@@ -4998,6 +5146,10 @@ pub enum Replica {
                 BitwiseOverflowActions::Wrap => aerospike_core::operations::bitwise::BitwiseOverflowActions::Wrap,
             }
         }
+    }
+
+    #[pymethods]
+    impl BitwiseOverflowActions {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -8502,23 +8654,25 @@ pub enum Replica {
 
         /// Removes all records in the specified namespace/set efficiently.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (namespace, set_name, before_nanos = None, *, policy = None))]
         pub fn truncate<'a>(
             &self,
             namespace: String,
             set_name: String,
             before_nanos: Option<i64>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             let before_nanos = before_nanos.unwrap_or_default();
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .truncate(&policy, &namespace, &set_name, before_nanos)
+                    .truncate(&admin_policy, &namespace, &set_name, before_nanos)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8529,6 +8683,7 @@ pub enum Replica {
         /// Create a secondary index on a bin containing scalar values. This asynchronous server call
         /// returns before the command is complete.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, *, policy = None))]
         pub fn create_index<'a>(
             &self,
             namespace: String,
@@ -8537,9 +8692,11 @@ pub enum Replica {
             index_name: String,
             index_type: IndexType,
             cit: Option<CollectionIndexType>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
@@ -8549,7 +8706,7 @@ pub enum Replica {
                     .read()
                     .await
                     .create_index_on_bin(
-                        &aerospike_core::AdminPolicy::default(),
+                        &admin_policy,
                         &namespace,
                         &set_name,
                         &bin_name,
@@ -8566,21 +8723,23 @@ pub enum Replica {
         }
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
         pub fn drop_index<'a>(
             &self,
             namespace: String,
             set_name: String,
             index_name: String,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_index(&policy, &namespace, &set_name, &index_name)
+                    .drop_index(&admin_policy, &namespace, &set_name, &index_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8660,23 +8819,24 @@ pub enum Replica {
         /// Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
         /// before sending to server.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user, password, roles, *, policy = None))]
         pub fn create_user<'a>(
             &self,
             user: String,
             password: String,
             roles: Vec<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .create_user(&policy, &user, &password, &roles)
+                    .create_user(&admin_policy, &user, &password, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8686,16 +8846,16 @@ pub enum Replica {
 
         /// Removes a user from the cluster.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn drop_user<'a>(&self, user: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
+        #[pyo3(signature = (user, *, policy = None))]
+        pub fn drop_user<'a>(&self, user: String, policy: Option<AdminPolicy>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_user(&policy, &user)
+                    .drop_user(&admin_policy, &user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8705,21 +8865,22 @@ pub enum Replica {
 
         /// Changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user, password, *, policy = None))]
         pub fn change_password<'a>(
             &self,
             user: String,
             password: String,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .change_password(&policy, &user, &password)
+                    .change_password(&admin_policy, &user, &password)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8729,22 +8890,23 @@ pub enum Replica {
 
         /// Adds roles to user's list of roles.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user, roles, *, policy = None))]
         pub fn grant_roles<'a>(
             &self,
             user: String,
             roles: Vec<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .grant_roles(&policy, &user, &roles)
+                    .grant_roles(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8754,22 +8916,23 @@ pub enum Replica {
 
         /// Removes roles from user's list of roles.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user, roles, *, policy = None))]
         pub fn revoke_roles<'a>(
             &self,
             user: String,
             roles: Vec<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
                     .read()
                     .await
-                    .revoke_roles(&policy, &user, &roles)
+                    .revoke_roles(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8780,21 +8943,22 @@ pub enum Replica {
         /// Retrieves users and their roles.
         /// If None is passed for the user argument, all users will be returned.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user = None, *, policy = None))]
         pub fn query_users<'a>(
             &self,
             user: Option<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let user = user.as_deref();
                 let res = client
                     .read()
                     .await
-                    .query_users(&policy, user)
+                    .query_users(&admin_policy, user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8806,21 +8970,22 @@ pub enum Replica {
         /// Retrieves roles and their privileges.
         /// If None is passed for the role argument, all roles will be returned.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role = None, *, policy = None))]
         pub fn query_roles<'a>(
             &self,
             role: Option<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let role: Option<&str> = role.as_deref();
                 let res = client
                     .read()
                     .await
-                    .query_roles(&policy, role)
+                    .query_roles(&admin_policy, role)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8833,6 +8998,7 @@ pub enum Replica {
         /// Quotas require server security configuration "enable-quotas" to be set to true.
         /// Pass 0 for quota values for no limit.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, privileges, allowlist, read_quota, write_quota, *, policy = None))]
         pub fn create_role<'a>(
             &self,
             role_name: String,
@@ -8840,20 +9006,20 @@ pub enum Replica {
             allowlist: Vec<String>,
             read_quota: u32,
             write_quota: u32,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|r| r._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .create_role(&policy, &role_name, &privileges, &allowlist, read_quota, write_quota)
+                    .create_role(&admin_policy, &role_name, &privileges, &allowlist, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8863,21 +9029,21 @@ pub enum Replica {
 
         /// Removes a user-defined role.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, *, policy = None))]
         pub fn drop_role<'a>(
             &self,
             role_name: String,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let role_name = role_name.clone();
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .drop_role(&policy, &role_name)
+                    .drop_role(&admin_policy, &role_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8887,23 +9053,24 @@ pub enum Replica {
 
         /// Grants privileges to a user-defined role.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, privileges, *, policy = None))]
         pub fn grant_privileges<'a>(
             &self,
             role_name: String,
             privileges: Vec<Privilege>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .grant_privileges(&policy, &role_name, &privileges)
+                    .grant_privileges(&admin_policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8913,23 +9080,24 @@ pub enum Replica {
 
         /// Revokes privileges from a user-defined role.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, privileges, *, policy = None))]
         pub fn revoke_privileges<'a>(
             &self,
             role_name: String,
             privileges: Vec<Privilege>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
                     .read()
                     .await
-                    .revoke_privileges(&policy, &role_name, &privileges)
+                    .revoke_privileges(&admin_policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8940,22 +9108,23 @@ pub enum Replica {
         /// Sets IP address allowlist for a role.
         /// If allowlist is nil or empty, it removes existing allowlist from role.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, allowlist, *, policy = None))]
         pub fn set_allowlist<'a>(
             &self,
             role_name: String,
             allowlist: Vec<String>,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 client
                     .read()
                     .await
-                    .set_allowlist(&policy, &role_name, &allowlist)
+                    .set_allowlist(&admin_policy, &role_name, &allowlist)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -8968,22 +9137,23 @@ pub enum Replica {
         /// Quotas require server security configuration "enable-quotas" to be set to true.
         /// Pass 0 for quota values for no limit.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (role_name, read_quota, write_quota, *, policy = None))]
         pub fn set_quotas<'a>(
             &self,
             role_name: String,
             read_quota: u32,
             write_quota: u32,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // let policy = policy._as.clone();
             let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                let policy = aerospike_core::AdminPolicy::default();
                 client
                     .read()
                     .await
-                    .set_quotas(&policy, &role_name, read_quota, write_quota)
+                    .set_quotas(&admin_policy, &role_name, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
@@ -10055,6 +10225,13 @@ pub enum Replica {
                     l.iter().for_each(|v| nl.push(v.clone().into()));
                     PythonValue::List(nl)
                 }
+                aerospike_core::Value::MultiResult(mv) => {
+                    // MultiResult is returned when server executes multiple operations for the same bin
+                    // Convert to a list of PythonValues (matching Java client behavior - no flattening)
+                    let mut nl = Vec::<PythonValue>::with_capacity(mv.len());
+                    mv.iter().for_each(|v| nl.push(v.clone().into()));
+                    PythonValue::List(nl)
+                }
                 aerospike_core::Value::HashMap(h) => {
                     let mut arr = HashMap::with_capacity(h.len());
                     h.iter().for_each(|(k, v)| {
@@ -10062,9 +10239,21 @@ pub enum Replica {
                     });
                     PythonValue::HashMap(arr)
                 }
+                aerospike_core::Value::OrderedMap(om) => {
+                    let mut arr = HashMap::with_capacity(om.len());
+                    om.iter().for_each(|(k, v)| {
+                        arr.insert(k.clone().into(), v.clone().into());
+                    });
+                    PythonValue::HashMap(arr)
+                }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
-                _ => unreachable!(),
+                aerospike_core::Value::Infinity => {
+                    PythonValue::Float(ordered_float::OrderedFloat(f64::INFINITY))
+                }
+                aerospike_core::Value::Wildcard => {
+                    PythonValue::String("*".to_string())
+                }
             }
         }
     }
@@ -10236,6 +10425,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitOperation>()?;
 
     m.add_class::<BasePolicy>()?;
+    m.add_class::<AdminPolicy>()?;
     m.add_class::<ReadPolicy>()?;
 
     // Add helper functions

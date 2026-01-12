@@ -20,8 +20,8 @@ class TestIndex(TestFixtureConnection):
             set_name="test",
             bin_name="brand",
             index_name="index_name",
-            index_type=IndexType.String,
-            cit=CollectionIndexType.Default)
+            index_type=IndexType.STRING,
+            cit=CollectionIndexType.DEFAULT)
         assert retval is None
         
         # Clean up
@@ -38,7 +38,7 @@ class TestIndex(TestFixtureConnection):
         except:
             pass  # Index might not exist
             
-        retval = await client.create_index("test", "test", "year", "index_name", IndexType.Numeric, cit=CollectionIndexType.Default)
+        retval = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
         assert retval is None
         
         # Clean up
@@ -55,7 +55,7 @@ class TestIndex(TestFixtureConnection):
         except:
             pass  # Index might not exist
             
-        retval = await client.create_index("test", "test", "geojson", "index_name", IndexType.Geo2DSphere, cit=CollectionIndexType.Default)
+        retval = await client.create_index("test", "test", "geojson", "index_name", IndexType.GEO2D_SPHERE, cit=CollectionIndexType.DEFAULT)
         assert retval is None
         
         # Clean up
@@ -72,7 +72,7 @@ class TestIndex(TestFixtureConnection):
         except:
             pass  # Index might not exist
             
-        retval = await client.create_index("test", "test", "year", "index_name", IndexType.Numeric, cit=CollectionIndexType.Default)
+        retval = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
         assert retval is None
         
         # Clean up
@@ -90,11 +90,11 @@ class TestIndex(TestFixtureConnection):
             pass  # Index might not exist
             
         # Create first index
-        await client.create_index("test", "test", "brand", "indexname", IndexType.String, cit=CollectionIndexType.Default)
+        await client.create_index("test", "test", "brand", "indexname", IndexType.STRING, cit=CollectionIndexType.DEFAULT)
 
         # Try to create another index with same name should fail
         with pytest.raises(ServerError):
-            await client.create_index("test", "test", "year", "indexname", IndexType.Numeric, cit=CollectionIndexType.Default)
+            await client.create_index("test", "test", "year", "indexname", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
             
         # Clean up
         try:
@@ -111,7 +111,7 @@ class TestIndex(TestFixtureConnection):
             pass  # Index might not exist
             
         # Setup - create an index first
-        await client.create_index("test", "test", "brand", "index_name", IndexType.String, cit=CollectionIndexType.Default)
+        await client.create_index("test", "test", "brand", "index_name", IndexType.STRING, cit=CollectionIndexType.DEFAULT)
 
         retval = await client.drop_index(namespace="test", set_name="test", index_name="index_name")
         assert retval is None

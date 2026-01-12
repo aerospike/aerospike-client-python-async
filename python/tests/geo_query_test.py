@@ -50,8 +50,8 @@ class TestGeoQuery(TestFixtureConnection):
                 set_name=set_name,
                 bin_name=LOCBIN,
                 index_name=index_name,
-                index_type=IndexType.Geo2DSphere,
-                cit=CollectionIndexType.Default
+                index_type=IndexType.GEO2D_SPHERE,
+                cit=CollectionIndexType.DEFAULT
             )
             print(f"Index {index_name} created successfully")
             # Wait for index to be ready (geo2dsphere indexes typically ready in 1-2 seconds)
@@ -97,7 +97,7 @@ class TestGeoQuery(TestFixtureConnection):
         predicate = Filter.within_region(
             bin_name=LOCBIN,
             region=region_str,
-            cit=CollectionIndexType.Default
+            cit=CollectionIndexType.DEFAULT
         )
 
         # Construct the query statement
