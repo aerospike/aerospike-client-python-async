@@ -5,6 +5,34 @@ from aerospike_async import (
 )
 
 
+class TestBasePolicy:
+    """Test BasePolicy functionality."""
+
+    def test_set_and_get_fields(self):
+        """Test setting and getting BasePolicy fields."""
+        bp = BasePolicy()
+        bp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        bp.timeout = 20000
+        bp.max_retries = 4
+        bp.sleep_between_retries = 1000
+        bp.socket_timeout = 5000
+        filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
+        bp.filter_expression = filter_exp
+
+        assert bp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert bp.timeout == 20000
+        assert bp.max_retries == 4
+        assert bp.sleep_between_retries == 1000
+        assert bp.socket_timeout == 5000
+        assert bp.filter_expression == filter_exp
+
+    def test_socket_timeout(self):
+        """Test socket_timeout on BasePolicy."""
+        bp = BasePolicy()
+        bp.socket_timeout = 3000
+        assert bp.socket_timeout == 3000
+
+
 class TestWritePolicy:
     """Test WritePolicy functionality."""
 
@@ -36,6 +64,7 @@ class TestWritePolicy:
         wp.timeout = 15000
         wp.max_retries = 3
         wp.sleep_between_retries = 500
+        wp.socket_timeout = 3000
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         wp.filter_expression = filter_exp
 
@@ -43,7 +72,14 @@ class TestWritePolicy:
         assert wp.timeout == 15000
         assert wp.max_retries == 3
         assert wp.sleep_between_retries == 500
+        assert wp.socket_timeout == 3000
         assert wp.filter_expression == filter_exp
+
+    def test_socket_timeout(self):
+        """Test socket_timeout on WritePolicy."""
+        wp = WritePolicy()
+        wp.socket_timeout = 4000
+        assert wp.socket_timeout == 4000
 
     def test_combined_base_and_write_policy_fields(self):
         """Test that WritePolicy can use both BasePolicy and WritePolicy fields together."""
@@ -232,6 +268,7 @@ class TestReadPolicy:
         rp.timeout = 15000
         rp.max_retries = 3
         rp.sleep_between_retries = 500
+        rp.socket_timeout = 3000
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         rp.filter_expression = filter_exp
 
@@ -239,12 +276,19 @@ class TestReadPolicy:
         assert rp.timeout == 15000
         assert rp.max_retries == 3
         assert rp.sleep_between_retries == 500
+        assert rp.socket_timeout == 3000
         assert rp.filter_expression == filter_exp
 
     def test_isinstance_base_policy(self):
         """Test that ReadPolicy is an instance of BasePolicy."""
         rp = ReadPolicy()
         assert isinstance(rp, BasePolicy)
+
+    def test_socket_timeout(self):
+        """Test socket_timeout on ReadPolicy."""
+        rp = ReadPolicy()
+        rp.socket_timeout = 3000
+        assert rp.socket_timeout == 3000
 
 
 class TestScanPolicy:
@@ -268,6 +312,7 @@ class TestScanPolicy:
         sp.timeout = 15000
         sp.max_retries = 3
         sp.sleep_between_retries = 500
+        sp.socket_timeout = 3000
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         sp.filter_expression = filter_exp
 
@@ -275,6 +320,7 @@ class TestScanPolicy:
         assert sp.timeout == 15000
         assert sp.max_retries == 3
         assert sp.sleep_between_retries == 500
+        assert sp.socket_timeout == 3000
         assert sp.filter_expression == filter_exp
 
     def test_combined_base_and_scan_policy_fields(self):
@@ -319,6 +365,12 @@ class TestQueryPolicy:
         assert qp.record_queue_size == 1023
         # Note: fail_on_cluster_change field doesn't exist in TLS branch
         # assert qp.fail_on_cluster_change is False
+
+    def test_socket_timeout(self):
+        """Test socket_timeout on QueryPolicy."""
+        qp = QueryPolicy()
+        qp.socket_timeout = 6000
+        assert qp.socket_timeout == 6000
 
     def test_records_per_second(self):
         """Test records_per_second field."""
@@ -409,6 +461,7 @@ class TestQueryPolicy:
         qp.timeout = 15000
         qp.max_retries = 3
         qp.sleep_between_retries = 500
+        qp.socket_timeout = 3000
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         qp.filter_expression = filter_exp
 
@@ -416,6 +469,7 @@ class TestQueryPolicy:
         assert qp.timeout == 15000
         assert qp.max_retries == 3
         assert qp.sleep_between_retries == 500
+        assert qp.socket_timeout == 3000
         assert qp.filter_expression == filter_exp
 
     def test_combined_base_and_query_policy_fields(self):

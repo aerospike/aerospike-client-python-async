@@ -2511,6 +2511,16 @@ pub enum Replica {
                 None => self._as.filter_expression = None,
             }
         }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.socket_timeout = socket_timeout;
+        }
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -2986,16 +2996,6 @@ pub enum Replica {
         #[setter]
         pub fn set_record_queue_size(&mut self, record_queue_size: usize) {
             self._as.record_queue_size = record_queue_size;
-        }
-
-        #[getter]
-        pub fn get_socket_timeout(&self) -> u32 {
-            self._as.base_policy.socket_timeout
-        }
-
-        #[setter]
-        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
-            self._as.base_policy.socket_timeout = socket_timeout;
         }
 
         #[getter]
