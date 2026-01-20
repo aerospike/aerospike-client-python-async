@@ -2485,12 +2485,12 @@ pub enum Replica {
         }
 
         #[getter]
-        pub fn get_timeout(&self) -> u64 {
+        pub fn get_total_timeout(&self) -> u64 {
             self._as.total_timeout as u64
         }
 
         #[setter]
-        pub fn set_timeout(&mut self, timeout_millis: u64) {
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
             self._as.total_timeout = timeout_millis as u32;
         }
 
