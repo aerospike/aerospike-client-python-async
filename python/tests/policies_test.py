@@ -1,5 +1,5 @@
 from aerospike_async import (
-    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, ScanPolicy, QueryPolicy,
+    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy,
     ConsistencyLevel, RecordExistsAction, GenerationPolicy, 
     CommitLevel, Expiration, FilterExpression as fe
 )
@@ -12,7 +12,7 @@ class TestBasePolicy:
         """Test setting and getting BasePolicy fields."""
         bp = BasePolicy()
         bp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        bp.timeout = 20000
+        bp.total_timeout = 20000
         bp.max_retries = 4
         bp.sleep_between_retries = 1000
         bp.socket_timeout = 5000
@@ -20,7 +20,7 @@ class TestBasePolicy:
         bp.filter_expression = filter_exp
 
         assert bp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert bp.timeout == 20000
+        assert bp.total_timeout == 20000
         assert bp.max_retries == 4
         assert bp.sleep_between_retries == 1000
         assert bp.socket_timeout == 5000
@@ -61,7 +61,7 @@ class TestWritePolicy:
         """Test that WritePolicy inherits BasePolicy fields."""
         wp = WritePolicy()
         wp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        wp.timeout = 15000
+        wp.total_timeout = 15000
         wp.max_retries = 3
         wp.sleep_between_retries = 500
         wp.socket_timeout = 3000
@@ -69,7 +69,7 @@ class TestWritePolicy:
         wp.filter_expression = filter_exp
 
         assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert wp.timeout == 15000
+        assert wp.total_timeout == 15000
         assert wp.max_retries == 3
         assert wp.sleep_between_retries == 500
         assert wp.socket_timeout == 3000
@@ -86,7 +86,7 @@ class TestWritePolicy:
         wp = WritePolicy()
         # Set BasePolicy fields
         wp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
-        wp.timeout = 10000
+        wp.total_timeout = 10000
         wp.max_retries = 2
         # Set WritePolicy-specific fields
         wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
@@ -99,7 +99,7 @@ class TestWritePolicy:
 
         # Verify BasePolicy fields
         assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert wp.timeout == 10000
+        assert wp.total_timeout == 10000
         assert wp.max_retries == 2
         # Verify WritePolicy fields
         assert wp.record_exists_action == RecordExistsAction.REPLACE_ONLY
@@ -249,14 +249,14 @@ class TestReadPolicy:
         """Test setting and getting ReadPolicy fields."""
         rp = ReadPolicy()
         rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        rp.timeout = 20000
+        rp.total_timeout = 20000
         rp.max_retries = 4
         rp.sleep_between_retries = 1000
         filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
         rp.filter_expression = filter_exp
 
         assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert rp.timeout == 20000
+        assert rp.total_timeout == 20000
         assert rp.max_retries == 4
         assert rp.sleep_between_retries == 1000
         assert rp.filter_expression == filter_exp
@@ -265,7 +265,7 @@ class TestReadPolicy:
         """Test that ReadPolicy inherits BasePolicy fields."""
         rp = ReadPolicy()
         rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        rp.timeout = 15000
+        rp.total_timeout = 15000
         rp.max_retries = 3
         rp.sleep_between_retries = 500
         rp.socket_timeout = 3000
@@ -273,7 +273,7 @@ class TestReadPolicy:
         rp.filter_expression = filter_exp
 
         assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert rp.timeout == 15000
+        assert rp.total_timeout == 15000
         assert rp.max_retries == 3
         assert rp.sleep_between_retries == 500
         assert rp.socket_timeout == 3000
@@ -289,65 +289,6 @@ class TestReadPolicy:
         rp = ReadPolicy()
         rp.socket_timeout = 3000
         assert rp.socket_timeout == 3000
-
-
-class TestScanPolicy:
-    """Test ScanPolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting ScanPolicy fields."""
-        sp = ScanPolicy()
-        sp.max_concurrent_nodes = 1
-        sp.record_queue_size = 1000
-        sp.socket_timeout = 5000
-
-        assert sp.max_concurrent_nodes == 1
-        assert sp.record_queue_size == 1000
-        assert sp.socket_timeout == 5000
-
-    def test_base_policy_inheritance(self):
-        """Test that ScanPolicy inherits BasePolicy fields."""
-        sp = ScanPolicy()
-        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        sp.timeout = 15000
-        sp.max_retries = 3
-        sp.sleep_between_retries = 500
-        sp.socket_timeout = 3000
-        filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
-        sp.filter_expression = filter_exp
-
-        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert sp.timeout == 15000
-        assert sp.max_retries == 3
-        assert sp.sleep_between_retries == 500
-        assert sp.socket_timeout == 3000
-        assert sp.filter_expression == filter_exp
-
-    def test_combined_base_and_scan_policy_fields(self):
-        """Test that ScanPolicy can use both BasePolicy and ScanPolicy fields together."""
-        sp = ScanPolicy()
-        # Set BasePolicy fields
-        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
-        sp.timeout = 10000
-        sp.max_retries = 2
-        # Set ScanPolicy-specific fields
-        sp.max_concurrent_nodes = 4
-        sp.record_queue_size = 2048
-        sp.socket_timeout = 5000
-
-        # Verify BasePolicy fields
-        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert sp.timeout == 10000
-        assert sp.max_retries == 2
-        # Verify ScanPolicy fields
-        assert sp.max_concurrent_nodes == 4
-        assert sp.record_queue_size == 2048
-        assert sp.socket_timeout == 5000
-
-    def test_isinstance_base_policy(self):
-        """Test that ScanPolicy is an instance of BasePolicy."""
-        sp = ScanPolicy()
-        assert isinstance(sp, BasePolicy)
 
 
 class TestQueryPolicy:
@@ -458,7 +399,7 @@ class TestQueryPolicy:
         """Test that QueryPolicy inherits BasePolicy fields."""
         qp = QueryPolicy()
         qp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        qp.timeout = 15000
+        qp.total_timeout = 15000
         qp.max_retries = 3
         qp.sleep_between_retries = 500
         qp.socket_timeout = 3000
@@ -466,7 +407,7 @@ class TestQueryPolicy:
         qp.filter_expression = filter_exp
 
         assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert qp.timeout == 15000
+        assert qp.total_timeout == 15000
         assert qp.max_retries == 3
         assert qp.sleep_between_retries == 500
         assert qp.socket_timeout == 3000
@@ -477,7 +418,7 @@ class TestQueryPolicy:
         qp = QueryPolicy()
         # Set BasePolicy fields
         qp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
-        qp.timeout = 10000
+        qp.total_timeout = 10000
         qp.max_retries = 2
         # Set QueryPolicy-specific fields
         qp.max_concurrent_nodes = 4
@@ -489,7 +430,7 @@ class TestQueryPolicy:
 
         # Verify BasePolicy fields
         assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert qp.timeout == 10000
+        assert qp.total_timeout == 10000
         assert qp.max_retries == 2
         # Verify QueryPolicy fields
         assert qp.max_concurrent_nodes == 4
@@ -514,12 +455,12 @@ class TestQueryPolicy:
 
         # Test setting a new base_policy
         new_base = BasePolicy()
-        new_base.timeout = 5000
+        new_base.total_timeout = 5000
         new_base.max_retries = 3
 
         qp.base_policy = new_base
         assert qp.base_policy is not None
-        assert qp.base_policy.timeout == 5000
+        assert qp.base_policy.total_timeout == 5000
         assert qp.base_policy.max_retries == 3
 
     def test_all_fields_together(self):
@@ -535,7 +476,7 @@ class TestQueryPolicy:
         qp.replica = Replica.PREFER_RACK
 
         base = BasePolicy()
-        base.timeout = 10000
+        base.total_timeout = 10000
         base.max_retries = 5
         qp.base_policy = base
 
@@ -546,5 +487,5 @@ class TestQueryPolicy:
         assert qp.max_records == 50000
         assert qp.expected_duration == QueryDuration.SHORT
         assert qp.replica == Replica.PREFER_RACK
-        assert qp.base_policy.timeout == 10000
+        assert qp.base_policy.total_timeout == 10000
         assert qp.base_policy.max_retries == 5

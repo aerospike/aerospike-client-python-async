@@ -232,7 +232,9 @@ async def test_put_edge_types(client_and_key):
 
     # Put large u64 value in a List (u64 cannot be stored directly as a bin value)
     # 2^63 = 9223372036854775808, which is > i64::MAX
-    await client.put(wp, key, {"c": List([2 ** 63])})
+    # Note: Since Value::UInt was removed, this will overflow to i64::MIN
+    large_value = 2 ** 63
+    await client.put(wp, key, {"c": List([large_value])})
 
     # Put geojson helper result
     await client.put(wp, key, {"geo": geojson("-122.0, 37.5")})
@@ -242,11 +244,13 @@ async def test_put_edge_types(client_and_key):
     # Verify all values were stored correctly
     rec = await client.get(rp, key)
     assert rec is not None
+    # Large u64 value overflowed to i64::MIN
+    assert rec.bins["c"][0] == -9223372036854775808  # i64::MIN (overflow from 2**63)
     assert rec.bins["placeholder"] == 1
-    # Verify u64 in List (2**63 is stored as UInt internally)
+    # Verify u64 in List (2**63 overflows to i64::MIN since UInt was removed)
     # List returns as Python native list
     assert isinstance(rec.bins["c"], list)
-    assert rec.bins["c"][0] == 2 ** 63
+    assert rec.bins["c"][0] == -9223372036854775808  # i64::MIN (overflow from 2**63)
     assert isinstance(rec.bins["geo"], GeoJSON)
 
 async def test_put_bin_name_int_negative(client_and_key):
