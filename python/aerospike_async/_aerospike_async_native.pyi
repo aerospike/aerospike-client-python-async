@@ -109,6 +109,7 @@ class CTX:
     def map_value(value:typing.Any) -> CTX:
         r"""
         Lookup map by value.
+        Converts HashMap to BTreeMap (OrderedMap) for exact byte-level matching to ensure consistent serialization.
         """
 
 class ClientPolicy:
@@ -424,9 +425,12 @@ class FilterExpression:
         Create List bin value.
         """
     @staticmethod
-    def map_val(val:typing.Mapping[typing.Any, typing.Any]) -> FilterExpression:
+    def map_val(val:typing.Any) -> FilterExpression:
         r"""
         Create Map bin value.
+        Converts HashMap to BTreeMap (OrderedMap) for exact byte-level matching.
+        map_val accepts both HashMap and BTreeMap (OrderedMap) via the MapLike trait.
+        We use BTreeMap to ensure deterministic key ordering for serialization matching.
         """
     @staticmethod
     def geo_val(val:builtins.str) -> FilterExpression:
@@ -914,29 +918,6 @@ class ResultCode:
     USER_ALREADY_EXISTS: ResultCode
     def __richcmp__(self, other:ResultCode, op:int) -> builtins.bool: ...
     def __repr__(self) -> builtins.str: ...
-
-class ScanPolicy(BasePolicy):
-    def __new__(cls) -> ScanPolicy: ...
-    @property
-    def base_policy(self) -> BasePolicy: ...
-    @base_policy.setter
-    def base_policy(self, value: BasePolicy) -> None: ...
-    @property
-    def max_concurrent_nodes(self) -> builtins.int: ...
-    @max_concurrent_nodes.setter
-    def max_concurrent_nodes(self, value: builtins.int) -> None: ...
-    @property
-    def record_queue_size(self) -> builtins.int: ...
-    @record_queue_size.setter
-    def record_queue_size(self, value: builtins.int) -> None: ...
-    @property
-    def socket_timeout(self) -> builtins.int: ...
-    @socket_timeout.setter
-    def socket_timeout(self, value: builtins.int) -> None: ...
-    @property
-    def max_records(self) -> builtins.int: ...
-    @max_records.setter
-    def max_records(self, value: builtins.int) -> None: ...
 
 class Statement:
     r"""

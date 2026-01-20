@@ -1,5 +1,5 @@
 from aerospike_async import (
-    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, ScanPolicy, QueryPolicy,
+    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy,
     ConsistencyLevel, RecordExistsAction, GenerationPolicy, 
     CommitLevel, Expiration, FilterExpression as fe
 )
@@ -289,65 +289,6 @@ class TestReadPolicy:
         rp = ReadPolicy()
         rp.socket_timeout = 3000
         assert rp.socket_timeout == 3000
-
-
-class TestScanPolicy:
-    """Test ScanPolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting ScanPolicy fields."""
-        sp = ScanPolicy()
-        sp.max_concurrent_nodes = 1
-        sp.record_queue_size = 1000
-        sp.socket_timeout = 5000
-
-        assert sp.max_concurrent_nodes == 1
-        assert sp.record_queue_size == 1000
-        assert sp.socket_timeout == 5000
-
-    def test_base_policy_inheritance(self):
-        """Test that ScanPolicy inherits BasePolicy fields."""
-        sp = ScanPolicy()
-        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
-        sp.timeout = 15000
-        sp.max_retries = 3
-        sp.sleep_between_retries = 500
-        sp.socket_timeout = 3000
-        filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
-        sp.filter_expression = filter_exp
-
-        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert sp.timeout == 15000
-        assert sp.max_retries == 3
-        assert sp.sleep_between_retries == 500
-        assert sp.socket_timeout == 3000
-        assert sp.filter_expression == filter_exp
-
-    def test_combined_base_and_scan_policy_fields(self):
-        """Test that ScanPolicy can use both BasePolicy and ScanPolicy fields together."""
-        sp = ScanPolicy()
-        # Set BasePolicy fields
-        sp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
-        sp.timeout = 10000
-        sp.max_retries = 2
-        # Set ScanPolicy-specific fields
-        sp.max_concurrent_nodes = 4
-        sp.record_queue_size = 2048
-        sp.socket_timeout = 5000
-
-        # Verify BasePolicy fields
-        assert sp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert sp.timeout == 10000
-        assert sp.max_retries == 2
-        # Verify ScanPolicy fields
-        assert sp.max_concurrent_nodes == 4
-        assert sp.record_queue_size == 2048
-        assert sp.socket_timeout == 5000
-
-    def test_isinstance_base_policy(self):
-        """Test that ScanPolicy is an instance of BasePolicy."""
-        sp = ScanPolicy()
-        assert isinstance(sp, BasePolicy)
 
 
 class TestQueryPolicy:

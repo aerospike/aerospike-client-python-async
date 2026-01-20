@@ -1,5 +1,5 @@
 import pytest
-from aerospike_async import PartitionFilter, Key, ScanPolicy, QueryPolicy, Statement, PartitionStatus, Recordset
+from aerospike_async import PartitionFilter, Key, QueryPolicy, Statement, PartitionStatus, Recordset
 
 from fixtures import TestFixtureInsertRecord
 
@@ -144,47 +144,6 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         pf.partitions = [ps]
         # Test passes if no exception is raised
 
-    async def test_scan_with_by_id(self, client):
-        """Test scan with PartitionFilter.by_id()."""
-        pf = PartitionFilter.by_id(0)
-        records = await client.scan(ScanPolicy(), pf, "test", "test", None)
-        assert isinstance(records, Recordset)
-        
-        # Consume records to ensure scan completes
-        count = 0
-        async for _ in records:
-            count += 1
-            if count > 100:  # Limit to avoid long test
-                break
-
-    async def test_scan_with_by_range(self, client):
-        """Test scan with PartitionFilter.by_range()."""
-        pf = PartitionFilter.by_range(0, 10)
-        records = await client.scan(ScanPolicy(), pf, "test", "test", None)
-        assert isinstance(records, Recordset)
-        
-        # Consume records
-        count = 0
-        async for _ in records:
-            count += 1
-            if count > 100:
-                break
-
-    async def test_scan_with_by_key(self, client):
-        """Test scan with PartitionFilter.by_key()."""
-        # Create a key that exists in the test data
-        key = Key("test", "test", "test_key")
-        pf = PartitionFilter.by_key(key)
-        records = await client.scan(ScanPolicy(), pf, "test", "test", None)
-        assert isinstance(records, Recordset)
-        
-        # Consume records
-        count = 0
-        async for _ in records:
-            count += 1
-            if count > 100:
-                break
-
     async def test_query_with_by_id(self, client):
         """Test query with PartitionFilter.by_id()."""
         stmt = Statement("test", "test", ["bin"])
@@ -213,133 +172,6 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
             if count > 100:
                 break
 
-    async def test_scan_with_modified_filter(self, client):
-        """Test scan with a manually modified PartitionFilter."""
-        pf = PartitionFilter.all()
-        # Modify the filter
-        pf.begin = 0
-        pf.count = 5
-        records = await client.scan(ScanPolicy(), pf, "test", "test", None)
-        assert isinstance(records, Recordset)
-        
-        # Consume records
-        count = 0
-        async for _ in records:
-            count += 1
-            if count > 100:
-                break
-
-    async def test_partitions_getter_after_scan(self, client):
-        """Test getting partitions after a scan operation."""
-        pf = PartitionFilter.by_range(0, 10)
-        policy = ScanPolicy()
-        policy.max_records = 50  # Limit records to test pagination
-        
-        records = await client.scan(policy, pf, "test", "test", None)
-        
-        # Consume all records to ensure scan completes
-        count = 0
-        async for _ in records:
-            count += 1
-        
-        # After scan completes, partitions may be populated (depends on implementation)
-        # Note: partitions are typically populated after the scan fully completes
-        partitions = pf.partitions
-        # Partitions may be None if scan completed without partial results
-        # or may be a list if there are partition statuses
-        if partitions is not None:
-            assert isinstance(partitions, list)
-            # If populated, should have partition status for partitions in range
-            if len(partitions) > 0:
-                for ps in partitions:
-                    assert isinstance(ps, PartitionStatus)
-
-    async def test_partitions_setter_resume_scan(self, client):
-        """Test setting partitions to resume a scan."""
-        pf1 = PartitionFilter.by_range(0, 5)
-        policy = ScanPolicy()
-        policy.max_records = 10
-        
-        # First scan - consume all records
-        records1 = await client.scan(policy, pf1, "test", "test", None)
-        count1 = 0
-        async for _ in records1:
-            count1 += 1
-        
-        # Get partitions from first scan (may be None if scan completed fully)
-        partitions = pf1.partitions
-        
-        # If partitions are populated, test resume functionality
-        if partitions is not None and len(partitions) > 0:
-            # Create new filter and set partitions to resume
-            pf2 = PartitionFilter.by_range(0, 5)
-            pf2.partitions = partitions
-            
-            # Second scan should resume from where first left off
-            records2 = await client.scan(policy, pf2, "test", "test", None)
-            count2 = 0
-            async for _ in records2:
-                count2 += 1
-            
-            # Both scans should have returned records
-            assert count1 > 0
-            assert count2 >= 0  # May be 0 if first scan exhausted all records
-        else:
-            # If partitions weren't populated, that's also valid behavior
-            assert count1 >= 0
-
-    async def test_partitions_setter_none_reset(self, client):
-        """Test setting partitions to None resets the cursor."""
-        pf = PartitionFilter.by_range(0, 5)
-        policy = ScanPolicy()
-        policy.max_records = 10
-        
-        # First scan - consume all records
-        records1 = await client.scan(policy, pf, "test", "test", None)
-        count1 = 0
-        async for _ in records1:
-            count1 += 1
-        
-        # Reset by setting to None (works regardless of whether partitions were populated)
-        pf.partitions = None
-        assert pf.partitions is None
-        
-        # Second scan should start from beginning again
-        records2 = await client.scan(policy, pf, "test", "test", None)
-        count2 = 0
-        async for _ in records2:
-            count2 += 1
-        
-        # Should get records again after reset
-        assert count2 >= 0  # May be 0 if no records in range
-
-    async def test_partitions_with_pagination(self, client):
-        """Test partitions with pagination using max_records."""
-        pf = PartitionFilter.all()
-        policy = ScanPolicy()
-        policy.max_records = 100  # Page size
-        
-        total_records = 0
-        page = 0
-        
-        while not pf.done() and page < 5:  # Limit to 5 pages for test
-            records = await client.scan(policy, pf, "test", "test", None)
-            
-            page_count = 0
-            async for _ in records:
-                page_count += 1
-                total_records += 1
-            
-            page += 1
-            
-            # After each page, partitions may be updated (implementation dependent)
-            partitions = pf.partitions
-            if partitions:
-                assert isinstance(partitions, list)
-        
-        # Should have scanned at least one page
-        assert page > 0
-
     async def test_query_with_partitions(self, client):
         """Test query with partitions getter/setter."""
         stmt = Statement("test", "test", ["bin"])
@@ -361,11 +193,12 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
 
     async def test_partition_status_fields(self, client):
         """Test that PartitionStatus objects have expected fields."""
+        stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 3)
-        policy = ScanPolicy()
+        policy = QueryPolicy()
         policy.max_records = 10
         
-        records = await client.scan(policy, pf, "test", "test", None)
+        records = await client.query(policy, pf, stmt)
         
         # Consume records
         async for _ in records:

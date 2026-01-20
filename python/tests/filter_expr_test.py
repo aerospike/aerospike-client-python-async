@@ -302,15 +302,11 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
 class TestFilterExprMapVal(TestFixtureInsertRecord):
     """Test map_val filter expression usage."""
 
-    @pytest.mark.skip(reason="Map comparison in filter expressions requires exact byte-level matching. Python dicts convert to Rust HashMap which has non-deterministic iteration order, causing serialization mismatches even when using the same dict object. This is a known limitation similar to map_value context issues.")
     async def test_map_val_equality(self, client, key):
         """Test comparing a map bin to a map value in filter expression.
         
-        NOTE: This test is skipped due to serialization order issues. Map comparison
-        in filter expressions requires exact byte-level matching. When Python dicts
-        are converted to Rust HashMap for serialization, the iteration order is
-        non-deterministic, causing the filter expression to fail even when comparing
-        the same map. This is similar to the map_value context issue in CTX operations.
+        Uses MapPolicy(MapOrder.KEY_ORDERED) to store the map as ordered (matching Java's TreeMap),
+        which ensures deterministic key ordering for exact byte-level matching in filter expressions.
         """
         # Create a test map
         test_map = {
@@ -321,10 +317,12 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
             "key5": "a",
         }
         
-        # Put the map in a bin
-        from aerospike_async import WritePolicy
+        # Put the map in a bin with KEY_ORDERED policy to ensure deterministic ordering
+        from aerospike_async import WritePolicy, MapPolicy, MapOrder, MapOperation
         wp = WritePolicy()
-        await client.put(wp, key, {"mapbin": test_map})
+        map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+        # Use put_items to store the entire map with KEY_ORDERED policy
+        await client.operate(wp, key, [MapOperation.put_items("mapbin", list(test_map.items()), map_policy)])
         
         # Retrieve the map as stored by the server to get exact serialization format
         # This ensures we use the same byte-level representation for comparison

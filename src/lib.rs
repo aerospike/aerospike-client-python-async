@@ -2,7 +2,7 @@
 extern crate pyo3;
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
@@ -1325,12 +1325,23 @@ pub enum Replica {
         }
 
         /// Lookup map by value.
+        /// Converts HashMap to BTreeMap (OrderedMap) for exact byte-level matching to ensure consistent serialization.
         #[staticmethod]
         pub fn map_value(value: PythonValue) -> Self {
+            let core_value = match value {
+                PythonValue::HashMap(h) => {
+                    // For map_value context, always use BTreeMap (sorted) for exact byte-level matching
+                    // HashMap iteration order is non-deterministic, so we sort to ensure consistent serialization
+                    let mut btree_map: BTreeMap<aerospike_core::Value, aerospike_core::Value> = BTreeMap::new();
+                    for (k, v) in h {
+                        btree_map.insert(aerospike_core::Value::from(k), aerospike_core::Value::from(v));
+                    }
+                    aerospike_core::Value::OrderedMap(btree_map)
+                }
+                _ => aerospike_core::Value::from(value),
+            };
             CTX {
-                ctx: aerospike_core::operations::cdt_context::ctx_map_value(
-                    aerospike_core::Value::from(value),
-                ),
+                ctx: aerospike_core::operations::cdt_context::ctx_map_value(core_value),
             }
         }
     }
@@ -1621,18 +1632,26 @@ pub enum Replica {
 
         #[staticmethod]
         /// Create Map bin value.
-        pub fn map_val(val: HashMap<PythonValue, PythonValue>) -> Self {
-            FilterExpression {
-                _as: aerospike_core::expressions::map_val(
-                    val.into_iter()
-                        .map(|(k, v)| {
-                            (
-                                aerospike_core::Value::from(k),
-                                aerospike_core::Value::from(v),
-                            )
-                        })
-                        .collect(),
-                ),
+        /// Converts HashMap to BTreeMap (OrderedMap) for exact byte-level matching.
+        /// map_val accepts both HashMap and BTreeMap (OrderedMap) via the MapLike trait.
+        /// We use BTreeMap to ensure deterministic key ordering for serialization matching.
+        pub fn map_val(val: PythonValue) -> Self {
+            match val {
+                PythonValue::HashMap(h) => {
+                    // Convert to BTreeMap for deterministic key ordering. Rust HashMap iteration
+                    // order is non-deterministic, so we sort keys to ensure exact byte-level matching
+                    // with the server's stored format (which uses sorted keys for KEY_ORDERED maps).
+                    let mut btree_map: BTreeMap<aerospike_core::Value, aerospike_core::Value> = BTreeMap::new();
+                    for (k, v) in h {
+                        btree_map.insert(aerospike_core::Value::from(k), aerospike_core::Value::from(v));
+                    }
+                    
+                    // BTreeMap implements MapLike, so we can pass it directly
+                    FilterExpression {
+                        _as: aerospike_core::expressions::map_val(btree_map),
+                    }
+                }
+                _ => panic!("map_val requires a map value (HashMap)"),
             }
         }
 
@@ -2932,97 +2951,6 @@ pub enum Replica {
                 None => self._as.base_policy.filter_expression = None,
             }
         }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    //
-    //  ScanPolicy
-    //
-    ////////////////////////////////////////////////////////////////////////////////////////////
-
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
-        name = "ScanPolicy",
-        module = "_aerospike_async_native",
-        extends = BasePolicy,
-        subclass,
-        freelist = 1000
-    )]
-    #[derive(Debug, Clone)]
-    pub struct ScanPolicy {
-        _as: aerospike_core::ScanPolicy,
-    }
-
-    /// `ScanPolicy` encapsulates optional parameters used in scan operations.
-    #[pymethods]
-    impl ScanPolicy {
-        #[new]
-        pub fn new() -> PyClassInitializer<Self> {
-            let scan_policy = ScanPolicy {
-                _as: aerospike_core::ScanPolicy::default(),
-            };
-            let base_policy = BasePolicy::new();
-
-            PyClassInitializer::from(base_policy).add_subclass(scan_policy)
-        }
-
-        #[getter]
-        pub fn get_base_policy(&self) -> BasePolicy {
-            BasePolicy {
-                _as: self._as.base_policy.clone(),
-            }
-        }
-
-        #[setter]
-        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
-            self._as.base_policy = base_policy._as;
-        }
-
-        #[getter]
-        pub fn get_max_concurrent_nodes(&self) -> usize {
-            self._as.max_concurrent_nodes
-        }
-
-        #[setter]
-        pub fn set_max_concurrent_nodes(&mut self, max_concurrent_nodes: usize) {
-            self._as.max_concurrent_nodes = max_concurrent_nodes;
-        }
-
-        #[getter]
-        pub fn get_record_queue_size(&self) -> usize {
-            self._as.record_queue_size
-        }
-
-        #[setter]
-        pub fn set_record_queue_size(&mut self, record_queue_size: usize) {
-            self._as.record_queue_size = record_queue_size;
-        }
-
-        #[getter]
-        pub fn get_max_records(&self) -> u64 {
-            self._as.max_records
-        }
-
-        #[setter]
-        pub fn set_max_records(&mut self, max_records: u64) {
-            self._as.max_records = max_records;
-        }
-
-        // #[getter]
-        // pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-        //     match &self._as.filter_expression {
-        //         Some(fe) => Some(FilterExpression { _as: fe.clone() }),
-        //         None => None,
-        //     }
-        // }
-
-        // #[setter]
-        // pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
-        //     match filter_expression {
-        //         Some(fe) => self._as.filter_expression = Some(fe._as),
-        //         None => self._as.filter_expression = None,
-        //     }
-        // }
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -7092,38 +7020,7 @@ pub enum Replica {
         /// nodes are scanned in parallel. If concurrent nodes is set to zero, the server nodes are
         /// read in series.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        pub fn scan<'a>(
-            &self,
-            policy: &ScanPolicy,
-            partition_filter: PartitionFilter,
-            namespace: String,
-            set_name: String,
-            bins: Option<Vec<String>>,
-            py: Python<'a>,
-        ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
-            let client = self._as.clone();
-
-            pyo3_asyncio::future_into_py(py, async move {
-                let res = client
-                    .read()
-                    .await
-                    .scan(
-                        &policy,
-                        partition_filter._as,
-                        &namespace,
-                        &set_name,
-                        bins_flag(bins),
-                    )
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
-
-                Ok(Recordset {
-                    _as: res,
-                    _stream: Arc::new(Mutex::new(None)),
-                })
-            })
-        }
+        // scan() method has been removed from the Rust core (CLIENT-4068)
 
         /// Execute a query on all server nodes and return a record iterator. The query executor puts
         /// records on a queue in separate threads. The calling thread concurrently pops records off
@@ -7878,7 +7775,6 @@ pub enum Replica {
                 let val_str = match v {
                     PythonValue::String(s) => format!("\"{}\"", s),
                     PythonValue::Int(i) => i.to_string(),
-                    PythonValue::UInt(ui) => ui.to_string(),
                     PythonValue::Bool(b) => b.to_string(),
                     PythonValue::Float(f) => f.to_string(),
                     PythonValue::Nil => "None".to_string(),
@@ -7923,7 +7819,6 @@ pub enum Replica {
         match value {
             PythonValue::String(s) => format!("\"{}\"", s),
             PythonValue::Int(i) => i.to_string(),
-            PythonValue::UInt(ui) => ui.to_string(),
             PythonValue::Bool(b) => if *b { "True".to_string() } else { "False".to_string() },
             PythonValue::Float(f) => f.to_string(),
             PythonValue::Nil => "None".to_string(),
@@ -8307,15 +8202,6 @@ pub enum Replica {
         Bool(bool),
         /// Integer value. All integers are represented as 64-bit numerics in Aerospike.
         Int(i64),
-        /// Unsigned integer value. The largest integer value that can be stored in a record bin is
-        /// `i64::max_value()`; however the list and map data types can store integer values (and keys)
-        /// up to `u64::max_value()`.
-        ///
-        /// # Panics
-        ///
-        /// Attempting to store an `u64` value as a record bin value will cause a panic. Use casting to
-        /// store and retrieve `u64` values.
-        UInt(u64),
         /// Floating point value. All floating point values are stored in 64-bit IEEE-754 format in
         /// Aerospike. Aerospike server v3.6.0 and later support double data type.
         Float(ordered_float::OrderedFloat<f64>),
@@ -8347,7 +8233,6 @@ pub enum Replica {
                 }
                 PythonValue::Bool(ref val) => val.hash(state),
                 PythonValue::Int(ref val) => val.hash(state),
-                PythonValue::UInt(ref val) => val.hash(state),
                 PythonValue::Float(ref val) => val.hash(state),
                 PythonValue::String(ref val) | PythonValue::GeoJSON(ref val) => val.hash(state),
                 PythonValue::Blob(ref val) | PythonValue::HLL(ref val) => val.hash(state),
@@ -8364,7 +8249,6 @@ pub enum Replica {
             match *self {
                 PythonValue::Nil => "<null>".to_string(),
                 PythonValue::Int(ref val) => val.to_string(),
-                PythonValue::UInt(ref val) => val.to_string(),
                 PythonValue::Bool(ref val) => val.to_string(),
                 PythonValue::Float(ref val) => val.to_string(),
                 PythonValue::String(ref val) => val.to_string(),
@@ -8394,7 +8278,6 @@ pub enum Replica {
                 PythonValue::Nil => Ok(py.None().into_bound(py)),
                 PythonValue::Bool(b) => Ok(PyBool::new(py, b).into_bound_py_any(py).unwrap()),
                 PythonValue::Int(i) => Ok(i.into_pyobject(py).map(|v| v.into_any()).unwrap()),
-                PythonValue::UInt(ui) => Ok(ui.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::Float(f) => Ok(f.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::String(s) => Ok(s.into_pyobject(py).map(|v| v.into_any()).unwrap()),
                 PythonValue::Blob(b) => Ok(PyBytes::new(py, &b).into_any()),
@@ -8443,15 +8326,11 @@ pub enum Replica {
                 return Ok(PythonValue::Int(i));
             }
 
-            // For large positive integers that don't fit in i64, try u64
-            // Check if the value can be extracted as u64 and is beyond i64::MAX
+            // For u64 values, convert to i64 (UInt has been removed from Rust core)
+            // Values > i64::MAX will overflow, but this matches Rust core behavior
             let ui: PyResult<u64> = ob.extract();
             if let Ok(ui) = ui {
-                // Only use UInt if it's beyond i64::MAX
-                if ui > i64::MAX as u64 {
-                    return Ok(PythonValue::UInt(ui));
-                }
-                // Otherwise, convert to i64 (should fit since ui <= i64::MAX)
+                // Convert u64 to i64 (may overflow for values > i64::MAX)
                 return Ok(PythonValue::Int(ui as i64));
             }
 
@@ -8525,7 +8404,6 @@ pub enum Replica {
                 PythonValue::Nil => aerospike_core::Value::Nil,
                 PythonValue::Bool(b) => aerospike_core::Value::Bool(b),
                 PythonValue::Int(i) => aerospike_core::Value::Int(i),
-                PythonValue::UInt(ui) => aerospike_core::Value::UInt(ui),
                 PythonValue::Float(f) => aerospike_core::Value::Float(f64::from(f).into()),
                 PythonValue::String(s) => aerospike_core::Value::String(s),
                 PythonValue::Blob(b) => aerospike_core::Value::Blob(b),
@@ -8553,7 +8431,6 @@ pub enum Replica {
                 aerospike_core::Value::Nil => PythonValue::Nil,
                 aerospike_core::Value::Bool(b) => PythonValue::Bool(b),
                 aerospike_core::Value::Int(i) => PythonValue::Int(i),
-                aerospike_core::Value::UInt(ui) => PythonValue::UInt(ui),
                 aerospike_core::Value::Float(fv) => {
                     PythonValue::Float(ordered_float::OrderedFloat(fv.into()))
                 }
@@ -8592,6 +8469,15 @@ pub enum Replica {
                 }
                 aerospike_core::Value::Wildcard => {
                     PythonValue::String("*".to_string())
+                }
+                aerospike_core::Value::KeyValueList(kvl) => {
+                    // KeyValueList is used for map operations returning key-value pairs
+                    // Convert to a HashMap (dict) for Python
+                    let mut map = HashMap::with_capacity(kvl.len());
+                    for (k, v) in kvl {
+                        map.insert(k.clone().into(), v.clone().into());
+                    }
+                    PythonValue::HashMap(map)
                 }
             }
         }
@@ -8772,7 +8658,6 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_function(wrap_pyfunction!(geojson, m)?)?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
-    m.add_class::<ScanPolicy>()?;
     m.add_class::<QueryPolicy>()?;
     m.add_class::<ListOrderType>()?;
     m.add_class::<ListWriteFlags>()?;

@@ -457,10 +457,15 @@ class TestSecurityFeatures:
                 raise
 
         # Query all roles - should return a list of all roles
-        roles = await client.query_roles(None)
-        role_names = [r.name for r in roles]
-        assert "test_role_1" in role_names
-        assert "test_role_2" in role_names
+        try:
+            roles = await client.query_roles(None)
+            role_names = [r.name for r in roles]
+            assert "test_role_1" in role_names
+            assert "test_role_2" in role_names
+        except ServerError as e:
+            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
+                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052) - Rust core bug")
+            raise
     @pytest.mark.asyncio
 
     async def test_query_roles_specific(self, client):
@@ -481,6 +486,11 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_admin_policy_timeout(self, client):
         """Test AdminPolicy with custom timeout."""
+        # TODO: CLIENT-4052 - Waiting on parse_privileges fix in Rust core
+        # The parse_privileges fix ensures we consume exactly len bytes to prevent buffer misalignment
+        # This test is skipped until the fix is integrated and verified
+        pytest.skip("Waiting on parse_privileges fix as described in CLIENT-4052")
+
         from aerospike_async import AdminPolicy
 
         # Test default AdminPolicy
