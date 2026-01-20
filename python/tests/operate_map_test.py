@@ -1253,16 +1253,13 @@ async def test_operate_double_nested_map(client_and_key):
     assert key12_map["key121"] == 11
 
 
-@pytest.mark.skip(reason="Intermittent failure: map_value context requires exact byte-level matching of map values. The test fails intermittently due to non-deterministic map serialization order differences between Python dict insertion order and server's KEY_ORDERED map storage. This appears to be a serialization/deserialization mismatch issue that requires investigation at the Rust core client level.")
 async def test_operate_nested_map_value(client_and_key):
     """Test operate with nested map using CTX.mapValue.
     
     Based on Java client's operateNestedMapValue test.
     
-    NOTE: This test is skipped due to intermittent failures. The map_value context
-    requires exact byte-level matching of the map value, but there's a mismatch
-    between how Python serializes maps and how the server stores/compares KEY_ORDERED
-    maps. The intermittency suggests non-deterministic serialization behavior.
+    Uses CTX.map_value() which now converts HashMap to OrderedMap (BTreeMap) for
+    exact byte-level matching with KEY_ORDERED maps stored on the server.
     """
     client, key = client_and_key
 
@@ -1325,17 +1322,14 @@ async def test_operate_nested_map_value(client_and_key):
         assert entry[1] == "order"
 
 
-@pytest.mark.skip(reason="Rust core client limitation: MapOperation.create uses set_order() which cannot create new maps with context. Java client uses SET_TYPE (64) with context to create maps at context levels, but Rust core only has set_order() which sets order on existing maps.")
 async def test_operate_map_create_context(client_and_key):
     """Test operate with map create context using CTX.mapKey.
     
     Based on Java client's operateMapCreateContext test.
     
-    NOTE: This test is skipped because the Rust core client's MapOperation.create
-    uses maps::set_order() which only sets the order of existing maps, not creates
-    new maps with context. The Java client uses SET_TYPE (64) with context via
-    packCreate() to create maps at context levels, which is a different operation
-    that the Rust core client doesn't support.
+    Adapted to use CTX.map_key_create with put operation instead of MapOperation.create
+    with context, since the Rust core client's MapOperation.create doesn't support context.
+    The CTX.map_key_create creates the map at the context level if it doesn't exist.
     """
     client, key = client_and_key
 
@@ -1354,12 +1348,13 @@ async def test_operate_map_create_context(client_and_key):
     await client.put(wp, key, {"mapbin": input_map})
 
     # Create new map at key "key3" and put value in it
+    # Adapted to use CTX.map_key_create with put operation instead of MapOperation.create
+    # with context, since the Rust core client's MapOperation.create doesn't support context.
     record = await client.operate(
         wp,
         key,
         [
-                MapOperation.create("mapbin", MapOrder.KEY_ORDERED).set_context([CTX.map_key("key3")]),
-                MapOperation.put("mapbin", "key31", 99, map_policy).set_context([CTX.map_key("key3")]),
+                MapOperation.put("mapbin", "key31", 99, map_policy).set_context([CTX.map_key_create("key3", MapOrder.KEY_ORDERED)]),
                 Operation.get_bin("mapbin")
         ]
     )
@@ -1368,13 +1363,13 @@ async def test_operate_map_create_context(client_and_key):
     results = record.bins.get("mapbin")
     
     if isinstance(results, list):
-        # First result: count from create (None/void)
-        # Second result: count from put (should be 1)
-        count = results[1] if len(results) > 1 and isinstance(results[1], (int, float)) else results[2]
+        # First result: count from put (should be 1)
+        # Second result: the full map from get_bin
+        count = results[0] if len(results) > 0 and isinstance(results[0], (int, float)) else results[1]
         assert count == 1
         
-        # Third result: the full map
-        full_map = results[2] if len(results) > 2 else results[1]
+        # Second result: the full map
+        full_map = results[1] if len(results) > 1 else results[0]
     else:
         full_map = results
     

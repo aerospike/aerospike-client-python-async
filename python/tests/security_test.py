@@ -483,6 +483,11 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_admin_policy_timeout(self, client):
         """Test AdminPolicy with custom timeout."""
+        # TODO: CLIENT-4052 - Waiting on parse_privileges fix in Rust core
+        # The parse_privileges fix ensures we consume exactly len bytes to prevent buffer misalignment
+        # This test is skipped until the fix is integrated and verified
+        pytest.skip("Waiting on parse_privileges fix as described in CLIENT-4052")
+
         from aerospike_async import AdminPolicy
 
         # Test default AdminPolicy
