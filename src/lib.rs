@@ -2705,6 +2705,69 @@ pub enum Replica {
             self._as.base_policy = base_policy._as;
         }
 
+        // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as
+                .base_policy
+                .sleep_between_retries
+                .map(|duration| duration.as_millis() as u64)
+                .unwrap_or_default()
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            let sleep_between_retries = Duration::from_millis(sleep_between_retries_millis);
+            self._as.base_policy.sleep_between_retries = Some(sleep_between_retries);
+        }
+
+        #[getter]
+        pub fn get_consistency_level(&self) -> ConsistencyLevel {
+            (&self._as.base_policy.consistency_level).into()
+        }
+
+        #[setter]
+        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
+            self._as.base_policy.consistency_level = match consistency_level {
+                ConsistencyLevel::ConsistencyOne => {
+                    aerospike_core::ConsistencyLevel::ConsistencyOne
+                }
+                ConsistencyLevel::ConsistencyAll => {
+                    aerospike_core::ConsistencyLevel::ConsistencyAll
+                }
+            };
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
         // Override filter expression methods to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
@@ -2853,6 +2916,82 @@ pub enum Replica {
         pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
             self._as.base_policy = base_policy._as;
         }
+
+        // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as
+                .base_policy
+                .sleep_between_retries
+                .map(|duration| duration.as_millis() as u64)
+                .unwrap_or_default()
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            let sleep_between_retries = Duration::from_millis(sleep_between_retries_millis);
+            self._as.base_policy.sleep_between_retries = Some(sleep_between_retries);
+        }
+
+        #[getter]
+        pub fn get_consistency_level(&self) -> ConsistencyLevel {
+            (&self._as.base_policy.consistency_level).into()
+        }
+
+        #[setter]
+        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
+            self._as.base_policy.consistency_level = match consistency_level {
+                ConsistencyLevel::ConsistencyOne => {
+                    aerospike_core::ConsistencyLevel::ConsistencyOne
+                }
+                ConsistencyLevel::ConsistencyAll => {
+                    aerospike_core::ConsistencyLevel::ConsistencyAll
+                }
+            };
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
+                None => self._as.base_policy.filter_expression = None,
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2897,6 +3036,82 @@ pub enum Replica {
         #[setter]
         pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
             self._as.base_policy = base_policy._as;
+        }
+
+        // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as
+                .base_policy
+                .sleep_between_retries
+                .map(|duration| duration.as_millis() as u64)
+                .unwrap_or_default()
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            let sleep_between_retries = Duration::from_millis(sleep_between_retries_millis);
+            self._as.base_policy.sleep_between_retries = Some(sleep_between_retries);
+        }
+
+        #[getter]
+        pub fn get_consistency_level(&self) -> ConsistencyLevel {
+            (&self._as.base_policy.consistency_level).into()
+        }
+
+        #[setter]
+        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
+            self._as.base_policy.consistency_level = match consistency_level {
+                ConsistencyLevel::ConsistencyOne => {
+                    aerospike_core::ConsistencyLevel::ConsistencyOne
+                }
+                ConsistencyLevel::ConsistencyAll => {
+                    aerospike_core::ConsistencyLevel::ConsistencyAll
+                }
+            };
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
+                None => self._as.base_policy.filter_expression = None,
+            }
         }
 
         #[getter]
@@ -2969,19 +3184,6 @@ pub enum Replica {
         // pub fn set_fail_on_cluster_change(&mut self, fail_on_cluster_change: bool) {
         //     self._as.fail_on_cluster_change = fail_on_cluster_change;
         // }
-
-        #[getter]
-        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as.filter_expression().as_ref().map(|fe| FilterExpression { _as: fe.clone() })
-        }
-
-        #[setter]
-        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
-            match filter_expression {
-                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
-                None => self._as.base_policy.filter_expression = None,
-            }
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -3091,6 +3293,69 @@ pub enum Replica {
             self._as.base_policy = base_policy._as;
         }
 
+        // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as
+                .base_policy
+                .sleep_between_retries
+                .map(|duration| duration.as_millis() as u64)
+                .unwrap_or_default()
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            let sleep_between_retries = Duration::from_millis(sleep_between_retries_millis);
+            self._as.base_policy.sleep_between_retries = Some(sleep_between_retries);
+        }
+
+        #[getter]
+        pub fn get_consistency_level(&self) -> ConsistencyLevel {
+            (&self._as.base_policy.consistency_level).into()
+        }
+
+        #[setter]
+        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
+            self._as.base_policy.consistency_level = match consistency_level {
+                ConsistencyLevel::ConsistencyOne => {
+                    aerospike_core::ConsistencyLevel::ConsistencyOne
+                }
+                ConsistencyLevel::ConsistencyAll => {
+                    aerospike_core::ConsistencyLevel::ConsistencyAll
+                }
+            };
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
         #[getter]
         pub fn get_allow_inline(&self) -> bool {
             self._as.allow_inline
@@ -3121,16 +3386,17 @@ pub enum Replica {
             self._as.respond_all_keys = respond_all_keys;
         }
 
+        // Override filter expression to sync with internal base_policy
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
         pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
             match filter_expression {
-                Some(fe) => self._as.filter_expression = Some(fe._as),
-                None => self._as.filter_expression = None,
+                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
+                None => self._as.base_policy.filter_expression = None,
             }
         }
 
