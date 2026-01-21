@@ -5800,6 +5800,18 @@ pub enum Replica {
             self._as.is_active()
         }
 
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[PartitionFilter]]", imports=("typing", "aerospike_async")))]
+        pub fn partition_filter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let recordset = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                match recordset.partition_filter().await {
+                    Some(pf) => Ok(Some(PartitionFilter { _as: pf })),
+                    None => Ok(None),
+                }
+            })
+        }
+
         fn __aiter__(&self) -> Self {
             self.clone()
         }
