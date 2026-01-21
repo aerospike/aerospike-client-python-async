@@ -257,6 +257,13 @@ def add_client_stubs(content: str) -> str:
     def scan(self, policy: ScanPolicy, partition_filter: PartitionFilter, namespace: builtins.str, set_name: builtins.str, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Any]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
+    def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_write(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], bins_list: typing.Sequence[typing.Dict[builtins.str, typing.Any]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_delete(self, batch_policy: typing.Optional[BatchPolicy], delete_policy: typing.Optional[BatchDeletePolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_apply(self, batch_policy: typing.Optional[BatchPolicy], udf_policy: typing.Optional[BatchUDFPolicy], keys: typing.Sequence[Key], udf_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_exists(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[builtins.bool]]: ...
+    def batch_get_header(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[typing.Optional[Record]]]: ...
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
     def drop_user(self, user: builtins.str) -> typing.Awaitable[typing.Any]: ...
     def change_password(self, user: builtins.str, password: builtins.str) -> typing.Awaitable[typing.Any]: ...
@@ -343,6 +350,46 @@ def add_client_stubs(content: str) -> str:
                 methods_to_add = '\n' + '\n'.join(method_stubs) + '\n'
                 content = content[:insert_pos] + methods_to_add + content[insert_pos:]
                 print(f"  ✓ Added missing security methods to Client class: {', '.join(missing_methods)}")
+
+    return content
+
+
+def add_batch_policy_stubs(content: str) -> str:
+    """Add missing properties to BatchPolicy class."""
+    batch_policy_properties = '''    @property
+    def allow_inline(self) -> builtins.bool: ...
+    @allow_inline.setter
+    def allow_inline(self, value: builtins.bool) -> None: ...
+    @property
+    def allow_inline_ssd(self) -> builtins.bool: ...
+    @allow_inline_ssd.setter
+    def allow_inline_ssd(self, value: builtins.bool) -> None: ...
+    @property
+    def respond_all_keys(self) -> builtins.bool: ...
+    @respond_all_keys.setter
+    def respond_all_keys(self, value: builtins.bool) -> None: ...
+'''
+
+    # Check if BatchPolicy class exists and add properties if missing
+    batch_policy_match = re.search(r'^class BatchPolicy\(BasePolicy\):', content, re.MULTILINE)
+    if batch_policy_match:
+        # Find the end of the class (next class or blank line)
+        class_start = batch_policy_match.start()
+        next_class = re.search(r'\n\n(?=class\s|\ndef\s)', content[class_start:], re.MULTILINE)
+        if next_class:
+            insert_pos = class_start + next_class.start() + 1
+        else:
+            # Find the next class or function
+            next_match = re.search(r'\n(?=class\s|\ndef\s)', content[class_start:], re.MULTILINE)
+            if next_match:
+                insert_pos = class_start + next_match.start() + 1
+            else:
+                insert_pos = len(content)
+
+        # Check if properties already exist
+        if '@property\n    def allow_inline(self)' not in content:
+            content = content[:insert_pos] + batch_policy_properties + content[insert_pos:]
+            print("  ✓ Added missing properties to BatchPolicy class")
 
     return content
 
@@ -952,6 +999,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_key_stubs(content)
         content = add_operation_stubs(content)
         content = add_client_stubs(content)
+        content = add_batch_policy_stubs(content)
         content = ensure_statement_set_name(content)
 
         # When processing native module, ensure package structure exists

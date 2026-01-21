@@ -284,6 +284,16 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::Replica> for Replica {
+        fn from(input: &aerospike_core::policy::Replica) -> Self {
+            match input {
+                aerospike_core::policy::Replica::Master => Replica::Master,
+                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
+                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
+            }
+        }
+    }
+
     #[pymethods]
     impl Replica {
         fn __richcmp__(&self, other: &Replica, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
@@ -350,6 +360,19 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::ConsistencyLevel> for ConsistencyLevel {
+        fn from(input: &aerospike_core::ConsistencyLevel) -> Self {
+            match input {
+                aerospike_core::policy::ConsistencyLevel::ConsistencyOne => {
+                    ConsistencyLevel::ConsistencyOne
+                }
+                aerospike_core::policy::ConsistencyLevel::ConsistencyAll => {
+                    ConsistencyLevel::ConsistencyAll
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordExistsAction
@@ -410,6 +433,24 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::RecordExistsAction> for RecordExistsAction {
+        fn from(input: &aerospike_core::policy::RecordExistsAction) -> Self {
+            match input {
+                aerospike_core::policy::RecordExistsAction::Update => RecordExistsAction::Update,
+                aerospike_core::policy::RecordExistsAction::UpdateOnly => {
+                    RecordExistsAction::UpdateOnly
+                }
+                aerospike_core::policy::RecordExistsAction::Replace => RecordExistsAction::Replace,
+                aerospike_core::policy::RecordExistsAction::ReplaceOnly => {
+                    RecordExistsAction::ReplaceOnly
+                }
+                aerospike_core::policy::RecordExistsAction::CreateOnly => {
+                    RecordExistsAction::CreateOnly
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  GenerationPolicy
@@ -461,6 +502,20 @@ pub enum Replica {
         }
     }
 
+    impl From<&aerospike_core::policy::GenerationPolicy> for GenerationPolicy {
+        fn from(input: &aerospike_core::policy::GenerationPolicy) -> Self {
+            match input {
+                aerospike_core::policy::GenerationPolicy::None => GenerationPolicy::None,
+                aerospike_core::policy::GenerationPolicy::ExpectGenEqual => {
+                    GenerationPolicy::ExpectGenEqual
+                }
+                aerospike_core::policy::GenerationPolicy::ExpectGenGreater => {
+                    GenerationPolicy::ExpectGenGreater
+                }
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  CommitLevel
@@ -501,6 +556,15 @@ pub enum Replica {
             match &input {
                 CommitLevel::CommitAll => aerospike_core::policy::CommitLevel::CommitAll,
                 CommitLevel::CommitMaster => aerospike_core::policy::CommitLevel::CommitMaster,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::policy::CommitLevel> for CommitLevel {
+        fn from(input: &aerospike_core::policy::CommitLevel) -> Self {
+            match input {
+                aerospike_core::policy::CommitLevel::CommitAll => CommitLevel::CommitAll,
+                aerospike_core::policy::CommitLevel::CommitMaster => CommitLevel::CommitMaster,
             }
         }
     }
@@ -572,6 +636,25 @@ pub enum Replica {
                 _Expiration::NamespaceDefault => aerospike_core::Expiration::NamespaceDefault,
                 _Expiration::Never => aerospike_core::Expiration::Never,
                 _Expiration::DontUpdate => aerospike_core::Expiration::DontUpdate,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::Expiration> for Expiration {
+        fn from(input: &aerospike_core::Expiration) -> Self {
+            match input {
+                aerospike_core::Expiration::Seconds(s) => Expiration {
+                    v: _Expiration::Seconds(*s),
+                },
+                aerospike_core::Expiration::NamespaceDefault => Expiration {
+                    v: _Expiration::NamespaceDefault,
+                },
+                aerospike_core::Expiration::Never => Expiration {
+                    v: _Expiration::Never,
+                },
+                aerospike_core::Expiration::DontUpdate => Expiration {
+                    v: _Expiration::DontUpdate,
+                },
             }
         }
     }
@@ -2462,14 +2545,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            match &self._as.consistency_level {
-                aerospike_core::ConsistencyLevel::ConsistencyOne => {
-                    ConsistencyLevel::ConsistencyOne
-                }
-                aerospike_core::ConsistencyLevel::ConsistencyAll => {
-                    ConsistencyLevel::ConsistencyAll
-                }
-            }
+            (&self._as.consistency_level).into()
         }
 
         #[setter]
@@ -2609,20 +2685,12 @@ pub enum Replica {
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            match &self._as.replica {
-                aerospike_core::policy::Replica::Master => Replica::Master,
-                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
-                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
-            }
+            (&self._as.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.replica = match replica {
-                Replica::Master => aerospike_core::policy::Replica::Master,
-                Replica::Sequence => aerospike_core::policy::Replica::Sequence,
-                Replica::PreferRack => aerospike_core::policy::Replica::PreferRack,
-            }
+            self._as.replica = (&replica).into();
         }
 
         #[getter]
@@ -2682,13 +2750,7 @@ pub enum Replica {
 
         #[getter(record_exists_action)]
         pub fn get_record_exists_action(&self) -> RecordExistsAction {
-            match &self._as.record_exists_action {
-                aerospike_core::RecordExistsAction::Update => RecordExistsAction::Update,
-                aerospike_core::RecordExistsAction::UpdateOnly => RecordExistsAction::UpdateOnly,
-                aerospike_core::RecordExistsAction::Replace => RecordExistsAction::Replace,
-                aerospike_core::RecordExistsAction::ReplaceOnly => RecordExistsAction::ReplaceOnly,
-                aerospike_core::RecordExistsAction::CreateOnly => RecordExistsAction::CreateOnly,
-            }
+            (&self._as.record_exists_action).into()
         }
 
         #[setter(record_exists_action)]
@@ -2704,15 +2766,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_generation_policy(&self) -> GenerationPolicy {
-            match &self._as.generation_policy {
-                aerospike_core::GenerationPolicy::None => GenerationPolicy::None,
-                aerospike_core::GenerationPolicy::ExpectGenEqual => {
-                    GenerationPolicy::ExpectGenEqual
-                }
-                aerospike_core::GenerationPolicy::ExpectGenGreater => {
-                    GenerationPolicy::ExpectGenGreater
-                }
-            }
+            (&self._as.generation_policy).into()
         }
 
         #[setter]
@@ -2730,18 +2784,12 @@ pub enum Replica {
 
         #[getter]
         pub fn get_commit_level(&self) -> CommitLevel {
-            match &self._as.commit_level {
-                aerospike_core::CommitLevel::CommitAll => CommitLevel::CommitAll,
-                aerospike_core::CommitLevel::CommitMaster => CommitLevel::CommitMaster,
-            }
+            (&self._as.commit_level).into()
         }
 
         #[setter]
         pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
-            self._as.commit_level = match commit_level {
-                CommitLevel::CommitAll => aerospike_core::CommitLevel::CommitAll,
-                CommitLevel::CommitMaster => aerospike_core::CommitLevel::CommitMaster,
-            };
+            self._as.commit_level = (&commit_level).into();
         }
 
         #[getter]
@@ -2756,20 +2804,7 @@ pub enum Replica {
 
         #[getter]
         pub fn get_expiration(&self) -> Expiration {
-            match &self._as.expiration {
-                aerospike_core::Expiration::Seconds(s) => Expiration {
-                    v: _Expiration::Seconds(*s),
-                },
-                aerospike_core::Expiration::NamespaceDefault => Expiration {
-                    v: _Expiration::NamespaceDefault,
-                },
-                aerospike_core::Expiration::Never => Expiration {
-                    v: _Expiration::Never,
-                },
-                aerospike_core::Expiration::DontUpdate => Expiration {
-                    v: _Expiration::DontUpdate,
-                },
-            }
+            (&self._as.expiration).into()
         }
 
         #[setter]
@@ -2916,16 +2951,12 @@ pub enum Replica {
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            match self._as.replica {
-                aerospike_core::policy::Replica::Master => Replica::Master,
-                aerospike_core::policy::Replica::Sequence => Replica::Sequence,
-                aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
-            }
+            (&self._as.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.replica = aerospike_core::policy::Replica::from(&replica);
+            self._as.replica = (&replica).into();
         }
 
         // fail_on_cluster_change field doesn't exist in TLS branch
@@ -2950,6 +2981,444 @@ pub enum Replica {
                 Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
                 None => self._as.base_policy.filter_expression = None,
             }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchRecord
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchRecord",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Clone, Debug)]
+    pub struct BatchRecord {
+        _as: aerospike_core::BatchRecord,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchRecord {
+        // Note: BatchRecord is created internally by batch operations
+        // Users should not create BatchRecord instances directly
+
+        #[getter]
+        pub fn get_key(&self) -> Key {
+            Key {
+                _as: self._as.key.clone(),
+            }
+        }
+
+        /// Get the record from this batch result.
+        ///
+        /// **Performance Note:** This method clones the Record data on each call.
+        /// The amount of data cloned depends on the record size (bins, metadata, etc.).
+        /// For optimal performance when accessing the record multiple times, cache the result in Python:
+        ///
+        /// results = await client.batch_read(bp, brp, keys, None)
+        /// for batch_record in results:
+        ///     record = batch_record.record  # Clone once
+        ///     if record:
+        ///         # Use record multiple times - no additional cloning
+        ///         bins = record.bins
+        ///         key = record.key
+        ///         generation = record.generation
+        ///
+        /// Returns:
+        ///     Optional[Record]: The record if present, None otherwise.
+        #[getter]
+        pub fn get_record(&self) -> Option<Record> {
+            self._as.record.as_ref().map(|r| Record { _as: r.clone() })
+        }
+
+        #[getter]
+        pub fn get_result_code(&self) -> Option<ResultCode> {
+            self._as.result_code.map(|rc| ResultCode(rc))
+        }
+
+        #[getter]
+        pub fn get_in_doubt(&self) -> bool {
+            self._as.in_doubt
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchPolicy",
+        module = "_aerospike_async_native",
+        extends = BasePolicy,
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchPolicy {
+        _as: aerospike_core::BatchPolicy,
+    }
+
+    #[pymethods]
+    impl BatchPolicy {
+        #[new]
+        pub fn new() -> PyClassInitializer<Self> {
+            let batch_policy = BatchPolicy {
+                _as: aerospike_core::BatchPolicy::default(),
+            };
+            let base_policy = BasePolicy::new();
+
+            PyClassInitializer::from(base_policy).add_subclass(batch_policy)
+        }
+
+        #[getter]
+        pub fn get_base_policy(&self) -> BasePolicy {
+            BasePolicy {
+                _as: self._as.base_policy.clone(),
+            }
+        }
+
+        #[setter]
+        pub fn set_base_policy(&mut self, base_policy: BasePolicy) {
+            self._as.base_policy = base_policy._as;
+        }
+
+        #[getter]
+        pub fn get_allow_inline(&self) -> bool {
+            self._as.allow_inline
+        }
+
+        #[setter]
+        pub fn set_allow_inline(&mut self, allow_inline: bool) {
+            self._as.allow_inline = allow_inline;
+        }
+
+        #[getter]
+        pub fn get_allow_inline_ssd(&self) -> bool {
+            self._as.allow_inline_ssd
+        }
+
+        #[setter]
+        pub fn set_allow_inline_ssd(&mut self, allow_inline_ssd: bool) {
+            self._as.allow_inline_ssd = allow_inline_ssd;
+        }
+
+        #[getter]
+        pub fn get_respond_all_keys(&self) -> bool {
+            self._as.respond_all_keys
+        }
+
+        #[setter]
+        pub fn set_respond_all_keys(&mut self, respond_all_keys: bool) {
+            self._as.respond_all_keys = respond_all_keys;
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
+
+        #[getter]
+        pub fn get_replica(&self) -> Replica {
+            (&self._as.replica).into()
+        }
+
+        #[setter]
+        pub fn set_replica(&mut self, replica: Replica) {
+            self._as.replica = (&replica).into();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchReadPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchReadPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchReadPolicy {
+        _as: aerospike_core::BatchReadPolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchReadPolicy {
+        #[new]
+        pub fn new() -> Self {
+            BatchReadPolicy {
+                _as: aerospike_core::BatchReadPolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
+
+        #[getter]
+        pub fn get_read_touch_ttl(&self) -> i32 {
+            match self._as.read_touch_ttl {
+                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTTL::ServerDefault => 0,
+                aerospike_core::ReadTouchTTL::DontReset => -1,
+            }
+        }
+
+        #[setter]
+        pub fn set_read_touch_ttl(&mut self, value: i32) {
+            self._as.read_touch_ttl = match value {
+                -1 => aerospike_core::ReadTouchTTL::DontReset,
+                0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                pct if pct >= 1 && pct <= 100 => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                _ => aerospike_core::ReadTouchTTL::ServerDefault,
+            };
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchWritePolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchWritePolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchWritePolicy {
+        _as: aerospike_core::BatchWritePolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchWritePolicy {
+        #[new]
+        pub fn new() -> Self {
+            BatchWritePolicy {
+                _as: aerospike_core::BatchWritePolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
+
+        #[getter]
+        pub fn get_send_key(&self) -> bool {
+            self._as.send_key
+        }
+
+        #[setter]
+        pub fn set_send_key(&mut self, send_key: bool) {
+            self._as.send_key = send_key;
+        }
+
+        #[getter]
+        pub fn get_durable_delete(&self) -> bool {
+            self._as.durable_delete
+        }
+
+        #[setter]
+        pub fn set_durable_delete(&mut self, durable_delete: bool) {
+            self._as.durable_delete = durable_delete;
+        }
+
+        #[getter]
+        pub fn get_generation(&self) -> u32 {
+            self._as.generation
+        }
+
+        #[setter]
+        pub fn set_generation(&mut self, generation: u32) {
+            self._as.generation = generation;
+        }
+
+        #[getter]
+        pub fn get_expiration(&self) -> Expiration {
+            (&self._as.expiration).into()
+        }
+
+        #[setter]
+        pub fn set_expiration(&mut self, expiration: Expiration) {
+            self._as.expiration = (&expiration).into();
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchDeletePolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchDeletePolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchDeletePolicy {
+        _as: aerospike_core::BatchDeletePolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchDeletePolicy {
+        #[new]
+        pub fn new() -> Self {
+            BatchDeletePolicy {
+                _as: aerospike_core::BatchDeletePolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
+
+        #[getter]
+        pub fn get_send_key(&self) -> bool {
+            self._as.send_key
+        }
+
+        #[setter]
+        pub fn set_send_key(&mut self, send_key: bool) {
+            self._as.send_key = send_key;
+        }
+
+        #[getter]
+        pub fn get_durable_delete(&self) -> bool {
+            self._as.durable_delete
+        }
+
+        #[setter]
+        pub fn set_durable_delete(&mut self, durable_delete: bool) {
+            self._as.durable_delete = durable_delete;
+        }
+
+        #[getter]
+        pub fn get_generation(&self) -> u32 {
+            self._as.generation
+        }
+
+        #[setter]
+        pub fn set_generation(&mut self, generation: u32) {
+            self._as.generation = generation;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchUDFPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchUDFPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchUDFPolicy {
+        _as: aerospike_core::BatchUDFPolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchUDFPolicy {
+        #[new]
+        pub fn new() -> Self {
+            BatchUDFPolicy {
+                _as: aerospike_core::BatchUDFPolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_filter_expression(&self) -> Option<FilterExpression> {
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+        }
+
+        #[setter]
+        pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
+            match filter_expression {
+                Some(fe) => self._as.filter_expression = Some(fe._as),
+                None => self._as.filter_expression = None,
+            }
+        }
+
+        #[getter]
+        pub fn get_send_key(&self) -> bool {
+            self._as.send_key
+        }
+
+        #[setter]
+        pub fn set_send_key(&mut self, send_key: bool) {
+            self._as.send_key = send_key;
+        }
+
+        #[getter]
+        pub fn get_durable_delete(&self) -> bool {
+            self._as.durable_delete
+        }
+
+        #[setter]
+        pub fn set_durable_delete(&mut self, durable_delete: bool) {
+            self._as.durable_delete = durable_delete;
         }
     }
 
@@ -3275,7 +3744,7 @@ pub enum Replica {
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
-    struct Record {
+    pub struct Record {
         _as: aerospike_core::Record,
     }
 
@@ -6842,6 +7311,1225 @@ pub enum Replica {
             })
         }
 
+        /// Read multiple records for specified keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (batch_policy, read_policy, keys, bins = None))]
+        pub fn batch_read<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<Py<PyAny>>,
+            bins: Option<Vec<String>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+
+                let mut batch_ops = Vec::new();
+                for key in keys {
+                    let op = BatchOperation::read(&read_policy, key, bins_flag(bins.clone()));
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
+        /// Write multiple records for specified keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        pub fn batch_write<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
+            keys: Vec<Py<PyAny>>,
+            bins_list: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            if keys.len() != bins_list.len() {
+                return Err(PyValueError::new_err("keys and bins_list must have the same length"));
+            }
+
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects and PyDicts from Python lists
+            let mut rust_keys = Vec::new();
+            let mut bins_vecs = Vec::new();
+            for (key_obj, bins_obj) in keys.into_iter().zip(bins_list.into_iter()) {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+
+                    let bins_dict = bins_obj.bind(py).downcast::<pyo3::types::PyDict>()?;
+                    let mut bin_vec = Vec::new();
+                    for (py_key, py_val) in bins_dict.iter() {
+                        let name = py_key.extract::<String>().map_err(|_| {
+                            PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                                "A bin name must be a string or unicode string"
+                            )
+                        })?;
+                        let val: PythonValue = py_val.extract()?;
+                        bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+                    }
+                    bins_vecs.push(bin_vec);
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::operations;
+
+                // Create all operations while bins_vecs is still in scope
+                let mut all_ops: Vec<Vec<aerospike_core::operations::Operation>> = Vec::new();
+                for bins in &bins_vecs {
+                    let ops: Vec<aerospike_core::operations::Operation> = bins
+                        .iter()
+                        .map(|bin| operations::put(bin))
+                        .collect();
+                    all_ops.push(ops);
+                }
+
+                // Now create batch operations
+                let mut batch_ops = Vec::new();
+                for (key, ops) in keys.into_iter().zip(all_ops.into_iter()) {
+                    let op = BatchOperation::write(&write_policy, key, ops);
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
+        /// Perform read/write operations on multiple keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        pub fn batch_operate<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
+            keys: Vec<Py<PyAny>>,
+            operations_list: Vec<Vec<Py<PyAny>>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            if keys.len() != operations_list.len() {
+                return Err(PyValueError::new_err("keys and operations_list must have the same length"));
+            }
+
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            // Extract operations before moving into async block
+            let mut rust_ops_list = Vec::new();
+            for operations in operations_list {
+                let mut rust_ops: Vec<OperationType> = Vec::new();
+                for op_obj in operations {
+                    Python::attach(|py| {
+                        if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
+                            rust_ops.push(py_op.op.clone());
+                        } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
+                            rust_ops.push(py_op.op.clone());
+                        } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
+                            rust_ops.push(py_op.op.clone());
+                        } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
+                            rust_ops.push(py_op.op.clone());
+                        } else {
+                            return Err(PyTypeError::new_err(
+                                "Operation must be Operation, ListOperation, MapOperation, or BitOperation"
+                            ));
+                        }
+                        Ok::<(), PyErr>(())
+                    })?;
+                }
+                rust_ops_list.push(rust_ops);
+            }
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::operations;
+
+                let read_policy = aerospike_core::BatchReadPolicy::default();
+
+                // First pass: collect all bins/values that need to live as long as the operations
+                let mut bin_storage: Vec<aerospike_core::Bin> = Vec::new();
+                let mut value_storage: Vec<aerospike_core::Value> = Vec::new();
+                let mut map_storage: Vec<HashMap<aerospike_core::Value, aerospike_core::Value>> = Vec::new();
+                let mut list_storage: Vec<Vec<aerospike_core::Value>> = Vec::new();
+
+                for ops in &rust_ops_list {
+                    for op in ops {
+                        match op {
+                            OperationType::Put(bin_name, value) |
+                            OperationType::Add(bin_name, value) |
+                            OperationType::Append(bin_name, value) |
+                            OperationType::Prepend(bin_name, value) => {
+                                let bin = aerospike_core::Bin::new(bin_name.clone(), value.clone().into());
+                                bin_storage.push(bin);
+                            }
+                            OperationType::ListSet(_, _, value) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListAppend(_, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListAppendItems(_, values, _) => {
+                                for value in values {
+                                    value_storage.push(value.clone().into());
+                                }
+                            }
+                            OperationType::ListInsert(_, _, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListInsertItems(_, _, values, _) => {
+                                for value in values {
+                                    value_storage.push(value.clone().into());
+                                }
+                            }
+                            OperationType::ListGetByValue(_, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListGetByValueRange(_, begin, end, _) => {
+                                value_storage.push(begin.clone().into());
+                                value_storage.push(end.clone().into());
+                            }
+                            OperationType::ListGetByValueList(_, values, _) => {
+                                let mut value_list = Vec::new();
+                                for value in values {
+                                    value_list.push(value.clone().into());
+                                }
+                                list_storage.push(value_list);
+                            }
+                            OperationType::ListGetByValueRelativeRankRange(_, value, _, _, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListRemoveByValue(_, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::ListRemoveByValueList(_, values, _) => {
+                                let mut value_list = Vec::new();
+                                for value in values {
+                                    value_list.push(value.clone().into());
+                                }
+                                list_storage.push(value_list);
+                            }
+                            OperationType::ListRemoveByValueRange(_, begin, end, _) => {
+                                value_storage.push(begin.clone().into());
+                                value_storage.push(end.clone().into());
+                            }
+                            OperationType::ListRemoveByValueRelativeRankRange(_, value, _, _, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::MapPut(_, key, value, _) => {
+                                value_storage.push(key.clone().into());
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::MapPutItems(_, items, _) => {
+                                let mut map = HashMap::new();
+                                for (key, value) in items {
+                                    map.insert(key.clone().into(), value.clone().into());
+                                }
+                                map_storage.push(map);
+                            }
+                            OperationType::MapIncrementValue(_, key, value, _) | OperationType::MapDecrementValue(_, key, value, _) => {
+                                value_storage.push(key.clone().into());
+                                value_storage.push(aerospike_core::Value::Int(*value));
+                            }
+                            OperationType::MapGetByKey(_, key, _) | OperationType::MapRemoveByKey(_, key, _) => {
+                                value_storage.push(key.clone().into());
+                            }
+                            OperationType::MapGetByKeyRange(_, begin, end, _) | OperationType::MapRemoveByKeyRange(_, begin, end, _) => {
+                                value_storage.push(begin.clone().into());
+                                value_storage.push(end.clone().into());
+                            }
+                            OperationType::MapGetByValue(_, value, _) | OperationType::MapRemoveByValue(_, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::MapGetByValueRange(_, begin, end, _) | OperationType::MapRemoveByValueRange(_, begin, end, _) => {
+                                value_storage.push(begin.clone().into());
+                                value_storage.push(end.clone().into());
+                            }
+                            OperationType::MapGetByKeyList(_, keys, _) | OperationType::MapRemoveByKeyList(_, keys, _) => {
+                                let mut key_list = Vec::new();
+                                for key in keys {
+                                    key_list.push(key.clone().into());
+                                }
+                                list_storage.push(key_list);
+                            }
+                            OperationType::MapGetByValueList(_, values, _) | OperationType::MapRemoveByValueList(_, values, _) => {
+                                let mut value_list = Vec::new();
+                                for value in values {
+                                    value_list.push(value.clone().into());
+                                }
+                                list_storage.push(value_list);
+                            }
+                            OperationType::MapGetByKeyRelativeIndexRange(_, key, _, _, _) | OperationType::MapRemoveByKeyRelativeIndexRange(_, key, _, _, _) => {
+                                value_storage.push(key.clone().into());
+                            }
+                            OperationType::MapGetByValueRelativeRankRange(_, value, _, _, _) | OperationType::MapRemoveByValueRelativeRankRange(_, value, _, _, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            OperationType::BitInsert(_, _, value, _) | OperationType::BitSet(_, _, _, value, _) |
+                            OperationType::BitOr(_, _, _, value, _) | OperationType::BitXor(_, _, _, value, _) |
+                            OperationType::BitAnd(_, _, _, value, _) => {
+                                value_storage.push(value.clone().into());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // Second pass: convert operations to Rust operations for each key
+                let mut batch_ops = Vec::new();
+                let mut bin_idx = 0;
+                let mut value_idx = 0;
+                let mut map_idx = 0;
+                let mut list_idx = 0;
+
+                for (key, ops) in keys.into_iter().zip(rust_ops_list.iter()) {
+                    let mut core_ops = Vec::new();
+                    let mut has_write_op = false;
+                    // First, check if any operation is a write operation
+                    for op in ops.iter() {
+                        match op {
+                            OperationType::Put(_, _) | OperationType::Add(_, _) | OperationType::Append(_, _) |
+                            OperationType::Prepend(_, _) | OperationType::Delete() | OperationType::Touch() |
+                            OperationType::ListSet(_, _, _) | OperationType::ListAppend(_, _, _) |
+                            OperationType::ListAppendItems(_, _, _) | OperationType::ListInsert(_, _, _, _) |
+                            OperationType::ListInsertItems(_, _, _, _) | OperationType::ListIncrement(_, _, _, _) |
+                            OperationType::ListSort(_, _) | OperationType::ListSetOrder(_, _) |
+                            OperationType::ListRemove(_, _) | OperationType::ListRemoveRange(_, _, _) |
+                            OperationType::ListRemoveRangeFrom(_, _) | OperationType::ListPop(_, _) |
+                            OperationType::ListPopRange(_, _, _) | OperationType::ListPopRangeFrom(_, _) |
+                            OperationType::ListTrim(_, _, _) | OperationType::ListClear(_) |
+                            OperationType::ListCreate(_, _, _, _) |
+                            OperationType::ListRemoveByIndex(_, _, _) | OperationType::ListRemoveByIndexRange(_, _, _, _) |
+                            OperationType::ListRemoveByRank(_, _, _) | OperationType::ListRemoveByRankRange(_, _, _, _) |
+                            OperationType::ListRemoveByValue(_, _, _) | OperationType::ListRemoveByValueList(_, _, _) |
+                            OperationType::ListRemoveByValueRange(_, _, _, _) |
+                            OperationType::ListRemoveByValueRelativeRankRange(_, _, _, _, _) |
+                            OperationType::MapPut(_, _, _, _) | OperationType::MapPutItems(_, _, _) |
+                            OperationType::MapIncrementValue(_, _, _, _) | OperationType::MapDecrementValue(_, _, _, _) |
+                            OperationType::MapClear(_) | OperationType::MapSetMapPolicy(_, _) |
+                            OperationType::MapCreate(_, _) | OperationType::MapRemoveByKey(_, _, _) |
+                            OperationType::MapRemoveByKeyRange(_, _, _, _) | OperationType::MapRemoveByIndex(_, _, _) |
+                            OperationType::MapRemoveByIndexRange(_, _, _, _) |
+                            OperationType::MapRemoveByIndexRangeFrom(_, _, _) | OperationType::MapRemoveByRank(_, _, _) |
+                            OperationType::MapRemoveByRankRange(_, _, _, _) |
+                            OperationType::MapRemoveByRankRangeFrom(_, _, _) | OperationType::MapRemoveByValue(_, _, _) |
+                            OperationType::MapRemoveByValueRange(_, _, _, _) | OperationType::MapRemoveByKeyList(_, _, _) |
+                            OperationType::MapRemoveByValueList(_, _, _) |
+                            OperationType::MapRemoveByKeyRelativeIndexRange(_, _, _, _, _) |
+                            OperationType::MapRemoveByValueRelativeRankRange(_, _, _, _, _) |
+                            OperationType::BitResize(_, _, _, _) | OperationType::BitInsert(_, _, _, _) |
+                            OperationType::BitRemove(_, _, _, _) | OperationType::BitSet(_, _, _, _, _) |
+                            OperationType::BitOr(_, _, _, _, _) | OperationType::BitXor(_, _, _, _, _) |
+                            OperationType::BitAnd(_, _, _, _, _) | OperationType::BitNot(_, _, _, _) |
+                            OperationType::BitLShift(_, _, _, _, _) | OperationType::BitRShift(_, _, _, _, _) |
+                            OperationType::BitAdd(_, _, _, _, _, _, _) | OperationType::BitSubtract(_, _, _, _, _, _, _) |
+                            OperationType::BitSetInt(_, _, _, _, _) => {
+                                has_write_op = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                    for op in ops {
+                        let core_op = match op {
+                            OperationType::Get() => {
+                                operations::get()
+                            }
+                            OperationType::GetBin(bin_name) => {
+                                operations::get_bin(&bin_name)
+                            }
+                            OperationType::GetHeader() => {
+                                operations::get_header()
+                            }
+                            OperationType::Put(_, _) => {
+                                let op = operations::put(&bin_storage[bin_idx]);
+                                bin_idx += 1;
+                                op
+                            }
+                            OperationType::Add(_, _) => {
+                                let op = operations::add(&bin_storage[bin_idx]);
+                                bin_idx += 1;
+                                op
+                            }
+                            OperationType::Append(_, _) => {
+                                let op = operations::append(&bin_storage[bin_idx]);
+                                bin_idx += 1;
+                                op
+                            }
+                            OperationType::Prepend(_, _) => {
+                                let op = operations::prepend(&bin_storage[bin_idx]);
+                                bin_idx += 1;
+                                op
+                            }
+                            OperationType::Delete() => {
+                                operations::delete()
+                            }
+                            OperationType::Touch() => {
+                                operations::touch()
+                            }
+                            OperationType::ListGet(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::get(bin_name, *index)
+                            }
+                            OperationType::ListSize(bin_name) => {
+                                use aerospike_core::operations::lists;
+                                lists::size(bin_name)
+                            }
+                            OperationType::ListPop(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::pop(bin_name, *index)
+                            }
+                            OperationType::ListClear(bin_name) => {
+                                use aerospike_core::operations::lists;
+                                lists::clear(bin_name)
+                            }
+                            OperationType::ListGetRange(bin_name, index, count) => {
+                                use aerospike_core::operations::lists;
+                                lists::get_range(bin_name, *index, *count)
+                            }
+                            OperationType::ListSet(bin_name, index, _) => {
+                                use aerospike_core::operations::lists;
+                                let op = lists::set(bin_name, *index, &value_storage[value_idx]);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListRemove(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::remove(bin_name, *index)
+                            }
+                            OperationType::ListRemoveRange(bin_name, index, count) => {
+                                use aerospike_core::operations::lists;
+                                lists::remove_range(bin_name, *index, *count)
+                            }
+                            OperationType::ListGetRangeFrom(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::get_range_from(bin_name, *index)
+                            }
+                            OperationType::ListPopRange(bin_name, index, count) => {
+                                use aerospike_core::operations::lists;
+                                lists::pop_range(bin_name, *index, *count)
+                            }
+                            OperationType::ListPopRangeFrom(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::pop_range_from(bin_name, *index)
+                            }
+                            OperationType::ListRemoveRangeFrom(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::remove_range_from(bin_name, *index)
+                            }
+                            OperationType::ListTrim(bin_name, index, count) => {
+                                use aerospike_core::operations::lists;
+                                lists::trim(bin_name, *index, *count)
+                            }
+                            OperationType::ListAppend(bin_name, _, policy) => {
+                                use aerospike_core::operations::lists;
+                                let op = lists::append(&policy._as, bin_name, &value_storage[value_idx]);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListAppendItems(bin_name, values, policy) => {
+                                use aerospike_core::operations::lists;
+                                let values_slice: &[aerospike_core::Value] = &value_storage[value_idx..value_idx + values.len()];
+                                let op = lists::append_items(&policy._as, bin_name, values_slice);
+                                value_idx += values.len();
+                                op
+                            }
+                            OperationType::ListInsert(bin_name, index, _, policy) => {
+                                use aerospike_core::operations::lists;
+                                let op = lists::insert(&policy._as, bin_name, *index, &value_storage[value_idx]);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListInsertItems(bin_name, index, values, policy) => {
+                                use aerospike_core::operations::lists;
+                                let values_slice: &[aerospike_core::Value] = &value_storage[value_idx..value_idx + values.len()];
+                                let op = lists::insert_items(&policy._as, bin_name, *index, values_slice);
+                                value_idx += values.len();
+                                op
+                            }
+                            OperationType::ListIncrement(bin_name, index, value, policy) => {
+                                use aerospike_core::operations::lists;
+                                lists::increment(&policy._as, bin_name, *index, *value)
+                            }
+                            OperationType::ListSort(bin_name, flags) => {
+                                use aerospike_core::operations::lists;
+                                let core_flags: aerospike_core::operations::lists::ListSortFlags = flags.into();
+                                lists::sort(bin_name, core_flags)
+                            }
+                            OperationType::ListSetOrder(bin_name, order) => {
+                                use aerospike_core::operations::lists;
+                                let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                                lists::set_order(bin_name, core_order, &[])
+                            }
+                            OperationType::ListGetByIndex(bin_name, index, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                lists::get_by_index(bin_name, *index, core_return_type)
+                            }
+                            OperationType::ListGetByIndexRange(bin_name, index, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                match count {
+                                    Some(c) => lists::get_by_index_range_count(bin_name, *index, *c, core_return_type),
+                                    None => lists::get_by_index_range(bin_name, *index, core_return_type),
+                                }
+                            }
+                            OperationType::ListGetByRank(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                lists::get_by_rank(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::ListGetByRankRange(bin_name, rank, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                match count {
+                                    Some(c) => lists::get_by_rank_range_count(bin_name, *rank, *c, core_return_type),
+                                    None => lists::get_by_rank_range(bin_name, *rank, core_return_type),
+                                }
+                            }
+                            OperationType::ListGetByValue(bin_name, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::get_by_value(bin_name, value, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListGetByValueRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::get_by_value_range(bin_name, begin, end, core_return_type);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::ListGetByValueList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let values = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::get_by_value_list(bin_name, values, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::ListGetByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => lists::get_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                    None => lists::get_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListRemoveByIndex(bin_name, index, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                lists::remove_by_index(bin_name, *index, core_return_type)
+                            }
+                            OperationType::ListRemoveByIndexRange(bin_name, index, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                match count {
+                                    Some(c) => lists::remove_by_index_range_count(bin_name, *index, *c, core_return_type),
+                                    None => lists::remove_by_index_range(bin_name, *index, core_return_type),
+                                }
+                            }
+                            OperationType::ListRemoveByRank(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                lists::remove_by_rank(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::ListRemoveByRankRange(bin_name, rank, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                match count {
+                                    Some(c) => lists::remove_by_rank_range_count(bin_name, *rank, *c, core_return_type),
+                                    None => lists::remove_by_rank_range(bin_name, *rank, core_return_type),
+                                }
+                            }
+                            OperationType::ListRemoveByValue(bin_name, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::remove_by_value(bin_name, value, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListRemoveByValueList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let values = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::remove_by_value_list(bin_name, values, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::ListRemoveByValueRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = lists::remove_by_value_range(bin_name, core_return_type, begin, end);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::ListRemoveByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                                use aerospike_core::operations::lists;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::lists::ListReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => lists::remove_by_value_relative_rank_range_count(bin_name, core_return_type, value, *rank, *c),
+                                    None => lists::remove_by_value_relative_rank_range(bin_name, core_return_type, value, *rank),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListCreate(bin_name, order, pad, _persist_index) => {
+                                use aerospike_core::operations::lists;
+                                let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                                lists::create(bin_name, core_order, *pad)
+                            }
+                            OperationType::MapSize(bin_name) => {
+                                use aerospike_core::operations::maps;
+                                maps::size(bin_name)
+                            }
+                            OperationType::MapClear(bin_name) => {
+                                use aerospike_core::operations::maps;
+                                maps::clear(bin_name)
+                            }
+                            OperationType::MapPut(bin_name, _, _, policy) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let value = &value_storage[value_idx + 1];
+                                let op = maps::put(&policy._as, bin_name, key, value);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapPutItems(bin_name, _, policy) => {
+                                use aerospike_core::operations::maps;
+                                let op = maps::put_items(&policy._as, bin_name, &map_storage[map_idx]);
+                                map_idx += 1;
+                                op
+                            }
+                            OperationType::MapIncrementValue(bin_name, _, _value, policy) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let incr_value = &value_storage[value_idx + 1];
+                                let op = maps::increment_value(&policy._as, bin_name, key, incr_value);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapDecrementValue(bin_name, _, _value, policy) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let decr_value = &value_storage[value_idx + 1];
+                                let op = maps::decrement_value(&policy._as, bin_name, key, decr_value);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapGetByKey(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_key(bin_name, key, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByKey(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_key(bin_name, key, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapGetByKeyRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_key_range(bin_name, begin, end, core_return_type);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapRemoveByKeyRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_key_range(bin_name, begin, end, core_return_type);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapGetByIndex(bin_name, index, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_index(bin_name, *index, core_return_type)
+                            }
+                            OperationType::MapRemoveByIndex(bin_name, index, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_index(bin_name, *index, core_return_type)
+                            }
+                            OperationType::MapGetByIndexRange(bin_name, index, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_index_range(bin_name, *index, *count, core_return_type)
+                            }
+                            OperationType::MapRemoveByIndexRange(bin_name, index, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_index_range(bin_name, *index, *count, core_return_type)
+                            }
+                            OperationType::MapGetByIndexRangeFrom(bin_name, index, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_index_range_from(bin_name, *index, core_return_type)
+                            }
+                            OperationType::MapRemoveByIndexRangeFrom(bin_name, index, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_index_range_from(bin_name, *index, core_return_type)
+                            }
+                            OperationType::MapGetByRank(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_rank(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::MapRemoveByRank(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_rank(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::MapGetByRankRange(bin_name, rank, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_rank_range(bin_name, *rank, *count, core_return_type)
+                            }
+                            OperationType::MapRemoveByRankRange(bin_name, rank, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_rank_range(bin_name, *rank, *count, core_return_type)
+                            }
+                            OperationType::MapGetByRankRangeFrom(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::get_by_rank_range_from(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::MapRemoveByRankRangeFrom(bin_name, rank, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                maps::remove_by_rank_range_from(bin_name, *rank, core_return_type)
+                            }
+                            OperationType::MapGetByValue(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_value(bin_name, value, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByValue(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_value(bin_name, value, core_return_type);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapGetByValueRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_value_range(bin_name, begin, end, core_return_type);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapRemoveByValueRange(bin_name, _, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let begin = &value_storage[value_idx];
+                                let end = &value_storage[value_idx + 1];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_value_range(bin_name, begin, end, core_return_type);
+                                value_idx += 2;
+                                op
+                            }
+                            OperationType::MapGetByKeyList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let keys = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_key_list(bin_name, keys, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByKeyList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let keys = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_key_list(bin_name, keys, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::MapGetByValueList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let values = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::get_by_value_list(bin_name, values, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByValueList(bin_name, _, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let values = &list_storage[list_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = maps::remove_by_value_list(bin_name, values, core_return_type);
+                                list_idx += 1;
+                                op
+                            }
+                            OperationType::MapSetMapPolicy(bin_name, policy) => {
+                                use aerospike_core::operations::maps;
+                                let core_order = policy._as.order;
+                                maps::set_order(bin_name, core_order)
+                            }
+                            OperationType::MapGetByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => maps::get_by_key_relative_index_range_count(bin_name, key, *index, *c, core_return_type),
+                                    None => maps::get_by_key_relative_index_range(bin_name, key, *index, core_return_type),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapGetByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => maps::get_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                    None => maps::get_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let key = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => maps::remove_by_key_relative_index_range_count(bin_name, key, *index, *c, core_return_type),
+                                    None => maps::remove_by_key_relative_index_range(bin_name, key, *index, core_return_type),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapRemoveByValueRelativeRankRange(bin_name, _, rank, count, return_type) => {
+                                use aerospike_core::operations::maps;
+                                let value = &value_storage[value_idx];
+                                let core_return_type: aerospike_core::operations::maps::MapReturnType = return_type.into();
+                                let op = match count {
+                                    Some(c) => maps::remove_by_value_relative_rank_range_count(bin_name, value, *rank, *c, core_return_type),
+                                    None => maps::remove_by_value_relative_rank_range(bin_name, value, *rank, core_return_type),
+                                };
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::MapCreate(bin_name, order) => {
+                                use aerospike_core::operations::maps;
+                                let core_order: aerospike_core::operations::maps::MapOrder = order.into();
+                                maps::set_order(bin_name, core_order)
+                            }
+                            OperationType::BitResize(bin_name, byte_size, resize_flags, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let flags = resize_flags.map(|f| f.into());
+                                bitwise::resize(bin_name, *byte_size, flags, &policy._as)
+                            }
+                            OperationType::BitInsert(bin_name, byte_offset, _, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let value = &value_storage[value_idx];
+                                let op = bitwise::insert(bin_name, *byte_offset, value, &policy._as);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::BitRemove(bin_name, byte_offset, byte_size, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::remove(bin_name, *byte_offset, *byte_size, &policy._as)
+                            }
+                            OperationType::BitSet(bin_name, bit_offset, bit_size, _, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let value = &value_storage[value_idx];
+                                let op = bitwise::set(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::BitOr(bin_name, bit_offset, bit_size, _, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let value = &value_storage[value_idx];
+                                let op = bitwise::or(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::BitXor(bin_name, bit_offset, bit_size, _, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let value = &value_storage[value_idx];
+                                let op = bitwise::xor(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::BitAnd(bin_name, bit_offset, bit_size, _, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let value = &value_storage[value_idx];
+                                let op = bitwise::and(bin_name, *bit_offset, *bit_size, value, &policy._as);
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::BitNot(bin_name, bit_offset, bit_size, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::not(bin_name, *bit_offset, *bit_size, &policy._as)
+                            }
+                            OperationType::BitLShift(bin_name, bit_offset, bit_size, shift, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::lshift(bin_name, *bit_offset, *bit_size, *shift, &policy._as)
+                            }
+                            OperationType::BitRShift(bin_name, bit_offset, bit_size, shift, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::rshift(bin_name, *bit_offset, *bit_size, *shift, &policy._as)
+                            }
+                            OperationType::BitAdd(bin_name, bit_offset, bit_size, value, signed, action, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let core_action: aerospike_core::operations::bitwise::BitwiseOverflowActions = (*action).into();
+                                bitwise::add(bin_name, *bit_offset, *bit_size, *value, *signed, core_action, &policy._as)
+                            }
+                            OperationType::BitSubtract(bin_name, bit_offset, bit_size, value, signed, action, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                let core_action: aerospike_core::operations::bitwise::BitwiseOverflowActions = (*action).into();
+                                bitwise::subtract(bin_name, *bit_offset, *bit_size, *value, *signed, core_action, &policy._as)
+                            }
+                            OperationType::BitSetInt(bin_name, bit_offset, bit_size, value, policy) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::set_int(bin_name, *bit_offset, *bit_size, *value, &policy._as)
+                            }
+                            OperationType::BitGet(bin_name, bit_offset, bit_size) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::get(bin_name, *bit_offset, *bit_size)
+                            }
+                            OperationType::BitCount(bin_name, bit_offset, bit_size) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::count(bin_name, *bit_offset, *bit_size)
+                            }
+                            OperationType::BitLScan(bin_name, bit_offset, bit_size, value) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::lscan(bin_name, *bit_offset, *bit_size, *value)
+                            }
+                            OperationType::BitRScan(bin_name, bit_offset, bit_size, value) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::rscan(bin_name, *bit_offset, *bit_size, *value)
+                            }
+                            OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed) => {
+                                use aerospike_core::operations::bitwise;
+                                bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
+                            }
+                        };
+                        core_ops.push(core_op);
+                    }
+                    // Use BatchOperation::read_ops() if all operations are read-only, otherwise use write()
+                    let batch_op = if has_write_op {
+                        BatchOperation::write(&write_policy, key, core_ops)
+                    } else {
+                        BatchOperation::read_ops(&read_policy, key, core_ops)
+                    };
+                    batch_ops.push(batch_op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
+        /// Delete multiple records for specified keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        pub fn batch_delete<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            delete_policy: Option<&BatchDeletePolicy>,
+            keys: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let delete_policy = delete_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+
+                let mut batch_ops = Vec::new();
+                for key in keys {
+                    let op = BatchOperation::delete(&delete_policy, key);
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
+        /// Check if multiple record keys exist in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[builtins.bool]]", imports=("typing", "builtins")))]
+        pub fn batch_exists<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::Bins;
+
+                let mut batch_ops = Vec::new();
+                for key in keys {
+                    let op = BatchOperation::read(&read_policy, key, Bins::None);
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let exists_list: Vec<bool> = results
+                        .into_iter()
+                        .map(|br| br.record.is_some())
+                        .collect();
+                    Ok(exists_list)
+                })
+            })
+        }
+
+        /// Read multiple record headers (metadata only, no bin data) for specified keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[typing.Optional[Record]]]", imports=("typing")))]
+        pub fn batch_get_header<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::Bins;
+
+                let mut batch_ops = Vec::new();
+                for key in keys {
+                    let op = BatchOperation::read(&read_policy, key, Bins::None);
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let records: Vec<Option<Record>> = results
+                        .into_iter()
+                        .map(|br| br.record.map(|r| Record { _as: r }))
+                        .collect();
+                    Ok(records)
+                })
+            })
+        }
+
+        /// Apply UDF operations on multiple keys in one batch call.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        pub fn batch_apply<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            udf_policy: Option<&BatchUDFPolicy>,
+            keys: Vec<Py<PyAny>>,
+            udf_name: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let udf_policy = udf_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Extract Key objects from Python list
+            let mut rust_keys = Vec::new();
+            for key_obj in keys {
+                Python::attach(|py| {
+                    let key = key_obj.extract::<PyRef<Key>>(py)?;
+                    rust_keys.push(key._as.clone());
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+            let keys = rust_keys;
+
+            // Convert args before moving into async block
+            let rust_args = args.map(|args| {
+                args.into_iter()
+                    .map(|v| v.into())
+                    .collect::<Vec<aerospike_core::Value>>()
+            });
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+
+                let mut batch_ops = Vec::new();
+                for key in keys {
+                    let rust_args_ref = rust_args.as_ref().map(|a| a.as_slice());
+                    let op = BatchOperation::udf(&udf_policy, key, &udf_name, &function_name, rust_args_ref);
+                    batch_ops.push(op);
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
         /// Determine if a record key exists. The policy can be used to specify timeouts.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         pub fn exists<'a>(
@@ -8659,6 +10347,12 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
     m.add_class::<QueryPolicy>()?;
+    m.add_class::<BatchRecord>()?;
+    m.add_class::<BatchPolicy>()?;
+    m.add_class::<BatchReadPolicy>()?;
+    m.add_class::<BatchWritePolicy>()?;
+    m.add_class::<BatchDeletePolicy>()?;
+    m.add_class::<BatchUDFPolicy>()?;
     m.add_class::<ListOrderType>()?;
     m.add_class::<ListWriteFlags>()?;
     m.add_class::<ListPolicy>()?;

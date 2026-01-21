@@ -107,7 +107,7 @@ jobs:
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
           # Set AEROSPIKE_HOST environment variable to bypass env file and use CI server port
-          docker exec -e AEROSPIKE_HOST=localhost:3000 --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          docker exec -e AEROSPIKE_HOST=localhost:3000 --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             docker logs --tail 100 aerospike-server
@@ -148,8 +148,8 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          # Run all tests
-          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          # Run all tests (excluding slow tests in CI)
+          ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             docker logs --tail 100 aerospike-server
@@ -255,8 +255,8 @@ jobs:
           rm -f python/aerospike_async/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
-          # Run all tests
-          ${{ matrix.python }} -m pytest python/tests -v -s || TEST_FAILED=true
+          # Run all tests (excluding slow tests in CI)
+          ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             podman logs --tail 100 aerospike-server

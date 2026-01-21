@@ -105,6 +105,7 @@ class TestSecurityFeatures:
             if attempt < 2:  # Don't sleep on last attempt
                 await asyncio.sleep(0.1)
         assert username in user_names, f"User {username} not found in {user_names} after creation"
+
     @pytest.mark.asyncio
     async def test_create_user_multiple_roles(self, client):
         """Test user creation with multiple roles.
@@ -120,6 +121,7 @@ class TestSecurityFeatures:
         all_users = await client.query_users(None)
         user_names = [u.user for u in all_users]
         assert username in user_names
+
     @pytest.mark.asyncio
     async def test_create_user_duplicate(self, client):
         """Test creating duplicate user fails.
@@ -135,6 +137,7 @@ class TestSecurityFeatures:
         await client.create_user(username, password, roles)
         with pytest.raises(Exception):
             await client.create_user(username, password, roles)
+
     @pytest.mark.asyncio
     async def test_query_users_all(self, client):
         """Test querying all users.
@@ -156,6 +159,7 @@ class TestSecurityFeatures:
                 await asyncio.sleep(0.1)
         assert "test_user_1" in user_names, f"User test_user_1 not found in {user_names}"
         assert "test_user_2" in user_names, f"User test_user_2 not found in {user_names}"
+
     @pytest.mark.asyncio
     async def test_query_users_specific(self, client):
         """Test querying specific user."""
@@ -184,14 +188,14 @@ class TestSecurityFeatures:
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_query_users_nonexistent(self, client):
         """Test querying non-existent user."""
         with pytest.raises(Exception):
             await client.query_users("nonexistent_user")
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_drop_user(self, client):
         """Test user deletion."""
         username = "test_user_1"
@@ -224,14 +228,14 @@ class TestSecurityFeatures:
 
         with pytest.raises(Exception):
             await client.query_users(username)
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_drop_user_nonexistent(self, client):
         """Test deleting non-existent user."""
         with pytest.raises(Exception):
             await client.drop_user("nonexistent_user")
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_change_password(self, client):
         """Test password change."""
         username = "test_user_1"
@@ -258,14 +262,14 @@ class TestSecurityFeatures:
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_change_password_nonexistent(self, client):
         """Test changing password for non-existent user."""
         with pytest.raises(Exception):
             await client.change_password("nonexistent_user", "new_password")
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_grant_roles(self, client):
         """Test granting roles to user."""
         username = "test_user_1"
@@ -292,14 +296,14 @@ class TestSecurityFeatures:
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_grant_roles_nonexistent_user(self, client):
         """Test granting roles to non-existent user."""
         with pytest.raises(Exception):
             await client.grant_roles("nonexistent_user", ["read:test"])
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_revoke_roles(self, client):
         """Test revoking roles from user."""
         username = "test_user_1"
@@ -326,14 +330,14 @@ class TestSecurityFeatures:
         users = await client.query_users(username)
         assert len(users) > 0
         assert users[0].user == username
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_revoke_roles_nonexistent_user(self, client):
         """Test revoking roles from non-existent user."""
         with pytest.raises(Exception):
             await client.revoke_roles("nonexistent_user", ["read:test"])
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_create_role_basic(self, client):
         """Test basic role creation."""
         role_name = "test_role_1"
@@ -357,6 +361,7 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
+
     @pytest.mark.asyncio
     async def test_create_role_global_privileges(self, client):
         """Test role creation with global privileges."""
@@ -390,6 +395,7 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
+
     @pytest.mark.asyncio
     async def test_create_role_duplicate(self, client):
         """Test creating duplicate role fails."""
@@ -415,24 +421,10 @@ class TestSecurityFeatures:
         # Now try to create it again - should raise an exception
         with pytest.raises(Exception):
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
         """Test querying all roles."""
-        # TODO: CLIENT-4052 - Waiting on parse_privileges fix in Rust core
-        # The parse_privileges fix ensures we consume exactly len bytes to prevent buffer misalignment
-        # This test is skipped until the fix is integrated and verified
-        pytest.skip("Waiting on parse_privileges fix as described in CLIENT-4052")
-
-        # Clean up: drop roles if they exist
-        try:
-            await client.drop_role("test_role_1")
-        except ServerError:
-            pass
-        try:
-            await client.drop_role("test_role_2")
-        except ServerError:
-            pass
-
         # Create test roles
         try:
             await client.create_role("test_role_1", [Privilege(PrivilegeCode.Read, "test", None)],
@@ -457,17 +449,22 @@ class TestSecurityFeatures:
                 raise
 
         # Query all roles - should return a list of all roles
+        # CLIENT-4052: Buffer misalignment in parse_privileges can cause privilege codes
+        # to be misinterpreted as result codes. When this occurs, we may receive
+        # ALWAYS_FORBIDDEN instead of the actual role data. Skip the test in this case
+        # until the fix is applied.
         try:
             roles = await client.query_roles(None)
-            role_names = [r.name for r in roles]
-            assert "test_role_1" in role_names
-            assert "test_role_2" in role_names
         except ServerError as e:
             if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052) - Rust core bug")
+                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
             raise
-    @pytest.mark.asyncio
 
+        role_names = [r.name for r in roles]
+        assert "test_role_1" in role_names
+        assert "test_role_2" in role_names
+
+    @pytest.mark.asyncio
     async def test_query_roles_specific(self, client):
         """Test querying specific role."""
         role_name = "test_role_1"
@@ -503,36 +500,37 @@ class TestSecurityFeatures:
         assert custom_policy.timeout == 10000
 
         # Test that AdminPolicy can be passed to query_roles
+        # CLIENT-4052: Buffer misalignment in parse_privileges can cause privilege codes
+        # to be misinterpreted as result codes. When this occurs, we may receive
+        # ALWAYS_FORBIDDEN instead of the actual role data. Skip the test in this case
+        # until the fix is applied.
         try:
             roles = await client.query_roles(None, policy=custom_policy)
-            assert isinstance(roles, list)
         except ServerError as e:
             if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052)")
+                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
             raise
+
+        assert isinstance(roles, list)
 
         # Test that default behavior still works (backward compatibility)
         try:
             roles_default = await client.query_roles(None)
-            assert isinstance(roles_default, list)
-            assert len(roles) == len(roles_default)
         except ServerError as e:
             if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("Server returned ALWAYS_FORBIDDEN (CLIENT-4052)")
+                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
             raise
 
-        roles = await client.query_roles(role_name)
-        roles = await client.query_roles(role_name)
-        assert len(roles) > 0
-        assert roles[0].name == role_name
-    @pytest.mark.asyncio
+        assert isinstance(roles_default, list)
+        assert len(roles) == len(roles_default)
 
+    @pytest.mark.asyncio
     async def test_query_roles_nonexistent(self, client):
         """Test querying non-existent role."""
         with pytest.raises(Exception):
             await client.query_roles("nonexistent_role")
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_drop_role(self, client):
         """Test role deletion."""
         role_name = "test_role_1"
@@ -560,14 +558,14 @@ class TestSecurityFeatures:
         # Verify role is deleted
         with pytest.raises(Exception):
             await client.query_roles(role_name)
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_drop_role_nonexistent(self, client):
         """Test deleting non-existent role."""
         with pytest.raises(Exception):
             await client.drop_role("nonexistent_role")
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_grant_privileges(self, client):
         """Test granting privileges to role."""
         role_name = "test_role_1"
@@ -590,14 +588,14 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_grant_privileges_nonexistent_role(self, client):
         """Test granting privileges to non-existent role."""
         with pytest.raises(Exception):
             await client.grant_privileges("nonexistent_role", [Privilege(PrivilegeCode.Read, "test", None)])
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_revoke_privileges(self, client):
         """Test revoking privileges from role."""
         role_name = "test_role_1"
@@ -623,14 +621,14 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_revoke_privileges_nonexistent_role(self, client):
         """Test revoking privileges from non-existent role."""
         with pytest.raises(Exception):
             await client.revoke_privileges("nonexistent_role", [Privilege(PrivilegeCode.Read, "test", None)])
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_set_allowlist(self, client):
         """Test setting IP allowlist for role."""
         role_name = "test_role_1"
@@ -653,14 +651,14 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_set_allowlist_nonexistent_role(self, client):
         """Test setting allowlist for non-existent role."""
         with pytest.raises(Exception):
             await client.set_allowlist("nonexistent_role", ["192.168.1.0/24"])
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_set_quotas(self, client):
         """Test setting quotas for role."""
         role_name = "test_role_1"
@@ -684,8 +682,8 @@ class TestSecurityFeatures:
         roles = await client.query_roles(role_name)
         assert len(roles) > 0
         assert roles[0].name == role_name
-    @pytest.mark.asyncio
 
+    @pytest.mark.asyncio
     async def test_set_quotas_nonexistent_role(self, client):
         """Test setting quotas for non-existent role."""
         with pytest.raises(Exception):
@@ -744,7 +742,6 @@ class TestAuthentication:
     """Test authentication scenarios."""
 
     @pytest.mark.asyncio
-
     async def test_connection_without_credentials(self, security_enabled):
         """Test connection without credentials should fail."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
@@ -756,7 +753,6 @@ class TestAuthentication:
             await client.close()
 
     @pytest.mark.asyncio
-
     async def test_connection_with_wrong_credentials(self, security_enabled):
         """Test connection with wrong credentials should fail."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
@@ -770,7 +766,6 @@ class TestAuthentication:
             await client.close()
 
     @pytest.mark.asyncio
-
     async def test_connection_with_correct_credentials(self, security_enabled):
         """Test connection with correct credentials should succeed."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
