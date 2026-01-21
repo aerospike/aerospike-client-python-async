@@ -13,7 +13,7 @@ use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyException, PyIndexError, PyKeyError, PyValueError};
 use pyo3::exceptions::{PyStopAsyncIteration, PyTypeError};
 use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
-use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::{prelude::*, Borrowed, IntoPyObjectExt};
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
 use pyo3_stub_gen::{
@@ -7389,7 +7389,7 @@ pub enum Replica {
                     let key = key_obj.extract::<PyRef<Key>>(py)?;
                     rust_keys.push(key._as.clone());
 
-                    let bins_dict = bins_obj.bind(py).downcast::<pyo3::types::PyDict>()?;
+                    let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
                     let mut bin_vec = Vec::new();
                     for (py_key, py_val) in bins_dict.iter() {
                         let name = py_key.extract::<String>().map_err(|_| {
@@ -9249,7 +9249,7 @@ pub enum Replica {
         fn __richcmp__<'a>(&self, other: &Bound<'a, PyAny>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<Blob> = other.extract();
+                    let l: Result<Blob, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
@@ -9262,7 +9262,7 @@ pub enum Replica {
                     false
                 }
                 CompareOp::Ne => {
-                    let l: PyResult<Blob> = other.extract();
+                    let l: Result<Blob, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
@@ -9423,7 +9423,7 @@ pub enum Replica {
         fn __richcmp__<'a>(&self, other: &Bound<'a, PyAny>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<Map> = other.extract();
+                    let l: Result<Map, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
@@ -9436,7 +9436,7 @@ pub enum Replica {
                     false
                 }
                 CompareOp::Ne => {
-                    let l: PyResult<Map> = other.extract();
+                    let l: Result<Map, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
@@ -9636,7 +9636,7 @@ pub enum Replica {
         fn __richcmp__<'a>(&self, other: &Bound<'a, PyAny>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<List> = other.extract();
+                    let l: Result<List, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
@@ -9649,7 +9649,7 @@ pub enum Replica {
                     false
                 }
                 CompareOp::Ne => {
-                    let l: PyResult<List> = other.extract();
+                    let l: Result<List, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
@@ -9723,7 +9723,7 @@ pub enum Replica {
             }
 
             // Try to extract as dict and serialize to JSON
-            if let Ok(dict) = v.downcast::<PyDict>() {
+            if let Ok(dict) = v.cast::<PyDict>() {
                 // Use Python's json module to serialize the dict
                 let json_module = PyModule::import(py, "json")?;
                 let json_dumps = json_module.getattr("dumps")?;
@@ -9755,7 +9755,7 @@ pub enum Replica {
         fn __richcmp__<'a>(&self, other: &Bound<'a, PyAny>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<GeoJSON> = other.extract();
+                    let l: Result<GeoJSON, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
@@ -9768,7 +9768,7 @@ pub enum Replica {
                     false
                 }
                 CompareOp::Ne => {
-                    let l: PyResult<GeoJSON> = other.extract();
+                    let l: Result<GeoJSON, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
@@ -9838,7 +9838,7 @@ pub enum Replica {
         fn __richcmp__<'a>(&self, other: &Bound<'a, PyAny>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => {
-                    let l: PyResult<HLL> = other.extract();
+                    let l: Result<HLL, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v == l.v;
                     }
@@ -9851,7 +9851,7 @@ pub enum Replica {
                     false
                 }
                 CompareOp::Ne => {
-                    let l: PyResult<HLL> = other.extract();
+                    let l: Result<HLL, _> = other.extract();
                     if let Ok(l) = l {
                         return self.v != l.v;
                     }
@@ -9995,79 +9995,81 @@ pub enum Replica {
         }
     }
 
-    impl<'source> FromPyObject<'source> for PythonValue {
-        fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+    impl<'a, 'py> FromPyObject<'a, 'py> for PythonValue {
+        type Error = PyErr;
+
+        fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
             // Handle None first - check if the object is None
-            if ob.is_none() {
+            if obj.is_none() {
                 return Ok(PythonValue::Nil);
             }
 
-            let b: PyResult<bool> = ob.extract();
+            let b: PyResult<bool> = obj.extract();
             if let Ok(b) = b {
                 return Ok(PythonValue::Bool(b));
             }
 
             // Try to extract as integer - handle both i64 and large u64 values
             // First try i64 (most common case)
-            let i: PyResult<i64> = ob.extract();
+            let i: PyResult<i64> = obj.extract();
             if let Ok(i) = i {
                 return Ok(PythonValue::Int(i));
             }
 
             // For u64 values, convert to i64 (UInt has been removed from Rust core)
             // Values > i64::MAX will overflow, but this matches Rust core behavior
-            let ui: PyResult<u64> = ob.extract();
+            let ui: PyResult<u64> = obj.extract();
             if let Ok(ui) = ui {
                 // Convert u64 to i64 (may overflow for values > i64::MAX)
                 return Ok(PythonValue::Int(ui as i64));
             }
 
-            let f1: PyResult<f64> = ob.extract();
+            let f1: PyResult<f64> = obj.extract();
             if let Ok(f1) = f1 {
                 return Ok(PythonValue::Float(ordered_float::OrderedFloat(f1)));
             }
 
-            let s: PyResult<String> = ob.extract();
+            let s: PyResult<String> = obj.extract();
             if let Ok(s) = s {
                 return Ok(PythonValue::String(s));
             }
 
             // Try to extract as bytearray
-            if let Ok(ba) = ob.downcast::<PyByteArray>() {
+            if let Ok(ba) = obj.cast::<PyByteArray>() {
                 return Ok(PythonValue::Blob(ba.to_vec()));
             }
 
             // Try to extract as bytes
-            if let Ok(bytes) = ob.downcast::<PyBytes>() {
+            if let Ok(bytes) = obj.cast::<PyBytes>() {
                 return Ok(PythonValue::Blob(bytes.as_bytes().to_vec()));
             }
 
-            let b: PyResult<Blob> = ob.extract();
+            let b: Result<Blob, _> = obj.extract();
             if let Ok(b) = b {
                 return Ok(PythonValue::Blob(b.v));
             }
 
-            let l: PyResult<Vec<PythonValue>> = ob.extract();
+            let l: PyResult<Vec<PythonValue>> = obj.extract();
             if let Ok(l) = l {
                 return Ok(PythonValue::List(l));
             }
 
-            let l: PyResult<List> = ob.extract();
+            let l: Result<List, _> = obj.extract();
             if let Ok(l) = l {
                 return Ok(PythonValue::List(l.v));
             }
 
-            let hm: PyResult<HashMap<PythonValue, PythonValue>> = ob.extract();
+            let hm: PyResult<HashMap<PythonValue, PythonValue>> = obj.extract();
             if let Ok(hm) = hm {
                 return Ok(PythonValue::HashMap(hm));
             }
 
-            let geo: PyResult<GeoJSON> = ob.extract();
+            let geo: Result<GeoJSON, _> = obj.extract();
             if let Ok(geo) = geo {
                 return Ok(PythonValue::GeoJSON(geo.v));
             }
 
-            let hll: PyResult<HLL> = ob.extract();
+            let hll: Result<HLL, _> = obj.extract();
             if let Ok(hll) = hll {
                 return Ok(PythonValue::HLL(hll.v));
             }
