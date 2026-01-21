@@ -3015,6 +3015,23 @@ pub enum Replica {
             }
         }
 
+        /// Get the record from this batch result.
+        ///
+        /// **Performance Note:** This method clones the Record data on each call.
+        /// The amount of data cloned depends on the record size (bins, metadata, etc.).
+        /// For optimal performance when accessing the record multiple times, cache the result in Python:
+        ///
+        /// results = await client.batch_read(bp, brp, keys, None)
+        /// for batch_record in results:
+        ///     record = batch_record.record  # Clone once
+        ///     if record:
+        ///         # Use record multiple times - no additional cloning
+        ///         bins = record.bins
+        ///         key = record.key
+        ///         generation = record.generation
+        ///
+        /// Returns:
+        ///     Optional[Record]: The record if present, None otherwise.
         #[getter]
         pub fn get_record(&self) -> Option<Record> {
             self._as.record.as_ref().map(|r| Record { _as: r.clone() })
