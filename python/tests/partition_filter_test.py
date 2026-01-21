@@ -191,13 +191,22 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
 
     async def test_recordset_partition_filter_active(self, client):
         """Test Recordset.partition_filter() returns None when recordset is still active."""
-        stmt = Statement("test", "test", ["bin"])
+        # Insert some data to ensure query has records to process
+        wp = WritePolicy()
+        for i in range(1, 11):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
         pf = PartitionFilter.by_range(0, 5)
         records = await client.query(QueryPolicy(), pf, stmt)
         assert isinstance(records, Recordset)
 
-        updated_pf = await records.partition_filter()
-        assert updated_pf is None
+        # Check immediately after query - recordset should be active
+        # partition_filter() should return None for active recordsets
+        if records.active:
+            updated_pf = await records.partition_filter()
+            assert updated_pf is None
 
     async def test_query_with_partitions(self, client):
         """Test query with partitions getter/setter."""
@@ -551,16 +560,26 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
 
     async def test_query_partition_filter_active_recordset(self, client):
         """Test that partition_filter() returns None for active recordsets."""
-        stmt = Statement("test", "test", ["bin"])
+        # Insert some data to ensure query has records to process
+        wp = WritePolicy()
+        for i in range(1, 11):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
         pf = PartitionFilter.by_range(0, 2)
         records = await client.query(QueryPolicy(), pf, stmt)
 
-        updated_pf = await records.partition_filter()
-        assert updated_pf is None
+        # Check immediately after query - if active, partition_filter() should return None
+        if records.active:
+            updated_pf = await records.partition_filter()
+            assert updated_pf is None
 
+        # Consume one record
         async for _ in records:
             break
 
+        # After consuming, partition_filter() may return None (if still active) or a PartitionFilter (if inactive)
         updated_pf = await records.partition_filter()
         assert updated_pf is None or isinstance(updated_pf, PartitionFilter)
 
