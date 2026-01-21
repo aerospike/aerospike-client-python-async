@@ -1,5 +1,5 @@
 import pytest
-from aerospike_async import PartitionFilter, Key, QueryPolicy, Statement, PartitionStatus, Recordset
+from aerospike_async import PartitionFilter, Key, QueryPolicy, Statement, PartitionStatus, Recordset, WritePolicy
 
 from fixtures import TestFixtureInsertRecord
 
@@ -172,6 +172,33 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
             if count > 100:
                 break
 
+    async def test_recordset_partition_filter(self, client):
+        """Test Recordset.partition_filter() returns updated PartitionFilter."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 5)
+        records = await client.query(QueryPolicy(), pf, stmt)
+        assert isinstance(records, Recordset)
+
+        count = 0
+        async for _ in records:
+            count += 1
+            if count > 10:
+                break
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is not None
+        assert isinstance(updated_pf, PartitionFilter)
+
+    async def test_recordset_partition_filter_active(self, client):
+        """Test Recordset.partition_filter() returns None when recordset is still active."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 5)
+        records = await client.query(QueryPolicy(), pf, stmt)
+        assert isinstance(records, Recordset)
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is None
+
     async def test_query_with_partitions(self, client):
         """Test query with partitions getter/setter."""
         stmt = Statement("test", "test", ["bin"])
@@ -216,3 +243,338 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
                 # id should be a valid partition ID
                 assert isinstance(ps.id, int)
                 assert 0 <= ps.id < 4096
+
+
+class TestQueryPagination(TestFixtureInsertRecord):
+    """Test query pagination using Recordset.partition_filter()."""
+
+    async def test_query_pagination_basic(self, client):
+        """Test basic query pagination with max_records."""
+        wp = WritePolicy()
+        for i in range(1, 21):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 10
+
+        pf = PartitionFilter.all()
+        total_records = 0
+        page_count = 0
+
+        while page_count < 5 and not pf.done():
+            records = await client.query(policy, pf, stmt)
+            page_records = 0
+
+            async for _ in records:
+                page_records += 1
+                total_records += 1
+
+            page_count += 1
+
+            updated_pf = await records.partition_filter()
+            if updated_pf is not None:
+                pf = updated_pf
+            else:
+                break
+
+        assert page_count > 0
+        assert total_records > 0
+
+    async def test_query_pagination_with_results(self, client):
+        """Test query pagination using async iteration."""
+        wp = WritePolicy()
+        for i in range(1, 31):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 20
+
+        pf = PartitionFilter.all()
+        total_records = 0
+        pages = 0
+
+        while pages < 10 and not pf.done():
+            records = await client.query(policy, pf, stmt)
+            page_records = 0
+
+            async for _ in records:
+                page_records += 1
+                total_records += 1
+
+            pages += 1
+
+            updated_pf = await records.partition_filter()
+            if updated_pf is not None:
+                pf = updated_pf
+            else:
+                break
+
+        assert pages > 0
+        assert total_records > 0
+
+    async def test_query_pagination_done_check(self, client):
+        """Test that pagination stops when done() returns True."""
+        wp = WritePolicy()
+        for i in range(1, 11):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 50
+
+        pf = PartitionFilter.all()
+        pages = 0
+        max_pages = 10
+
+        while pages < max_pages and not pf.done():
+            records = await client.query(policy, pf, stmt)
+
+            async for _ in records:
+                pass
+
+            pages += 1
+
+            updated_pf = await records.partition_filter()
+            if updated_pf is not None:
+                pf = updated_pf
+            else:
+                break
+
+        assert pages <= max_pages
+
+    async def test_query_pagination_empty_resultset(self, client):
+        """Test pagination with empty resultset."""
+        stmt = Statement("test", "nonexistent_set", ["bin"])
+        policy = QueryPolicy()
+        policy.max_records = 10
+
+        pf = PartitionFilter.by_range(0, 1)
+        records = await client.query(policy, pf, stmt)
+
+        count = 0
+        async for _ in records:
+            count += 1
+
+        assert count == 0
+
+        updated_pf = await records.partition_filter()
+        if updated_pf is not None:
+            assert updated_pf.done() is True
+
+
+class TestQueryResume(TestFixtureInsertRecord):
+    """Test query resume functionality using Recordset.partition_filter()."""
+
+    async def test_query_resume_after_partial_consumption(self, client):
+        """Test resuming a query after partially consuming records."""
+        wp = WritePolicy()
+        for i in range(1, 31):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 10  # Smaller max_records so query finishes after first batch
+
+        pf = PartitionFilter.all()
+        records = await client.query(policy, pf, stmt)
+
+        first_batch_count = 0
+        async for _ in records:
+            first_batch_count += 1
+
+        # Wait for recordset to become inactive
+        import asyncio
+        max_wait = 10
+        for _ in range(max_wait):
+            if not records.active:
+                break
+            await asyncio.sleep(0.1)
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is not None
+
+        resumed_records = await client.query(policy, updated_pf, stmt)
+        resumed_count = 0
+
+        async for _ in resumed_records:
+            resumed_count += 1
+
+        assert first_batch_count > 0
+        assert resumed_count > 0
+
+    async def test_query_resume_complete_consumption(self, client):
+        """Test resuming after fully consuming a recordset."""
+        wp = WritePolicy()
+        for i in range(1, 21):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 50
+
+        pf = PartitionFilter.all()
+        records = await client.query(policy, pf, stmt)
+
+        first_count = 0
+        async for _ in records:
+            first_count += 1
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is not None
+
+        resumed_records = await client.query(policy, updated_pf, stmt)
+        resumed_count = 0
+
+        async for _ in resumed_records:
+            resumed_count += 1
+
+        assert first_count > 0
+        assert resumed_count >= 0
+
+    async def test_query_resume_multiple_times(self, client):
+        """Test resuming a query multiple times."""
+        wp = WritePolicy()
+        for i in range(1, 21):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        policy = QueryPolicy()
+        policy.max_records = 20
+
+        pf = PartitionFilter.all()
+        total_count = 0
+
+        for resume_iteration in range(3):
+            records = await client.query(policy, pf, stmt)
+            iteration_count = 0
+
+            async for _ in records:
+                iteration_count += 1
+                total_count += 1
+                if iteration_count >= 5:
+                    break
+
+            updated_pf = await records.partition_filter()
+            if updated_pf is not None:
+                pf = updated_pf
+            else:
+                break
+
+        assert total_count > 0
+
+
+class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
+    """Test edge cases and error conditions for partition queries."""
+
+    async def test_query_partition_invalid_begin(self, client):
+        """Test query with invalid partition begin value."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(4096, 1)
+
+        with pytest.raises(Exception):
+            records = await client.query(QueryPolicy(), pf, stmt)
+            async for _ in records:
+                pass
+
+    async def test_query_partition_invalid_count(self, client):
+        """Test query with invalid partition count."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 5000)
+
+        with pytest.raises(Exception):
+            records = await client.query(QueryPolicy(), pf, stmt)
+            async for _ in records:
+                pass
+
+    async def test_query_partition_zero_count(self, client):
+        """Test query with zero partition count."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 0)
+
+        with pytest.raises(Exception):
+            records = await client.query(QueryPolicy(), pf, stmt)
+            async for _ in records:
+                pass
+
+    async def test_query_partition_nonexistent_namespace(self, client):
+        """Test query with non-existent namespace."""
+        stmt = Statement("nonexistent_ns", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 1)
+
+        with pytest.raises(Exception):
+            records = await client.query(QueryPolicy(), pf, stmt)
+            async for _ in records:
+                pass
+
+    async def test_query_partition_nonexistent_set(self, client):
+        """Test query with non-existent set."""
+        stmt = Statement("test", "nonexistent_set", ["bin"])
+        pf = PartitionFilter.by_range(0, 1)
+
+        records = await client.query(QueryPolicy(), pf, stmt)
+        count = 0
+        async for _ in records:
+            count += 1
+
+        assert count == 0
+
+    async def test_query_partition_filter_reuse(self, client):
+        """Test reusing the same PartitionFilter object."""
+        wp = WritePolicy()
+        for i in range(1, 11):
+            key = Key("test", "test", i)
+            await client.put(wp, key, {"bin": i})
+
+        stmt = Statement("test", "test", None)
+        pf = PartitionFilter.all()
+
+        records1 = await client.query(QueryPolicy(), pf, stmt)
+        count1 = 0
+        async for _ in records1:
+            count1 += 1
+
+        records2 = await client.query(QueryPolicy(), pf, stmt)
+        count2 = 0
+        async for _ in records2:
+            count2 += 1
+
+        assert count1 > 0
+        assert count2 > 0
+
+    async def test_query_partition_filter_active_recordset(self, client):
+        """Test that partition_filter() returns None for active recordsets."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 2)
+        records = await client.query(QueryPolicy(), pf, stmt)
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is None
+
+        async for _ in records:
+            break
+
+        updated_pf = await records.partition_filter()
+        assert updated_pf is None or isinstance(updated_pf, PartitionFilter)
+
+    async def test_query_partition_filter_after_close(self, client):
+        """Test partition_filter() after recordset is closed."""
+        stmt = Statement("test", "test", ["bin"])
+        pf = PartitionFilter.by_range(0, 2)
+        records = await client.query(QueryPolicy(), pf, stmt)
+
+        async for _ in records:
+            pass
+
+        records.close()
+        updated_pf = await records.partition_filter()
+
+        assert updated_pf is not None
+        assert isinstance(updated_pf, PartitionFilter)

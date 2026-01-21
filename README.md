@@ -98,7 +98,6 @@ make stubs
 *  Pipeline benchmarks: track performance between runs.
 *  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
 *  Next APIs:
-   - Batch operations
    - UDF operations
    - TLS configuration
    - Transactions
