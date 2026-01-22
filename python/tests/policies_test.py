@@ -1,6 +1,6 @@
 from aerospike_async import (
-    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy,
-    ConsistencyLevel, RecordExistsAction, GenerationPolicy, 
+    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy, BatchPolicy,
+    ConsistencyLevel, RecordExistsAction, GenerationPolicy,
     CommitLevel, Expiration, FilterExpression as fe
 )
 
@@ -489,3 +489,159 @@ class TestQueryPolicy:
         assert qp.replica == Replica.PREFER_RACK
         assert qp.base_policy.total_timeout == 10000
         assert qp.base_policy.max_retries == 5
+
+
+class TestBasePolicySync:
+    """Test that BasePolicy properties are synced between direct access and base_policy."""
+
+    def test_read_policy_base_policy_sync(self):
+        """Test that ReadPolicy direct property access syncs with base_policy."""
+        rp = ReadPolicy()
+
+        # Set properties directly on ReadPolicy
+        rp.total_timeout = 999
+        rp.max_retries = 5
+        rp.sleep_between_retries = 100
+        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        rp.socket_timeout = 2000
+
+        # Verify they're synced with base_policy
+        assert rp.total_timeout == 999
+        assert rp.base_policy.total_timeout == 999
+        assert rp.max_retries == 5
+        assert rp.base_policy.max_retries == 5
+        assert rp.sleep_between_retries == 100
+        assert rp.base_policy.sleep_between_retries == 100
+        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert rp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert rp.socket_timeout == 2000
+        assert rp.base_policy.socket_timeout == 2000
+
+    def test_write_policy_base_policy_sync(self):
+        """Test that WritePolicy direct property access syncs with base_policy."""
+        wp = WritePolicy()
+
+        # Set properties directly on WritePolicy
+        wp.total_timeout = 888
+        wp.max_retries = 3
+        wp.sleep_between_retries = 200
+        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        wp.socket_timeout = 3000
+
+        # Verify they're synced with base_policy
+        assert wp.total_timeout == 888
+        assert wp.base_policy.total_timeout == 888
+        assert wp.max_retries == 3
+        assert wp.base_policy.max_retries == 3
+        assert wp.sleep_between_retries == 200
+        assert wp.base_policy.sleep_between_retries == 200
+        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert wp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert wp.socket_timeout == 3000
+        assert wp.base_policy.socket_timeout == 3000
+
+    def test_query_policy_base_policy_sync(self):
+        """Test that QueryPolicy direct property access syncs with base_policy."""
+        qp = QueryPolicy()
+
+        # Set properties directly on QueryPolicy
+        qp.total_timeout = 777
+        qp.max_retries = 4
+        qp.sleep_between_retries = 300
+        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        qp.socket_timeout = 4000
+
+        # Verify they're synced with base_policy
+        assert qp.total_timeout == 777
+        assert qp.base_policy.total_timeout == 777
+        assert qp.max_retries == 4
+        assert qp.base_policy.max_retries == 4
+        assert qp.sleep_between_retries == 300
+        assert qp.base_policy.sleep_between_retries == 300
+        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert qp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert qp.socket_timeout == 4000
+        assert qp.base_policy.socket_timeout == 4000
+
+    def test_batch_policy_base_policy_sync(self):
+        """Test that BatchPolicy direct property access syncs with base_policy."""
+        bp = BatchPolicy()
+
+        # Set properties directly on BatchPolicy
+        bp.total_timeout = 666
+        bp.max_retries = 2
+        bp.sleep_between_retries = 400
+        bp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        bp.socket_timeout = 5000
+
+        # Verify they're synced with base_policy
+        assert bp.total_timeout == 666
+        assert bp.base_policy.total_timeout == 666
+        assert bp.max_retries == 2
+        assert bp.base_policy.max_retries == 2
+        assert bp.sleep_between_retries == 400
+        assert bp.base_policy.sleep_between_retries == 400
+        assert bp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert bp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert bp.socket_timeout == 5000
+        assert bp.base_policy.socket_timeout == 5000
+
+    def test_base_policy_clone_reflects_current_state(self):
+        """Test that base_policy getter returns a clone that reflects current state."""
+        bp = BatchPolicy()
+        bp.total_timeout = 999
+
+        # Get base_policy (returns a clone)
+        base = bp.base_policy
+        assert base.total_timeout == 999
+
+        # Modify the policy directly
+        bp.total_timeout = 123
+
+        # The original clone should still have old value (it's a clone)
+        assert base.total_timeout == 999
+
+        # But getting base_policy again should have new value
+        assert bp.base_policy.total_timeout == 123
+
+    def test_base_policy_reassignment_syncs(self):
+        """Test that reassigning base_policy syncs with direct property access."""
+        bp = BatchPolicy()
+        bp.total_timeout = 999
+
+        # Get base_policy, modify it, and reassign
+        base = bp.base_policy
+        base.total_timeout = 123
+        bp.base_policy = base
+
+        # Both should now be synced
+        assert bp.total_timeout == 123
+        assert bp.base_policy.total_timeout == 123
+
+    def test_filter_expression_sync(self):
+        """Test that filter_expression syncs correctly across all policy types."""
+        filter_exp = fe.eq(fe.string_bin("test"), fe.string_val("value"))
+
+        # Test ReadPolicy
+        rp = ReadPolicy()
+        rp.filter_expression = filter_exp
+        assert rp.filter_expression == filter_exp
+        assert rp.base_policy.filter_expression == filter_exp
+
+        # Test WritePolicy
+        wp = WritePolicy()
+        wp.filter_expression = filter_exp
+        assert wp.filter_expression == filter_exp
+        assert wp.base_policy.filter_expression == filter_exp
+
+        # Test QueryPolicy
+        qp = QueryPolicy()
+        qp.filter_expression = filter_exp
+        assert qp.filter_expression == filter_exp
+        assert qp.base_policy.filter_expression == filter_exp
+
+        # Test BatchPolicy
+        bp = BatchPolicy()
+        bp.filter_expression = filter_exp
+        assert bp.filter_expression == filter_exp
+        assert bp.base_policy.filter_expression == filter_exp
