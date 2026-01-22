@@ -800,6 +800,210 @@ pub enum Replica {
     }
 
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UDFLang
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// User-defined function (UDF) language.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy)]
+    pub enum UDFLang {
+        /// Lua embedded programming language.
+        #[pyo3(name = "LUA")]
+        Lua,
+    }
+
+    impl From<&UDFLang> for aerospike_core::UDFLang {
+        fn from(lang: &UDFLang) -> Self {
+            match lang {
+                UDFLang::Lua => aerospike_core::UDFLang::Lua,
+            }
+        }
+    }
+
+    impl From<UDFLang> for aerospike_core::UDFLang {
+        fn from(lang: UDFLang) -> Self {
+            match lang {
+                UDFLang::Lua => aerospike_core::UDFLang::Lua,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TaskStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum TaskStatus {
+        #[pyo3(name = "NOT_FOUND")]
+        NotFound,
+        #[pyo3(name = "IN_PROGRESS")]
+        InProgress,
+        #[pyo3(name = "COMPLETE")]
+        Complete,
+    }
+
+    impl From<aerospike_core::task::Status> for TaskStatus {
+        fn from(status: aerospike_core::task::Status) -> Self {
+            match status {
+                aerospike_core::task::Status::NotFound => TaskStatus::NotFound,
+                aerospike_core::task::Status::InProgress => TaskStatus::InProgress,
+                aerospike_core::task::Status::Complete => TaskStatus::Complete,
+            }
+        }
+    }
+
+    #[pymethods]
+    impl TaskStatus {
+        fn __richcmp__(&self, other: &TaskStatus, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    // Helper function for wait_till_complete implementation
+    async fn wait_till_complete_impl<T: aerospike_core::task::Task>(
+        task: T,
+        sleep_time: f64,
+        max_attempts: u32,
+    ) -> Result<bool, PyErr> {
+        use tokio::time::sleep;
+        use std::time::Duration;
+
+        for _attempt in 0..max_attempts {
+            let status: aerospike_core::task::Status = task
+                .query_status()
+                .await
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+            match status {
+                aerospike_core::task::Status::Complete | aerospike_core::task::Status::NotFound => {
+                    return Ok(true);
+                }
+                aerospike_core::task::Status::InProgress => {
+                    sleep(Duration::from_secs_f64(sleep_time)).await;
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RegisterTask
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct RegisterTask {
+        _as: aerospike_core::RegisterTask,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl RegisterTask {
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
+        pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete<'a>(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UdfRemoveTask
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct UdfRemoveTask {
+        _as: aerospike_core::UdfRemoveTask,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl UdfRemoveTask {
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
+        pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete<'a>(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+    }
+
     impl From<&PrivilegeCode> for aerospike_core::PrivilegeCode {
         fn from(input: &PrivilegeCode) -> Self {
             match &input {
@@ -5290,6 +5494,8 @@ pub enum Replica {
         fn INVALID_USER() -> ResultCode { ResultCode(CoreResultCode::InvalidUser) }
         #[classattr]
         fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::UserAlreadyExists) }
+        #[classattr]
+        fn UDF_BAD_RESPONSE() -> ResultCode { ResultCode(CoreResultCode::UdfBadResponse) }
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
@@ -8808,6 +9014,165 @@ pub enum Replica {
             })
         }
 
+        /// Execute a UDF (User Defined Function) on a single record.
+        ///
+        /// Args:
+        ///     policy: WritePolicy for the operation.
+        ///     key: The key of the record to execute the UDF on.
+        ///     server_path: Server path to the UDF module (e.g., "example.lua").
+        ///     function_name: Name of the function to execute within the UDF module.
+        ///     args: Optional list of arguments to pass to the UDF function.
+        ///
+        /// Returns:
+        ///     Optional Value containing the UDF result, or None if the UDF returns no value.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[typing.Any]]", imports=("typing")))]
+        pub fn execute_udf<'a>(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            server_path: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+
+            // Convert args before moving into async block
+            let rust_args = args.map(|args| {
+                args.into_iter()
+                    .map(|v| v.into())
+                    .collect::<Vec<aerospike_core::Value>>()
+            });
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let rust_args_ref = rust_args.as_ref().map(|a| a.as_slice());
+                let result = client
+                    .read()
+                    .await
+                    .execute_udf(&policy, &key, &server_path, &function_name, rust_args_ref)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    match result {
+                        Some(value) => {
+                            let pv: PythonValue = value.into();
+                            Ok(Some(pv.into_pyobject(_py)?.unbind()))
+                        }
+                        None => Ok(None),
+                    }
+                })
+            })
+        }
+
+        /// Register a UDF (User Defined Function) module on the server from bytes.
+        ///
+        /// Args:
+        ///     policy: AdminPolicy for the operation.
+        ///     udf_body: The UDF module content as bytes.
+        ///     server_path: Server path where the UDF will be stored (e.g., "example.lua").
+        ///     language: UDF language (UDFLang.LUA).
+        ///
+        /// Returns:
+        ///     RegisterTask that can be used to wait for registration completion.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[RegisterTask]", imports=("typing")))]
+        pub fn register_udf<'a>(
+            &self,
+            policy: Option<AdminPolicy>,
+            udf_body: Vec<u8>,
+            server_path: String,
+            language: UDFLang,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let lang: aerospike_core::UDFLang = language.into();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let task = client
+                    .read()
+                    .await
+                    .register_udf(&admin_policy, &udf_body, &server_path, lang)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    Ok(RegisterTask { _as: task })
+                })
+            })
+        }
+
+        /// Register a UDF (User Defined Function) module on the server from a file.
+        ///
+        /// Args:
+        ///     policy: AdminPolicy for the operation.
+        ///     client_path: Local file path to the UDF module.
+        ///     server_path: Server path where the UDF will be stored (e.g., "example.lua").
+        ///     language: UDF language (UDFLang.LUA).
+        ///
+        /// Returns:
+        ///     RegisterTask that can be used to wait for registration completion.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[RegisterTask]", imports=("typing")))]
+        pub fn register_udf_from_file<'a>(
+            &self,
+            policy: Option<AdminPolicy>,
+            client_path: String,
+            server_path: String,
+            language: UDFLang,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let lang: aerospike_core::UDFLang = language.into();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let task = client
+                    .read()
+                    .await
+                    .register_udf_from_file(&admin_policy, &client_path, &server_path, lang)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    Ok(RegisterTask { _as: task })
+                })
+            })
+        }
+
+        /// Remove a UDF (User Defined Function) module from the server.
+        ///
+        /// Args:
+        ///     policy: AdminPolicy for the operation.
+        ///     server_path: Server path to the UDF module to remove (e.g., "example.lua").
+        ///
+        /// Returns:
+        ///     UdfRemoveTask that can be used to wait for removal completion.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[UdfRemoveTask]", imports=("typing")))]
+        pub fn remove_udf<'a>(
+            &self,
+            policy: Option<AdminPolicy>,
+            server_path: String,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let task = client
+                    .read()
+                    .await
+                    .remove_udf(&admin_policy, &server_path)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    Ok(UdfRemoveTask { _as: task })
+                })
+            })
+        }
+
         /// Determine if a record key exists. The policy can be used to specify timeouts.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         pub fn exists<'a>(
@@ -10646,6 +11011,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitPolicy>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
+    m.add_class::<UDFLang>()?;
+    m.add_class::<TaskStatus>()?;
+    m.add_class::<RegisterTask>()?;
+    m.add_class::<UdfRemoveTask>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
 

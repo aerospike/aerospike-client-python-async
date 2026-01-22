@@ -1,0 +1,167 @@
+"""Tests for execute_udf functionality."""
+import os
+import pytest
+from aerospike_async import WritePolicy, ReadPolicy, Key, UDFLang
+from aerospike_async.exceptions import ServerError, ResultCode, UDFBadResponse
+from fixtures import TestFixtureConnection
+
+
+class TestExecuteUDF(TestFixtureConnection):
+    """Test execute_udf functionality."""
+
+    @pytest.fixture
+    async def client_with_udf(self, client):
+        """Register a test UDF for execute tests."""
+        udf_path = os.path.join(os.path.dirname(__file__), "udf", "record_example.lua")
+        server_path = "record_example.lua"
+
+        # Clean up any existing UDF first
+        try:
+            remove_task = await client.remove_udf(None, server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+
+        # Register the UDF
+        task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+        completed = await task.wait_till_complete()
+        assert completed, f"UDF registration did not complete. Final status: {await task.query_status()}"
+
+        yield client
+
+        # Clean up
+        try:
+            remove_task = await client.remove_udf(None, server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+
+    async def test_execute_udf_write_bin(self, client_with_udf):
+        """Test executing UDF to write a bin."""
+        key = Key("test", "test", "udfkey1")
+        wp = WritePolicy()
+        rp = ReadPolicy()
+
+        await client_with_udf.delete(wp, key)
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "writeBin", ["udfbin1", "string value"]
+        )
+        assert result is None
+
+        record = await client_with_udf.get(rp, key, ["udfbin1"])
+        assert record is not None
+        assert record.bins["udfbin1"] == "string value"
+
+    async def test_execute_udf_read_bin(self, client_with_udf):
+        """Test executing UDF to read a bin."""
+        key = Key("test", "test", "udfkey2")
+        wp = WritePolicy()
+
+        await client_with_udf.put(wp, key, {"udfbin2": "test value"})
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "readBin", ["udfbin2"]
+        )
+        assert result == "test value"
+
+    async def test_execute_udf_get_generation(self, client_with_udf):
+        """Test executing UDF to get record generation."""
+        key = Key("test", "test", "udfkey3")
+        wp = WritePolicy()
+
+        await client_with_udf.put(wp, key, {"bin": "value"})
+
+        result = await client_with_udf.execute_udf(wp, key, "record_example", "getGeneration", None)
+        assert isinstance(result, int)
+        assert result >= 0
+
+    async def test_execute_udf_with_validation_success(self, client_with_udf):
+        """Test executing UDF with validation that succeeds."""
+        key = Key("test", "test", "udfkey4")
+        wp = WritePolicy()
+
+        await client_with_udf.delete(wp, key)
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "writeWithValidation", ["udfbin4", 5]
+        )
+        assert result is None
+
+    async def test_execute_udf_with_validation_failure(self, client_with_udf):
+        """Test executing UDF with validation that fails."""
+        key = Key("test", "test", "udfkey5")
+        wp = WritePolicy()
+
+        await client_with_udf.delete(wp, key)
+
+        with pytest.raises(UDFBadResponse):
+            await client_with_udf.execute_udf(
+                wp, key, "record_example", "writeWithValidation", ["udfbin5", 11]
+            )
+
+    async def test_execute_udf_write_unique_success(self, client_with_udf):
+        """Test executing UDF writeUnique when record doesn't exist."""
+        key = Key("test", "test", "udfkey6")
+        wp = WritePolicy()
+        rp = ReadPolicy()
+
+        await client_with_udf.delete(wp, key)
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "writeUnique", ["udfbin6", "first"]
+        )
+        assert result is None
+
+        record = await client_with_udf.get(rp, key, ["udfbin6"])
+        assert record is not None
+        assert record.bins["udfbin6"] == "first"
+
+    async def test_execute_udf_write_unique_failure(self, client_with_udf):
+        """Test executing UDF writeUnique when record already exists."""
+        key = Key("test", "test", "udfkey7")
+        wp = WritePolicy()
+        rp = ReadPolicy()
+
+        await client_with_udf.delete(wp, key)
+        await client_with_udf.put(wp, key, {"udfbin7": "first"})
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "writeUnique", ["udfbin7", "second"]
+        )
+        assert result is None
+
+        record = await client_with_udf.get(rp, key, ["udfbin7"])
+        assert record.bins["udfbin7"] == "first"
+
+    async def test_execute_udf_no_args(self, client_with_udf):
+        """Test executing UDF with no arguments."""
+        key = Key("test", "test", "udfkey8")
+        wp = WritePolicy()
+
+        await client_with_udf.delete(wp, key)
+
+        result = await client_with_udf.execute_udf(
+            wp, key, "record_example", "getGeneration", None
+        )
+        assert isinstance(result, int)
+
+    async def test_execute_udf_nonexistent_function(self, client_with_udf):
+        """Test executing UDF with non-existent function name."""
+        key = Key("test", "test", "udfkey9")
+        wp = WritePolicy()
+
+        with pytest.raises(UDFBadResponse):
+            await client_with_udf.execute_udf(
+                wp, key, "record_example", "nonexistentFunction", None
+            )
+
+    async def test_execute_udf_nonexistent_module(self, client_with_udf):
+        """Test executing UDF with non-existent module."""
+        key = Key("test", "test", "udfkey10")
+        wp = WritePolicy()
+
+        with pytest.raises(UDFBadResponse):
+            await client_with_udf.execute_udf(
+                wp, key, "nonexistent", "writeBin", ["bin", "value"]
+            )
