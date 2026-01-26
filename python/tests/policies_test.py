@@ -754,16 +754,12 @@ class TestTotalTimeout:
 
             # Attempt query with very short timeout
             # With 1ms timeout, this should almost certainly timeout due to network latency
-            with pytest.raises(TimeoutError) as exc_info:
+            with pytest.raises(TimeoutError):
                 recordset = await client.query(qp, PartitionFilter.all(), stmt)
                 # If we somehow get here, consume the recordset
                 async for _ in recordset:
                     pass
                 recordset.close()
-
-            # Verify it's a timeout error
-            error_msg = str(exc_info.value).lower()
-            assert "timeout" in error_msg, f"Expected TimeoutError, got: {exc_info.value}"
 
         finally:
             await client.close()

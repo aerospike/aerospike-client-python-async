@@ -22,15 +22,34 @@ jobs:
           # maturin platform, Docker platform
           [x86_64, _],
           [x86, linux/386],
-          # Re-enabling aarch64 to test if the __ARM_ARCH issue persists
-          # - Previously disabled due to __ARM_ARCH not defined when compiling ARM assembly files
-          # - Note: aws-lc-rs bindgen feature was tried but removed because it forces bindgen
-          #   for all targets (including x86_64 with pre-generated bindings), requiring libclang
-          # - armv7 still disabled: bindgen/libclang not available in manylinux Docker
+          # aarch64 and armv7 disabled due to aws-lc-sys cross-compilation issues:
+          #
+          # Bindgen Feature Issue:
+          # - Enabling bindgen forces libclang dependency across ALL targets
+          # - This includes x86_64 which has pre-generated bindings and doesn't need bindgen
+          # - libclang is often missing or incompatible in standard manylinux Docker containers
+          # - This causes build failures in CI/CD environments
+          # - Resolution: Removed bindgen feature to improve reliability
+          #
+          # ARM Cross-Compilation Issue:
+          # - aarch64: __ARM_ARCH not defined when compiling ARM assembly files
+          #   * aws-lc-sys tries to compile arm/aes/*.S files for aarch64
+          #   * Cross-compiler (aarch64-unknown-linux-gnu-gcc) doesn't define __ARM_ARCH properly
+          #   * Error: #error "ARM assembler must define __ARM_ARCH" in asm_base.h:77
+          #   * AWS_LC_SYS_NO_ASM only works for debug builds, not release
+          # - armv7: bindgen/libclang not available in manylinux Docker
           #   * Requires bindgen which needs libclang
           #   * Pre-generated bindings not available for armv7
+          #
           # See: https://github.com/aws/aws-lc-rs/issues
-          [aarch64, linux/arm64],
+          #
+          # Potential solutions:
+          # - Wait for aws-lc-sys to fix ARM assembly compilation for aarch64
+          # - Build without TLS for ARM targets (temporary workaround)
+          # - Use custom manylinux Docker image with proper ARM cross-compilation setup
+          # - Workaround: Install clang and set BINDGEN_EXTRA_CLANG_ARGS in Cross.toml
+          #   (requires custom build environments, not suitable for standard CI)
+          # [aarch64, linux/arm64],
           # [armv7, linux/arm/v7]
         ]
         python: [
