@@ -58,6 +58,14 @@ jobs:
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
+        env:
+          # Force aws-lc-sys to use pre-generated bindings instead of bindgen/CMake
+          # This avoids needing libclang and system headers in manylinux Docker containers
+          # Note: These environment variables should be passed into the Docker container
+          AWS_LC_SYS_CMAKE_BUILDER: "0"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
+          # Ensure pre-generated bindings are used (don't skip them)
+          AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
 
       - name: Run Aerospike server
         run: |
