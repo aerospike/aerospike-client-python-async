@@ -619,7 +619,7 @@ async def test_batch_read_ttl(client_and_keys):
 
     Note: This test takes a long time to run due to sleeps (19+ seconds total).
     Marked with @pytest.mark.slow so it can be excluded with: pytest -m "not slow"
-    
+
     TTL must be enabled on the Aerospike server. To enable TTL, configure the server with:
     - namespace <namespace> { default-ttl 30D; nsup-period 120; }
     See: https://aerospike.com/docs/database/manage/namespace/retention/

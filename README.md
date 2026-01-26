@@ -94,12 +94,77 @@ make stubs
 ```
 <br>
 
+## TLS Configuration
+
+The client supports TLS for secure connections and PKI (certificate-based) authentication.
+
+### Basic TLS
+
+```python
+from aerospike_async import new_client, ClientPolicy, TlsConfig
+
+policy = ClientPolicy()
+policy.tls_config = TlsConfig("path/to/ca-certificate.pem")
+client = await new_client(policy, "tls-host:4333")
+```
+
+### TLS with Client Authentication
+
+```python
+policy = ClientPolicy()
+policy.tls_config = TlsConfig.with_client_auth(
+    "ca.pem",      # CA certificate
+    "client.pem",  # Client certificate
+    "client.key"   # Client private key
+)
+client = await new_client(policy, "tls-host:4333")
+```
+
+### PKI Authentication
+
+PKI mode uses client certificates for authentication (no username/password required):
+
+```python
+from aerospike_async import AuthMode
+
+policy = ClientPolicy()
+policy.tls_config = TlsConfig.with_client_auth("ca.pem", "client.pem", "client.key")
+policy.set_pki_auth()  # or: policy.set_auth_mode(AuthMode.PKI)
+client = await new_client(policy, "tls-host:4333")
+```
+
+### TLS Name in Host Strings
+
+When the server certificate name differs from the connection hostname, specify the TLS name:
+
+```python
+# Format: hostname:tls_name:port
+# Example: Connect to IP but validate certificate against "server.example.com"
+client = await new_client(policy, "192.168.1.100:server.example.com:4333")
+```
+
+### Authentication Modes
+
+The client supports multiple authentication modes via `AuthMode`:
+
+- `AuthMode.NONE` - No authentication
+- `AuthMode.INTERNAL` - Internal authentication (username/password)
+- `AuthMode.EXTERNAL` - External authentication (LDAP, etc.)
+- `AuthMode.PKI` - Certificate-based authentication (requires TLS + client cert)
+
+```python
+from aerospike_async import AuthMode
+
+policy = ClientPolicy()
+policy.set_auth_mode(AuthMode.INTERNAL, user="admin", password="secret")
+# or
+policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
+```
+
 ### Known TODOs:
 *  Pipeline benchmarks: track performance between runs.
 *  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
 *  Next APIs:
-   - UDF operations
-   - TLS configuration
    - Transactions
 *  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.

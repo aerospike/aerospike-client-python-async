@@ -1,13 +1,14 @@
 import asyncio
 import os
 from aerospike_async import (
-    new_client, ClientPolicy, Key, WritePolicy, ReadPolicy, 
-    ScanPolicy, PartitionFilter, QueryPolicy, Statement, 
+    new_client, ClientPolicy, Key, WritePolicy, ReadPolicy,
+    PartitionFilter, QueryPolicy, Statement,
     Filter, IndexType, CollectionIndexType
 )
 
 async def main():
     cp = ClientPolicy()
+    cp.use_services_alternate = True  # Required for connection
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
     c = await new_client(cp, host)
 
@@ -61,26 +62,26 @@ async def main():
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         })
 
-    await c.create_index("test", "test", "year", "test.test.year", IndexType.Numeric, cit=CollectionIndexType.Default)
+    await c.create_index("test", "test", "year", "test.test.year", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
 
-    sp = ScanPolicy()
-    pf = PartitionFilter()
-    rcs = await c.scan(sp, pf, "test", "test", [])
-    print(f"Scan results:")
+    qp = QueryPolicy()
+    pf = PartitionFilter.all()
+    stmt = Statement("test", "test", [])
+    rcs = await c.query(qp, pf, stmt)
+    print(f"Query results (all records):")
     i = 0
-    for rec in rcs:
+    async for rec in rcs:
         i += 1
         print(rec)
 
-    print(f"Scan result count: {i}")
+    print(f"Query result count: {i}")
 
-    qp = QueryPolicy()
     stmt = Statement("test", "test", [])
     stmt.filters = [Filter.range("year", 1964, 1968)]
     rcs = await c.query(qp, pf, stmt)
-    print(f"Query results:")
+    print(f"Query results (filtered by year range):")
     i = 0
-    for rec in rcs:
+    async for rec in rcs:
         i += 1
         print(rec)
 

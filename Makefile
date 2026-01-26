@@ -34,6 +34,8 @@ stubs:
 	# Generate type stubs and organize them as a Python package
 	# stub_gen.rs will automatically move _aerospike_async_native.pyi to the correct location
 	# Suppress warnings from dependencies (aerospike-core) to keep output clean
+	# Note: Uses --no-default-features to avoid TLS dependencies during stub generation
+	# TLS is always enabled by default for runtime builds, but stub generation compiles without it
 	source aerospike.env && RUSTFLAGS="-A warnings" cargo run --no-default-features --bin stub_gen 2>&1 | grep -v "warning:.*aerospike-core" || true
 	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
 	@if [ -f python/aerospike_async/__init__.pyi ]; then \

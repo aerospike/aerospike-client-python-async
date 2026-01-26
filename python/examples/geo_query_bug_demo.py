@@ -46,16 +46,17 @@ INDEX_NAME = "geo_idx_bug_demo"
 
 async def main():
     """Demonstrate the geo query serialization bug."""
-    
+
     # Connect to server
     cp = ClientPolicy()
+    cp.use_services_alternate = True  # Required for connection
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3100")
     print(f"Connecting to: {host}\n")
     client = await new_client(cp, host)
-    
+
     wp = WritePolicy()
     rp = ReadPolicy()
-    
+
     try:
         # Step 1: Create geo2dsphere index
         print("=" * 70)
@@ -67,8 +68,8 @@ async def main():
                 set_name=SET_NAME,
                 bin_name=BIN_NAME,
                 index_name=INDEX_NAME,
-                index_type=IndexType.Geo2DSphere,
-                cit=CollectionIndexType.Default
+                index_type=IndexType.GEO2D_SPHERE,
+                cit=CollectionIndexType.DEFAULT
             )
             print(f"✓ Index '{INDEX_NAME}' creation requested")
             await asyncio.sleep(3.0)  # Wait for index to build
@@ -78,12 +79,12 @@ async def main():
             else:
                 print(f"⚠ Index creation error: {e}")
         print()
-        
+
         # Step 2: Create test records with GeoJSON Points
         print("=" * 70)
         print("STEP 2: Creating test records with GeoJSON Points")
         print("=" * 70)
-        
+
         # Point inside the query radius (should be found)
         key1 = Key(NAMESPACE, SET_NAME, "point_inside")
         point1 = GeoJSON({"type": "Point", "coordinates": [-122.0, 37.5]})
@@ -92,7 +93,7 @@ async def main():
             "name": "Point Inside Radius"
         })
         print(f"✓ Created {key1}: {point1}")
-        
+
         # Point inside the query radius (should be found)
         key2 = Key(NAMESPACE, SET_NAME, "point_inside_2")
         point2 = GeoJSON({"type": "Point", "coordinates": [-121.5, 37.5]})
@@ -101,7 +102,7 @@ async def main():
             "name": "Point Inside Radius 2"
         })
         print(f"✓ Created {key2}: {point2}")
-        
+
         # Point outside the query radius (should NOT be found)
         key3 = Key(NAMESPACE, SET_NAME, "point_outside")
         point3 = GeoJSON({"type": "Point", "coordinates": [-120.0, 37.5]})
@@ -110,10 +111,10 @@ async def main():
             "name": "Point Outside Radius"
         })
         print(f"✓ Created {key3}: {point3}")
-        
+
         await asyncio.sleep(2.0)  # Wait for records to be indexed
         print()
-        
+
         # Step 3: Verify records were stored correctly
         print("=" * 70)
         print("STEP 3: Verifying records were stored correctly")
@@ -127,30 +128,30 @@ async def main():
             else:
                 print(f"✗ {key}: NOT FOUND")
         print()
-        
+
         # Step 4: Inspect the Filter object structure
         print("=" * 70)
         print("STEP 4: Creating Filter.within_radius() and inspecting structure")
         print("=" * 70)
         print("Query: Find points within 100km of [-122.0, 37.5]")
         print()
-        
+
         filter_obj = Filter.within_radius(
             bin_name=BIN_NAME,
             lng=-122.0,   # longitude first (GeoJSON standard)
             lat=37.5,     # latitude second
             radius=100000.0,  # 100km in meters
-            cit=CollectionIndexType.Default
+            cit=CollectionIndexType.DEFAULT
         )
-        
+
         print("Filter object structure:")
         print(f"  {filter_obj}")
         print()
-        
+
         # Verify the Filter structure is correct
         filter_str = str(filter_obj)
         issues = []
-        
+
         # Check for correct type name (handle escaped quotes in debug output)
         if 'AeroCircle' in filter_str and 'Aeroircle' not in filter_str:
             print("  ✓ Type name correct: 'AeroCircle'")
@@ -158,7 +159,7 @@ async def main():
             issues.append("Type name has typo: 'Aeroircle' (should be 'AeroCircle')")
         else:
             issues.append("Type name incorrect or missing")
-            
+
         # Check coordinate order (longitude should be first: -122 before 37.5)
         if '[[-122' in filter_str or '[-122.0' in filter_str:
             print("  ✓ Coordinates correct: longitude first [-122, 37.5]")
@@ -166,12 +167,12 @@ async def main():
             issues.append("Coordinates in wrong order: latitude first (should be longitude first)")
         else:
             issues.append("Coordinates format unclear")
-        
+
         if issues:
             print(f"  ✗ Issues found: {', '.join(issues)}")
         else:
             print("  ✓ Filter structure is CORRECT")
-        
+
         print()
         print("Analysis:")
         if issues:
@@ -179,40 +180,40 @@ async def main():
         else:
             print("  Filter object structure is CORRECT - the bug is in serialization")
         print()
-        
+
         # Step 5: Execute the query
         print("=" * 70)
         print("STEP 5: Executing query with Filter.within_radius()")
         print("=" * 70)
-        
+
         statement = Statement(NAMESPACE, SET_NAME, bins=None)
         statement.filters = [filter_obj]
-        
+
         policy = QueryPolicy()
-        
+
         print("Executing query...")
         records = await client.query(policy, PartitionFilter.all(), statement)
         records_list = []
-        
-        for record in records:
+
+        async for record in records:
             records_list.append(record)
-        
+
         # Wait for query to complete
         max_wait = 10
         for _ in range(max_wait):
             if not records.active:
                 break
             await asyncio.sleep(0.1)
-        
+
         records.close()
-        
+
         print()
         print("=" * 70)
         print("RESULTS")
         print("=" * 70)
         print(f"Records found: {len(records_list)}")
         print()
-        
+
         if len(records_list) == 0:
             print("❌ BUG CONFIRMED: Query returned 0 results")
             print()
@@ -248,25 +249,26 @@ async def main():
                 name = record.bins.get("name", "N/A")
                 loc = record.bins.get(BIN_NAME, "N/A")
                 print(f"  {i}. {record.key}: {name} - {loc}")
-            
+
             # Verify we got the right records
-            found_keys = {r.key for r in records_list}
-            expected_keys = {key1, key2}
-            unexpected_keys = {key3}
-            
-            if found_keys == expected_keys:
+            # Use key digest for comparison since Key objects aren't hashable
+            found_key_digests = {tuple(r.key.digest) for r in records_list}
+            expected_key_digests = {tuple(key1.digest), tuple(key2.digest)}
+            unexpected_key_digests = {tuple(key3.digest)}
+
+            if found_key_digests == expected_key_digests:
                 print()
                 print("✅ Perfect! Found exactly the expected records (inside radius only)")
-            elif unexpected_keys.intersection(found_keys):
+            elif unexpected_key_digests.intersection(found_key_digests):
                 print()
                 print("⚠ Warning: Found records that should be outside the radius")
             else:
                 print()
                 print("⚠ Warning: Did not find all expected records")
-        
+
         print()
         print("=" * 70)
-        
+
     finally:
         await client.close()
         print("\nClosed client connection")

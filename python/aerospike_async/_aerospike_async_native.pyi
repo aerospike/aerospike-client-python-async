@@ -235,6 +235,11 @@ class ClientPolicy:
     @password.setter
     def password(self, value: typing.Optional[builtins.str]) -> None: ...
     @property
+    def auth_mode(self) -> AuthMode:
+        r"""
+        Get the current authentication mode.
+        """
+    @property
     def timeout(self) -> builtins.int: ...
     @timeout.setter
     def timeout(self, value: builtins.int) -> None: ...
@@ -338,7 +343,33 @@ class ClientPolicy:
         """
     @cluster_name.setter
     def cluster_name(self, value: typing.Optional[builtins.str]) -> None: ...
+    @property
+    def tls_config(self) -> typing.Optional[None]:
+        r"""
+        TLS configuration for secure connections.
+        Set to None to disable TLS, or use TlsConfig to configure TLS.
+        """
+    @tls_config.setter
+    def tls_config(self, value: typing.Optional[None]) -> None: ...
     def __new__(cls) -> ClientPolicy: ...
+    def set_auth_mode(self, mode:AuthMode, user:typing.Optional[builtins.str]=None, password:typing.Optional[builtins.str]=None) -> None:
+        r"""
+        Set the authentication mode.
+
+        Args:
+            mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL, or AuthMode.PKI)
+            user: Optional username (required for INTERNAL and EXTERNAL modes)
+            password: Optional password (required for INTERNAL and EXTERNAL modes)
+
+        Note: For PKI mode, user and password are ignored. TLS with client certificate is required.
+        """
+    def set_pki_auth(self) -> None:
+        r"""
+        Set authentication mode to PKI (certificate-based authentication).
+
+        This requires TLS to be configured with a client certificate.
+        Requires server version 5.7.0+.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
     def __copy__(self) -> ClientPolicy: ...
@@ -820,6 +851,210 @@ class FilterExpression:
         or `ExpReadFlags` `EVAL_NO_FAIL`.
         Requires server version 5.6.0+.
         """
+    @staticmethod
+    def list_size(bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that returns list size.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_index(return_type:ListReturnType, value_type:ExpType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list item identified by index and returns
+        selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_rank(return_type:ListReturnType, value_type:ExpType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list item identified by rank and returns
+        selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_value(return_type:ListReturnType, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items identified by value and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_value_range(return_type:ListReturnType, value_begin:typing.Optional[FilterExpression], value_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        and returns selected data specified by returnType.
+        If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_value_list(return_type:ListReturnType, values:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items identified by values and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_index_range(return_type:ListReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items starting at specified index to the end of list
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_index_range_count(return_type:ListReturnType, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects "count" list items starting at specified index
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_rank_range(return_type:ListReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items starting at specified rank to the last ranked item
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_rank_range_count(return_type:ListReturnType, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects "count" list items starting at specified rank and returns
+        selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_value_relative_rank_range(return_type:ListReturnType, value:FilterExpression, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items nearest to value and greater by relative rank
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_get_by_value_relative_rank_range_count(return_type:ListReturnType, value:FilterExpression, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects list items nearest to value and greater by relative rank with a count limit
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_size(bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that returns map size.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_key(return_type:MapReturnType, value_type:ExpType, key:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map item identified by key and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_rank(return_type:MapReturnType, value_type:ExpType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map item identified by rank and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_index(return_type:MapReturnType, value_type:ExpType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map item identified by index and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_value(return_type:MapReturnType, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items identified by value and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_value_range(return_type:MapReturnType, value_begin:typing.Optional[FilterExpression], value_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        and returns selected data specified by returnType.
+        If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_value_list(return_type:MapReturnType, values:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items identified by values and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_key_range(return_type:MapReturnType, key_begin:typing.Optional[FilterExpression], key_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items identified by key range (keyBegin inclusive, keyEnd exclusive)
+        and returns selected data specified by returnType.
+        If keyBegin is None, the range is less than keyEnd. If keyEnd is None, the range is greater than equal to keyBegin.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_key_list(return_type:MapReturnType, keys:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items identified by keys and returns selected data
+        specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_key_relative_index_range(return_type:MapReturnType, key:FilterExpression, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items nearest to key and greater by index
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_key_relative_index_range_count(return_type:MapReturnType, key:FilterExpression, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items nearest to key and greater by index with a count limit
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_value_relative_rank_range(return_type:MapReturnType, value:FilterExpression, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items nearest to value and greater by relative rank
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_value_relative_rank_range_count(return_type:MapReturnType, value:FilterExpression, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items nearest to value and greater by relative rank with a count limit
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_index_range(return_type:MapReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items starting at specified index to the end of map
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_index_range_count(return_type:MapReturnType, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects "count" map items starting at specified index
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_rank_range(return_type:MapReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects map items starting at specified rank to the last ranked item
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def map_get_by_rank_range_count(return_type:MapReturnType, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that selects "count" map items starting at specified rank
+        and returns selected data specified by returnType.
+        Supports nested CDT operations via optional CTX contexts.
+        """
 
 class ListPolicy:
     @property
@@ -1090,6 +1325,32 @@ class WritePolicy(BasePolicy):
     def durable_delete(self) -> builtins.bool: ...
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
+
+class AuthMode(Enum):
+    r"""
+    Authentication mode for client connections.
+    """
+    NONE = ...
+    r"""
+    No authentication will be performed.
+    """
+    INTERNAL = ...
+    r"""
+    Uses internal authentication when user/password defined. Hashed password is stored
+    on the server. Do not send clear password. This is the default.
+    """
+    EXTERNAL = ...
+    r"""
+    Uses external authentication (like LDAP) when user/password defined. Specific external
+    authentication is configured on server. If TLSConfig is defined, sends clear password
+    on node login via TLS. Will return an error if TLSConfig is not defined.
+    """
+    PKI = ...
+    r"""
+    Allows authentication and authorization based on a certificate. No user name or
+    password needs to be configured. Requires TLS and a client certificate.
+    Requires server version 5.7.0+
+    """
 
 class BitwiseOverflowActions(Enum):
     FAIL = ...
@@ -1722,7 +1983,6 @@ class Client:
     def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None) -> typing.Awaitable[typing.Any]: ...
     def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None) -> typing.Awaitable[typing.Any]: ...
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str) -> typing.Awaitable[typing.Any]: ...
-    def scan(self, policy: ScanPolicy, partition_filter: PartitionFilter, namespace: builtins.str, set_name: builtins.str, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Any]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
