@@ -40,7 +40,6 @@ aws-lc-sys = "0.37.0"
 # - This affects aarch64 and armv7 targets
 # - Workaround: Some have succeeded by installing clang and setting BINDGEN_EXTRA_CLANG_ARGS
 #   in Cross.toml, but this requires custom build environments
-aws-lc-sys = "0.36.0"
 
 [features]
 default = ["extension-module", "tls"]
