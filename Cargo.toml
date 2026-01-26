@@ -24,12 +24,10 @@ rustls-pemfile = { version = "2", optional = true }
 webpki-roots = { version = "1.0", optional = true }
 # Pin aws-lc-sys to 0.36.0 to avoid cross-compilation issues with 0.37.0
 # See: https://github.com/aws/aws-lc-rs/issues (aarch64 __ARM_ARCH build errors)
+# Note: Removed aws-lc-rs with bindgen feature because it forces bindgen for all targets,
+# including x86_64 which has pre-generated bindings, causing libclang dependency issues.
+# The bindgen feature should only be used when pre-generated bindings aren't available.
 aws-lc-sys = "0.36.0"
-# Try enabling bindgen feature on aws-lc-rs as a workaround (reported to help in some cases)
-# This may help with cross-compilation issues by changing the build path
-# Note: Pre-generated bindings exist for x86_64, x86, aarch64, so bindgen shouldn't be needed,
-# but enabling it may change the build process in a way that avoids other issues
-aws-lc-rs = { version = "1.15.3", features = ["bindgen"] }
 
 [features]
 default = ["extension-module", "tls"]

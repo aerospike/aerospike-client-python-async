@@ -22,9 +22,10 @@ jobs:
           # maturin platform, Docker platform
           [x86_64, _],
           [x86, linux/386],
-          # Re-enabling aarch64 to test if aws-lc-rs bindgen feature helps with __ARM_ARCH issue
+          # Re-enabling aarch64 to test if the __ARM_ARCH issue persists
           # - Previously disabled due to __ARM_ARCH not defined when compiling ARM assembly files
-          # - Testing with aws-lc-rs = { version = "1.15.3", features = ["bindgen"] } in Cargo.toml
+          # - Note: aws-lc-rs bindgen feature was tried but removed because it forces bindgen
+          #   for all targets (including x86_64 with pre-generated bindings), requiring libclang
           # - armv7 still disabled: bindgen/libclang not available in manylinux Docker
           #   * Requires bindgen which needs libclang
           #   * Pre-generated bindings not available for armv7
@@ -198,13 +199,19 @@ jobs:
           $nasmPath = "C:\Program Files\NASM"
           if (Test-Path $nasmPath) {
             echo "$nasmPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Verify NASM using full path (PATH won't be updated until next step)
+            & "$nasmPath\nasm.exe" -v
           } else {
             # Fallback to Chocolatey bin directory
             echo "C:\ProgramData\chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Try to find nasm in common locations
+            $chocoBin = "C:\ProgramData\chocolatey\bin\nasm.exe"
+            if (Test-Path $chocoBin) {
+              & $chocoBin -v
+            } else {
+              echo "NASM installed but path verification skipped (will be available in next step)"
+            }
           }
-          # Verify NASM is accessible
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          nasm -v
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
