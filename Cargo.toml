@@ -22,8 +22,11 @@ tokio-rustls = { version = "0.26", optional = true }
 rustls = { version = "0.23", optional = true }
 rustls-pemfile = { version = "2", optional = true }
 webpki-roots = { version = "1.0", optional = true }
-# Pin aws-lc-sys to 0.36.0 to avoid cross-compilation issues with 0.37.0
+# Try aws-lc-sys 0.37.0 (released Jan 23, 2026 with aws-lc-rs v1.15.4)
+# Previous version 0.36.0 had cross-compilation issues with __ARM_ARCH
 # See: https://github.com/aws/aws-lc-rs/issues (aarch64 __ARM_ARCH build errors)
+# Release notes: https://github.com/aws/aws-lc-rs/releases/tag/v1.15.4
+aws-lc-sys = "0.37.0"
 #
 # Bindgen Feature: Removed aws-lc-rs with bindgen feature because:
 # - It forces libclang dependency across ALL targets (including x86_64 with pre-generated bindings)
