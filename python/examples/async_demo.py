@@ -6,7 +6,7 @@ This example demonstrates how to use the Aerospike async client with asyncio.
 It creates its own event loop and performs various operations:
 - Store data (put)
 - Update data (add, append, prepend)
-- Retrieve data (get, scan)
+- Retrieve data (get, query)
 - Batch operations
 - Error handling
 
@@ -29,8 +29,9 @@ from aerospike_async import (
     Key,
     WritePolicy,
     ReadPolicy,
-    ScanPolicy,
+    QueryPolicy,
     PartitionFilter,
+    Statement,
     Record,
 )
 
@@ -49,6 +50,7 @@ class AsyncAerospikeDemo:
         """Establish connection to Aerospike cluster."""
         print(f"Connecting to Aerospike at {self.host}...")
         cp = ClientPolicy()
+        cp.use_services_alternate = True  # Required for connection
         self.client = await new_client(cp, self.host)
         print("✓ Connected successfully\n")
 
@@ -149,32 +151,29 @@ class AsyncAerospikeDemo:
 
         return records
 
-    async def scan_all_records(self):
-        """Scan all records in the set."""
-        print("=== Scanning all records ===")
+    async def query_all_records(self):
+        """Query all records in the set."""
+        print("=== Querying all records ===")
 
-        sp = ScanPolicy()
+        qp = QueryPolicy()
         pf = PartitionFilter.all()
+        stmt = Statement(self.namespace, self.set_name, [])
 
-        records = await self.client.scan(sp, pf, self.namespace, self.set_name, [])
+        records = await self.client.query(qp, pf, stmt)
 
         count = 0
-        # Recordset uses synchronous iteration (not async)
-        while True:
-            try:
-                record = next(records)
-                count += 1
-                if count <= 5:  # Print first 5 records
-                    print(f"  {record.key}: {record.bins.get('name', 'N/A')}")
-            except StopIteration:
-                break
+        # Recordset uses async iteration
+        async for record in records:
+            count += 1
+            if count <= 5:  # Print first 5 records
+                print(f"  {record.key}: {record.bins.get('name', 'N/A')}")
 
-        # Wait for scan to complete
+        # Wait for query to complete
         while records.active:
             await asyncio.sleep(0.1)
         records.close()
 
-        print(f"✓ Scanned {count} records\n")
+        print(f"✓ Queried {count} records\n")
 
     async def check_existence(self, user_ids: List[int]):
         """Check if records exist."""
@@ -276,8 +275,8 @@ async def main():
         # Check existence
         await demo.check_existence([0, 5, 10, 99])
 
-        # Scan all records
-        await demo.scan_all_records()
+        # Query all records
+        await demo.query_all_records()
 
         # Batch operations
         await demo.batch_operations()

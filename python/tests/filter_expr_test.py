@@ -268,16 +268,16 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         """Test comparing a list bin to a list value in filter expression."""
         # Create a test list
         test_list = [1, -1, 3, 5]
-        
+
         # Put the list in a bin
         from aerospike_async import WritePolicy
         wp = WritePolicy()
         await client.put(wp, key, {"listbin": test_list})
-        
+
         # Use filter expression to compare list bin to list value
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(test_list))
-        
+
         # Should match and return the record
         rec = await client.get(rp, key, ["listbin"])
         assert isinstance(rec, Record)
@@ -287,14 +287,14 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         """Test list_val with non-matching list raises ServerError."""
         test_list = [1, 2, 3]
         different_list = [4, 5, 6]
-        
+
         from aerospike_async import WritePolicy
         wp = WritePolicy()
         await client.put(wp, key, {"listbin": test_list})
-        
+
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(different_list))
-        
+
         with pytest.raises(ServerError):
             await client.get(rp, key, ["listbin"])
 
@@ -304,7 +304,7 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
 
     async def test_map_val_equality(self, client, key):
         """Test comparing a map bin to a map value in filter expression.
-        
+
         Uses MapPolicy(MapOrder.KEY_ORDERED) to store the map as ordered (matching Java's TreeMap),
         which ensures deterministic key ordering for exact byte-level matching in filter expressions.
         """
@@ -316,25 +316,25 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
             "key4": "b",
             "key5": "a",
         }
-        
+
         # Put the map in a bin with KEY_ORDERED policy to ensure deterministic ordering
         from aerospike_async import WritePolicy, MapPolicy, MapOrder, MapOperation
         wp = WritePolicy()
         map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
         # Use put_items to store the entire map with KEY_ORDERED policy
         await client.operate(wp, key, [MapOperation.put_items("mapbin", list(test_map.items()), map_policy)])
-        
+
         # Retrieve the map as stored by the server to get exact serialization format
         # This ensures we use the same byte-level representation for comparison
         rp_no_filter = ReadPolicy()
         rec_stored = await client.get(rp_no_filter, key, ["mapbin"])
         stored_map = rec_stored.bins["mapbin"]
-        
+
         # Use filter expression to compare map bin to the exact stored map value
         # The filter expression requires exact byte-level matching
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(stored_map))
-        
+
         # Should match and return the record (not filtered out)
         rec = await client.get(rp, key, ["mapbin"])
         assert isinstance(rec, Record)
@@ -345,13 +345,13 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         """Test map_val with non-matching map raises ServerError."""
         test_map = {"a": 1, "b": 2}
         different_map = {"c": 3, "d": 4}
-        
+
         from aerospike_async import WritePolicy
         wp = WritePolicy()
         await client.put(wp, key, {"mapbin": test_map})
-        
+
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(different_map))
-        
+
         with pytest.raises(ServerError):
             await client.get(rp, key, ["mapbin"])

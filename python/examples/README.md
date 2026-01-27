@@ -7,13 +7,12 @@ This directory contains example scripts demonstrating how to use the `aerospike_
 ### Core Examples
 - **[`basic_examples.py`](basic_examples.py)** - Basic examples showing fundamental operations like connecting, putting, getting, and querying data
 
-### Create Index Examples  
+### Create Index Examples
 - **[`create_index.py`](create_index.py)** - Comprehensive examples of creating different types of indexes
 - **[`create_index_simple.py`](create_index_simple.py)** - Simple, focused examples of index creation with quick reference
 
-### Scan Examples
-- **[`scan_simple.py`](scan_simple.py)** - Basic scan operations across records
-- **[`scan.py`](scan.py)** - Advanced scan patterns with different partition filters
+### Query Examples
+- **[`statement_simple.py`](statement_simple.py)** - Basic query operations with Statement
 
 ### Statement Examples
 - **[`statement_simple.py`](statement_simple.py)** - Basic query statements with filters
@@ -25,6 +24,9 @@ This directory contains example scripts demonstrating how to use the `aerospike_
 ### Privilege Examples
 - **[`privilege.py`](privilege.py)** - Comprehensive privilege and user management examples
 - **[`privilege_simple.py`](privilege_simple.py)** - Simple privilege object examples (no server required)
+
+### TLS Examples
+- **[`tls_example.py`](tls_example.py)** - TLS configuration, PKI authentication, and secure connection examples
 
 ## Running the Examples
 
@@ -45,9 +47,8 @@ python basic_examples.py
 python create_index.py
 python create_index_simple.py
 
-# Run scan examples
-python scan_simple.py
-python scan.py
+# Run query examples
+python statement_simple.py
 
 # Run statement examples
 python statement_simple.py
@@ -80,11 +81,11 @@ python privilege_simple.py
 - Parallel index creation
 - Error handling and validation
 
-### Scan Operations ([`scan.py`](scan.py), [`scan_simple.py`](scan_simple.py))
-- Basic record scanning across namespaces/sets
-- Partition-specific scanning
-- Range-based partition scanning
-- Bin-specific scanning for efficiency
+### Query Operations ([`statement_simple.py`](statement_simple.py))
+- Basic record querying across namespaces/sets
+- Query with filters (range, contains, geo)
+- Partition-specific querying
+- Bin-specific querying for efficiency
 
 ### Statement Queries ([`statement_simple.py`](statement_simple.py))
 - Basic query statements
@@ -113,18 +114,25 @@ python privilege_simple.py
 - Privilege validation and testing
 - Authentication and authorization examples
 
+### TLS and Security ([`tls_example.py`](tls_example.py))
+- Basic TLS connection configuration
+- Client certificate authentication
+- PKI (certificate-based) authentication
+- TLS name override in host strings
+- Authentication mode configuration
+
 ## Quick Start
 
 For a quick introduction, start with:
 1. **[`create_index_simple.py`](create_index_simple.py)** - Shows basic index creation
-2. **[`scan_simple.py`](scan_simple.py)** - Shows basic scanning
+2. **[`statement_simple.py`](statement_simple.py)** - Shows basic querying
 3. **[`statement_simple.py`](statement_simple.py)** - Shows basic querying
 4. **[`privilege_simple.py`](privilege_simple.py)** - Shows privilege objects (no server needed)
 5. **[`user_management.py`](user_management.py)** - Shows user management operations
 
 For comprehensive usage, see:
 1. **[`create_index.py`](create_index.py)** - Complete index creation guide
-2. **[`scan.py`](scan.py)** - Advanced scan patterns
+2. **[`geospatial.py`](geospatial.py)** - Advanced query patterns with geo filters
 
 ## Notes
 

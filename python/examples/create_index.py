@@ -19,47 +19,48 @@ from aerospike_async import (
 
 async def create_index_examples():
     """Demonstrate various ways to create indexes."""
-    
+
     # Set up client (you'll need to set AEROSPIKE_HOST environment variable)
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
     client_policy = ClientPolicy()
+    client_policy.use_services_alternate = True  # Required for connection
     aerospike_client = None
-    
+
     try:
         # Create client connection
         aerospike_client = await new_client(client_policy, host)
         print("✅ Connected to Aerospike server")
-        
+
         # Example 1: Create a simple numeric index
         print("\n--- Example 1: Numeric Index ---")
         try:
             await aerospike_client.create_index(
                 namespace="test",
-                set_name="users", 
+                set_name="users",
                 bin_name="age",
                 index_name="age_idx",
-                index_type=IndexType.Numeric,
-                cit=CollectionIndexType.Default
+                index_type=IndexType.NUMERIC,
+                cit=CollectionIndexType.DEFAULT
             )
             print("✅ Created numeric index on 'age' bin")
         except Exception as e:
             print(f"❌ Failed to create numeric index: {e}")
-        
+
         # Example 2: Create a string index
         print("\n--- Example 2: String Index ---")
         try:
             await aerospike_client.create_index(
                 namespace="test",
                 set_name="users",
-                bin_name="name", 
+                bin_name="name",
                 index_name="name_idx",
-                index_type=IndexType.String,
-                cit=CollectionIndexType.Default
+                index_type=IndexType.STRING,
+                cit=CollectionIndexType.DEFAULT
             )
             print("✅ Created string index on 'name' bin")
         except Exception as e:
             print(f"❌ Failed to create string index: {e}")
-        
+
         # Example 3: Create a Geo2DSphere index for location data
         print("\n--- Example 3: Geo2DSphere Index ---")
         try:
@@ -68,13 +69,13 @@ async def create_index_examples():
                 set_name="locations",
                 bin_name="coordinates",
                 index_name="geo_idx",
-                index_type=IndexType.Geo2DSphere,
-                cit=CollectionIndexType.Default
+                index_type=IndexType.GEO2D_SPHERE,
+                cit=CollectionIndexType.DEFAULT
             )
             print("✅ Created Geo2DSphere index on 'coordinates' bin")
         except Exception as e:
             print(f"❌ Failed to create geo index: {e}")
-        
+
         # Example 4: Create an index on a list bin
         print("\n--- Example 4: List Index ---")
         try:
@@ -83,13 +84,13 @@ async def create_index_examples():
                 set_name="products",
                 bin_name="tags",
                 index_name="tags_list_idx",
-                index_type=IndexType.String,
-                cit=CollectionIndexType.List  # Index on list elements
+                index_type=IndexType.STRING,
+                cit=CollectionIndexType.LIST  # Index on list elements
             )
             print("✅ Created list index on 'tags' bin")
         except Exception as e:
             print(f"❌ Failed to create list index: {e}")
-        
+
         # Example 5: Create an index on map keys
         print("\n--- Example 5: Map Keys Index ---")
         try:
@@ -98,13 +99,13 @@ async def create_index_examples():
                 set_name="configs",
                 bin_name="settings",
                 index_name="settings_keys_idx",
-                index_type=IndexType.String,
-                cit=CollectionIndexType.MapKeys  # Index on map keys
+                index_type=IndexType.STRING,
+                cit=CollectionIndexType.MAP_KEYS  # Index on map keys
             )
             print("✅ Created map keys index on 'settings' bin")
         except Exception as e:
             print(f"❌ Failed to create map keys index: {e}")
-        
+
         # Example 6: Create an index on map values
         print("\n--- Example 6: Map Values Index ---")
         try:
@@ -113,13 +114,13 @@ async def create_index_examples():
                 set_name="configs",
                 bin_name="settings",
                 index_name="settings_values_idx",
-                index_type=IndexType.String,
-                cit=CollectionIndexType.MapValues  # Index on map values
+                index_type=IndexType.STRING,
+                cit=CollectionIndexType.MAP_VALUES  # Index on map values
             )
             print("✅ Created map values index on 'settings' bin")
         except Exception as e:
             print(f"❌ Failed to create map values index: {e}")
-        
+
         # Example 7: Create multiple indexes in parallel
         print("\n--- Example 7: Parallel Index Creation ---")
         try:
@@ -130,36 +131,36 @@ async def create_index_examples():
                     set_name="analytics",
                     bin_name="user_id",
                     index_name="user_id_idx",
-                    index_type=IndexType.Numeric,
-                    cit=CollectionIndexType.Default
-                ),
-                aerospike_client.create_index(
-                    namespace="test", 
-                    set_name="analytics",
-                    bin_name="event_type",
-                    index_name="event_type_idx",
-                    index_type=IndexType.String,
-                    cit=CollectionIndexType.Default
+                    index_type=IndexType.NUMERIC,
+                    cit=CollectionIndexType.DEFAULT
                 ),
                 aerospike_client.create_index(
                     namespace="test",
-                    set_name="analytics", 
+                    set_name="analytics",
+                    bin_name="event_type",
+                    index_name="event_type_idx",
+                    index_type=IndexType.STRING,
+                    cit=CollectionIndexType.DEFAULT
+                ),
+                aerospike_client.create_index(
+                    namespace="test",
+                    set_name="analytics",
                     bin_name="timestamp",
                     index_name="timestamp_idx",
-                    index_type=IndexType.Numeric,
-                    cit=CollectionIndexType.Default
+                    index_type=IndexType.NUMERIC,
+                    cit=CollectionIndexType.DEFAULT
                 )
             ]
             await asyncio.gather(*tasks)
             print("✅ Created all analytics indexes in parallel")
         except Exception as e:
             print(f"❌ Failed to create parallel indexes: {e}")
-        
+
     except Exception as e:
         print(f"❌ Connection failed: {e}")
         print("Make sure to set AEROSPIKE_HOST environment variable")
         print("Example: export AEROSPIKE_HOST=localhost:3000")
-    
+
     finally:
         # Clean up
         if 'aerospike_client' in locals() and aerospike_client is not None:
@@ -174,7 +175,7 @@ def print_usage_examples():
     print("\n" + "="*60)
     print("CREATE_INDEX USAGE EXAMPLES")
     print("="*60)
-    
+
     print("\n📋 create_index Function Signature:")
     print("""
     await client.create_index(
@@ -186,54 +187,54 @@ def print_usage_examples():
         cit: Optional[CollectionIndexType] # Collection type (optional)
     )
     """)
-    
+
     print("\n🔢 IndexType Options:")
-    print("  • IndexType.Numeric     - For integer/float values")
-    print("  • IndexType.String      - For string values") 
-    print("  • IndexType.Geo2DSphere - For GeoJSON coordinates")
-    
+    print("  • IndexType.NUMERIC     - For integer/float values")
+    print("  • IndexType.STRING      - For string values")
+    print("  • IndexType.GEO2D_SPHERE - For GeoJSON coordinates")
+
     print("\n📦 CollectionIndexType Options:")
-    print("  • CollectionIndexType.Default   - For scalar values (default)")
-    print("  • CollectionIndexType.List      - For list elements")
-    print("  • CollectionIndexType.MapKeys   - For map keys")
-    print("  • CollectionIndexType.MapValues - For map values")
-    
+    print("  • CollectionIndexType.DEFAULT   - For scalar values (default)")
+    print("  • CollectionIndexType.LIST      - For list elements")
+    print("  • CollectionIndexType.MAP_KEYS   - For map keys")
+    print("  • CollectionIndexType.MAP_VALUES - For map values")
+
     print("\n💡 Common Use Cases:")
     print("  • User age queries: Numeric index on 'age' bin")
     print("  • Name searches: String index on 'name' bin")
     print("  • Location queries: Geo2DSphere index on 'coordinates' bin")
     print("  • Tag filtering: List index on 'tags' bin")
     print("  • Map key lookups: MapKeys index on 'metadata' bin")
-    
+
     print("\n⚠️  Important Notes:")
     print("  • Index names must be unique across the namespace")
     print("  • Index creation is asynchronous and may take time")
     print("  • Indexes are created on the server, not locally")
     print("  • Use appropriate IndexType for your data")
     print("  • CollectionIndexType is only needed for complex data types")
-    
+
     print("\n🚀 Quick Examples:")
     print("""
     # Simple numeric index
-    await client.create_index("test", "users", "age", "age_idx", IndexType.Numeric, None)
-    
+    await client.create_index("test", "users", "age", "age_idx", IndexType.NUMERIC, None)
+
     # String index with default collection type
-    await client.create_index("test", "users", "name", "name_idx", IndexType.String, CollectionIndexType.Default)
-    
+    await client.create_index("test", "users", "name", "name_idx", IndexType.STRING, CollectionIndexType.DEFAULT)
+
     # List index for tags
-    await client.create_index("test", "products", "tags", "tags_idx", IndexType.String, CollectionIndexType.List)
-    
+    await client.create_index("test", "products", "tags", "tags_idx", IndexType.STRING, CollectionIndexType.LIST)
+
     # Geo index for coordinates
-    await client.create_index("test", "locations", "coords", "geo_idx", IndexType.Geo2DSphere, None)
+    await client.create_index("test", "locations", "coords", "geo_idx", IndexType.GEO2D_SPHERE, None)
     """)
 
 
 if __name__ == "__main__":
     print("🚀 Aerospike Async Create Index Examples")
     print("="*50)
-    
+
     # Run the examples
     asyncio.run(create_index_examples())
-    
+
     # Print usage information
     print_usage_examples()

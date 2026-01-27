@@ -108,7 +108,6 @@ class TestBatchApply(TestFixtureConnection):
             assert record is not None
             assert record.bins["B6"] == "value6"
 
-    @pytest.mark.skip(reason="Waiting for Rust core batch UDF error handling fix")
     async def test_batch_apply_error(self, client_with_udf):
         """Test batch_apply with UDF validation errors."""
         keys = [

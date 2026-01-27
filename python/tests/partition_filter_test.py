@@ -76,23 +76,23 @@ class TestPartitionFilter:
     def test_getters_setters(self):
         """Test getters and setters for PartitionFilter properties."""
         pf = PartitionFilter.all()
-        
+
         # Test begin getter/setter
         assert pf.begin == 0
         pf.begin = 100
         assert pf.begin == 100
-        
+
         # Test count getter/setter
         assert pf.count == 4096
         pf.count = 50
         assert pf.count == 50
-        
+
         # Test digest getter/setter
         assert pf.digest is None
         digest_hex = "a" * 40  # 20 bytes as hex
         pf.digest = digest_hex
         assert pf.digest == digest_hex
-        
+
         # Test setting digest to None
         pf.digest = None
         assert pf.digest is None
@@ -100,19 +100,19 @@ class TestPartitionFilter:
     def test_digest_setter_invalid(self):
         """Test digest setter with invalid values."""
         pf = PartitionFilter.all()
-        
+
         # Test with invalid hex string (odd number of digits)
         with pytest.raises(ValueError, match="Invalid hex digest"):
             pf.digest = "short"
-        
+
         # Test with too short (even number but wrong length)
         with pytest.raises(ValueError, match="Digest must be exactly 20 bytes"):
             pf.digest = "a" * 38  # 19 bytes
-        
+
         # Test with too long
         with pytest.raises(ValueError, match="Digest must be exactly 20 bytes"):
             pf.digest = "a" * 42  # 21 bytes
-        
+
         # Test with invalid hex characters
         with pytest.raises(ValueError, match="Invalid hex digest"):
             pf.digest = "g" * 40  # Invalid hex char
@@ -144,13 +144,37 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         pf.partitions = [ps]
         # Test passes if no exception is raised
 
+    @pytest.mark.asyncio
+    async def test_partition_filter_partitions_property_works_in_python_asyncio_context(self):
+        """Test that PartitionFilter.partitions getter/setter works in Python asyncio context.
+
+        This test verifies that the partitions property can be accessed from Python's asyncio
+        context without requiring a Tokio runtime handle. The getter uses blocking_lock()
+        instead of requiring Handle::try_current().
+        """
+        pf = PartitionFilter.by_range(0, 1)
+        ps = PartitionStatus(0)
+        ps.retry = False
+        ps.bval = 0
+        ps.digest = None
+
+        # Setter should not raise.
+        pf.partitions = [ps]
+
+        # Getter should not raise - this was previously failing with:
+        # ValueError: No Tokio runtime available. This method must be called from within an async context.
+        got = pf.partitions
+        assert got is not None
+        assert len(got) == 1
+        assert got[0].id == 0
+
     async def test_query_with_by_id(self, client):
         """Test query with PartitionFilter.by_id()."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_id(0)
         records = await client.query(QueryPolicy(), pf, stmt)
         assert isinstance(records, Recordset)
-        
+
         # Consume records
         count = 0
         async for _ in records:
@@ -164,7 +188,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 10)
         records = await client.query(QueryPolicy(), pf, stmt)
         assert isinstance(records, Recordset)
-        
+
         # Consume records
         count = 0
         async for _ in records:
@@ -208,14 +232,14 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 5)
         policy = QueryPolicy()
         policy.max_records = 20
-        
+
         records = await client.query(policy, pf, stmt)
-        
+
         # Consume all records
         count = 0
         async for _ in records:
             count += 1
-        
+
         # Partitions may be populated after query (implementation dependent)
         partitions = pf.partitions
         if partitions is not None:
@@ -227,13 +251,13 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 3)
         policy = QueryPolicy()
         policy.max_records = 10
-        
+
         records = await client.query(policy, pf, stmt)
-        
+
         # Consume records
         async for _ in records:
             pass
-        
+
         partitions = pf.partitions
         if partitions:
             for ps in partitions:

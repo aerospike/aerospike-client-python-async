@@ -34,7 +34,7 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 /// Register all exceptions in the exceptions module
 pub fn register_exceptions(py: Python, m: &pyo3::Bound<pyo3::types::PyModule>) -> PyResult<()> {
     println!("Registering exceptions in submodule...");
-    
+
     // Register all exceptions
     m.add("AerospikeError", py.get_type::<AerospikeError>())?;
     m.add("ServerError", py.get_type::<ServerError>())?;
@@ -53,7 +53,7 @@ pub fn register_exceptions(py: Python, m: &pyo3::Bound<pyo3::types::PyModule>) -
     m.add("IoError", py.get_type::<IoError>())?;
     m.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     m.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
-    
+
     println!("All exceptions registered successfully!");
     Ok(())
 }

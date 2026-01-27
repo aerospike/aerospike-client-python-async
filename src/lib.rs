@@ -1932,7 +1932,7 @@ pub enum Replica {
                     for (k, v) in h {
                         btree_map.insert(aerospike_core::Value::from(k), aerospike_core::Value::from(v));
                     }
-                    
+
                     // BTreeMap implements MapLike, so we can pass it directly
                     FilterExpression {
                         _as: aerospike_core::expressions::map_val(btree_map),
@@ -2388,6 +2388,731 @@ pub enum Replica {
                 _as: aerospike_core::expressions::unknown(),
             }
         }
+
+        //--------------------------------------------------
+        // List CDT Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that returns list size.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            FilterExpression {
+                _as: lists::size(bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list item identified by index and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index(
+            return_type: ListReturnType,
+            value_type: ExpType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index(
+                    core_return_type,
+                    (&value_type).into(),
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list item identified by rank and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank(
+            return_type: ListReturnType,
+            value_type: ExpType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank(
+                    core_return_type,
+                    (&value_type).into(),
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by value and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value(
+                    core_return_type,
+                    value._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_range(
+            return_type: ListReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_range(
+                    core_return_type,
+                    value_begin.as_ref().map(|v| v._as.clone()),
+                    value_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by values and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_list(
+            return_type: ListReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_list(
+                    core_return_type,
+                    values._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items starting at specified index to the end of list
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index_range(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index_range(
+                    core_return_type,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" list items starting at specified index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index_range_count(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index_range_count(
+                    core_return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items starting at specified rank to the last ranked item
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank_range(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank_range(
+                    core_return_type,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" list items starting at specified rank and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank_range_count(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank_range_count(
+                    core_return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items nearest to value and greater by relative rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_relative_rank_range(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_relative_rank_range(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items nearest to value and greater by relative rank with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_relative_rank_range_count(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_relative_rank_range_count(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that returns map size.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            FilterExpression {
+                _as: maps::size(bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by key and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            key: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_key(
+                    core_return_type,
+                    (&value_type).into(),
+                    key._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by rank and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_rank(
+                    core_return_type,
+                    (&value_type).into(),
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by index and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_index(
+                    core_return_type,
+                    (&value_type).into(),
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by value and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_value(
+                    core_return_type,
+                    value._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_range(
+            return_type: MapReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_value_range(
+                    core_return_type,
+                    value_begin.as_ref().map(|v| v._as.clone()),
+                    value_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by values and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_list(
+            return_type: MapReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_value_list(
+                    core_return_type,
+                    values._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by key range (keyBegin inclusive, keyEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If keyBegin is None, the range is less than keyEnd. If keyEnd is None, the range is greater than equal to keyBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_range(
+            return_type: MapReturnType,
+            key_begin: Option<FilterExpression>,
+            key_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_key_range(
+                    core_return_type,
+                    key_begin.as_ref().map(|v| v._as.clone()),
+                    key_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by keys and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_list(
+            return_type: MapReturnType,
+            keys: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_key_list(
+                    core_return_type,
+                    keys._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to key and greater by index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_relative_index_range(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_key_relative_index_range(
+                    core_return_type,
+                    key._as,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to key and greater by index with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_relative_index_range_count(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_key_relative_index_range_count(
+                    core_return_type,
+                    key._as,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to value and greater by relative rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_relative_rank_range(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_value_relative_rank_range(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to value and greater by relative rank with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_relative_rank_range_count(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_value_relative_rank_range_count(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items starting at specified index to the end of map
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index_range(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_index_range(
+                    core_return_type,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" map items starting at specified index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index_range_count(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_index_range_count(
+                    core_return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items starting at specified rank to the last ranked item
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank_range(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_rank_range(
+                    core_return_type,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" map items starting at specified rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank_range_count(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
+                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            FilterExpression {
+                _as: maps::get_by_rank_range_count(
+                    core_return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2402,7 +3127,7 @@ pub enum Replica {
     pub struct PartitionStatus {
         _as: aerospike_core::query::PartitionStatus,
     }
-    
+
     // Note: We can't derive Clone because PartitionStatus has private fields
     // If cloning is needed, we'd need to add a method in the Rust core
 
@@ -2414,7 +3139,7 @@ pub enum Replica {
     #[pymethods]
     impl PartitionStatus {
         /// Create a new PartitionStatus with the specified partition ID.
-        /// 
+        ///
         /// The `retry` field defaults to `true`, and other fields can be set via setters.
         #[new]
         pub fn new(id: u16) -> Self {
@@ -2652,12 +3377,11 @@ pub enum Replica {
             match &self._as.partitions {
                 None => Ok(py.None()),
                 Some(partitions) => {
-                    let rt = tokio::runtime::Handle::try_current()
-                        .map_err(|_| PyValueError::new_err("No Tokio runtime available. This method must be called from within an async context."))?;
-                    
                     let mut py_partitions = Vec::new();
                     for arc_mutex_status in partitions.iter() {
-                        let status_guard = rt.block_on(arc_mutex_status.lock());
+                        // Use blocking_lock() which doesn't require a Tokio runtime handle
+                        // This allows the property to work from Python asyncio context
+                        let status_guard = arc_mutex_status.blocking_lock();
                         let status = &*status_guard;
                         let py_status = PartitionStatus {
                             _as: aerospike_core::query::PartitionStatus {
@@ -3892,6 +4616,182 @@ pub enum Replica {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  AuthMode
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Authentication mode for client connections.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum AuthMode {
+        /// No authentication will be performed.
+        #[pyo3(name = "NONE")]
+        None,
+
+        /// Uses internal authentication when user/password defined. Hashed password is stored
+        /// on the server. Do not send clear password. This is the default.
+        #[pyo3(name = "INTERNAL")]
+        Internal,
+
+        /// Uses external authentication (like LDAP) when user/password defined. Specific external
+        /// authentication is configured on server. If TLSConfig is defined, sends clear password
+        /// on node login via TLS. Will return an error if TLSConfig is not defined.
+        #[pyo3(name = "EXTERNAL")]
+        External,
+
+        /// Allows authentication and authorization based on a certificate. No user name or
+        /// password needs to be configured. Requires TLS and a client certificate.
+        /// Requires server version 5.7.0+
+        #[pyo3(name = "PKI")]
+        PKI,
+    }
+
+    #[pymethods]
+    impl AuthMode {
+        fn __richcmp__(&self, other: &AuthMode, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TlsConfig
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[cfg(feature = "tls")]
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "TlsConfig",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 100
+    )]
+    #[derive(Clone)]
+    pub struct TlsConfig {
+        _as: rustls::ClientConfig,
+    }
+
+    // Type alias to allow function signatures to compile when TLS is disabled
+    #[cfg(not(feature = "tls"))]
+    type TlsConfig = ();
+
+    #[cfg(feature = "tls")]
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl TlsConfig {
+        /// Create a new TlsConfig from CA certificate file.
+        ///
+        /// Args:
+        ///     cafile: Path to the CA certificate file (PEM format)
+        ///
+        /// Returns:
+        ///     TlsConfig instance configured with the CA certificate
+        #[new]
+        #[pyo3(signature = (cafile))]
+        pub fn new(cafile: String) -> PyResult<Self> {
+            use rustls::{ClientConfig, RootCertStore};
+            use std::fs::File;
+            use std::io::BufReader;
+
+            // Build root cert store with webpki roots and custom CA
+            let mut root_store = RootCertStore {
+                roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+            };
+
+            // Add custom CA certificates
+            let ca_file = File::open(&cafile)
+                .map_err(|e| PyErr::new::<IoError, _>(format!("Cannot open CA file {}: {}", cafile, e)))?;
+            let mut ca_reader = BufReader::new(ca_file);
+            let certs: Result<Vec<_>, _> = rustls_pemfile::certs(&mut ca_reader).collect();
+            let certs = certs.map_err(|e| PyErr::new::<IoError, _>(format!("Cannot parse CA file {}: {}", cafile, e)))?;
+
+            for cert in certs {
+                root_store.add(cert).map_err(|e| PyErr::new::<IoError, _>(format!("Cannot add CA certificate: {}", e)))?;
+            }
+
+            // Build client config with root certificates
+            let config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            Ok(TlsConfig { _as: config })
+        }
+
+        /// Create a TlsConfig with client authentication from certificate and key files.
+        ///
+        /// Args:
+        ///     cafile: Path to the CA certificate file (PEM format)
+        ///     certfile: Path to the client certificate file (PEM format)
+        ///     keyfile: Path to the client private key file (PEM format)
+        ///
+        /// Returns:
+        ///     TlsConfig instance configured with CA and client certificates
+        #[staticmethod]
+        pub fn with_client_auth(cafile: String, certfile: String, keyfile: String) -> PyResult<Self> {
+            use rustls::{ClientConfig, RootCertStore};
+            use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+            use std::fs::File;
+            use std::io::BufReader;
+
+            // Build root cert store with webpki roots and custom CA
+            let mut root_store = RootCertStore {
+                roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+            };
+
+            // Add custom CA certificates
+            let ca_file = File::open(&cafile)
+                .map_err(|e| PyErr::new::<IoError, _>(format!("Cannot open CA file {}: {}", cafile, e)))?;
+            let mut ca_reader = BufReader::new(ca_file);
+            let certs: Result<Vec<_>, _> = rustls_pemfile::certs(&mut ca_reader).collect();
+            let certs = certs.map_err(|e| PyErr::new::<IoError, _>(format!("Cannot parse CA file {}: {}", cafile, e)))?;
+
+            for cert in certs {
+                root_store.add(cert).map_err(|e| PyErr::new::<IoError, _>(format!("Cannot add CA certificate: {}", e)))?;
+            }
+
+            // Load client certificate
+            let client_cert_file = File::open(&certfile)
+                .map_err(|e| PyErr::new::<IoError, _>(format!("Cannot open client cert file {}: {}", certfile, e)))?;
+            let mut client_cert_reader = BufReader::new(client_cert_file);
+            let client_certs: Result<Vec<CertificateDer>, _> = rustls_pemfile::certs(&mut client_cert_reader).collect();
+            let client_certs = client_certs.map_err(|e| PyErr::new::<IoError, _>(format!("Cannot parse client cert file {}: {}", certfile, e)))?;
+
+            // Load client private key
+            let key_file = File::open(&keyfile)
+                .map_err(|e| PyErr::new::<IoError, _>(format!("Cannot open key file {}: {}", keyfile, e)))?;
+            let mut key_reader = BufReader::new(key_file);
+            let keys: Result<Vec<_>, _> = rustls_pemfile::pkcs8_private_keys(&mut key_reader).collect();
+            let mut keys = keys.map_err(|e| PyErr::new::<IoError, _>(format!("Cannot parse key file {}: {}", keyfile, e)))?;
+
+            let client_key = keys.pop()
+                .ok_or_else(|| PyErr::new::<IoError, _>(format!("No private key found in {}", keyfile)))?;
+
+            // Build client config with root certificates and client auth
+            let config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_client_auth_cert(client_certs, PrivateKeyDer::Pkcs8(client_key))
+                .map_err(|e| PyErr::new::<IoError, _>(format!("Cannot build TLS config with client auth: {}", e)))?;
+
+            Ok(TlsConfig { _as: config })
+        }
+    }
+
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "ClientPolicy",
@@ -3935,11 +4835,17 @@ pub enum Replica {
                 (Some(user), aerospike_core::AuthMode::External(_, password)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::External(user, password.clone());
                 }
+                (Some(_user), aerospike_core::AuthMode::PKI) => {
+                    // PKI mode doesn't use usernames, ignore
+                }
                 (Some(user), _) => {
                     self._as.auth_mode = aerospike_core::AuthMode::Internal(user, "".to_string());
                 }
                 (None, aerospike_core::AuthMode::Internal(_, _) | aerospike_core::AuthMode::External(_, _)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::None;
+                }
+                (None, aerospike_core::AuthMode::PKI) => {
+                    // PKI mode doesn't use usernames, ignore
                 }
                 _ => {}
             }
@@ -3979,6 +4885,56 @@ pub enum Replica {
                 (None, aerospike_core::AuthMode::None) => {}
                 (None, aerospike_core::AuthMode::PKI) => {}
             }
+        }
+
+        /// Get the current authentication mode.
+        #[getter]
+        pub fn get_auth_mode(&self) -> AuthMode {
+            match &self._as.auth_mode {
+                aerospike_core::AuthMode::None => AuthMode::None,
+                aerospike_core::AuthMode::Internal(_, _) => AuthMode::Internal,
+                aerospike_core::AuthMode::External(_, _) => AuthMode::External,
+                aerospike_core::AuthMode::PKI => AuthMode::PKI,
+            }
+        }
+
+        /// Set the authentication mode.
+        ///
+        /// Args:
+        ///     mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL, or AuthMode.PKI)
+        ///     user: Optional username (required for INTERNAL and EXTERNAL modes)
+        ///     password: Optional password (required for INTERNAL and EXTERNAL modes)
+        ///
+        /// Note: For PKI mode, user and password are ignored. TLS with client certificate is required.
+        #[pyo3(signature = (mode, user = None, password = None))]
+        pub fn set_auth_mode(&mut self, mode: AuthMode, user: Option<String>, password: Option<String>) -> PyResult<()> {
+            match mode {
+                AuthMode::None => {
+                    self._as.auth_mode = aerospike_core::AuthMode::None;
+                }
+                AuthMode::Internal => {
+                    let user = user.unwrap_or_else(|| "".to_string());
+                    let password = password.unwrap_or_else(|| "".to_string());
+                    self._as.auth_mode = aerospike_core::AuthMode::Internal(user, password);
+                }
+                AuthMode::External => {
+                    let user = user.unwrap_or_else(|| "".to_string());
+                    let password = password.unwrap_or_else(|| "".to_string());
+                    self._as.auth_mode = aerospike_core::AuthMode::External(user, password);
+                }
+                AuthMode::PKI => {
+                    self._as.auth_mode = aerospike_core::AuthMode::PKI;
+                }
+            }
+            Ok(())
+        }
+
+        /// Set authentication mode to PKI (certificate-based authentication).
+        ///
+        /// This requires TLS to be configured with a client certificate.
+        /// Requires server version 5.7.0+.
+        pub fn set_pki_auth(&mut self) {
+            self._as.auth_mode = aerospike_core::AuthMode::PKI;
         }
 
         #[getter]
@@ -4165,6 +5121,22 @@ pub enum Replica {
         #[setter]
         pub fn set_cluster_name(&mut self, value: Option<String>) {
             self._as.cluster_name = value;
+        }
+
+        /// TLS configuration for secure connections.
+        /// Set to None to disable TLS, or use TlsConfig to configure TLS.
+        #[cfg(feature = "tls")]
+        #[getter]
+        pub fn get_tls_config(&self) -> Option<TlsConfig> {
+            self._as.tls_config.as_ref().map(|config| TlsConfig {
+                _as: config.clone(),
+            })
+        }
+
+        #[cfg(feature = "tls")]
+        #[setter]
+        pub fn set_tls_config(&mut self, value: Option<TlsConfig>) {
+            self._as.tls_config = value.map(|tls| tls._as);
         }
 
         fn __str__(&self) -> PyResult<String> {
@@ -7627,7 +8599,7 @@ pub enum Replica {
                             bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
                         }
                     };
-                    
+
                     // Apply context if present
                     let final_op = if let Some(ctx) = &op_with_ctx.ctx {
                         core_op.set_context(ctx.as_slice())
@@ -9345,14 +10317,6 @@ pub enum Replica {
             })
         }
 
-        /// Read all records in the specified namespace and set and return a record iterator. The scan
-        /// executor puts records on a queue in separate threads. The calling thread concurrently pops
-        /// records off the queue through the record iterator. Up to `policy.max_concurrent_nodes`
-        /// nodes are scanned in parallel. If concurrent nodes is set to zero, the server nodes are
-        /// read in series.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        // scan() method has been removed from the Rust core (CLIENT-4068)
-
         /// Execute a query on all server nodes and return a record iterator. The query executor puts
         /// records on a queue in separate threads. The calling thread concurrently pops records off
         /// the queue through the record iterator.
@@ -10989,6 +11953,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     // Add helper functions
     m.add_function(wrap_pyfunction!(null, m)?)?;
     m.add_function(wrap_pyfunction!(geojson, m)?)?;
+    m.add_class::<AuthMode>()?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
     m.add_class::<QueryPolicy>()?;
@@ -11015,6 +11980,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TaskStatus>()?;
     m.add_class::<RegisterTask>()?;
     m.add_class::<UdfRemoveTask>()?;
+    #[cfg(feature = "tls")]
+    m.add_class::<TlsConfig>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
 

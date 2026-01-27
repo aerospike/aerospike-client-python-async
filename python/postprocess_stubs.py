@@ -254,7 +254,6 @@ def add_client_stubs(content: str) -> str:
     def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None) -> typing.Awaitable[typing.Any]: ...
     def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None) -> typing.Awaitable[typing.Any]: ...
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str) -> typing.Awaitable[typing.Any]: ...
-    def scan(self, policy: ScanPolicy, partition_filter: PartitionFilter, namespace: builtins.str, set_name: builtins.str, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Any]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
@@ -756,7 +755,7 @@ def ensure_statement_set_name(content: str) -> str:
         r'def __new__(cls, namespace:builtins.str, set_name:typing.Optional[str] = None, bins:',
         content
     )
-    
+
     # Fix property to use str instead of builtins.str for PyCharm
     content = re.sub(
         r'@property\s+def set_name\(self\) -> typing\.Optional\[builtins\.str\]:',
@@ -768,7 +767,7 @@ def ensure_statement_set_name(content: str) -> str:
         '@set_name.setter\n    def set_name(self, value: typing.Optional[str]) -> None:',
         content
     )
-    
+
     # Check if set_name property already exists
     if '@property\n    def set_name(self) -> typing.Optional[str]:' in content:
         return content
@@ -789,7 +788,7 @@ def ensure_statement_set_name(content: str) -> str:
 
 
 def add_policy_stubs(content: str) -> str:
-    """Add full method stubs for WritePolicy, ReadPolicy, QueryPolicy, and ScanPolicy classes."""
+    """Add full method stubs for WritePolicy, ReadPolicy, and QueryPolicy classes."""
     read_policy_stub = '''class ReadPolicy(BasePolicy):
     def __new__(cls) -> ReadPolicy: ...
     @property
@@ -882,35 +881,10 @@ def add_policy_stubs(content: str) -> str:
     def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
 '''
 
-    scan_policy_stub = '''class ScanPolicy(BasePolicy):
-    def __new__(cls) -> ScanPolicy: ...
-    @property
-    def base_policy(self) -> BasePolicy: ...
-    @base_policy.setter
-    def base_policy(self, value: BasePolicy) -> None: ...
-    @property
-    def max_concurrent_nodes(self) -> builtins.int: ...
-    @max_concurrent_nodes.setter
-    def max_concurrent_nodes(self, value: builtins.int) -> None: ...
-    @property
-    def record_queue_size(self) -> builtins.int: ...
-    @record_queue_size.setter
-    def record_queue_size(self, value: builtins.int) -> None: ...
-    @property
-    def socket_timeout(self) -> builtins.int: ...
-    @socket_timeout.setter
-    def socket_timeout(self, value: builtins.int) -> None: ...
-    @property
-    def max_records(self) -> builtins.int: ...
-    @max_records.setter
-    def max_records(self, value: builtins.int) -> None: ...
-'''
-
     patterns = [
         (r'class ReadPolicy\(BasePolicy\):\s*\.\.\.', read_policy_stub, "ReadPolicy"),
         (r'class WritePolicy\(BasePolicy\):\s*\.\.\.', write_policy_stub, "WritePolicy"),
         (r'class QueryPolicy\(BasePolicy\):\s*\.\.\.', query_policy_stub, "QueryPolicy"),
-        (r'class ScanPolicy\(BasePolicy\):\s*\.\.\.', scan_policy_stub, "ScanPolicy"),
     ]
 
     for pattern, stub, name in patterns:

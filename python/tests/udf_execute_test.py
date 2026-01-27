@@ -165,3 +165,68 @@ class TestExecuteUDF(TestFixtureConnection):
             await client_with_udf.execute_udf(
                 wp, key, "nonexistent", "writeBin", ["bin", "value"]
             )
+
+    @pytest.fixture
+    async def client_with_sleep_udf(self, client):
+        """Register sleep UDF for timeout tests."""
+        udf_path = os.path.join(os.path.dirname(__file__), "udf", "sleep_example.lua")
+        server_path = "sleep_example.lua"
+
+        # Clean up any existing UDF first
+        try:
+            remove_task = await client.remove_udf(None, server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+
+        # Register the UDF
+        task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+        completed = await task.wait_till_complete()
+        assert completed, f"UDF registration did not complete. Final status: {await task.query_status()}"
+
+        yield client
+
+        # Clean up
+        try:
+            remove_task = await client.remove_udf(None, server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+
+    async def test_udf_timeout_handling(self, client_with_sleep_udf):
+        """Test that total_timeout handles UDF timeouts (may be server-side UDFBadResponse or client-side TimeoutError)."""
+        from aerospike_async.exceptions import TimeoutError, UDFBadResponse
+
+        key = Key("test", "test", "timeout_test_key")
+        wp = WritePolicy()
+
+        # Set a short total_timeout (500ms)
+        wp.total_timeout = 500
+
+        # Execute UDF that sleeps for longer than the timeout (2000ms = 2 seconds)
+        # This should trigger a timeout error
+        # Note: Server may return UDFBadResponse with "UDF Execution Timeout" message
+        # or client may raise TimeoutError - both indicate timeout enforcement
+        with pytest.raises((TimeoutError, UDFBadResponse)) as exc_info:
+            await client_with_sleep_udf.execute_udf(
+                wp, key, "sleep_example", "sleep", [2000]
+            )
+
+        # Verify it's a timeout-related error
+        error_msg = str(exc_info.value).lower()
+        assert "timeout" in error_msg, f"Expected timeout error, got: {exc_info.value}"
+
+    async def test_udf_timeout_not_triggered_on_fast_operation(self, client_with_sleep_udf):
+        """Test that total_timeout doesn't trigger on fast UDF operations."""
+        key = Key("test", "test", "timeout_test_key2")
+        wp = WritePolicy()
+
+        # Set a total_timeout (1000ms)
+        wp.total_timeout = 1000
+
+        # Execute UDF that sleeps for shorter than the timeout (100ms)
+        # This should complete successfully
+        result = await client_with_sleep_udf.execute_udf(
+            wp, key, "sleep_example", "sleep", [100]
+        )
+        assert result == "slept"

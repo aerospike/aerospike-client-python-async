@@ -22,8 +22,36 @@ jobs:
           # maturin platform, Docker platform
           [x86_64, _],
           [x86, linux/386],
-          [aarch64, linux/arm64],
-          [armv7, linux/arm/v7]
+          # aarch64 and armv7 disabled due to aws-lc-sys cross-compilation issues:
+          #
+          # Bindgen Feature Issue:
+          # - Enabling bindgen forces libclang dependency across ALL targets
+          # - This includes x86_64 which has pre-generated bindings and doesn't need bindgen
+          # - libclang is often missing or incompatible in standard manylinux Docker containers
+          # - This causes build failures in CI/CD environments
+          # - Resolution: Removed bindgen feature to improve reliability
+          #
+          # ARM Cross-Compilation Issue:
+          # - aarch64: __ARM_ARCH not defined when compiling ARM assembly files
+          #   * aws-lc-sys tries to compile arm/aes/*.S files for aarch64
+          #   * Cross-compiler (aarch64-unknown-linux-gnu-gcc) doesn't define __ARM_ARCH properly
+          #   * Error: #error "ARM assembler must define __ARM_ARCH" in asm_base.h:77
+          #   * AWS_LC_SYS_NO_ASM only works for debug builds, not release
+          #   * Tested both aws-lc-sys 0.36.0 and 0.37.0 (latest, Jan 23, 2026) - both have the same issue
+          # - armv7: bindgen/libclang not available in manylinux Docker
+          #   * Requires bindgen which needs libclang
+          #   * Pre-generated bindings not available for armv7
+          #
+          # See: https://github.com/aws/aws-lc-rs/issues
+          #
+          # Potential solutions:
+          # - Wait for aws-lc-sys to fix ARM assembly compilation for aarch64
+          # - Build without TLS for ARM targets (temporary workaround)
+          # - Use custom manylinux Docker image with proper ARM cross-compilation setup
+          # - Workaround: Install clang and set BINDGEN_EXTRA_CLANG_ARGS in Cross.toml
+          #   (requires custom build environments, not suitable for standard CI)
+          # [aarch64, linux/arm64],
+          # [armv7, linux/arm/v7]
         ]
         python: [
           'python3.10',
@@ -56,6 +84,14 @@ jobs:
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
           manylinux: auto
+        env:
+          # Force aws-lc-sys to use pre-generated bindings instead of bindgen/CMake
+          # This avoids needing libclang and system headers in manylinux Docker containers
+          # Note: These environment variables should be passed into the Docker container
+          AWS_LC_SYS_CMAKE_BUILDER: "0"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
+          # Ensure pre-generated bindings are used (don't skip them)
+          AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
 
       - name: Run Aerospike server
         run: |
@@ -176,6 +212,26 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      - name: Install NASM
+        run: |
+          choco install nasm -y
+          # Add NASM to PATH for subsequent steps (Chocolatey installs to Program Files)
+          $nasmPath = "C:\Program Files\NASM"
+          if (Test-Path $nasmPath) {
+            echo "$nasmPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Verify NASM using full path (PATH won't be updated until next step)
+            & "$nasmPath\nasm.exe" -v
+          } else {
+            # Fallback to Chocolatey bin directory
+            echo "C:\ProgramData\chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Try to find nasm in common locations
+            $chocoBin = "C:\ProgramData\chocolatey\bin\nasm.exe"
+            if (Test-Path $chocoBin) {
+              & $chocoBin -v
+            } else {
+              echo "NASM installed but path verification skipped (will be available in next step)"
+            }
+          }
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -186,6 +242,10 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out aerospike_async --find-interpreter
           sccache: 'true'
+        env:
+          # Force aws-lc-sys to use pre-generated bindings if available
+          AWS_LC_SYS_CMAKE_BUILDER: "0"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
       
       # Note: Tests are skipped on Windows because the Windows runner uses Windows containers
       # and cannot run Linux containers (Aerospike server requires Linux).
@@ -216,7 +276,22 @@ jobs:
           brew install podman
           podman machine init
           podman machine start
-          podman run -d -p 3000:3000 aerospike/aerospike-server
+          # Retry pulling and running image with exponential backoff (DNS/network issues can be transient)
+          for i in {1..5}; do
+            if podman run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server; then
+              echo "Aerospike server started successfully on attempt $i"
+              break
+            fi
+            if [ $i -eq 5 ]; then
+              echo "Failed to start Aerospike server after 5 attempts"
+              echo "Checking network connectivity..."
+              nslookup registry-1.docker.io || echo "DNS resolution failed"
+              curl -I https://registry-1.docker.io/v2/ || echo "HTTPS connection failed"
+              exit 1
+            fi
+            echo "Attempt $i failed, retrying in $((2**i)) seconds..."
+            sleep $((2**i))
+          done
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -259,7 +334,7 @@ jobs:
           ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
-            podman logs --tail 100 aerospike-server
+            podman logs --tail 100 aerospike-server || echo "Could not retrieve server logs"
             echo "=== End of Server Log ==="
             exit 1
           fi

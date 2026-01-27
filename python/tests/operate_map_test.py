@@ -652,6 +652,476 @@ async def test_operate_map_value_operations(client_and_key):
     assert results[5] == [1]
 
 
+async def test_operate_map_get_by_index_range_from(client_and_key):
+    """Test operate with Map get_by_index_range_from operation."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(None, None)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put("mapbin", 4, 4, map_policy),
+            MapOperation.put("mapbin", 3, 3, map_policy),
+            MapOperation.put("mapbin", 2, 2, map_policy),
+            MapOperation.put("mapbin", 1, 1, map_policy),
+        ]
+    )
+
+    # Get by index range from index 2 to end
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.get_by_index_range_from("mapbin", 2, MapReturnType.KEY_VALUE),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+
+    # Result: getByIndexRangeFrom(2) should return items from index 2 to end
+    # Python flattens single operation results, so it's a dict directly
+    if isinstance(results, dict):
+        key_value_result = results
+    else:
+        assert isinstance(results, list)
+        key_value_result = results[0]
+
+    assert isinstance(key_value_result, dict)
+    # Should have 2 items (indices 2 and 3)
+    assert len(key_value_result) == 2
+
+
+async def test_operate_map_get_by_rank_range_from(client_and_key):
+    """Test operate with Map get_by_rank_range_from operation."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Get by rank range from rank 2 to end
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.get_by_rank_range_from("mapbin", 2, MapReturnType.KEY_VALUE),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+
+    # Result: getByRankRangeFrom(2) should return items from rank 2 to end
+    # Python flattens single operation results, so it's a dict directly
+    if isinstance(results, dict):
+        key_value_result = results
+    else:
+        assert isinstance(results, list)
+        key_value_result = results[0]
+
+    assert isinstance(key_value_result, dict)
+    # Should have 2 items (ranks 2 and 3)
+    assert len(key_value_result) == 2
+
+
+async def test_operate_map_remove_by_index(client_and_key):
+    """Test operate with Map remove_by_index operation.
+
+    Based on Java client's TestOperateMap.operateMapRemoveRange test pattern.
+    """
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(None, None)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by index
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_index("mapbin", 1, MapReturnType.KEY_VALUE),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByIndex returns the removed item (KEY_VALUE)
+    removed = results[0]
+    assert isinstance(removed, dict)
+    assert len(removed) == 1
+
+    # Second result: size should be 3 (one item removed)
+    size = results[1]
+    assert size == 3
+
+
+async def test_operate_map_remove_by_index_range(client_and_key):
+    """Test operate with Map remove_by_index_range operation.
+
+    Based on Java client's TestOperateMap.operateMapRemoveRange test.
+    """
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(None, None)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
+                 ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by index range
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_index_range("mapbin", 0, 2, MapReturnType.COUNT),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByIndexRange returns count of removed items
+    count = results[0]
+    assert count == 2
+
+    # Second result: size should be 5 (2 items removed from 7)
+    size = results[1]
+    assert size == 5
+
+
+async def test_operate_map_remove_by_index_range_from(client_and_key):
+    """Test operate with Map remove_by_index_range_from operation."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(None, None)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by index range from index 2 to end
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_index_range_from("mapbin", 2, MapReturnType.COUNT),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByIndexRangeFrom returns count of removed items
+    count = results[0]
+    assert count == 2  # Removed indices 2 and 3
+
+    # Second result: size should be 2 (2 items removed from 4)
+    size = results[1]
+    assert size == 2
+
+
+async def test_operate_map_remove_by_rank(client_and_key):
+    """Test operate with Map remove_by_rank operation."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by rank
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_rank("mapbin", 1, MapReturnType.KEY_VALUE),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByRank returns the removed item (KEY_VALUE)
+    removed = results[0]
+    assert isinstance(removed, dict)
+    assert len(removed) == 1
+
+    # Second result: size should be 3 (one item removed)
+    size = results[1]
+    assert size == 3
+
+
+async def test_operate_map_remove_by_rank_range(client_and_key):
+    """Test operate with Map remove_by_rank_range operation.
+
+    Based on Java client's TestOperateMap.operateMapRemoveRange test.
+    """
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
+                 ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by rank range
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_rank_range("mapbin", 0, 2, MapReturnType.COUNT),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByRankRange returns count of removed items
+    count = results[0]
+    assert count == 2
+
+    # Second result: size should be 5 (2 items removed from 7)
+    size = results[1]
+    assert size == 5
+
+
+async def test_operate_map_remove_by_rank_range_from(client_and_key):
+    """Test operate with Map remove_by_rank_range_from operation."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by rank range from rank 2 to end
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_rank_range_from("mapbin", 2, MapReturnType.COUNT),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByRankRangeFrom returns count of removed items
+    count = results[0]
+    assert count == 2  # Removed ranks 2 and 3
+
+    # Second result: size should be 2 (2 items removed from 4)
+    size = results[1]
+    assert size == 2
+
+
+async def test_operate_map_remove_by_value(client_and_key):
+    """Test operate with Map remove_by_value operation.
+
+    Based on Java client's TestOperateMap.operateMapRemove test.
+    """
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
+                 ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by value
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_value("mapbin", 55, MapReturnType.KEY),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByValue returns keys of removed items
+    removed_keys = results[0]
+    assert isinstance(removed_keys, list)
+    assert len(removed_keys) == 1
+    assert "Charlie" in removed_keys
+
+    # Second result: size should be 6 (one item removed from 7)
+    size = results[1]
+    assert size == 6
+
+
+async def test_operate_map_remove_by_value_range(client_and_key):
+    """Test operate with Map remove_by_value_range operation.
+
+    Based on Java client's TestOperateMap.operateMapRemoveRange test.
+    """
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
+
+    # Delete the record first
+    await client.delete(wp, key)
+
+    # Create a map with items (scores)
+    input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
+                 ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, map_policy),
+        ]
+    )
+
+    # Remove by value range
+    record = await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.remove_by_value_range("mapbin", 80, 85, MapReturnType.COUNT),
+            MapOperation.size("mapbin"),
+        ]
+    )
+
+    assert record is not None
+    assert record.bins is not None
+    results = record.bins.get("mapbin")
+    assert isinstance(results, list)
+
+    # First result: removeByValueRange returns count of removed items
+    # Values in range [80, 85): Harry (82), Lenny (84) = 2 items
+    count = results[0]
+    assert count == 2
+
+    # Second result: size should be 5 (2 items removed from 7)
+    size = results[1]
+    assert size == 5
+
+
 async def test_operate_map_get_by_list(client_and_key):
     """Test operate with Map get_by_key_list and get_by_value_list operations."""
     client, key = client_and_key
@@ -920,7 +1390,7 @@ async def test_operate_map_set_map_policy(client_and_key):
     # Third result: None from setMapPolicy (doesn't return value)
     # Fourth result: size() returns 2
     assert 2 in results
-    
+
     # Verify map still has the items
     rec = await client.get(rp, key, ["mapbin"])
     map_data = rec.bins.get("mapbin")
@@ -937,7 +1407,7 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
 
     # Create a map with ordered keys
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
-    
+
     record = await client.operate(
         wp,
         key,
@@ -967,7 +1437,7 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
     assert record is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    
+
     # Verify we got some results (Python may flatten nested lists)
     # getByKeyRelativeIndexRange(5, 0) should return keys [5, 9]
     assert 5 in results or [5] in results
@@ -983,7 +1453,7 @@ async def test_operate_map_get_by_value_relative_rank_range(client_and_key):
 
     # Create a map
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
-    
+
     record = await client.operate(
         wp,
         key,
@@ -1009,7 +1479,7 @@ async def test_operate_map_get_by_value_relative_rank_range(client_and_key):
     assert record is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    
+
     # Verify we got some results
     # getByValueRelativeRankRange(11, 1) should return values greater than 11 by rank 1
     assert len(results) > 0
@@ -1025,7 +1495,7 @@ async def test_operate_map_remove_by_key_relative_index_range(client_and_key):
 
     # Create a map
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
-    
+
     record = await client.operate(
         wp,
         key,
@@ -1051,7 +1521,7 @@ async def test_operate_map_remove_by_key_relative_index_range(client_and_key):
     assert record is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    
+
     # Verify removals happened
     rec = await client.get(rp, key, ["mapbin"])
     map_data = rec.bins.get("mapbin")
@@ -1070,7 +1540,7 @@ async def test_operate_map_remove_by_value_relative_rank_range(client_and_key):
 
     # Create a map
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
-    
+
     record = await client.operate(
         wp,
         key,
@@ -1095,7 +1565,7 @@ async def test_operate_map_remove_by_value_relative_rank_range(client_and_key):
     assert record is not None
     results = record.bins.get("mapbin")
     assert isinstance(results, list)
-    
+
     # Verify removals happened
     rec = await client.get(rp, key, ["mapbin"])
     map_data = rec.bins.get("mapbin")
@@ -1132,7 +1602,7 @@ async def test_operate_map_create(client_and_key):
         assert 0 in results
     else:
         assert results == 0
-    
+
     # Verify map was created
     rec = await client.get(rp, key, ["mapbin"])
     assert "mapbin" in rec.bins
@@ -1169,20 +1639,20 @@ async def test_operate_nested_map(client_and_key):
 
     assert record is not None
     results = record.bins.get("mapbin")
-    
+
     if isinstance(results, list):
         # First result: count from put (should be 2)
         count = results[0] if isinstance(results[0], (int, float)) else results[1]
         assert count == 2
-        
+
         # Second result: the full map
         full_map = results[1] if isinstance(results[0], (int, float)) else results[0]
     else:
         full_map = results
-    
+
     assert isinstance(full_map, dict)
     assert len(full_map) == 2
-    
+
     # Test nested map: key2 -> key21 should be 11
     nested_map = full_map["key2"]
     assert isinstance(nested_map, dict)
@@ -1204,10 +1674,10 @@ async def test_operate_double_nested_map(client_and_key):
     m11 = {"key111": 1}
     m12 = {"key121": 5}
     m1 = {"key11": m11, "key12": m12}
-    
+
     m21 = {"key211": 7}
     m2 = {"key21": m21}
-    
+
     input_map = {"key1": m1, "key2": m2}
 
     # Create maps
@@ -1228,25 +1698,25 @@ async def test_operate_double_nested_map(client_and_key):
 
     assert record is not None
     results = record.bins.get("mapbin")
-    
+
     if isinstance(results, list):
         # First result: count from put (should be 1)
         count = results[0] if isinstance(results[0], (int, float)) else results[1]
         assert count == 1
-        
+
         # Second result: the full map
         full_map = results[1] if isinstance(results[0], (int, float)) else results[0]
     else:
         full_map = results
-    
+
     assert isinstance(full_map, dict)
     assert len(full_map) == 2
-    
+
     # Test double nested map: key1 -> key12 -> key121 should be 11
     key1_map = full_map["key1"]
     assert isinstance(key1_map, dict)
     assert len(key1_map) == 2
-    
+
     key12_map = key1_map["key12"]
     assert isinstance(key12_map, dict)
     assert len(key12_map) == 1
@@ -1255,9 +1725,9 @@ async def test_operate_double_nested_map(client_and_key):
 
 async def test_operate_nested_map_value(client_and_key):
     """Test operate with nested map using CTX.mapValue.
-    
+
     Based on Java client's operateNestedMapValue test.
-    
+
     Uses CTX.map_value() which now converts HashMap to OrderedMap (BTreeMap) for
     exact byte-level matching with KEY_ORDERED maps stored on the server.
     """
@@ -1292,18 +1762,18 @@ async def test_operate_nested_map_value(client_and_key):
 
     assert record is not None
     results = record.bins.get("mapbin")
-    
+
     assert isinstance(results, list)
     assert len(results) >= 3
-    
+
     # First result: count from put_items (should be 1)
     count1 = results[0] if isinstance(results[0], (int, float)) else results[1]
     assert count1 == 1
-    
+
     # Second result: count from put (should be 1)
     count2 = results[1] if isinstance(results[0], (int, float)) else results[2]
     assert count2 == 1
-    
+
     # Third result: list of entries from get_by_key
     entry_list = results[2] if isinstance(results[0], (int, float)) else results[0]
     # Python client may return dict instead of list of entries for KEY_VALUE return type
@@ -1324,9 +1794,9 @@ async def test_operate_nested_map_value(client_and_key):
 
 async def test_operate_map_create_context(client_and_key):
     """Test operate with map create context using CTX.mapKey.
-    
+
     Based on Java client's operateMapCreateContext test.
-    
+
     Adapted to use CTX.map_key_create with put operation instead of MapOperation.create
     with context, since the Rust core client's MapOperation.create doesn't support context.
     The CTX.map_key_create creates the map at the context level if it doesn't exist.
@@ -1361,21 +1831,21 @@ async def test_operate_map_create_context(client_and_key):
 
     assert record is not None
     results = record.bins.get("mapbin")
-    
+
     if isinstance(results, list):
         # First result: count from put (should be 1)
         # Second result: the full map from get_bin
         count = results[0] if len(results) > 0 and isinstance(results[0], (int, float)) else results[1]
         assert count == 1
-        
+
         # Second result: the full map
         full_map = results[1] if len(results) > 1 else results[0]
     else:
         full_map = results
-    
+
     assert isinstance(full_map, dict)
     assert len(full_map) == 3  # key1, key2, key3
-    
+
     # Test new nested map: key3 -> key31 should be 99
     key3_map = full_map["key3"]
     assert isinstance(key3_map, dict)

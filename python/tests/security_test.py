@@ -449,16 +449,7 @@ class TestSecurityFeatures:
                 raise
 
         # Query all roles - should return a list of all roles
-        # CLIENT-4052: Buffer misalignment in parse_privileges can cause privilege codes
-        # to be misinterpreted as result codes. When this occurs, we may receive
-        # ALWAYS_FORBIDDEN instead of the actual role data. Skip the test in this case
-        # until the fix is applied.
-        try:
-            roles = await client.query_roles(None)
-        except ServerError as e:
-            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
-            raise
+        roles = await client.query_roles(None)
 
         role_names = [r.name for r in roles]
         assert "test_role_1" in role_names
@@ -483,11 +474,6 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_admin_policy_timeout(self, client):
         """Test AdminPolicy with custom timeout."""
-        # TODO: CLIENT-4052 - Waiting on parse_privileges fix in Rust core
-        # The parse_privileges fix ensures we consume exactly len bytes to prevent buffer misalignment
-        # This test is skipped until the fix is integrated and verified
-        pytest.skip("Waiting on parse_privileges fix as described in CLIENT-4052")
-
         from aerospike_async import AdminPolicy
 
         # Test default AdminPolicy
@@ -500,26 +486,11 @@ class TestSecurityFeatures:
         assert custom_policy.timeout == 10000
 
         # Test that AdminPolicy can be passed to query_roles
-        # CLIENT-4052: Buffer misalignment in parse_privileges can cause privilege codes
-        # to be misinterpreted as result codes. When this occurs, we may receive
-        # ALWAYS_FORBIDDEN instead of the actual role data. Skip the test in this case
-        # until the fix is applied.
-        try:
-            roles = await client.query_roles(None, policy=custom_policy)
-        except ServerError as e:
-            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
-            raise
-
+        roles = await client.query_roles(None, policy=custom_policy)
         assert isinstance(roles, list)
 
         # Test that default behavior still works (backward compatibility)
-        try:
-            roles_default = await client.query_roles(None)
-        except ServerError as e:
-            if e.result_code == ResultCode.ALWAYS_FORBIDDEN:
-                pytest.skip("CLIENT-4052: Buffer misalignment causes ALWAYS_FORBIDDEN error when querying roles")
-            raise
+        roles_default = await client.query_roles(None)
 
         assert isinstance(roles_default, list)
         assert len(roles) == len(roles_default)

@@ -12,16 +12,42 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.27", default-features = false }
 pyo3-async-runtimes = { version = "0.27", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "tls", package = "aerospike-core", features = ["rt-tokio"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v2", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.14.1"
 log = "0.4"
 futures = "0.3"
+tokio-rustls = { version = "0.26", optional = true }
+rustls = { version = "0.23", optional = true }
+rustls-pemfile = { version = "2", optional = true }
+webpki-roots = { version = "1.0", optional = true }
+# Try aws-lc-sys 0.37.0 (released Jan 23, 2026 with aws-lc-rs v1.15.4)
+# Previous version 0.36.0 had cross-compilation issues with __ARM_ARCH
+# See: https://github.com/aws/aws-lc-rs/issues (aarch64 __ARM_ARCH build errors)
+# Release notes: https://github.com/aws/aws-lc-rs/releases/tag/v1.15.4
+# Note: aws-lc-rs 1.15.3 (transitive via aerospike-core) requires aws-lc-sys 0.36.0,
+# so we add aws-lc-rs 1.15.4 as a direct dependency to force aws-lc-sys 0.37.0
+aws-lc-sys = "0.37.0"
+aws-lc-rs = "1.15.4"
+#
+# Bindgen Feature: Removed aws-lc-rs with bindgen feature because:
+# - It forces libclang dependency across ALL targets (including x86_64 with pre-generated bindings)
+# - libclang is often missing or incompatible in standard manylinux Docker containers
+# - This causes build failures in CI/CD environments
+# - The bindgen feature should only be used when pre-generated bindings aren't available
+#
+# ARM Cross-Compilation: aws-lc-sys has limitations when cross-compiling ARM assembly files:
+# - Fails to properly resolve __ARM_ARCH during ARM assembly compilation
+# - Error: #error "ARM assembler must define __ARM_ARCH" in asm_base.h:77
+# - This affects aarch64 and armv7 targets
+# - Workaround: Some have succeeded by installing clang and setting BINDGEN_EXTRA_CLANG_ARGS
+#   in Cross.toml, but this requires custom build environments
 
 [features]
-default = ["extension-module"]
+default = ["extension-module", "tls"]
 extension-module = ["pyo3/extension-module"]
+tls = ["aerospike-core/tls", "tokio-rustls", "rustls", "rustls-pemfile", "webpki-roots"]
 
 [[bin]]
 name = "stub_gen"
