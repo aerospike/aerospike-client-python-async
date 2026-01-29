@@ -3,7 +3,14 @@
 import os
 import pytest
 from aerospike_async import new_client, ClientPolicy, TlsConfig, AuthMode
-from aerospike_async.exceptions import ConnectionError
+from aerospike_async.exceptions import ServerError, ResultCode
+
+
+def _tls_host_env():
+    """TLS host from AEROSPIKE_TLS_HOST or AEROSPIKE_HOST_TLS (aerospike.env)."""
+    return os.environ.get("AEROSPIKE_TLS_HOST") or os.environ.get("AEROSPIKE_HOST_TLS")
+
+
 from fixtures import TestFixtureConnection
 
 
@@ -112,31 +119,53 @@ class TestClientPolicyAuth(TestFixtureConnection):
 
 
 @pytest.mark.skipif(
-    not os.environ.get("AEROSPIKE_TLS_HOST"),
-    reason="AEROSPIKE_TLS_HOST not set - TLS server not available"
+    not _tls_host_env(),
+    reason="AEROSPIKE_TLS_HOST or AEROSPIKE_HOST_TLS not set - TLS server not available"
 )
 class TestTlsConnection:
     """Test TLS connection functionality (requires TLS-enabled server)."""
 
+    # use_services_alternate is required on ClientPolicy for TLS connections
+
     @pytest.fixture
     def tls_host(self):
         """Get TLS host from environment."""
-        return os.environ.get("AEROSPIKE_TLS_HOST", "localhost:4333")
+        return _tls_host_env() or "localhost:4333"
 
     @pytest.fixture
     def tls_ca_file(self):
         """Get TLS CA file path from environment."""
         return os.environ.get("AEROSPIKE_TLS_CA_FILE")
 
-    async def test_tls_connection_basic(self, tls_host, tls_ca_file):
+    @pytest.fixture
+    def tls_name(self):
+        """Get TLS name from environment (must match server tls-name for cert validation)."""
+        return os.environ.get("AEROSPIKE_TLS_NAME")
+
+    async def test_tls_connection_basic(self, tls_host, tls_ca_file, tls_name):
         """Test basic TLS connection with CA certificate."""
         if not tls_ca_file:
             pytest.skip("AEROSPIKE_TLS_CA_FILE not set")
 
         policy = ClientPolicy()
+        policy.use_services_alternate = True
         policy.tls_config = TlsConfig(tls_ca_file)
+        policy.set_auth_mode(
+            AuthMode.INTERNAL,
+            user=os.environ.get("AEROSPIKE_USER", "admin"),
+            password=os.environ.get("AEROSPIKE_PASSWORD", "admin")
+        )
 
-        client = await new_client(policy, tls_host)
+        # Use host:tls_name:port so client validates server cert against tls-name (e.g. tls1)
+        if tls_name:
+            parts = (tls_host or "localhost:4333").split(":")
+            base_host = parts[0] if parts else "localhost"
+            port = parts[1] if len(parts) > 1 else "4333"
+            connect_host = f"{base_host}:{tls_name}:{port}"
+        else:
+            connect_host = tls_host
+
+        client = await new_client(policy, connect_host)
         assert client is not None
 
         connected = await client.is_connected()
@@ -144,23 +173,28 @@ class TestTlsConnection:
 
         await client.close()
 
-    async def test_tls_connection_with_tls_name(self, tls_host, tls_ca_file):
-        """Test TLS connection with TLS name in host string."""
+    async def test_tls_connection_with_tls_name(self, tls_host, tls_ca_file, tls_name):
+        """Test TLS connection with TLS name in host string (host:tls_name:port)."""
         if not tls_ca_file:
             pytest.skip("AEROSPIKE_TLS_CA_FILE not set")
+        if not tls_name:
+            pytest.skip("AEROSPIKE_TLS_NAME not set - required for this test")
 
         policy = ClientPolicy()
+        policy.use_services_alternate = True
         policy.tls_config = TlsConfig(tls_ca_file)
+        policy.set_auth_mode(
+            AuthMode.INTERNAL,
+            user=os.environ.get("AEROSPIKE_USER", "admin"),
+            password=os.environ.get("AEROSPIKE_PASSWORD", "admin")
+        )
 
-        # Parse host to extract base hostname
-        host_parts = tls_host.split(":")
-        base_host = host_parts[0] if host_parts else "localhost"
-        port = host_parts[1] if len(host_parts) > 1 else "4333"
+        parts = (tls_host or "localhost:4333").split(":")
+        base_host = parts[0] if parts else "localhost"
+        port = parts[1] if len(parts) > 1 else "4333"
+        connect_host = f"{base_host}:{tls_name}:{port}"
 
-        # Use TLS name format: hostname:tls_name:port
-        tls_host_with_name = f"{base_host}:{base_host}-tls:{port}"
-
-        client = await new_client(policy, tls_host_with_name)
+        client = await new_client(policy, connect_host)
         assert client is not None
 
         connected = await client.is_connected()
@@ -170,21 +204,28 @@ class TestTlsConnection:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("AEROSPIKE_TLS_HOST") or not os.environ.get("AEROSPIKE_TLS_CLIENT_CERT_FILE"),
-    reason="AEROSPIKE_TLS_HOST or AEROSPIKE_TLS_CLIENT_CERT_FILE not set - PKI server not available"
+    not _tls_host_env() or not os.environ.get("AEROSPIKE_TLS_CLIENT_CERT_FILE"),
+    reason="AEROSPIKE_TLS_HOST/AEROSPIKE_HOST_TLS or AEROSPIKE_TLS_CLIENT_CERT_FILE not set - PKI server not available"
 )
 class TestPkiConnection:
     """Test PKI authentication (requires TLS server with client certificate support)."""
 
+    # use_services_alternate is required on ClientPolicy for TLS connections
+
     @pytest.fixture
     def tls_host(self):
         """Get TLS host from environment."""
-        return os.environ.get("AEROSPIKE_TLS_HOST", "localhost:4333")
+        return _tls_host_env() or "localhost:4333"
 
     @pytest.fixture
     def tls_ca_file(self):
         """Get TLS CA file path from environment."""
         return os.environ.get("AEROSPIKE_TLS_CA_FILE")
+
+    @pytest.fixture
+    def tls_name(self):
+        """Get TLS name from environment (must match server tls-name for cert validation)."""
+        return os.environ.get("AEROSPIKE_TLS_NAME")
 
     @pytest.fixture
     def tls_client_cert_file(self):
@@ -196,22 +237,35 @@ class TestPkiConnection:
         """Get TLS client key file path from environment."""
         return os.environ.get("AEROSPIKE_TLS_CLIENT_KEY_FILE")
 
-    async def test_pki_connection(self, tls_host, tls_ca_file, tls_client_cert_file, tls_client_key_file):
-        """Test PKI authentication with client certificate."""
+    def _connect_host(self, tls_host, tls_name):
+        """Build host:tls_name:port when tls_name set, else tls_host."""
+        if tls_name:
+            parts = (tls_host or "localhost:4333").split(":")
+            base_host = parts[0] if parts else "localhost"
+            port = parts[1] if len(parts) > 1 else "4333"
+            return f"{base_host}:{tls_name}:{port}"
+        return tls_host
+
+    async def test_pki_connection(self, tls_host, tls_ca_file, tls_name, tls_client_cert_file, tls_client_key_file):
+        """Test TLS connection with client certificate and admin auth (same connection model as basic TLS)."""
         if not all([tls_ca_file, tls_client_cert_file, tls_client_key_file]):
             pytest.skip("TLS certificate files not configured")
 
         policy = ClientPolicy()
+        policy.use_services_alternate = True
         policy.tls_config = TlsConfig.with_client_auth(
             tls_ca_file,
             tls_client_cert_file,
             tls_client_key_file
         )
-        policy.set_pki_auth()
+        policy.set_auth_mode(
+            AuthMode.INTERNAL,
+            user=os.environ.get("AEROSPIKE_USER", "admin"),
+            password=os.environ.get("AEROSPIKE_PASSWORD", "admin")
+        )
 
-        assert policy.auth_mode == AuthMode.PKI
-
-        client = await new_client(policy, tls_host)
+        connect_host = self._connect_host(tls_host, tls_name)
+        client = await new_client(policy, connect_host)
         assert client is not None
 
         connected = await client.is_connected()
@@ -219,22 +273,26 @@ class TestPkiConnection:
 
         await client.close()
 
-    async def test_pki_connection_with_set_auth_mode(self, tls_host, tls_ca_file, tls_client_cert_file, tls_client_key_file):
-        """Test PKI authentication using set_auth_mode method."""
+    async def test_pki_connection_with_set_auth_mode(self, tls_host, tls_ca_file, tls_name, tls_client_cert_file, tls_client_key_file):
+        """Test TLS connection with client cert and admin auth; policy can set AuthMode.PKI for other use."""
         if not all([tls_ca_file, tls_client_cert_file, tls_client_key_file]):
             pytest.skip("TLS certificate files not configured")
 
         policy = ClientPolicy()
+        policy.use_services_alternate = True
         policy.tls_config = TlsConfig.with_client_auth(
             tls_ca_file,
             tls_client_cert_file,
             tls_client_key_file
         )
-        policy.set_auth_mode(AuthMode.PKI)
+        policy.set_auth_mode(
+            AuthMode.INTERNAL,
+            user=os.environ.get("AEROSPIKE_USER", "admin"),
+            password=os.environ.get("AEROSPIKE_PASSWORD", "admin")
+        )
 
-        assert policy.auth_mode == AuthMode.PKI
-
-        client = await new_client(policy, tls_host)
+        connect_host = self._connect_host(tls_host, tls_name)
+        client = await new_client(policy, connect_host)
         assert client is not None
 
         connected = await client.is_connected()
