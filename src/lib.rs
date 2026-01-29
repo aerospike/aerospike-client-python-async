@@ -6467,6 +6467,8 @@ pub enum Replica {
         #[classattr]
         fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::UserAlreadyExists) }
         #[classattr]
+        fn FORBIDDEN_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::ForbiddenPassword) }
+        #[classattr]
         fn UDF_BAD_RESPONSE() -> ResultCode { ResultCode(CoreResultCode::UdfBadResponse) }
     }
 
@@ -10368,6 +10370,33 @@ pub enum Replica {
                     .read()
                     .await
                     .create_user(&admin_policy, &user, &password, &roles)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|py| Ok(py.None()))
+            })
+        }
+
+        /// Creates a PKI user with roles. PKI users authenticate via TLS client certificate (no password).
+        /// Supported by Aerospike Server v8.1+ Enterprise.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (user, roles, *, policy = None))]
+        pub fn create_pki_user<'a>(
+            &self,
+            user: String,
+            roles: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
+                client
+                    .read()
+                    .await
+                    .create_pki_user(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 

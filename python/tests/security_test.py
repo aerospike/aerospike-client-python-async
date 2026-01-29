@@ -53,7 +53,7 @@ class TestSecurityFeatures:
     @pytest.fixture(autouse=True)
     async def cleanup_users(self, client):
         """Clean up test users before and after each test."""
-        test_users = ["test_user_1", "test_user_2", "test_user_3", "test_admin", "test_app_user"]
+        test_users = ["test_user_1", "test_user_2", "test_user_3", "test_admin", "test_app_user", "test_pki_user", "test_pki_user_chg_pw"]
         for username in test_users:
             try:
                 await client.drop_user(username)
@@ -236,6 +236,49 @@ class TestSecurityFeatures:
             await client.drop_user("nonexistent_user")
 
     @pytest.mark.asyncio
+    async def test_create_pki_user(self, client):
+        """Create a PKI-only user and verify via query_users. Requires server 8.1+."""
+        import asyncio
+
+        username = "test_pki_user"
+        roles = ["read:test"]
+
+        await client.create_pki_user(username, roles)
+
+        for attempt in range(3):
+            users = await client.query_users(None)
+            user_names = [u.user for u in users]
+            if username in user_names:
+                break
+            if attempt < 2:
+                await asyncio.sleep(0.1)
+        assert username in user_names, f"User {username} not found in {user_names} after creation"
+
+    @pytest.mark.asyncio
+    @pytest.mark.skip(reason="pending CLIENT-4131")
+    async def test_change_password_on_pki_user_fails(self, client):
+        """create_pki_user sends hash of 'nopassword'; server creates PKI-only user and rejects change_password."""
+        import asyncio
+
+        username = "test_pki_user_chg_pw"
+        roles = ["read:test"]
+
+        await client.create_pki_user(username, roles)
+
+        for attempt in range(3):
+            users = await client.query_users(None)
+            user_names = [u.user for u in users]
+            if username in user_names:
+                break
+            if attempt < 2:
+                await asyncio.sleep(0.1)
+        assert username in user_names, f"User {username} not found after creation"
+
+        with pytest.raises(ServerError) as exc_info:
+            await client.change_password(username, "new_password_123")
+        assert exc_info.value.result_code == ResultCode.FORBIDDEN_PASSWORD
+
+    @pytest.mark.asyncio
     async def test_change_password(self, client):
         """Test password change."""
         username = "test_user_1"
@@ -405,11 +448,6 @@ class TestSecurityFeatures:
         read_quota = 1000
         write_quota = 500
 
-        try:
-            await client.drop_role(role_name)
-        except:
-            pass
-
         # Create the role first
         try:
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
@@ -450,7 +488,6 @@ class TestSecurityFeatures:
 
         # Query all roles - should return a list of all roles
         roles = await client.query_roles(None)
-
         role_names = [r.name for r in roles]
         assert "test_role_1" in role_names
         assert "test_role_2" in role_names
@@ -487,11 +524,8 @@ class TestSecurityFeatures:
 
         # Test that AdminPolicy can be passed to query_roles
         roles = await client.query_roles(None, policy=custom_policy)
-        assert isinstance(roles, list)
-
-        # Test that default behavior still works (backward compatibility)
         roles_default = await client.query_roles(None)
-
+        assert isinstance(roles, list)
         assert isinstance(roles_default, list)
         assert len(roles) == len(roles_default)
 
