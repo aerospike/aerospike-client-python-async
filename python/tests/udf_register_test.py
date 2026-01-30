@@ -2,7 +2,7 @@
 import os
 import pytest
 from aerospike_async import AdminPolicy, UDFLang, TaskStatus
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, ResultCode
 from fixtures import TestFixtureConnection
 
 
@@ -95,8 +95,9 @@ class TestRegisterUDF(TestFixtureConnection):
         server_path = "test_empty.lua"
 
         try:
-            with pytest.raises(ServerError):
+            with pytest.raises(ServerError) as exc_info:
                 await client.register_udf_from_file(None, empty_file, server_path, UDFLang.LUA)
+            assert exc_info.value.result_code == ResultCode.SERVER_ERROR
         finally:
             if os.path.exists(empty_file):
                 os.remove(empty_file)

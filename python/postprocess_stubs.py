@@ -253,9 +253,14 @@ def add_client_stubs(content: str) -> str:
     def exists_legacy(self, policy: ReadPolicy, key: Key) -> typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]: ...
     def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None) -> typing.Awaitable[typing.Any]: ...
     def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None) -> typing.Awaitable[typing.Any]: ...
-    def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str) -> typing.Awaitable[typing.Any]: ...
+    def create_index_using_expression(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, index_type: IndexType, expression: FilterExpression, cit: typing.Optional[CollectionIndexType] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[IndexTask]: ...
+    def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[DropIndexTask]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
+    def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...
+    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
+    def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
+    def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_write(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], bins_list: typing.Sequence[typing.Dict[builtins.str, typing.Any]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
@@ -263,6 +268,11 @@ def add_client_stubs(content: str) -> str:
     def batch_apply(self, batch_policy: typing.Optional[BatchPolicy], udf_policy: typing.Optional[BatchUDFPolicy], keys: typing.Sequence[Key], udf_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_exists(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[builtins.bool]]: ...
     def batch_get_header(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[typing.Optional[Record]]]: ...
+    def node_names(self) -> typing.Awaitable[typing.List[builtins.str]]: ...
+    def get_node(self, name: builtins.str) -> typing.Awaitable[Node]: ...
+    def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...
+    def info(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, builtins.str]]: ...
+    def info_on_all_nodes(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, typing.Dict[builtins.str, builtins.str]]]: ...
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
     def create_pki_user(self, user: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...
     def drop_user(self, user: builtins.str) -> typing.Awaitable[typing.Any]: ...
@@ -277,6 +287,7 @@ def add_client_stubs(content: str) -> str:
     def revoke_privileges(self, role_name: builtins.str, privileges: typing.Sequence[Privilege]) -> typing.Awaitable[typing.Any]: ...
     def set_allowlist(self, role_name: builtins.str, allowlist: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
     def set_quotas(self, role_name: builtins.str, read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...
+    def set_xdr_filter(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[FilterExpression] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...
 '''
 
     # Check if Client class is missing
@@ -292,14 +303,22 @@ def add_client_stubs(content: str) -> str:
             content = content + '\n' + client_stub
             print("  ✓ Added Client class stubs (at end)")
     else:
-        # Client class exists - check if security methods are missing and add them
+        # Client class exists - check if security / info / UDF methods are missing and add them
         security_methods = [
             'create_pki_user', 'change_password', 'grant_roles', 'revoke_roles', 'query_users', 'query_roles',
             'create_role', 'drop_role', 'grant_privileges', 'revoke_privileges',
             'set_allowlist', 'set_quotas'
         ]
+        info_udf_methods = [
+            'execute_udf', 'register_udf', 'register_udf_from_file', 'remove_udf',
+            'node_names', 'info', 'info_on_all_nodes'
+        ]
+        new_api_methods = [
+            'create_index_using_expression', 'get_node', 'nodes', 'set_xdr_filter'
+        ]
+        methods_to_check = security_methods + info_udf_methods + new_api_methods
         missing_methods = []
-        for method in security_methods:
+        for method in methods_to_check:
             if not re.search(rf'^\s+def {method}\(', content, re.MULTILINE):
                 missing_methods.append(method)
 
@@ -345,11 +364,33 @@ def add_client_stubs(content: str) -> str:
                         method_stubs.append('    def set_allowlist(self, role_name: builtins.str, allowlist: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...')
                     elif method == 'set_quotas':
                         method_stubs.append('    def set_quotas(self, role_name: builtins.str, read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...')
+                    elif method == 'execute_udf':
+                        method_stubs.append('    def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...')
+                    elif method == 'register_udf':
+                        method_stubs.append('    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...')
+                    elif method == 'register_udf_from_file':
+                        method_stubs.append('    def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...')
+                    elif method == 'remove_udf':
+                        method_stubs.append('    def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...')
+                    elif method == 'node_names':
+                        method_stubs.append('    def node_names(self) -> typing.Awaitable[typing.List[builtins.str]]: ...')
+                    elif method == 'info':
+                        method_stubs.append('    def info(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, builtins.str]]: ...')
+                    elif method == 'info_on_all_nodes':
+                        method_stubs.append('    def info_on_all_nodes(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, typing.Dict[builtins.str, builtins.str]]]: ...')
+                    elif method == 'create_index_using_expression':
+                        method_stubs.append('    def create_index_using_expression(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, index_type: IndexType, expression: FilterExpression, cit: typing.Optional[CollectionIndexType] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[IndexTask]: ...')
+                    elif method == 'get_node':
+                        method_stubs.append('    def get_node(self, name: builtins.str) -> typing.Awaitable[Node]: ...')
+                    elif method == 'nodes':
+                        method_stubs.append('    def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...')
+                    elif method == 'set_xdr_filter':
+                        method_stubs.append('    def set_xdr_filter(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[FilterExpression] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...')
 
                 # Insert methods before the closing of the class or before new_client
                 methods_to_add = '\n' + '\n'.join(method_stubs) + '\n'
                 content = content[:insert_pos] + methods_to_add + content[insert_pos:]
-                print(f"  ✓ Added missing security methods to Client class: {', '.join(missing_methods)}")
+                print(f"  ✓ Added missing Client methods: {', '.join(missing_methods)}")
 
     return content
 
@@ -747,6 +788,181 @@ class BitOperation:
 # No postprocessing needed for these classes
 
 
+def add_index_task_stubs(content: str) -> str:
+    """Add IndexTask class stubs if missing (pyo3_stub_gen limitation)."""
+    index_task_stub = '''class IndexTask:
+    r"""
+    Task returned by create_index_using_expression() to track index creation status.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+
+class DropIndexTask:
+    r"""
+    Task returned by drop_index() to track index deletion status.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+'''
+
+    if 'class IndexTask:' not in content:
+        # Insert before Client class if it exists
+        client_match = re.search(r'^class Client:', content, re.MULTILINE)
+        if client_match:
+            insert_pos = client_match.start()
+            content = content[:insert_pos] + index_task_stub + '\n' + content[insert_pos:]
+            print("  ✓ Added IndexTask class stubs (pyo3_stub_gen limitation)")
+        else:
+            # Insert before new_client function
+            new_client_match = re.search(r'^def new_client\(', content, re.MULTILINE)
+            if new_client_match:
+                insert_pos = new_client_match.start()
+                content = content[:insert_pos] + index_task_stub + '\n' + content[insert_pos:]
+                print("  ✓ Added IndexTask class stubs (pyo3_stub_gen limitation)")
+            else:
+                content = content + '\n' + index_task_stub
+                print("  ✓ Added IndexTask class stubs (at end)")
+
+    return content
+
+
+def add_hll_operation_stubs(content: str) -> str:
+    """Add HllOperation class stubs if missing (pyo3_stub_gen limitation)."""
+    hll_operation_stub = '''class HllOperation:
+    r"""
+    HLL (HyperLogLog) operations. Create HLL operations used by the client's operate() method.
+    """
+    @staticmethod
+    def init(bin_name: builtins.str, index_bit_count: builtins.int, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    @staticmethod
+    def add(bin_name: builtins.str, values: typing.List[typing.Any], index_bit_count: builtins.int = -1, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    @staticmethod
+    def get_count(bin_name: builtins.str) -> HllOperation: ...
+    @staticmethod
+    def describe(bin_name: builtins.str) -> HllOperation: ...
+    @staticmethod
+    def refresh_count(bin_name: builtins.str) -> HllOperation: ...
+    @staticmethod
+    def fold(bin_name: builtins.str, index_bit_count: builtins.int) -> HllOperation: ...
+    @staticmethod
+    def get_union(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
+    @staticmethod
+    def get_union_count(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
+    @staticmethod
+    def get_intersect_count(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
+    @staticmethod
+    def get_similarity(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
+    @staticmethod
+    def set_union(bin_name: builtins.str, hll_list: typing.List[typing.Any], flags: builtins.int = 0) -> HllOperation: ...
+'''
+
+    if 'class HllOperation:' not in content:
+        # Insert before Client class if it exists
+        client_match = re.search(r'^class Client:', content, re.MULTILINE)
+        if client_match:
+            insert_pos = client_match.start()
+            content = content[:insert_pos] + hll_operation_stub + '\n' + content[insert_pos:]
+            print("  ✓ Added HllOperation class stubs (pyo3_stub_gen limitation)")
+        else:
+            content = content + '\n' + hll_operation_stub
+            print("  ✓ Added HllOperation class stubs (at end)")
+
+    return content
+
+
+def add_version_stubs(content: str) -> str:
+    """Add Version class stubs if missing (pyo3_stub_gen limitation)."""
+    version_stub = '''class Version:
+    r"""
+    Server version information with feature detection methods.
+    """
+    @property
+    def major(self) -> builtins.int: ...
+    @property
+    def minor(self) -> builtins.int: ...
+    @property
+    def patch(self) -> builtins.int: ...
+    @property
+    def build(self) -> builtins.int: ...
+    def supports_partition_scan(self) -> builtins.bool: ...
+    def supports_query_show(self) -> builtins.bool: ...
+    def supports_batch_any(self) -> builtins.bool: ...
+    def supports_partition_query(self) -> builtins.bool: ...
+    def supports_app_id(self) -> builtins.bool: ...
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+'''
+
+    if 'class Version:' not in content:
+        # Insert before Node class if it exists
+        node_match = re.search(r'^class Node:', content, re.MULTILINE)
+        if node_match:
+            insert_pos = node_match.start()
+            content = content[:insert_pos] + version_stub + '\n' + content[insert_pos:]
+            print("  ✓ Added Version class stubs (pyo3_stub_gen limitation)")
+        else:
+            # Insert before Client class if it exists
+            client_match = re.search(r'^class Client:', content, re.MULTILINE)
+            if client_match:
+                insert_pos = client_match.start()
+                content = content[:insert_pos] + version_stub + '\n' + content[insert_pos:]
+                print("  ✓ Added Version class stubs (pyo3_stub_gen limitation)")
+            else:
+                content = content + '\n' + version_stub
+                print("  ✓ Added Version class stubs (at end)")
+
+    return content
+
+
+def add_node_stubs(content: str) -> str:
+    """Add Node class stubs if missing (pyo3_stub_gen limitation)."""
+    node_stub = '''class Node:
+    r"""
+    Cluster node returned by get_node() or nodes(). Provides node info and server version.
+    """
+    @property
+    def name(self) -> builtins.str: ...
+    @property
+    def address(self) -> builtins.str: ...
+    @property
+    def is_active(self) -> builtins.bool: ...
+    @property
+    def version(self) -> Version: ...
+    @property
+    def host(self) -> typing.Tuple[builtins.str, builtins.int]: ...
+    @property
+    def failures(self) -> builtins.int: ...
+    @property
+    def partition_generation(self) -> builtins.int: ...
+    @property
+    def rebalance_generation(self) -> builtins.int: ...
+    def aliases(self) -> typing.Awaitable[typing.List[typing.Tuple[builtins.str, builtins.int]]]: ...
+    def info(self, command: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Dict[builtins.str, builtins.str]]: ...
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+'''
+
+    if 'class Node:' not in content:
+        # Insert before Client class if it exists
+        client_match = re.search(r'^class Client:', content, re.MULTILINE)
+        if client_match:
+            insert_pos = client_match.start()
+            content = content[:insert_pos] + node_stub + '\n' + content[insert_pos:]
+            print("  ✓ Added Node class stubs (pyo3_stub_gen limitation)")
+        else:
+            # Insert before new_client function
+            new_client_match = re.search(r'^def new_client\(', content, re.MULTILINE)
+            if new_client_match:
+                insert_pos = new_client_match.start()
+                content = content[:insert_pos] + node_stub + '\n' + content[insert_pos:]
+                print("  ✓ Added Node class stubs (pyo3_stub_gen limitation)")
+            else:
+                content = content + '\n' + node_stub
+                print("  ✓ Added Node class stubs (at end)")
+
+    return content
+
+
 def ensure_statement_set_name(content: str) -> str:
     """Ensure Statement class has set_name property with correct type annotations."""
     # Only fix Statement.__new__ signature - other methods (truncate, create_index, etc.) require set_name
@@ -973,6 +1189,10 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_record_stubs(content)
         content = add_key_stubs(content)
         content = add_operation_stubs(content)
+        content = add_index_task_stubs(content)
+        content = add_hll_operation_stubs(content)
+        content = add_version_stubs(content)
+        content = add_node_stubs(content)
         content = add_client_stubs(content)
         content = add_batch_policy_stubs(content)
         content = ensure_statement_set_name(content)

@@ -1,6 +1,6 @@
 import pytest
 from aerospike_async import WritePolicy, ReadPolicy
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, ResultCode
 from fixtures import TestFixtureInsertRecord
 
 
@@ -28,5 +28,6 @@ class TestAdd(TestFixtureInsertRecord):
 
     async def test_add_unsupported_bin_type(self, client, key):
         """Test add operation with unsupported bin type raises ServerError."""
-        with pytest.raises(ServerError):
+        with pytest.raises(ServerError) as exc_info:
             await client.add(WritePolicy(), key, {"brand": 1})
+        assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR

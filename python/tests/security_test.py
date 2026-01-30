@@ -255,7 +255,6 @@ class TestSecurityFeatures:
         assert username in user_names, f"User {username} not found in {user_names} after creation"
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="pending CLIENT-4131")
     async def test_change_password_on_pki_user_fails(self, client):
         """create_pki_user sends hash of 'nopassword'; server creates PKI-only user and rejects change_password."""
         import asyncio
