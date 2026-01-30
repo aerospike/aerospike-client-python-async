@@ -6,10 +6,10 @@ class TestFixtureConnection:
     """Base fixture for tests that need a client connection."""
 
     @pytest.fixture
-    async def client(self, aerospike_host):
+    async def client(self, aerospike_host, use_services_alternate):
         """Create a client connection for testing."""
         cp = ClientPolicy()
-        cp.use_services_alternate = True
+        cp.use_services_alternate = use_services_alternate
         client = await new_client(cp, aerospike_host)
         yield client
         await client.close()
@@ -19,10 +19,10 @@ class TestFixtureCleanDB(TestFixtureConnection):
     """Base fixture for tests that need a clean database."""
 
     @pytest.fixture
-    async def client(self, aerospike_host):  # type: ignore[override]
+    async def client(self, aerospike_host, use_services_alternate):  # type: ignore[override]
         """Create a client connection and clean the test namespace."""
         cp = ClientPolicy()
-        cp.use_services_alternate = True
+        cp.use_services_alternate = use_services_alternate
         client = await new_client(cp, aerospike_host)
         
         # Clean the test namespace
@@ -70,10 +70,10 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
 
     @pytest.fixture
     # noinspection PyMethodOverriding
-    async def client(self, key, original_bin_val, aerospike_host):
+    async def client(self, key, original_bin_val, aerospike_host, use_services_alternate):
         """Create a client connection and insert a test record."""
         cp = ClientPolicy()
-        cp.use_services_alternate = True
+        cp.use_services_alternate = use_services_alternate
         client = await new_client(cp, aerospike_host)
         
         # Clean the test namespace - ignore errors if truncate fails
