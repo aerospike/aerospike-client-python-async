@@ -18,12 +18,11 @@ class TestTruncate(TestFixtureInsertRecord):
         retval = await client.truncate("test", "test", before_nanos=0)
         assert retval is None
 
-    @pytest.mark.skipif(
-        os.environ.get("CI") == "true",
-        reason="Future timestamp truncate can block namespace writes in single-session CI runs"
-    )
     async def test_truncate_future_timestamp(self, client):
         """Test truncate operation with future timestamp."""
+        if os.environ.get("CI"):
+            pytest.skip("Future timestamp truncate can block namespace writes in CI")
+
         seconds_in_future = 1000
         future_threshold = time.time_ns() + seconds_in_future * 10**9
         isolated_set = "test_truncate_future_isolated"
