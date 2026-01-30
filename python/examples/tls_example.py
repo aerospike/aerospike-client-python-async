@@ -10,7 +10,7 @@ async def example_basic_tls(host: str, tls_name: str, ca_file: str):
     print("\n=== Basic TLS Connection ===")
 
     policy = ClientPolicy()
-    policy.use_services_alternate = True
+    policy.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")
     policy.tls_config = TlsConfig(ca_file)
     policy.set_auth_mode(
         AuthMode.INTERNAL,
@@ -35,7 +35,7 @@ async def example_tls_with_client_auth(host: str, tls_name: str, ca_file: str, c
     print("\n=== TLS with Client Certificate ===")
 
     policy = ClientPolicy()
-    policy.use_services_alternate = True
+    policy.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")
     policy.tls_config = TlsConfig.with_client_auth(ca_file, cert_file, key_file)
     policy.set_auth_mode(
         AuthMode.INTERNAL,
@@ -59,7 +59,7 @@ async def example_pki_authentication(host: str, tls_name: str, ca_file: str, cer
     print("\n=== PKI Authentication ===")
 
     policy = ClientPolicy()
-    policy.use_services_alternate = True
+    policy.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")
     policy.tls_config = TlsConfig.with_client_auth(ca_file, cert_file, key_file)
     policy.set_pki_auth()
 

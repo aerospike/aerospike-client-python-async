@@ -49,7 +49,7 @@ async def main():
 
     # Connect to server
     cp = ClientPolicy()
-    cp.use_services_alternate = True  # Required for connection
+    cp.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")  # Required for connection
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3100")
     print(f"Connecting to: {host}\n")
     client = await new_client(cp, host)

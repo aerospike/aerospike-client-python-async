@@ -50,6 +50,12 @@ def aerospike_host():
     return os.environ.get('AEROSPIKE_HOST')
 
 
+@pytest.fixture(scope="session")
+def use_services_alternate():
+    """Fixture indicating whether to use services-alternate addresses (for containerized servers)"""
+    return os.environ.get('AEROSPIKE_USE_SERVICES_ALTERNATE', '').lower() == 'true'
+
+
 @pytest.fixture(scope="session") 
 def aerospike_host_tls():
     """Fixture providing the TLS-enabled Aerospike host for tests"""

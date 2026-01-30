@@ -8,7 +8,7 @@ from aerospike_async import (
 
 async def main():
     cp = ClientPolicy()
-    cp.use_services_alternate = True  # Required for connection
+    cp.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")  # Required for connection
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
     c = await new_client(cp, host)
 

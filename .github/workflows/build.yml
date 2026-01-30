@@ -95,7 +95,7 @@ jobs:
 
       - name: Run Aerospike server
         run: |
-          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.0.0.0
           # Wait for Aerospike server to be ready (max 10 seconds)
           for i in {1..10}; do
             if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
@@ -278,7 +278,8 @@ jobs:
           podman machine start
           # Retry pulling and running image with exponential backoff (DNS/network issues can be transient)
           for i in {1..5}; do
-            if podman run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server; then
+            # Pin to CE 8.0 to match local dev environment (8.1.x)
+            if podman run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.0.0.0; then
               echo "Aerospike server started successfully on attempt $i"
               break
             fi
