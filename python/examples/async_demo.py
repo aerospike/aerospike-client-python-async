@@ -10,12 +10,8 @@ It creates its own event loop and performs various operations:
 - Batch operations
 - Error handling
 
-Modeled after Java client async patterns:
-Reference: https://aerospike.com/docs/develop/client/java/async/
-
-The Java client uses EventLoops with callback-based listeners, while this Python
-example uses Python's native async/await syntax with asyncio.gather() for
-concurrent operations, which is the Pythonic equivalent.
+Uses Python's native async/await syntax with asyncio.gather() for
+concurrent operations.
 """
 
 import asyncio
@@ -50,7 +46,7 @@ class AsyncAerospikeDemo:
         """Establish connection to Aerospike cluster."""
         print(f"Connecting to Aerospike at {self.host}...")
         cp = ClientPolicy()
-        cp.use_services_alternate = True  # Required for connection
+        cp.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")  # Required for connection
         self.client = await new_client(cp, self.host)
         print("✓ Connected successfully\n")
 

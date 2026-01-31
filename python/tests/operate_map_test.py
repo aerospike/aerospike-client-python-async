@@ -747,10 +747,7 @@ async def test_operate_map_get_by_rank_range_from(client_and_key):
 
 
 async def test_operate_map_remove_by_index(client_and_key):
-    """Test operate with Map remove_by_index operation.
-
-    Based on Java client's TestOperateMap.operateMapRemoveRange test pattern.
-    """
+    """Test operate with Map remove_by_index operation."""
     client, key = client_and_key
 
     wp = WritePolicy()
@@ -795,10 +792,7 @@ async def test_operate_map_remove_by_index(client_and_key):
 
 
 async def test_operate_map_remove_by_index_range(client_and_key):
-    """Test operate with Map remove_by_index_range operation.
-
-    Based on Java client's TestOperateMap.operateMapRemoveRange test.
-    """
+    """Test operate with Map remove_by_index_range operation."""
     client, key = client_and_key
 
     wp = WritePolicy()
@@ -932,10 +926,7 @@ async def test_operate_map_remove_by_rank(client_and_key):
 
 
 async def test_operate_map_remove_by_rank_range(client_and_key):
-    """Test operate with Map remove_by_rank_range operation.
-
-    Based on Java client's TestOperateMap.operateMapRemoveRange test.
-    """
+    """Test operate with Map remove_by_rank_range operation."""
     client, key = client_and_key
 
     wp = WritePolicy()
@@ -1024,10 +1015,7 @@ async def test_operate_map_remove_by_rank_range_from(client_and_key):
 
 
 async def test_operate_map_remove_by_value(client_and_key):
-    """Test operate with Map remove_by_value operation.
-
-    Based on Java client's TestOperateMap.operateMapRemove test.
-    """
+    """Test operate with Map remove_by_value operation."""
     client, key = client_and_key
 
     wp = WritePolicy()
@@ -1074,10 +1062,7 @@ async def test_operate_map_remove_by_value(client_and_key):
 
 
 async def test_operate_map_remove_by_value_range(client_and_key):
-    """Test operate with Map remove_by_value_range operation.
-
-    Based on Java client's TestOperateMap.operateMapRemoveRange test.
-    """
+    """Test operate with Map remove_by_value_range operation."""
     client, key = client_and_key
 
     wp = WritePolicy()
@@ -1724,11 +1709,9 @@ async def test_operate_double_nested_map(client_and_key):
 
 
 async def test_operate_nested_map_value(client_and_key):
-    """Test operate with nested map using CTX.mapValue.
+    """Test operate with nested map using CTX.map_value.
 
-    Based on Java client's operateNestedMapValue test.
-
-    Uses CTX.map_value() which now converts HashMap to OrderedMap (BTreeMap) for
+    Uses CTX.map_value() which converts HashMap to OrderedMap (BTreeMap) for
     exact byte-level matching with KEY_ORDERED maps stored on the server.
     """
     client, key = client_and_key
@@ -1793,13 +1776,11 @@ async def test_operate_nested_map_value(client_and_key):
 
 
 async def test_operate_map_create_context(client_and_key):
-    """Test operate with map create context using CTX.mapKey.
+    """Test operate with map create context using CTX.map_key.
 
-    Based on Java client's operateMapCreateContext test.
-
-    Adapted to use CTX.map_key_create with put operation instead of MapOperation.create
-    with context, since the Rust core client's MapOperation.create doesn't support context.
-    The CTX.map_key_create creates the map at the context level if it doesn't exist.
+    Uses CTX.map_key_create with put operation since MapOperation.create doesn't
+    support context. CTX.map_key_create creates the map at the context level if
+    it doesn't exist.
     """
     client, key = client_and_key
 

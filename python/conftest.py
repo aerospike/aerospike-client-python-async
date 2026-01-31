@@ -36,7 +36,8 @@ def pytest_configure(config):
     load_env_file(env_file)
     
     # Print loaded environment variables for debugging
-    print(f"Loaded environment variables from {env_file}\n")
+    print(f"Loaded environment variables from {env_file}")
+    print(f"CI environment variable: {os.environ.get('CI', 'NOT SET')}\n")
     
     # Ensure python path includes the python directory for imports
     import sys
@@ -48,6 +49,12 @@ def pytest_configure(config):
 def aerospike_host():
     """Fixture providing the Aerospike host for tests"""
     return os.environ.get('AEROSPIKE_HOST')
+
+
+@pytest.fixture(scope="session")
+def use_services_alternate():
+    """Fixture indicating whether to use services-alternate addresses (for containerized servers)"""
+    return os.environ.get('AEROSPIKE_USE_SERVICES_ALTERNATE', '').lower() == 'true'
 
 
 @pytest.fixture(scope="session") 

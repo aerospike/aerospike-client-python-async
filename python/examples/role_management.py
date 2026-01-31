@@ -17,7 +17,7 @@ async def role_management_examples():
     # Connect to Aerospike server (security-enabled)
     host = os.environ.get("AEROSPIKE_HOST_SEC", os.environ.get("AEROSPIKE_HOST", "localhost:3101"))
     client_policy = ClientPolicy()
-    client_policy.use_services_alternate = True  # Required for connection
+    client_policy.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")  # Required for connection
     # Set credentials for security-enabled server
     client_policy.user = os.environ.get("AEROSPIKE_USER", "admin")
     client_policy.password = os.environ.get("AEROSPIKE_PASSWORD", "admin")

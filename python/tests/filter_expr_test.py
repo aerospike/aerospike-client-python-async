@@ -1,6 +1,6 @@
 import pytest
 from aerospike_async import ExpType, ReadPolicy, Record
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, ResultCode
 from aerospike_async import FilterExpression as fe
 from fixtures import TestFixtureInsertRecord
 
@@ -21,8 +21,9 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
-        with pytest.raises(ServerError):
+        with pytest.raises(ServerError) as exc_info:
             await client.get(rp, key, ["brand", "year"])
+        assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
 
 # Check that we can create every possible filter expression
@@ -295,8 +296,9 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(different_list))
 
-        with pytest.raises(ServerError):
+        with pytest.raises(ServerError) as exc_info:
             await client.get(rp, key, ["listbin"])
+        assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
 
 class TestFilterExprMapVal(TestFixtureInsertRecord):
@@ -305,8 +307,8 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
     async def test_map_val_equality(self, client, key):
         """Test comparing a map bin to a map value in filter expression.
 
-        Uses MapPolicy(MapOrder.KEY_ORDERED) to store the map as ordered (matching Java's TreeMap),
-        which ensures deterministic key ordering for exact byte-level matching in filter expressions.
+        Uses MapPolicy(MapOrder.KEY_ORDERED) to store the map as ordered, which
+        ensures deterministic key ordering for exact byte-level matching in filter expressions.
         """
         # Create a test map
         test_map = {
@@ -353,5 +355,6 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(different_map))
 
-        with pytest.raises(ServerError):
+        with pytest.raises(ServerError) as exc_info:
             await client.get(rp, key, ["mapbin"])
+        assert exc_info.value.result_code == ResultCode.FILTERED_OUT

@@ -14,7 +14,7 @@ async def simple_statement_example():
     # Connect to Aerospike (set AEROSPIKE_HOST environment variable)
     host = os.environ.get("AEROSPIKE_HOST", "localhost:3000")
     client_policy = ClientPolicy()
-    client_policy.use_services_alternate = True  # Required for connection
+    client_policy.use_services_alternate = os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() in ("true", "1")  # Required for connection
     query_policy = QueryPolicy()
 
     try:

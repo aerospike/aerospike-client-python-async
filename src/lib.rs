@@ -1004,6 +1004,267 @@ pub enum Replica {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IndexTask
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct IndexTask {
+        _as: aerospike_core::IndexTask,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl IndexTask {
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
+        pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status =
+                    task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete<'a>(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DropIndexTask
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct DropIndexTask {
+        _as: aerospike_core::DropIndexTask,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl DropIndexTask {
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
+        pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status =
+                    task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete<'a>(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Version
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct Version {
+        _as: aerospike_core::Version,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl Version {
+        #[getter]
+        pub fn major(&self) -> u64 {
+            self._as.major
+        }
+
+        #[getter]
+        pub fn minor(&self) -> u64 {
+            self._as.minor
+        }
+
+        #[getter]
+        pub fn patch(&self) -> u64 {
+            self._as.patch
+        }
+
+        #[getter]
+        pub fn build(&self) -> u64 {
+            self._as.build
+        }
+
+        /// Returns true if server supports partition scans (>= 4.9.0.3).
+        pub fn supports_partition_scan(&self) -> bool {
+            self._as.supports_partition_scan()
+        }
+
+        /// Returns true if server supports query-show command (>= 5.7.0.0).
+        pub fn supports_query_show(&self) -> bool {
+            self._as.supports_query_show()
+        }
+
+        /// Returns true if server supports batch-index commands (>= 6.0.0.0).
+        pub fn supports_batch_any(&self) -> bool {
+            self._as.supports_batch_any()
+        }
+
+        /// Returns true if server supports partition queries (>= 6.0.0.0).
+        pub fn supports_partition_query(&self) -> bool {
+            self._as.supports_partition_query()
+        }
+
+        /// Returns true if server supports app-id (>= 8.1.0.0).
+        pub fn supports_app_id(&self) -> bool {
+            self._as.supports_app_id()
+        }
+
+        pub fn __str__(&self) -> String {
+            format!("{}.{}.{}.{}", self._as.major, self._as.minor, self._as.patch, self._as.build)
+        }
+
+        pub fn __repr__(&self) -> String {
+            format!("Version({}.{}.{}.{})", self._as.major, self._as.minor, self._as.patch, self._as.build)
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Node
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct Node {
+        _as: std::sync::Arc<aerospike_core::Node>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl Node {
+        /// Returns the node name.
+        #[getter]
+        pub fn name(&self) -> &str {
+            self._as.name()
+        }
+
+        /// Returns the node address.
+        #[getter]
+        pub fn address(&self) -> &str {
+            self._as.address()
+        }
+
+        /// Returns true if the node is active.
+        #[getter]
+        pub fn is_active(&self) -> bool {
+            self._as.is_active()
+        }
+
+        /// Returns the server version.
+        #[getter]
+        pub fn version(&self) -> Version {
+            Version { _as: self._as.version().clone() }
+        }
+
+        /// Returns the node host as a tuple (hostname, port).
+        #[getter]
+        pub fn host(&self) -> (String, u16) {
+            let h = self._as.host();
+            (h.name, h.port)
+        }
+
+        /// Returns the count of connection failures for this node.
+        #[getter]
+        pub fn failures(&self) -> usize {
+            self._as.failures()
+        }
+
+        /// Returns the partition generation number.
+        #[getter]
+        pub fn partition_generation(&self) -> isize {
+            self._as.partition_generation()
+        }
+
+        /// Returns the rebalance generation number.
+        #[getter]
+        pub fn rebalance_generation(&self) -> isize {
+            self._as.rebalance_generation()
+        }
+
+        /// Returns a list of host aliases for this node.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[typing.Tuple[str, int]]]", imports=("typing")))]
+        pub fn aliases<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let node = std::sync::Arc::clone(&self._as);
+            pyo3_asyncio::future_into_py(py, async move {
+                let aliases = node.aliases().await;
+                let result: Vec<(String, u16)> = aliases.into_iter().map(|h| (h.name, h.port)).collect();
+                Ok(result)
+            })
+        }
+
+        /// Execute an info command on this node.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Dict[str, str]]", imports=("typing")))]
+        #[pyo3(signature = (command, *, policy = None))]
+        pub fn info<'a>(
+            &self,
+            command: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let node = std::sync::Arc::clone(&self._as);
+            let admin_policy =
+                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let response = node
+                    .info(&admin_policy, &[&command])
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(response)
+            })
+        }
+
+        pub fn __str__(&self) -> String {
+            format!("Node(name={}, address={})", self._as.name(), self._as.address())
+        }
+
+        pub fn __repr__(&self) -> String {
+            format!("Node(name='{}', address='{}', active={})", self._as.name(), self._as.address(), self._as.is_active())
+        }
+    }
+
     impl From<&PrivilegeCode> for aerospike_core::PrivilegeCode {
         fn from(input: &PrivilegeCode) -> Self {
             match &input {
@@ -1654,7 +1915,7 @@ pub enum Replica {
         subclass,
         freelist = 1000
     )]
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct FilterExpression {
         _as: aerospike_core::expressions::Expression,
     }
@@ -3169,8 +3430,6 @@ pub enum Replica {
         pub fn get_id(&self) -> u16 {
             self._as.id
         }
-
-        // Note: id is read-only (matches Java's final int id)
 
         #[getter]
         pub fn get_retry(&self) -> bool {
@@ -5574,6 +5833,32 @@ pub enum Replica {
         BitRScan(String, i64, i64, bool),
         /// Bit get_int operation - gets integer value (read-only).
         BitGetInt(String, i64, i64, bool),
+        /// HLL init operation - creates or resets an HLL bin.
+        HllInit(String, i64, i64, i64),
+        /// HLL add operation - adds values to HLL.
+        HllAdd(String, Vec<PythonValue>, i64, i64, i64),
+        /// HLL get_count operation - returns estimated count.
+        HllGetCount(String),
+        /// HLL describe operation - returns index_bit_count and min_hash_bit_count.
+        HllDescribe(String),
+        /// HLL refresh_count operation - updates cached count.
+        HllRefreshCount(String),
+        /// HLL fold operation - folds HLL to specified index_bit_count.
+        HllFold(String, i64),
+        /// HLL get_union operation - returns union of HLL objects.
+        HllGetUnion(String, Vec<PythonValue>),
+        /// HLL get_union_count operation - returns estimated union count.
+        HllGetUnionCount(String, Vec<PythonValue>),
+        /// HLL get_intersect_count operation - returns estimated intersection count.
+        HllGetIntersectCount(String, Vec<PythonValue>),
+        /// HLL get_similarity operation - returns estimated similarity.
+        HllGetSimilarity(String, Vec<PythonValue>),
+        /// HLL set_union operation - sets union of HLL objects.
+        HllSetUnion(String, Vec<PythonValue>, i64),
+        /// Expression read operation - evaluates expression and returns result.
+        ExpRead(String, FilterExpression, i64),
+        /// Expression write operation - evaluates expression and writes result to bin.
+        ExpWrite(String, FilterExpression, i64),
     }
 
     /// Python wrapper for Operation enum.
@@ -6470,6 +6755,28 @@ pub enum Replica {
         fn FORBIDDEN_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::ForbiddenPassword) }
         #[classattr]
         fn UDF_BAD_RESPONSE() -> ResultCode { ResultCode(CoreResultCode::UdfBadResponse) }
+        #[classattr]
+        fn INDEX_FOUND() -> ResultCode { ResultCode(CoreResultCode::IndexFound) }
+        #[classattr]
+        fn INDEX_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::IndexNotFound) }
+        #[classattr]
+        fn INDEX_OOM() -> ResultCode { ResultCode(CoreResultCode::IndexOom) }
+        #[classattr]
+        fn INDEX_NOT_READABLE() -> ResultCode { ResultCode(CoreResultCode::IndexNotReadable) }
+        #[classattr]
+        fn INDEX_GENERIC() -> ResultCode { ResultCode(CoreResultCode::IndexGeneric) }
+        #[classattr]
+        fn INDEX_NAME_MAX_LEN() -> ResultCode { ResultCode(CoreResultCode::IndexNameMaxLen) }
+        #[classattr]
+        fn INDEX_MAX_COUNT() -> ResultCode { ResultCode(CoreResultCode::IndexMaxCount) }
+        #[classattr]
+        fn QUERY_ABORTED() -> ResultCode { ResultCode(CoreResultCode::QueryAborted) }
+        #[classattr]
+        fn QUERY_QUEUE_FULL() -> ResultCode { ResultCode(CoreResultCode::QueryQueueFull) }
+        #[classattr]
+        fn QUERY_TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::QueryTimeout) }
+        #[classattr]
+        fn QUERY_GENERIC() -> ResultCode { ResultCode(CoreResultCode::QueryGeneric) }
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
@@ -6859,6 +7166,277 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  HLLWriteFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// HLL write flags for HLL operations.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "HLLWriteFlags", module = "_aerospike_async_native", eq, eq_int)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum HLLWriteFlags {
+        /// Default. Allow create or update.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// If the bin already exists, the operation will be denied.
+        /// If the bin does not exist, a new bin will be created.
+        #[pyo3(name = "CREATE_ONLY")]
+        CreateOnly = 1,
+        /// If the bin already exists, the bin will be overwritten.
+        /// If the bin does not exist, the operation will be denied.
+        #[pyo3(name = "UPDATE_ONLY")]
+        UpdateOnly = 2,
+        /// Do not raise error if operation is denied.
+        #[pyo3(name = "NO_FAIL")]
+        NoFail = 4,
+        /// Allow the resulting set to be the minimum of provided index bits.
+        #[pyo3(name = "ALLOW_FOLD")]
+        AllowFold = 8,
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpWriteFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression write flags for expression operations.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ExpWriteFlags", module = "_aerospike_async_native", eq, eq_int)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ExpWriteFlags {
+        /// Default. Allow create or update.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// If bin does not exist, a new bin will be created.
+        /// If bin exists, the operation will be denied.
+        #[pyo3(name = "CREATE_ONLY")]
+        CreateOnly = 1,
+        /// If bin exists, the bin will be overwritten.
+        /// If bin does not exist, the operation will be denied.
+        #[pyo3(name = "UPDATE_ONLY")]
+        UpdateOnly = 2,
+        /// If expression results in nil value, then delete the bin.
+        #[pyo3(name = "ALLOW_DELETE")]
+        AllowDelete = 4,
+        /// Do not raise error if operation is denied.
+        #[pyo3(name = "POLICY_NO_FAIL")]
+        PolicyNoFail = 8,
+        /// Ignore failures caused by the expression resolving to unknown or a non-bin type.
+        #[pyo3(name = "EVAL_NO_FAIL")]
+        EvalNoFail = 16,
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpReadFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression read flags for expression operations.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ExpReadFlags", module = "_aerospike_async_native", eq, eq_int)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ExpReadFlags {
+        /// Default.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// Ignore failures caused by the expression resolving to unknown or a non-bin type.
+        #[pyo3(name = "EVAL_NO_FAIL")]
+        EvalNoFail = 16,
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  HllOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// HLL (HyperLogLog) operations. Create HLL operations used by the client's `operate()` method.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct HllOperation {
+        op: OperationType,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl HllOperation {
+        /// Create HLL init operation.
+        /// Server creates a new HLL or resets an existing HLL.
+        /// Server does not return a value.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, index_bit_count, min_hash_bit_count = -1, flags = 0))]
+        pub fn init(bin_name: String, index_bit_count: i64, min_hash_bit_count: i64, flags: i64) -> Self {
+            HllOperation {
+                op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags),
+            }
+        }
+
+        /// Create HLL add operation.
+        /// Server adds values to HLL set. If HLL bin does not exist and index_bit_count is set,
+        /// a new HLL bin will be created.
+        /// Server returns number of entries that caused HLL to update a register.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, values, index_bit_count = -1, min_hash_bit_count = -1, flags = 0))]
+        pub fn add(bin_name: String, values: Vec<PythonValue>, index_bit_count: i64, min_hash_bit_count: i64, flags: i64) -> Self {
+            HllOperation {
+                op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, flags),
+            }
+        }
+
+        /// Create HLL get_count operation.
+        /// Server returns estimated number of elements in the HLL bin.
+        #[staticmethod]
+        pub fn get_count(bin_name: String) -> Self {
+            HllOperation {
+                op: OperationType::HllGetCount(bin_name),
+            }
+        }
+
+        /// Create HLL describe operation.
+        /// Server returns index_bit_count and min_hash_bit_count used to create HLL bin
+        /// in a list of longs. The list size is 2.
+        #[staticmethod]
+        pub fn describe(bin_name: String) -> Self {
+            HllOperation {
+                op: OperationType::HllDescribe(bin_name),
+            }
+        }
+
+        /// Create HLL refresh_count operation.
+        /// Server updates the cached count (if stale) and returns the count.
+        #[staticmethod]
+        pub fn refresh_count(bin_name: String) -> Self {
+            HllOperation {
+                op: OperationType::HllRefreshCount(bin_name),
+            }
+        }
+
+        /// Create HLL fold operation.
+        /// Server folds index_bit_count to the specified value.
+        /// This can only be applied when min_hash_bit_count on the HLL bin is 0.
+        /// Server does not return a value.
+        #[staticmethod]
+        pub fn fold(bin_name: String, index_bit_count: i64) -> Self {
+            HllOperation {
+                op: OperationType::HllFold(bin_name, index_bit_count),
+            }
+        }
+
+        /// Create HLL get_union operation.
+        /// Server returns an HLL object that is the union of all specified HLL objects
+        /// in the list with the HLL bin.
+        #[staticmethod]
+        pub fn get_union(bin_name: String, hll_list: Vec<PythonValue>) -> Self {
+            HllOperation {
+                op: OperationType::HllGetUnion(bin_name, hll_list),
+            }
+        }
+
+        /// Create HLL get_union_count operation.
+        /// Server returns estimated number of elements that would be contained
+        /// by the union of these HLL objects.
+        #[staticmethod]
+        pub fn get_union_count(bin_name: String, hll_list: Vec<PythonValue>) -> Self {
+            HllOperation {
+                op: OperationType::HllGetUnionCount(bin_name, hll_list),
+            }
+        }
+
+        /// Create HLL get_intersect_count operation.
+        /// Server returns estimated number of elements that would be contained
+        /// by the intersection of these HLL objects.
+        #[staticmethod]
+        pub fn get_intersect_count(bin_name: String, hll_list: Vec<PythonValue>) -> Self {
+            HllOperation {
+                op: OperationType::HllGetIntersectCount(bin_name, hll_list),
+            }
+        }
+
+        /// Create HLL get_similarity operation.
+        /// Server returns estimated similarity of these HLL objects. Return type is a double.
+        #[staticmethod]
+        pub fn get_similarity(bin_name: String, hll_list: Vec<PythonValue>) -> Self {
+            HllOperation {
+                op: OperationType::HllGetSimilarity(bin_name, hll_list),
+            }
+        }
+
+        /// Create HLL set_union operation.
+        /// Server sets union of specified HLL objects with HLL bin.
+        /// Server does not return a value.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, hll_list, flags = 0))]
+        pub fn set_union(bin_name: String, hll_list: Vec<PythonValue>, flags: i64) -> Self {
+            HllOperation {
+                op: OperationType::HllSetUnion(bin_name, hll_list, flags),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression operations. Create expression operations used by the client's `operate()` method.
+    /// Expression operations allow evaluating expressions on the server and optionally storing
+    /// the result in a bin.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000)]
+    #[derive(Clone, Debug)]
+    pub struct ExpOperation {
+        op: OperationType,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl ExpOperation {
+        /// Create expression read operation.
+        ///
+        /// Evaluates the expression and returns the result. The result is returned
+        /// in the record bins with the specified name.
+        ///
+        /// Args:
+        ///     name: Name to assign to the expression result in the returned record.
+        ///     exp: Expression to evaluate.
+        ///     flags: Expression read flags (default: ExpReadFlags.DEFAULT).
+        ///
+        /// Returns:
+        ///     An ExpOperation to use with client.operate().
+        #[staticmethod]
+        #[pyo3(signature = (name, exp, flags = 0))]
+        pub fn read(name: String, exp: FilterExpression, flags: i64) -> Self {
+            ExpOperation {
+                op: OperationType::ExpRead(name, exp, flags),
+            }
+        }
+
+        /// Create expression write operation.
+        ///
+        /// Evaluates the expression and writes the result to the specified bin.
+        ///
+        /// Args:
+        ///     bin_name: Name of bin to store expression result.
+        ///     exp: Expression to evaluate.
+        ///     flags: Expression write flags (default: ExpWriteFlags.DEFAULT).
+        ///
+        /// Returns:
+        ///     An ExpOperation to use with client.operate().
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, exp, flags = 0))]
+        pub fn write(bin_name: String, exp: FilterExpression, flags: i64) -> Self {
+            ExpOperation {
+                op: OperationType::ExpWrite(bin_name, exp, flags),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  MapPolicy
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -7014,6 +7592,28 @@ pub enum Replica {
         #[setter]
         pub fn set_set_name(&mut self, set_name: Option<String>) {
             self._as.set_name = set_name.unwrap_or_default();
+        }
+
+        /// Set Lua aggregation function parameters for query aggregation.
+        ///
+        /// Args:
+        ///     package_name: Name of the Lua package/module containing the aggregation function.
+        ///     function_name: Name of the Lua aggregation function.
+        ///     function_args: Optional list of arguments to pass to the function.
+        #[pyo3(signature = (package_name, function_name, function_args = None))]
+        pub fn set_aggregate_function(
+            &mut self,
+            package_name: &str,
+            function_name: &str,
+            function_args: Option<Vec<PythonValue>>,
+        ) {
+            let args: Option<Vec<aerospike_core::Value>> = function_args
+                .map(|args| args.into_iter().map(|v| v.into()).collect());
+            self._as.set_aggregate_function(
+                package_name,
+                function_name,
+                args.as_deref(),
+            );
         }
     }
 
@@ -7709,9 +8309,19 @@ pub enum Replica {
                             op: py_op.op.clone(),
                             ctx: None,
                         });
+                    } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx: None,
+                        });
+                    } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
+                        rust_ops.push(OpWithCtx {
+                            op: py_op.op.clone(),
+                            ctx: None,
+                        });
                     } else {
                         return Err(PyTypeError::new_err(
-                            "Operation must be Operation, ListOperation, MapOperation, or BitOperation"
+                            "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
                         ));
                     }
                     Ok::<(), PyErr>(())
@@ -7727,6 +8337,7 @@ pub enum Replica {
                 let mut value_storage: Vec<aerospike_core::Value> = Vec::new();
                 let mut map_storage: Vec<HashMap<aerospike_core::Value, aerospike_core::Value>> = Vec::new();
                 let mut list_storage: Vec<Vec<aerospike_core::Value>> = Vec::new();
+                let mut hll_value_storage: Vec<Vec<aerospike_core::Value>> = Vec::new();
                 for op_with_ctx in &rust_ops {
                     match &op_with_ctx.op {
                         OperationType::Put(bin_name, value) |
@@ -7898,8 +8509,28 @@ pub enum Replica {
                         OperationType::BitSubtract(_, _, _, _, _, _, _) | OperationType::BitSetInt(_, _, _, _, _) |
                         OperationType::BitGet(_, _, _) | OperationType::BitCount(_, _, _) |
                         OperationType::BitLScan(_, _, _, _) | OperationType::BitRScan(_, _, _, _) |
-                        OperationType::BitGetInt(_, _, _, _) => {
+                        OperationType::BitGetInt(_, _, _, _) |
+                        OperationType::HllInit(_, _, _, _) |
+                        OperationType::HllGetCount(_) | OperationType::HllDescribe(_) |
+                        OperationType::HllRefreshCount(_) | OperationType::HllFold(_, _) => {
                         }
+                        OperationType::HllAdd(_, values, _, _, _) => {
+                            let core_values: Vec<aerospike_core::Value> = values.iter().map(|v| v.clone().into()).collect();
+                            hll_value_storage.push(core_values);
+                        }
+                        OperationType::HllGetUnion(_, hll_list) |
+                        OperationType::HllGetUnionCount(_, hll_list) |
+                        OperationType::HllGetIntersectCount(_, hll_list) |
+                        OperationType::HllGetSimilarity(_, hll_list) => {
+                            let core_values: Vec<aerospike_core::Value> = hll_list.iter().map(|v| v.clone().into()).collect();
+                            hll_value_storage.push(core_values);
+                        }
+                        OperationType::HllSetUnion(_, hll_list, _) => {
+                            let core_values: Vec<aerospike_core::Value> = hll_list.iter().map(|v| v.clone().into()).collect();
+                            hll_value_storage.push(core_values);
+                        }
+                        // Expression operations don't need storage - Expression is cloned directly
+                        OperationType::ExpRead(_, _, _) | OperationType::ExpWrite(_, _, _) => {}
                     }
                 }
 
@@ -7908,6 +8539,7 @@ pub enum Replica {
                 let mut value_idx = 0;
                 let mut map_idx = 0;
                 let mut list_idx = 0;
+                let mut hll_idx = 0;
                 let mut core_ops: Vec<operations::Operation> = Vec::new();
 
                 for op_with_ctx in &rust_ops {
@@ -8600,6 +9232,103 @@ pub enum Replica {
                             use aerospike_core::operations::bitwise;
                             bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
                         }
+                        OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags) => {
+                            use aerospike_core::operations::hll;
+                            let policy = hll::HLLPolicy { flags: *flags };
+                            hll::init_with_min_hash(&policy, bin_name, *index_bit_count, *min_hash_bit_count)
+                        }
+                        OperationType::HllAdd(bin_name, _, index_bit_count, min_hash_bit_count, flags) => {
+                            use aerospike_core::operations::hll;
+                            let policy = hll::HLLPolicy { flags: *flags };
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::add_with_index_and_min_hash(&policy, bin_name, values_ref, *index_bit_count, *min_hash_bit_count)
+                        }
+                        OperationType::HllGetCount(bin_name) => {
+                            use aerospike_core::operations::hll;
+                            hll::get_count(bin_name)
+                        }
+                        OperationType::HllDescribe(bin_name) => {
+                            use aerospike_core::operations::hll;
+                            hll::describe(bin_name)
+                        }
+                        OperationType::HllRefreshCount(bin_name) => {
+                            use aerospike_core::operations::hll;
+                            hll::refresh_count(bin_name)
+                        }
+                        OperationType::HllFold(bin_name, index_bit_count) => {
+                            use aerospike_core::operations::hll;
+                            hll::fold(bin_name, *index_bit_count)
+                        }
+                        OperationType::HllGetUnion(bin_name, _) => {
+                            use aerospike_core::operations::hll;
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::get_union(bin_name, values_ref)
+                        }
+                        OperationType::HllGetUnionCount(bin_name, _) => {
+                            use aerospike_core::operations::hll;
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::get_union_count(bin_name, values_ref)
+                        }
+                        OperationType::HllGetIntersectCount(bin_name, _) => {
+                            use aerospike_core::operations::hll;
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::get_intersect_count(bin_name, values_ref)
+                        }
+                        OperationType::HllGetSimilarity(bin_name, _) => {
+                            use aerospike_core::operations::hll;
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::get_similarity(bin_name, values_ref)
+                        }
+                        OperationType::HllSetUnion(bin_name, _, flags) => {
+                            use aerospike_core::operations::hll;
+                            let policy = hll::HLLPolicy { flags: *flags };
+                            let values_ref = &hll_value_storage[hll_idx];
+                            hll_idx += 1;
+                            hll::set_union(&policy, bin_name, values_ref)
+                        }
+                        OperationType::ExpRead(name, exp, flags) => {
+                            use aerospike_core::operations::exp::{self, ExpReadFlags};
+                            // Convert flags bitmask to core ExpReadFlags
+                            let mut core_flags: Vec<ExpReadFlags> = Vec::new();
+                            if *flags & 16 != 0 {
+                                core_flags.push(ExpReadFlags::EvalNoFail);
+                            }
+                            if core_flags.is_empty() {
+                                exp::read_exp(name, &exp._as, ExpReadFlags::Default)
+                            } else {
+                                exp::read_exp(name, &exp._as, core_flags)
+                            }
+                        }
+                        OperationType::ExpWrite(bin_name, exp, flags) => {
+                            use aerospike_core::operations::exp::{self, ExpWriteFlags};
+                            // Convert flags bitmask to core ExpWriteFlags
+                            let mut core_flags: Vec<ExpWriteFlags> = Vec::new();
+                            if *flags & 1 != 0 {
+                                core_flags.push(ExpWriteFlags::CreateOnly);
+                            }
+                            if *flags & 2 != 0 {
+                                core_flags.push(ExpWriteFlags::UpdateOnly);
+                            }
+                            if *flags & 4 != 0 {
+                                core_flags.push(ExpWriteFlags::AllowDelete);
+                            }
+                            if *flags & 8 != 0 {
+                                core_flags.push(ExpWriteFlags::PolicyNoFail);
+                            }
+                            if *flags & 16 != 0 {
+                                core_flags.push(ExpWriteFlags::EvalNoFail);
+                            }
+                            if core_flags.is_empty() {
+                                exp::write_exp(bin_name, &exp._as, ExpWriteFlags::Default)
+                            } else {
+                                exp::write_exp(bin_name, &exp._as, core_flags)
+                            }
+                        }
                     };
 
                     // Apply context if present
@@ -8945,9 +9674,11 @@ pub enum Replica {
                             rust_ops.push(py_op.op.clone());
                         } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
                             rust_ops.push(py_op.op.clone());
+                        } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
+                            rust_ops.push(py_op.op.clone());
                         } else {
                             return Err(PyTypeError::new_err(
-                                "Operation must be Operation, ListOperation, MapOperation, or BitOperation"
+                                "Operation must be Operation, ListOperation, MapOperation, BitOperation, or HllOperation"
                             ));
                         }
                         Ok::<(), PyErr>(())
@@ -9746,6 +10477,28 @@ pub enum Replica {
                                 use aerospike_core::operations::bitwise;
                                 bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
                             }
+                            // HLL operations not yet supported in batch_operate - use operate() instead
+                            OperationType::HllInit(_, _, _, _) |
+                            OperationType::HllAdd(_, _, _, _, _) |
+                            OperationType::HllGetCount(_) |
+                            OperationType::HllDescribe(_) |
+                            OperationType::HllRefreshCount(_) |
+                            OperationType::HllFold(_, _) |
+                            OperationType::HllGetUnion(_, _) |
+                            OperationType::HllGetUnionCount(_, _) |
+                            OperationType::HllGetIntersectCount(_, _) |
+                            OperationType::HllGetSimilarity(_, _) |
+                            OperationType::HllSetUnion(_, _, _) => {
+                                return Err(PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(
+                                    "HLL operations are not supported in batch_operate. Use operate() instead."
+                                ));
+                            }
+                            OperationType::ExpRead(_, _, _) |
+                            OperationType::ExpWrite(_, _, _) => {
+                                return Err(PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(
+                                    "Expression operations are not supported in batch_operate. Use operate() instead."
+                                ));
+                            }
                         };
                         core_ops.push(core_op);
                     }
@@ -10294,7 +11047,8 @@ pub enum Replica {
             })
         }
 
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        /// Drop a secondary index. Returns a DropIndexTask to track completion.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[DropIndexTask]", imports=("typing")))]
         #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
         pub fn drop_index<'a>(
             &self,
@@ -10308,14 +11062,53 @@ pub enum Replica {
             let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
 
             pyo3_asyncio::future_into_py(py, async move {
-                client
+                let task = client
                     .read()
                     .await
                     .drop_index(&admin_policy, &namespace, &set_name, &index_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(DropIndexTask { _as: task })
+            })
+        }
 
-                Python::attach(|py| Ok(py.None()))
+        /// Create a secondary index using an expression. Returns an IndexTask to wait for completion.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[IndexTask]", imports=("typing")))]
+        #[pyo3(signature = (namespace, set_name, index_name, index_type, expression, cit = None, *, policy = None))]
+        pub fn create_index_using_expression<'a>(
+            &self,
+            namespace: String,
+            set_name: String,
+            index_name: String,
+            index_type: IndexType,
+            expression: &FilterExpression,
+            cit: Option<CollectionIndexType>,
+            policy: Option<AdminPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy =
+                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let expr = expression._as.clone();
+            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&index_type).into();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let task = client
+                    .read()
+                    .await
+                    .create_index_using_expression(
+                        &admin_policy,
+                        &namespace,
+                        &set_name,
+                        &index_name,
+                        index_type,
+                        cit,
+                        &expr,
+                    )
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(IndexTask { _as: task })
             })
         }
 
@@ -10755,6 +11548,39 @@ pub enum Replica {
             })
         }
 
+        /// Return node given its name.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Node]", imports=("typing")))]
+        pub fn get_node<'a>(&self, name: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let node = client
+                    .read()
+                    .await
+                    .get_node(&name)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(Node { _as: node })
+            })
+        }
+
+        /// Returns a list of all active server nodes in the cluster.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[Node]]", imports=("typing")))]
+        pub fn nodes<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let nodes = client
+                    .read()
+                    .await
+                    .nodes()
+                    .await;
+
+                let py_nodes: Vec<Node> = nodes.into_iter().map(|n| Node { _as: n }).collect();
+                Ok(py_nodes)
+            })
+        }
+
         /// Execute an info command on a random cluster node.
         ///
         /// Args:
@@ -10821,6 +11647,38 @@ pub enum Replica {
                 }
 
                 Ok(results)
+            })
+        }
+
+        /// Sets XDR filter for given datacenter and namespace. Pass None as filter to remove.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (datacenter, namespace, filter_expression = None, *, policy = None))]
+        pub fn set_xdr_filter<'a>(
+            &self,
+            datacenter: String,
+            namespace: String,
+            filter_expression: Option<FilterExpression>,
+            policy: Option<AdminPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy =
+                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let expr = filter_expression.clone();
+
+            pyo3_asyncio::future_into_py(py, async move {
+                client
+                    .read()
+                    .await
+                    .set_xdr_filter(
+                        &admin_policy,
+                        &datacenter,
+                        &namespace,
+                        expr.as_ref().map(|e| &e._as),
+                    )
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Python::attach(|py| Ok(py.None()))
             })
         }
     }
@@ -11769,7 +12627,7 @@ pub enum Replica {
                 }
                 aerospike_core::Value::MultiResult(mv) => {
                     // MultiResult is returned when server executes multiple operations for the same bin
-                    // Convert to a list of PythonValues (matching Java client behavior - no flattening)
+                    // Convert to a list of PythonValues without flattening
                     let mut nl = Vec::<PythonValue>::with_capacity(mv.len());
                     mv.iter().for_each(|v| nl.push(v.clone().into()));
                     PythonValue::List(nl)
@@ -11974,6 +12832,11 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ListReturnType>()?;
     m.add_class::<ListSortFlags>()?;
     m.add_class::<BitOperation>()?;
+    m.add_class::<HllOperation>()?;
+    m.add_class::<HLLWriteFlags>()?;
+    m.add_class::<ExpOperation>()?;
+    m.add_class::<ExpWriteFlags>()?;
+    m.add_class::<ExpReadFlags>()?;
 
     m.add_class::<BasePolicy>()?;
     m.add_class::<AdminPolicy>()?;
@@ -12009,6 +12872,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TaskStatus>()?;
     m.add_class::<RegisterTask>()?;
     m.add_class::<UdfRemoveTask>()?;
+    m.add_class::<IndexTask>()?;
+    m.add_class::<DropIndexTask>()?;
+    m.add_class::<Version>()?;
+    m.add_class::<Node>()?;
     #[cfg(feature = "tls")]
     m.add_class::<TlsConfig>()?;
 

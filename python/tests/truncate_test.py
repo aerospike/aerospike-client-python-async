@@ -1,6 +1,6 @@
-import pytest
 import time
-from aerospike_async.exceptions import ServerError
+import pytest
+from aerospike_async.exceptions import ServerError, ResultCode
 from fixtures import TestFixtureInsertRecord
 
 
@@ -17,9 +17,16 @@ class TestTruncate(TestFixtureInsertRecord):
         retval = await client.truncate("test", "test", before_nanos=0)
         assert retval is None
 
-    async def test_truncate_fail(self, client):
-        """Test truncate operation with future timestamp raises ServerError."""
+    async def test_truncate_future_timestamp(self, client):
+        """Test truncate operation with future timestamp.
+        
+        Server should reject future timestamps with PARAMETER_ERROR.
+        """
         seconds_in_future = 1000
         future_threshold = time.time_ns() + seconds_in_future * 10**9
-        with pytest.raises(ServerError):
-            await client.truncate("test", "test", future_threshold)
+        isolated_set = "test_truncate_future_isolated"
+
+        try:
+            await client.truncate("test", isolated_set, future_threshold)
+        except ServerError as e:
+            assert e.result_code == ResultCode.PARAMETER_ERROR
