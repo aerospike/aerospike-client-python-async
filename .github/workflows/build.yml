@@ -110,6 +110,15 @@ jobs:
             echo "Waiting for Aerospike server... ($i/10)"
             sleep 1
           done
+          # Configure namespace for TTL support (default Docker image has nsup disabled)
+          echo "Configuring namespace for TTL support..."
+          docker exec aerospike-server asinfo -v "set-config:context=namespace;id=test;nsup-period=120"
+          docker exec aerospike-server asinfo -v "set-config:context=namespace;id=test;default-ttl=2592000"
+          # Debug: Print namespace configuration
+          echo "=== Namespace Configuration ==="
+          docker exec aerospike-server asinfo -v "get-config:context=namespace;id=test" | tr ';' '\n' | grep -E "nsup-period|default-ttl|allow-ttl"
+          echo "=== Server Build ==="
+          docker exec aerospike-server asinfo -v "build"
 
       - name: Set up QEMU
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
@@ -143,7 +152,7 @@ jobs:
           # Remove .env file so tests use default localhost:3000 (matches our server)
           docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
           # Set AEROSPIKE_HOST environment variable to bypass env file and use CI server port
-          docker exec -e AEROSPIKE_HOST=localhost:3000 --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
+          docker exec -e AEROSPIKE_HOST=localhost:3000 -e AEROSPIKE_USE_SERVICES_ALTERNATE=true --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
             echo "=== Aerospike Server Log (last 100 lines) ==="
             docker logs --tail 100 aerospike-server
@@ -178,6 +187,7 @@ jobs:
         if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         env:
           AEROSPIKE_HOST: localhost:3000
+          AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
@@ -292,6 +302,17 @@ jobs:
             echo "Attempt $i failed, retrying in $((2**i)) seconds..."
             sleep $((2**i))
           done
+          # Wait for server to be ready
+          sleep 5
+          # Configure namespace for TTL support (default Docker image has nsup disabled)
+          echo "Configuring namespace for TTL support..."
+          podman exec aerospike-server asinfo -v "set-config:context=namespace;id=test;nsup-period=120" || echo "Failed to set nsup-period"
+          podman exec aerospike-server asinfo -v "set-config:context=namespace;id=test;default-ttl=2592000" || echo "Failed to set default-ttl"
+          # Debug: Print namespace configuration
+          echo "=== Namespace Configuration ==="
+          podman exec aerospike-server asinfo -v "get-config:context=namespace;id=test" | tr ';' '\n' | grep -E "nsup-period|default-ttl|allow-ttl" || echo "Could not get namespace config"
+          echo "=== Server Build ==="
+          podman exec aerospike-server asinfo -v "build"
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -324,6 +345,7 @@ jobs:
       - name: Run tests
         env:
           AEROSPIKE_HOST: localhost:3000
+          AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
