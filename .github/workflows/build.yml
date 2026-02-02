@@ -209,6 +209,46 @@ jobs:
           name: wheels-linux-${{ matrix.python }}-${{ matrix.target[0] }}
           path: aerospike_async
 
+  # Native ARM64 Linux build (no cross-compilation needed)
+  linux-arm:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13'
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+          manylinux: auto
+        env:
+          AWS_LC_SYS_CMAKE_BUILDER: "0"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
+          AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-arm64-${{ matrix.python }}
+          path: aerospike_async
+
   windows:
     runs-on: windows-2022
     strategy:
