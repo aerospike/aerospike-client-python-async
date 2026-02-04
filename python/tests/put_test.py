@@ -313,6 +313,7 @@ async def test_put_bin_limit(client_and_key):
     client, rp, key = client_and_key
 
     wp = WritePolicy()
+    wp.total_timeout = 10000
 
     # Create bins dict with more than 32767 bins (the limit)
     BIN_LIMIT_PER_RECORD = 32767

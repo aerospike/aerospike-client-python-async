@@ -1004,6 +1004,116 @@ def ensure_statement_set_name(content: str) -> str:
     return content
 
 
+def add_return_type_stubs(content: str) -> str:
+    """Replace minimal stubs for ListReturnType and MapReturnType with full versions.
+
+    pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants,
+    missing the class attributes and magic methods. We keep #[gen_stub_pyclass] in
+    lib.rs (needed for PyStubType trait) but replace the generated stubs here.
+    """
+    list_return_type_stub = '''class ListReturnType:
+    r"""
+    List return type for CDT operations.
+
+    Supports bitwise OR for combining with INVERTED flag:
+        combined = ListReturnType.VALUE | ListReturnType.INVERTED
+    """
+    NONE: ListReturnType
+    """Do not return a result."""
+    INDEX: ListReturnType
+    """Return index offset order."""
+    REVERSE_INDEX: ListReturnType
+    """Return reverse index offset order."""
+    RANK: ListReturnType
+    """Return value order."""
+    REVERSE_RANK: ListReturnType
+    """Return reverse value order."""
+    COUNT: ListReturnType
+    """Return count of items selected."""
+    VALUE: ListReturnType
+    """Return value for single key read and value list for range read."""
+    EXISTS: ListReturnType
+    """Return true if count > 0."""
+    INVERTED: ListReturnType
+    """Invert meaning of list command and return values. Can be OR'd with other return types."""
+
+    def __or__(self, other: ListReturnType) -> ListReturnType:
+        """Bitwise OR - allows combining return type with INVERTED flag."""
+        ...
+    def __and__(self, other: ListReturnType) -> ListReturnType:
+        """Bitwise AND."""
+        ...
+    def __int__(self) -> builtins.int:
+        """Convert to integer."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...'''
+
+    map_return_type_stub = '''class MapReturnType:
+    r"""
+    Map return type for CDT operations.
+
+    Supports bitwise OR for combining with INVERTED flag:
+        combined = MapReturnType.VALUE | MapReturnType.INVERTED
+    """
+    NONE: MapReturnType
+    """Do not return a result."""
+    INDEX: MapReturnType
+    """Return key index order."""
+    REVERSE_INDEX: MapReturnType
+    """Return reverse key order."""
+    RANK: MapReturnType
+    """Return value order."""
+    REVERSE_RANK: MapReturnType
+    """Return reverse value order."""
+    COUNT: MapReturnType
+    """Return count of items selected."""
+    KEY: MapReturnType
+    """Return key for single key read and key list for range read."""
+    VALUE: MapReturnType
+    """Return value for single key read and value list for range read."""
+    KEY_VALUE: MapReturnType
+    """Return key/value items."""
+    EXISTS: MapReturnType
+    """Returns true if count > 0."""
+    UNORDERED_MAP: MapReturnType
+    """Returns an unordered map."""
+    ORDERED_MAP: MapReturnType
+    """Returns an ordered map."""
+    INVERTED: MapReturnType
+    """Invert meaning of map command and return values. Can be OR'd with other return types."""
+
+    def __or__(self, other: MapReturnType) -> MapReturnType:
+        """Bitwise OR - allows combining return type with INVERTED flag."""
+        ...
+    def __and__(self, other: MapReturnType) -> MapReturnType:
+        """Bitwise AND."""
+        ...
+    def __int__(self) -> builtins.int:
+        """Convert to integer."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...'''
+
+    # Replace minimal ListReturnType stub (pattern: class + docstring + ...)
+    list_pattern = r'class ListReturnType:\s*r"""[\s\S]*?"""\s*\.\.\.'
+    if re.search(list_pattern, content):
+        content = re.sub(list_pattern, list_return_type_stub, content)
+        print("  ✓ Replaced ListReturnType class stubs (pyo3_stub_gen limitation)")
+
+    # Replace minimal MapReturnType stub
+    map_pattern = r'class MapReturnType:\s*r"""[\s\S]*?"""\s*\.\.\.'
+    if re.search(map_pattern, content):
+        content = re.sub(map_pattern, map_return_type_stub, content)
+        print("  ✓ Replaced MapReturnType class stubs (pyo3_stub_gen limitation)")
+
+    return content
+
+
 def add_policy_stubs(content: str) -> str:
     """Add full method stubs for WritePolicy, ReadPolicy, and QueryPolicy classes."""
     read_policy_stub = '''class ReadPolicy(BasePolicy):
@@ -1184,6 +1294,7 @@ def postprocess_stubs(pyi_file_path: str):
 
     elif '_aerospike_async_native.pyi' in pyi_file_path:
         # Process native module stub - replace placeholder policy stubs and add missing classes
+        content = add_return_type_stubs(content)
         content = add_policy_stubs(content)
         # Note: PartitionFilter and PartitionStatus are generated by pyo3_stub_gen automatically
         content = add_record_stubs(content)

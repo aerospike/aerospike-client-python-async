@@ -173,6 +173,10 @@ class CTX:
     Context for nested CDT (Complex Data Type) operations.
     Used to specify the location of nested lists/maps within a record.
     """
+    def __eq__(self, other:CTX) -> builtins.bool:
+        r"""
+        Compare two CTX objects for equality.
+        """
     @staticmethod
     def list_index(index:builtins.int) -> CTX:
         r"""
@@ -446,6 +450,11 @@ class FilterExpression:
     def blob_bin(name:builtins.str) -> FilterExpression:
         r"""
         Create blob bin expression.
+        """
+    @staticmethod
+    def bool_bin(name:builtins.str) -> FilterExpression:
+        r"""
+        Create boolean bin expression.
         """
     @staticmethod
     def float_bin(name:builtins.str) -> FilterExpression:
@@ -1071,6 +1080,46 @@ class ListPolicy:
         Default is unordered list with default write flags.
         """
 
+class ListReturnType:
+    r"""
+    List return type for CDT operations.
+
+    Supports bitwise OR for combining with INVERTED flag:
+        combined = ListReturnType.VALUE | ListReturnType.INVERTED
+    """
+    NONE: ListReturnType
+    """Do not return a result."""
+    INDEX: ListReturnType
+    """Return index offset order."""
+    REVERSE_INDEX: ListReturnType
+    """Return reverse index offset order."""
+    RANK: ListReturnType
+    """Return value order."""
+    REVERSE_RANK: ListReturnType
+    """Return reverse value order."""
+    COUNT: ListReturnType
+    """Return count of items selected."""
+    VALUE: ListReturnType
+    """Return value for single key read and value list for range read."""
+    EXISTS: ListReturnType
+    """Return true if count > 0."""
+    INVERTED: ListReturnType
+    """Invert meaning of list command and return values. Can be OR'd with other return types."""
+
+    def __or__(self, other: ListReturnType) -> ListReturnType:
+        """Bitwise OR - allows combining return type with INVERTED flag."""
+        ...
+    def __and__(self, other: ListReturnType) -> ListReturnType:
+        """Bitwise AND."""
+        ...
+    def __int__(self) -> builtins.int:
+        """Convert to integer."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...
+
 class MapPolicy:
     @property
     def order(self) -> MapOrder: ...
@@ -1085,6 +1134,54 @@ class MapPolicy:
         Create a new MapPolicy with the specified order and write mode.
         Default is unordered map with update write mode.
         """
+
+class MapReturnType:
+    r"""
+    Map return type for CDT operations.
+
+    Supports bitwise OR for combining with INVERTED flag:
+        combined = MapReturnType.VALUE | MapReturnType.INVERTED
+    """
+    NONE: MapReturnType
+    """Do not return a result."""
+    INDEX: MapReturnType
+    """Return key index order."""
+    REVERSE_INDEX: MapReturnType
+    """Return reverse key order."""
+    RANK: MapReturnType
+    """Return value order."""
+    REVERSE_RANK: MapReturnType
+    """Return reverse value order."""
+    COUNT: MapReturnType
+    """Return count of items selected."""
+    KEY: MapReturnType
+    """Return key for single key read and key list for range read."""
+    VALUE: MapReturnType
+    """Return value for single key read and value list for range read."""
+    KEY_VALUE: MapReturnType
+    """Return key/value items."""
+    EXISTS: MapReturnType
+    """Returns true if count > 0."""
+    UNORDERED_MAP: MapReturnType
+    """Returns an unordered map."""
+    ORDERED_MAP: MapReturnType
+    """Returns an ordered map."""
+    INVERTED: MapReturnType
+    """Invert meaning of map command and return values. Can be OR'd with other return types."""
+
+    def __or__(self, other: MapReturnType) -> MapReturnType:
+        """Bitwise OR - allows combining return type with INVERTED flag."""
+        ...
+    def __and__(self, other: MapReturnType) -> MapReturnType:
+        """Bitwise AND."""
+        ...
+    def __int__(self) -> builtins.int:
+        """Convert to integer."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...
 
 class PartitionFilter:
     @property
@@ -1517,44 +1614,6 @@ class ListOrderType(Enum):
     List is ordered.
     """
 
-class ListReturnType(Enum):
-    NONE = ...
-    r"""
-    Do not return a result.
-    """
-    INDEX = ...
-    r"""
-    Return index offset order.
-    """
-    REVERSE_INDEX = ...
-    r"""
-    Return reverse index offset order.
-    """
-    RANK = ...
-    r"""
-    Return value order.
-    """
-    REVERSE_RANK = ...
-    r"""
-    Return reverse value order.
-    """
-    COUNT = ...
-    r"""
-    Return count of items selected.
-    """
-    VALUE = ...
-    r"""
-    Return value for single key read and value list for range read.
-    """
-    EXISTS = ...
-    r"""
-    Return true if count > 0.
-    """
-    INVERTED = ...
-    r"""
-    Invert meaning of list command and return values.
-    """
-
 class ListSortFlags(Enum):
     DEFAULT = ...
     r"""
@@ -1599,56 +1658,6 @@ class MapOrder(Enum):
     KEY_VALUE_ORDERED = ...
     r"""
     Order map by key, then value.
-    """
-
-class MapReturnType(Enum):
-    NONE = ...
-    r"""
-    Do not return a result.
-    """
-    INDEX = ...
-    r"""
-    Return key index order.
-    """
-    REVERSE_INDEX = ...
-    r"""
-    Return reverse key order.
-    """
-    RANK = ...
-    r"""
-    Return value order.
-    """
-    REVERSE_RANK = ...
-    r"""
-    Return reverse value order.
-    """
-    COUNT = ...
-    r"""
-    Return count of items selected.
-    """
-    KEY = ...
-    r"""
-    Return key for single key read and key list for range read.
-    """
-    VALUE = ...
-    r"""
-    Return value for single key read and value list for range read.
-    """
-    KEY_VALUE = ...
-    r"""
-    Return key/value items.
-    """
-    EXISTS = ...
-    r"""
-    Returns true if count > 0.
-    """
-    UNORDERED_MAP = ...
-    r"""
-    Returns an unordered map.
-    """
-    ORDERED_MAP = ...
-    r"""
-    Returns an ordered map.
     """
 
 class MapWriteMode(Enum):
