@@ -313,7 +313,8 @@ async def test_put_bin_limit(client_and_key):
     client, rp, key = client_and_key
 
     wp = WritePolicy()
-    wp.total_timeout = 10000
+    # Default total_timeout (1000ms) can be too short for this large put; give the server time to respond.
+    wp.total_timeout = 20000
 
     # Create bins dict with more than 32767 bins (the limit)
     BIN_LIMIT_PER_RECORD = 32767
@@ -326,5 +327,4 @@ async def test_put_bin_limit(client_and_key):
     # The server will reject this with a ParameterError
     with pytest.raises(ServerError) as exi:
         await client.put(wp, key, bins)
-    # Verify it's a ParameterError from the server
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
