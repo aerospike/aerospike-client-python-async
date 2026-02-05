@@ -171,7 +171,7 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
 *  Cross-Python Client compatibility testing - esp data types
     - Write from legacy, read from new
     - Write from new, read from legacy
-*  Track known remaining "core" (Rust Client) items:
+*  Track known missing "Rust core" items:
     - AP/SC
-    - MRT
-    - smaller items
+    - Transactions
+    - Background Tasks

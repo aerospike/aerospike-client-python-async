@@ -497,11 +497,23 @@ class FilterExpression:
         Create function that returns record set name string.
         """
     @staticmethod
+    def record_size() -> FilterExpression:
+        r"""
+        Create expression that returns the record size. Usually evaluates quickly because
+        record metadata is cached in memory. Requires server version 7.0+.
+        """
+    @staticmethod
     def device_size() -> FilterExpression:
         r"""
-        Create function that returns record size on disk.
-        If server storage-engine is memory, then zero is returned.
-        Note: device_size() is deprecated, use record_size() instead for server version 7.0+.
+        Create function that returns record size on disk. If server storage-engine is
+        memory, then zero is returned. Deprecated: use record_size() for server version 7.0+.
+        Implemented via record_size() for server 7.0+.
+        """
+    @staticmethod
+    def memory_size() -> FilterExpression:
+        r"""
+        Create expression that returns record size in memory. Deprecated: use record_size() for server 7.0+.
+        Implemented via record_size() for server 7.0+.
         """
     @staticmethod
     def last_update() -> FilterExpression:
@@ -852,6 +864,11 @@ class FilterExpression:
         """
     def __richcmp__(self, other:FilterExpression, op:int) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
+    def _debug_inner(self) -> builtins.str:
+        r"""
+        Return the debug representation of the inner expression (used for equality).
+        Exposed for inspection; same string used by __eq__.
+        """
     @staticmethod
     def unknown() -> FilterExpression:
         r"""

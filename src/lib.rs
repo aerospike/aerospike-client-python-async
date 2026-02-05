@@ -2207,10 +2207,28 @@ pub enum Replica {
         }
 
         #[staticmethod]
-        /// Create function that returns record size on disk.
-        /// If server storage-engine is memory, then zero is returned.
-        /// Note: device_size() is deprecated, use record_size() instead for server version 7.0+.
+        /// Create expression that returns the record size. Usually evaluates quickly because
+        /// record metadata is cached in memory. Requires server version 7.0+.
+        pub fn record_size() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::record_size(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record size on disk. If server storage-engine is
+        /// memory, then zero is returned. Deprecated: use record_size() for server version 7.0+.
+        /// Implemented via record_size() for server 7.0+.
         pub fn device_size() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::record_size(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns record size in memory. Deprecated: use record_size() for server 7.0+.
+        /// Implemented via record_size() for server 7.0+.
+        pub fn memory_size() -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::record_size(),
             }
@@ -2795,6 +2813,12 @@ pub enum Replica {
             let mut hasher = DefaultHasher::new();
             self.hash(&mut hasher);
             hasher.finish()
+        }
+
+        /// Return the debug representation of the inner expression (used for equality).
+        /// Exposed for inspection; same string used by __eq__.
+        pub fn _debug_inner(&self) -> String {
+            format!("{:?}", self._as)
         }
 
         #[staticmethod]
