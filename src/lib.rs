@@ -61,29 +61,36 @@ create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::
 #[pyclass(extends = PyException)]
 pub struct ServerError {
     result_code: CoreResultCode,
+    in_doubt: bool,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl ServerError {
     #[new]
-    fn new(_message: String, result_code: ResultCode) -> PyResult<Self> {
-        // Note: message is handled by the base PyException, we only store result_code
-        Ok(ServerError { result_code: result_code.0 })
+    #[pyo3(signature = (_message, result_code, in_doubt=false))]
+    fn new(_message: String, result_code: ResultCode, in_doubt: bool) -> PyResult<Self> {
+        // Note: message is handled by the base PyException, we only store result_code and in_doubt
+        Ok(ServerError { result_code: result_code.0, in_doubt })
     }
 
     #[getter]
     fn result_code(&self) -> ResultCode {
         ResultCode(self.result_code)
     }
+
+    #[getter]
+    fn in_doubt(&self) -> bool {
+        self.in_doubt
+    }
 }
 
 // Helper function to create ServerError as a PyErr
-fn create_server_error(message: String, result_code: CoreResultCode) -> PyErr {
+fn create_server_error(message: String, result_code: CoreResultCode, in_doubt: bool) -> PyErr {
     Python::attach(|py| -> PyErr {
         let server_error_type = py.get_type::<ServerError>();
         let result_code_wrapper = ResultCode(result_code);
-        match server_error_type.call1((message.clone(), result_code_wrapper)) {
+        match server_error_type.call1((message.clone(), result_code_wrapper, in_doubt)) {
             Ok(server_error_obj) => PyErr::from_value(server_error_obj),
             Err(e) => e,
         }
@@ -139,7 +146,7 @@ impl From<RustClientError> for PyErr {
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
             Error::ServerError(result_code, in_doubt, node) => {
                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                create_server_error(message, result_code)
+                create_server_error(message, result_code, in_doubt)
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string) => TimeoutError::new_err(string),
@@ -149,7 +156,7 @@ impl From<RustClientError> for PyErr {
                 match first.as_ref() {
                     Error::ServerError(result_code, in_doubt, node) => {
                         let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                        create_server_error(message, *result_code)
+                        create_server_error(message, *result_code, *in_doubt)
                     },
                     Error::BadResponse(msg) => {
                         BadResponse::new_err(msg.clone())
@@ -159,7 +166,7 @@ impl From<RustClientError> for PyErr {
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
                                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, *result_code)
+                                create_server_error(message, *result_code, *in_doubt)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -172,7 +179,7 @@ impl From<RustClientError> for PyErr {
                         match second.as_ref() {
                             Error::ServerError(result_code, in_doubt, node) => {
                                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, *result_code)
+                                create_server_error(message, *result_code, *in_doubt)
                             },
                             Error::BadResponse(msg) => {
                                 BadResponse::new_err(msg.clone())
@@ -6826,6 +6833,14 @@ pub enum Replica {
                 CompareOp::Ne => Ok(std::mem::discriminant(&self.0) != std::mem::discriminant(&other.0)),
                 _ => Ok(false),
             }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            std::mem::discriminant(&self.0).hash(&mut hasher);
+            hasher.finish()
         }
 
         fn __repr__(&self) -> String {
