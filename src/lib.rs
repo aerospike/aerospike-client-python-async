@@ -1234,7 +1234,7 @@ pub enum Replica {
         pub fn aliases<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let node = std::sync::Arc::clone(&self._as);
             pyo3_asyncio::future_into_py(py, async move {
-                let aliases = node.aliases().await;
+                let aliases = node.aliases();
                 let result: Vec<(String, u16)> = aliases.into_iter().map(|h| (h.name, h.port)).collect();
                 Ok(result)
             })
@@ -5404,12 +5404,12 @@ pub enum Replica {
         /// connections can be reduced by creating multiple mini connection pools per node.
         #[getter]
         pub fn get_conn_pools_per_node(&self) -> usize {
-            self._as.conn_pools_per_node
+            self._as.conn_pools_per_node as usize
         }
 
         #[setter]
         pub fn set_conn_pools_per_node(&mut self, sz: usize) {
-            self._as.conn_pools_per_node = sz;
+            self._as.conn_pools_per_node = sz as u8;
         }
 
         /// UseServicesAlternate determines if the client should use "services-alternate"
@@ -8342,8 +8342,7 @@ pub enum Replica {
                 Ok(client
                     .read()
                     .await
-                    .is_connected()
-                    .await)
+                    .is_connected())
             })
         }
 
@@ -11718,8 +11717,7 @@ pub enum Replica {
                 let node_names = client
                     .read()
                     .await
-                    .node_names()
-                    .await;
+                    .node_names();
 
                 Ok(node_names)
             })
@@ -11735,7 +11733,6 @@ pub enum Replica {
                     .read()
                     .await
                     .get_node(&name)
-                    .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(Node { _as: node })
             })
@@ -11750,8 +11747,7 @@ pub enum Replica {
                 let nodes = client
                     .read()
                     .await
-                    .nodes()
-                    .await;
+                    .nodes();
 
                 let py_nodes: Vec<Node> = nodes.into_iter().map(|n| Node { _as: n }).collect();
                 Ok(py_nodes)
@@ -11775,7 +11771,6 @@ pub enum Replica {
                     .await
                     .cluster
                     .get_random_node()
-                    .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 let policy = aerospike_core::AdminPolicy::default();
@@ -11803,8 +11798,7 @@ pub enum Replica {
                 let nodes = client
                     .read()
                     .await
-                    .nodes()
-                    .await;
+                    .nodes();
 
                 let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
 

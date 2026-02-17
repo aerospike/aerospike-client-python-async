@@ -660,7 +660,7 @@ class TestSocketTimeout:
         can complete very quickly on local networks.
         """
         from aerospike_async import new_client, ClientPolicy, QueryPolicy, Statement, PartitionFilter
-        from aerospike_async.exceptions import TimeoutError
+        from aerospike_async.exceptions import ClientError, TimeoutError
 
         # Setup client
         cp = ClientPolicy()
@@ -673,6 +673,8 @@ class TestSocketTimeout:
             # With 1ms, socket I/O may timeout due to network latency
             qp = QueryPolicy()
             qp.socket_timeout = 1  # 1ms - extremely short, may timeout on socket I/O
+            qp.total_timeout = 100  # 100ms - hard cap so the test can't hang
+            qp.max_retries = 0  # No retries — fail immediately on first timeout
 
             stmt = Statement("test", "test", None)
 
@@ -688,10 +690,12 @@ class TestSocketTimeout:
                 # On fast networks, socket operations may complete before timeout
                 # This is acceptable - the test verifies socket_timeout can be set
                 pytest.skip("Socket operations completed faster than 1ms timeout - network too fast to verify timeout")
-            except TimeoutError as e:
-                # This is what we want - socket timeout occurred
+            except (TimeoutError, ClientError) as e:
+                # TimeoutError: socket timeout on first attempt
+                # ClientError: max retries exceeded after repeated timeouts
                 error_msg = str(e).lower()
-                assert "timeout" in error_msg, f"Expected TimeoutError, got: {e}"
+                assert "timeout" in error_msg or "retries" in error_msg, \
+                    f"Expected timeout or retry error, got: {e}"
 
         finally:
             await client.close()

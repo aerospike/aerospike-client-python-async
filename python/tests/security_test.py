@@ -3,10 +3,52 @@
 Security Tests - Tests for user management, role management, and authentication features.
 These tests require a server with security enabled and proper authentication.
 """
+import asyncio
 import pytest
 import os
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode
+
+PROPAGATION_RETRIES = 5
+PROPAGATION_DELAY = 0.2
+
+
+async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
+    """Retry query_roles until the role is visible. Returns the role list."""
+    for attempt in range(retries):
+        try:
+            roles = await client.query_roles(role_name)
+            if len(roles) > 0:
+                return roles
+        except ServerError:
+            pass
+        if attempt < retries - 1:
+            await asyncio.sleep(PROPAGATION_DELAY)
+    pytest.fail(f"Role {role_name!r} not visible after {retries} retries")
+
+
+async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES):
+    """Retry query_roles until it raises ServerError (role deleted)."""
+    for attempt in range(retries):
+        try:
+            await client.query_roles(role_name)
+        except ServerError:
+            return
+        if attempt < retries - 1:
+            await asyncio.sleep(PROPAGATION_DELAY)
+    pytest.fail(f"Role {role_name!r} still queryable after {retries} retries")
+
+
+async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
+    """Retry query_users until the user is visible. Returns the user list."""
+    for attempt in range(retries):
+        all_users = await client.query_users(None)
+        user_names = [u.user for u in all_users]
+        if username in user_names:
+            return all_users
+        if attempt < retries - 1:
+            await asyncio.sleep(PROPAGATION_DELAY)
+    pytest.fail(f"User {username!r} not found in {user_names} after {retries} retries")
 
 
 @pytest.fixture(scope="module")
@@ -94,17 +136,7 @@ class TestSecurityFeatures:
         roles = ["read:test"]
 
         await client.create_user(username, password, roles)
-
-        # Retry for eventual consistency
-        import asyncio
-        for attempt in range(3):
-            all_users = await client.query_users(None)
-            user_names = [u.user for u in all_users]
-            if username in user_names:
-                break
-            if attempt < 2:  # Don't sleep on last attempt
-                await asyncio.sleep(0.1)
-        assert username in user_names, f"User {username} not found in {user_names} after creation"
+        await wait_for_user(client, username)
 
     @pytest.mark.asyncio
     async def test_create_user_multiple_roles(self, client):
@@ -118,9 +150,7 @@ class TestSecurityFeatures:
         roles = ["read:test", "write:test", "read:analytics"]
 
         await client.create_user(username, password, roles)
-        all_users = await client.query_users(None)
-        user_names = [u.user for u in all_users]
-        assert username in user_names
+        await wait_for_user(client, username)
 
     @pytest.mark.asyncio
     async def test_create_user_duplicate(self, client):
@@ -400,8 +430,7 @@ class TestSecurityFeatures:
             raise
 
         # Verify role exists
-        roles = await client.query_roles(role_name)
-        assert len(roles) > 0
+        roles = await wait_for_role(client, role_name)
         assert roles[0].name == role_name
 
     @pytest.mark.asyncio
@@ -434,8 +463,7 @@ class TestSecurityFeatures:
                 raise
 
         # Verify role exists
-        roles = await client.query_roles(role_name)
-        assert len(roles) > 0
+        roles = await wait_for_role(client, role_name)
         assert roles[0].name == role_name
 
     @pytest.mark.asyncio
@@ -485,7 +513,11 @@ class TestSecurityFeatures:
             else:
                 raise
 
-        # Query all roles - should return a list of all roles
+        # Verify both roles are visible
+        await wait_for_role(client, "test_role_1")
+        await wait_for_role(client, "test_role_2")
+
+        # Query all roles - both should appear
         roles = await client.query_roles(None)
         role_names = [r.name for r in roles]
         assert "test_role_1" in role_names
@@ -551,18 +583,10 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        roles = await client.query_roles(role_name)
-        assert len(roles) > 0
-        assert roles[0].name == role_name
+        await wait_for_role(client, role_name)
 
         await client.drop_role(role_name)
-
-        with pytest.raises(Exception):
-            await client.query_roles(role_name)
-
-        # Verify role is deleted
-        with pytest.raises(Exception):
-            await client.query_roles(role_name)
+        await wait_for_role_gone(client, role_name)
 
     @pytest.mark.asyncio
     async def test_drop_role_nonexistent(self, client):
