@@ -175,3 +175,7 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
     - AP/SC
     - Transactions
     - Background Tasks
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) for details.
