@@ -25,6 +25,7 @@ from aerospike_async import (
     CollectionIndexType,
     IndexType,
 )
+from aerospike_async.exceptions import ServerError, ResultCode
 from fixtures import TestFixtureConnection
 
 
@@ -71,15 +72,12 @@ class TestGeoQuery(TestFixtureConnection):
             print(f"Index {index_name} created successfully")
             # Wait for index to be ready (geo2dsphere indexes typically ready in 1-2 seconds)
             await asyncio.sleep(2.0)
-        except Exception as e:
-            # Index might already exist
-            error_msg = str(e).lower()
-            if "already exists" in error_msg or "already" in error_msg:
+        except ServerError as e:
+            if e.result_code == ResultCode.INDEX_FOUND:
                 print(f"Index {index_name} already exists, continuing...")
-                await asyncio.sleep(0.5)  # Brief wait for existing index
+                await asyncio.sleep(0.5)
             else:
-                print(f"Failed to create index: {e}")
-                raise  # Fail the test if index creation fails
+                raise
 
         # Create some test records with locations inside and outside the region
         # Write records AFTER index exists so they get indexed
@@ -119,45 +117,25 @@ class TestGeoQuery(TestFixtureConnection):
         statement = Statement(namespace, set_name, bins=None)
         statement.filters = [predicate]
 
-        # Execute the query
-        try:
-            records = await client.query(QueryPolicy(), PartitionFilter.all(), statement)
-            records_list = []
+        records = await client.query(QueryPolicy(), PartitionFilter.all(), statement)
+        records_list = []
 
-            # Collect records from the recordset
-            async for record in records:
-                records_list.append(record)
+        async for record in records:
+            records_list.append(record)
 
-            # Wait for query to complete
-            max_wait = 10
-            for _ in range(max_wait):
-                if not records.active:
-                    break
-                await asyncio.sleep(0.1)
+        max_wait = 10
+        for _ in range(max_wait):
+            if not records.active:
+                break
+            await asyncio.sleep(0.1)
 
-            records.close()
+        records.close()
 
-            # Verify we got the records inside the region
-            print(f"Query returned {len(records_list)} records")
-            if len(records_list) >= 2:
-                # Verify records have the location bin
-                for record in records_list:
-                    assert LOCBIN in record.bins, f"Record should have {LOCBIN} bin"
-                    assert isinstance(record.bins[LOCBIN], GeoJSON), "Location should be GeoJSON"
-            elif len(records_list) == 0:
-                # If we get 0 results after proper waits, it might be a query problem
-                # Log but don't fail - this could be environment-specific
-                print(f"Warning: Query returned 0 results after waiting for index and records to be ready")
-
-        except Exception as e:
-            # Handle query execution errors
-            error_msg = str(e).lower()
-            if "parameter" in error_msg:
-                # ParameterError - this should be fixed now
-                print(f"ParameterError occurred: {e}")
-                raise  # Fail the test - ParameterError should not happen
-            else:
-                # For other errors, fail to see what's wrong
-                print(f"Query failed with error: {e}")
-                raise
+        print(f"Query returned {len(records_list)} records")
+        if len(records_list) >= 2:
+            for record in records_list:
+                assert LOCBIN in record.bins, f"Record should have {LOCBIN} bin"
+                assert isinstance(record.bins[LOCBIN], GeoJSON), "Location should be GeoJSON"
+        elif len(records_list) == 0:
+            print(f"Warning: Query returned 0 results after waiting for index and records to be ready")
 
