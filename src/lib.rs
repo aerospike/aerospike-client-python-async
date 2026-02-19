@@ -1602,9 +1602,13 @@ pub enum Replica {
     
     impl From<&ListReturnType> for ListReturnTypeBitmask {
         fn from(input: &ListReturnType) -> Self {
-            // The u32 value already encodes base type (lower 16 bits) and inverted flag (bit 16)
-            // Core library expects same bitmask layout, so we can just convert to i64
             ListReturnTypeBitmask(input.0 as i64)
+        }
+    }
+
+    impl aerospike_core::operations::lists::ToListReturnTypeBitmask for ListReturnType {
+        fn to_bitmask(self) -> i64 {
+            self.0 as i64
         }
     }
     
@@ -1640,6 +1644,9 @@ pub enum Replica {
         /// Default. Preserve duplicate values when sorting list.
         #[pyo3(name = "DEFAULT")]
         Default,
+        /// Sort in descending order.
+        #[pyo3(name = "DESCENDING")]
+        Descending,
         /// Drop duplicate values when sorting list.
         #[pyo3(name = "DROP_DUPLICATES")]
         DropDuplicates,
@@ -1668,6 +1675,7 @@ pub enum Replica {
         fn from(input: &ListSortFlags) -> Self {
             match input {
                 ListSortFlags::Default => aerospike_core::operations::lists::ListSortFlags::Default,
+                ListSortFlags::Descending => aerospike_core::operations::lists::ListSortFlags::Descending,
                 ListSortFlags::DropDuplicates => aerospike_core::operations::lists::ListSortFlags::DropDuplicates,
             }
         }
@@ -1916,10 +1924,14 @@ pub enum Replica {
         }
     }
     
-    // Keep the enum conversion for backward compatibility with non-inverted cases
+    impl aerospike_core::operations::maps::ToMapReturnTypeBitmask for MapReturnType {
+        fn to_bitmask(self) -> i64 {
+            self.0 as i64
+        }
+    }
+
     impl From<&MapReturnType> for aerospike_core::operations::maps::MapReturnType {
         fn from(input: &MapReturnType) -> Self {
-            // Only valid for non-inverted values
             let base = input.0 & 0xFFFF;
             match base {
                 0 => aerospike_core::operations::maps::MapReturnType::None,
@@ -2107,6 +2119,10 @@ pub enum Replica {
             // Use the debug representation for hashing
             format!("{:?}", self._as).hash(state);
         }
+    }
+
+    fn ctx_to_vec(ctx: &[CTX]) -> Vec<aerospike_core::operations::cdt_context::CdtContext> {
+        ctx.iter().map(|c| c.ctx.clone()).collect()
     }
 
     #[gen_stub_pymethods]
@@ -2863,8 +2879,7 @@ pub enum Replica {
         /// Supports nested CDT operations via optional CTX contexts.
         pub fn list_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             FilterExpression {
                 _as: lists::size(bin._as, &ctx_vec),
             }
@@ -2882,8 +2897,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_index(
@@ -2908,8 +2922,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_rank(
@@ -2933,8 +2946,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_value(
@@ -2959,8 +2971,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_value_range(
@@ -2984,8 +2995,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_value_list(
@@ -3008,8 +3018,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_index_range(
@@ -3033,8 +3042,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_index_range_count(
@@ -3058,8 +3066,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_rank_range(
@@ -3083,8 +3090,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_rank_range_count(
@@ -3109,8 +3115,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range(
@@ -3136,8 +3141,7 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::lists;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range_count(
@@ -3152,6 +3156,318 @@ pub enum Replica {
         }
 
         //--------------------------------------------------
+        // List CDT Write Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that appends value to end of list.
+        pub fn list_append(
+            policy: ListPolicy,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::append(policy._as, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that appends list items to end of list.
+        pub fn list_append_items(
+            policy: ListPolicy,
+            list: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::append_items(policy._as, list._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts value to specified index of list.
+        pub fn list_insert(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::insert(policy._as, index._as, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts each input list item starting at specified index of list.
+        pub fn list_insert_items(
+            policy: ListPolicy,
+            index: FilterExpression,
+            list: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::insert_items(policy._as, index._as, list._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that increments list[index] by value.
+        pub fn list_increment(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::increment(policy._as, index._as, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets item value at specified index in list.
+        pub fn list_set(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::set(policy._as, index._as, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes all items in list.
+        pub fn list_clear(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::clear(bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sorts list according to sort_flags.
+        pub fn list_sort(
+            sort_flags: ListSortFlags,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let core_flags: aerospike_core::operations::lists::ListSortFlags = (&sort_flags).into();
+            FilterExpression {
+                _as: lists::sort(core_flags, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        //--------------------------------------------------
+        // List CDT Remove Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by value.
+        pub fn list_remove_by_value(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value(return_type, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by values.
+        pub fn list_remove_by_value_list(
+            return_type: ListReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_list(return_type, values._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by value range
+        /// (value_begin inclusive, value_end exclusive).
+        pub fn list_remove_by_value_range(
+            return_type: ListReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_range(
+                    return_type,
+                    value_begin.map(|e| e._as),
+                    value_end.map(|e| e._as),
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items nearest to value and greater by relative rank.
+        pub fn list_remove_by_value_relative_rank_range(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_relative_rank_range(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items nearest to value and greater by relative rank
+        /// with a count limit.
+        pub fn list_remove_by_value_relative_rank_range_count(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_relative_rank_range_count(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list item identified by index.
+        pub fn list_remove_by_index(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index(return_type, index._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items starting at specified index to the end of list.
+        pub fn list_remove_by_index_range(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index_range(return_type, index._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" list items starting at specified index.
+        pub fn list_remove_by_index_range_count(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index_range_count(
+                    return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list item identified by rank.
+        pub fn list_remove_by_rank(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank(return_type, rank._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items starting at specified rank to the last ranked item.
+        pub fn list_remove_by_rank_range(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank_range(return_type, rank._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" list items starting at specified rank.
+        pub fn list_remove_by_rank_range_count(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank_range_count(
+                    return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        //--------------------------------------------------
         // Map CDT Expressions
         //--------------------------------------------------
 
@@ -3160,8 +3476,7 @@ pub enum Replica {
         /// Supports nested CDT operations via optional CTX contexts.
         pub fn map_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
+            let ctx_vec = ctx_to_vec(&ctx);
             FilterExpression {
                 _as: maps::size(bin._as, &ctx_vec),
             }
@@ -3179,9 +3494,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_key(
                     core_return_type,
@@ -3205,9 +3519,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_rank(
                     core_return_type,
@@ -3231,9 +3544,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_index(
                     core_return_type,
@@ -3256,9 +3568,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_value(
                     core_return_type,
@@ -3282,9 +3593,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_value_range(
                     core_return_type,
@@ -3307,9 +3617,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_value_list(
                     core_return_type,
@@ -3333,9 +3642,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_key_range(
                     core_return_type,
@@ -3358,9 +3666,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_key_list(
                     core_return_type,
@@ -3383,9 +3690,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_key_relative_index_range(
                     core_return_type,
@@ -3410,9 +3716,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_key_relative_index_range_count(
                     core_return_type,
@@ -3437,9 +3742,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_value_relative_rank_range(
                     core_return_type,
@@ -3464,9 +3768,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_value_relative_rank_range_count(
                     core_return_type,
@@ -3490,9 +3793,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_index_range(
                     core_return_type,
@@ -3515,9 +3817,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_index_range_count(
                     core_return_type,
@@ -3540,9 +3841,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_rank_range(
                     core_return_type,
@@ -3565,9 +3865,8 @@ pub enum Replica {
             ctx: Vec<CTX>,
         ) -> Self {
             use aerospike_core::expressions::maps;
-            let ctx_vec: Vec<aerospike_core::operations::cdt_context::CdtContext> =
-                ctx.iter().map(|c| (&c.ctx).clone()).collect();
-            let core_return_type: aerospike_core::operations::maps::MapReturnType = (&return_type).into();
+            let ctx_vec = ctx_to_vec(&ctx);
+            let core_return_type = return_type;
             FilterExpression {
                 _as: maps::get_by_rank_range_count(
                     core_return_type,
@@ -3576,6 +3875,804 @@ pub enum Replica {
                     bin._as,
                     &ctx_vec,
                 ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Write Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that writes key/value item to map bin.
+        pub fn map_put(
+            policy: MapPolicy,
+            key: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::put(&policy._as, key._as, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that writes each map item to map bin.
+        pub fn map_put_items(
+            policy: MapPolicy,
+            map: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::put_items(&policy._as, map._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that increments values by incr for all items identified by key.
+        pub fn map_increment(
+            policy: MapPolicy,
+            key: FilterExpression,
+            incr: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::increment(&policy._as, key._as, incr._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Remove Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that removes all items in map.
+        pub fn map_clear(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::clear(bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by key.
+        pub fn map_remove_by_key(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key(return_type, key._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by keys.
+        pub fn map_remove_by_key_list(
+            return_type: MapReturnType,
+            keys: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_list(return_type, keys._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by key range
+        /// (key_begin inclusive, key_end exclusive).
+        pub fn map_remove_by_key_range(
+            return_type: MapReturnType,
+            key_begin: Option<FilterExpression>,
+            key_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_range(
+                    return_type,
+                    key_begin.map(|e| e._as),
+                    key_end.map(|e| e._as),
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to key and greater by index.
+        pub fn map_remove_by_key_relative_index_range(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_relative_index_range(
+                    return_type,
+                    key._as,
+                    index._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to key and greater by index
+        /// with a count limit.
+        pub fn map_remove_by_key_relative_index_range_count(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_relative_index_range_count(
+                    return_type,
+                    key._as,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by value.
+        pub fn map_remove_by_value(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value(return_type, value._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by values.
+        pub fn map_remove_by_value_list(
+            return_type: MapReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_list(return_type, values._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by value range
+        /// (value_begin inclusive, value_end exclusive).
+        pub fn map_remove_by_value_range(
+            return_type: MapReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_range(
+                    return_type,
+                    value_begin.map(|e| e._as),
+                    value_end.map(|e| e._as),
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to value and greater by relative rank.
+        pub fn map_remove_by_value_relative_rank_range(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_relative_rank_range(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to value and greater by relative rank
+        /// with a count limit.
+        pub fn map_remove_by_value_relative_rank_range_count(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_relative_rank_range_count(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by index.
+        pub fn map_remove_by_index(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index(return_type, index._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items starting at specified index to the end of map.
+        pub fn map_remove_by_index_range(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index_range(return_type, index._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" map items starting at specified index.
+        pub fn map_remove_by_index_range_count(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index_range_count(
+                    return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by rank.
+        pub fn map_remove_by_rank(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank(return_type, rank._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items starting at specified rank to the last ranked item.
+        pub fn map_remove_by_rank_range(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank_range(return_type, rank._as, bin._as, &ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" map items starting at specified rank.
+        pub fn map_remove_by_rank_range_count(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank_range_count(
+                    return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Bitwise Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that resizes byte[] to byte_size according to resize_flags
+        /// and returns byte[].
+        pub fn bit_resize(
+            policy: BitPolicy,
+            byte_size: FilterExpression,
+            resize_flags: BitwiseResizeFlags,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::resize(&policy._as, byte_size._as, resize_flags.into(), bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts value bytes into byte[] bin at byte_offset
+        /// and returns byte[].
+        pub fn bit_insert(
+            policy: BitPolicy,
+            byte_offset: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::insert(&policy._as, byte_offset._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes bytes from byte[] bin at byte_offset for byte_size
+        /// and returns byte[].
+        pub fn bit_remove(
+            policy: BitPolicy,
+            byte_offset: FilterExpression,
+            byte_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::remove(&policy._as, byte_offset._as, byte_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets value on byte[] bin at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_set(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::set(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "or" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_or(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::or(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "xor" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_xor(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::xor(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "and" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_and(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::and(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that negates byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_not(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::not(&policy._as, bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that shifts left byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_lshift(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            shift: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::lshift(&policy._as, bit_offset._as, bit_size._as, shift._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that shifts right byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_rshift(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            shift: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::rshift(&policy._as, bit_offset._as, bit_size._as, shift._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds value to byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_add(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            signed: bool,
+            action: BitwiseOverflowActions,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::add(
+                    &policy._as,
+                    bit_offset._as,
+                    bit_size._as,
+                    value._as,
+                    signed,
+                    action.into(),
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that subtracts value from byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_subtract(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            signed: bool,
+            action: BitwiseOverflowActions,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::subtract(
+                    &policy._as,
+                    bit_offset._as,
+                    bit_size._as,
+                    value._as,
+                    signed,
+                    action.into(),
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets value to byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_set_int(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::set_int(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns bits from byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_get(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::get(bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer count of set bits from byte[] bin starting at
+        /// bit_offset for bit_size.
+        pub fn bit_count(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::count(bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer bit offset of the first specified value bit
+        /// in byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_lscan(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::lscan(bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer bit offset of the last specified value bit
+        /// in byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_rscan(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::rscan(bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer from byte[] bin starting at bit_offset for bit_size.
+        /// Signed indicates if bits should be treated as a signed number.
+        pub fn bit_get_int(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            signed: bool,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::get_int(bit_offset._as, bit_size._as, signed, bin._as),
+            }
+        }
+
+        //--------------------------------------------------
+        // HLL Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that creates a new HLL or resets an existing HLL.
+        pub fn hll_init(
+            policy: HLLPolicy,
+            index_bit_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::init(policy._as, index_bit_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that creates a new HLL or resets an existing HLL with minhash bits.
+        pub fn hll_init_with_min_hash(
+            policy: HLLPolicy,
+            index_bit_count: FilterExpression,
+            min_hash_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::init_with_min_hash(policy._as, index_bit_count._as, min_hash_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds list values to a HLL set and returns HLL set.
+        pub fn hll_add(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add(policy._as, list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds values to a HLL set and returns HLL set.
+        /// If HLL bin does not exist, use index_bit_count to create HLL bin.
+        pub fn hll_add_with_index(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            index_bit_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add_with_index(policy._as, list._as, index_bit_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds values to a HLL set and returns HLL set.
+        /// If HLL bin does not exist, use index_bit_count and min_hash_count to create HLL set.
+        pub fn hll_add_with_index_and_min_hash(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            index_bit_count: FilterExpression,
+            min_hash_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add_with_index_and_min_hash(
+                    policy._as,
+                    list._as,
+                    index_bit_count._as,
+                    min_hash_count._as,
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements in the HLL bin.
+        pub fn hll_get_count(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_count(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns a HLL object that is the union of all specified
+        /// HLL objects in the list with the HLL bin.
+        pub fn hll_get_union(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_union(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements that would be contained
+        /// by the union of these HLL objects.
+        pub fn hll_get_union_count(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_union_count(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements that would be contained
+        /// by the intersection of these HLL objects.
+        pub fn hll_get_intersect_count(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_intersect_count(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated similarity of these HLL objects
+        /// as a 64 bit float.
+        pub fn hll_get_similarity(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_similarity(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns index_bit_count and min_hash_bit_count used to create
+        /// HLL bin in a list of longs.
+        pub fn hll_describe(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::describe(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns one if HLL bin may contain all items in the list.
+        pub fn hll_may_contain(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::may_contain(list._as, bin._as),
             }
         }
     }
@@ -7384,6 +8481,39 @@ pub enum Replica {
         /// Allow the resulting set to be the minimum of provided index bits.
         #[pyo3(name = "ALLOW_FOLD")]
         AllowFold = 8,
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  HLLPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// HLL policy for HLL operations and expressions.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "HLLPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone, Copy)]
+    pub struct HLLPolicy {
+        _as: aerospike_core::operations::hll::HLLPolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl HLLPolicy {
+        #[new]
+        #[pyo3(signature = (write_flags=HLLWriteFlags::Default))]
+        pub fn new(write_flags: HLLWriteFlags) -> Self {
+            HLLPolicy {
+                _as: aerospike_core::operations::hll::HLLPolicy {
+                    flags: write_flags as i64,
+                },
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -13020,6 +14150,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitOperation>()?;
     m.add_class::<HllOperation>()?;
     m.add_class::<HLLWriteFlags>()?;
+    m.add_class::<HLLPolicy>()?;
     m.add_class::<ExpOperation>()?;
     m.add_class::<ExpWriteFlags>()?;
     m.add_class::<ExpReadFlags>()?;

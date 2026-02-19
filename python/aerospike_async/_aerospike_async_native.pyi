@@ -962,6 +962,103 @@ class FilterExpression:
         Supports nested CDT operations via optional CTX contexts.
         """
     @staticmethod
+    def list_append(policy:ListPolicy, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that appends value to end of list.
+        """
+    @staticmethod
+    def list_append_items(policy:ListPolicy, list:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that appends list items to end of list.
+        """
+    @staticmethod
+    def list_insert(policy:ListPolicy, index:FilterExpression, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that inserts value to specified index of list.
+        """
+    @staticmethod
+    def list_insert_items(policy:ListPolicy, index:FilterExpression, list:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that inserts each input list item starting at specified index of list.
+        """
+    @staticmethod
+    def list_increment(policy:ListPolicy, index:FilterExpression, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that increments list[index] by value.
+        """
+    @staticmethod
+    def list_set(policy:ListPolicy, index:FilterExpression, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that sets item value at specified index in list.
+        """
+    @staticmethod
+    def list_clear(bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes all items in list.
+        """
+    @staticmethod
+    def list_sort(sort_flags:ListSortFlags, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that sorts list according to sort_flags.
+        """
+    @staticmethod
+    def list_remove_by_value(return_type:ListReturnType, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items identified by value.
+        """
+    @staticmethod
+    def list_remove_by_value_list(return_type:ListReturnType, values:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items identified by values.
+        """
+    @staticmethod
+    def list_remove_by_value_range(return_type:ListReturnType, value_begin:typing.Optional[FilterExpression], value_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items identified by value range
+        (value_begin inclusive, value_end exclusive).
+        """
+    @staticmethod
+    def list_remove_by_value_relative_rank_range(return_type:ListReturnType, value:FilterExpression, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items nearest to value and greater by relative rank.
+        """
+    @staticmethod
+    def list_remove_by_value_relative_rank_range_count(return_type:ListReturnType, value:FilterExpression, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items nearest to value and greater by relative rank
+        with a count limit.
+        """
+    @staticmethod
+    def list_remove_by_index(return_type:ListReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list item identified by index.
+        """
+    @staticmethod
+    def list_remove_by_index_range(return_type:ListReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items starting at specified index to the end of list.
+        """
+    @staticmethod
+    def list_remove_by_index_range_count(return_type:ListReturnType, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes "count" list items starting at specified index.
+        """
+    @staticmethod
+    def list_remove_by_rank(return_type:ListReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list item identified by rank.
+        """
+    @staticmethod
+    def list_remove_by_rank_range(return_type:ListReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes list items starting at specified rank to the last ranked item.
+        """
+    @staticmethod
+    def list_remove_by_rank_range_count(return_type:ListReturnType, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes "count" list items starting at specified rank.
+        """
+    @staticmethod
     def map_size(bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
         r"""
         Create expression that returns map size.
@@ -1081,6 +1178,290 @@ class FilterExpression:
         and returns selected data specified by returnType.
         Supports nested CDT operations via optional CTX contexts.
         """
+    @staticmethod
+    def map_put(policy:MapPolicy, key:FilterExpression, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that writes key/value item to map bin.
+        """
+    @staticmethod
+    def map_put_items(policy:MapPolicy, map:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that writes each map item to map bin.
+        """
+    @staticmethod
+    def map_increment(policy:MapPolicy, key:FilterExpression, incr:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that increments values by incr for all items identified by key.
+        """
+    @staticmethod
+    def map_clear(bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes all items in map.
+        """
+    @staticmethod
+    def map_remove_by_key(return_type:MapReturnType, key:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map item identified by key.
+        """
+    @staticmethod
+    def map_remove_by_key_list(return_type:MapReturnType, keys:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items identified by keys.
+        """
+    @staticmethod
+    def map_remove_by_key_range(return_type:MapReturnType, key_begin:typing.Optional[FilterExpression], key_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items identified by key range
+        (key_begin inclusive, key_end exclusive).
+        """
+    @staticmethod
+    def map_remove_by_key_relative_index_range(return_type:MapReturnType, key:FilterExpression, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items nearest to key and greater by index.
+        """
+    @staticmethod
+    def map_remove_by_key_relative_index_range_count(return_type:MapReturnType, key:FilterExpression, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items nearest to key and greater by index
+        with a count limit.
+        """
+    @staticmethod
+    def map_remove_by_value(return_type:MapReturnType, value:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items identified by value.
+        """
+    @staticmethod
+    def map_remove_by_value_list(return_type:MapReturnType, values:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items identified by values.
+        """
+    @staticmethod
+    def map_remove_by_value_range(return_type:MapReturnType, value_begin:typing.Optional[FilterExpression], value_end:typing.Optional[FilterExpression], bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items identified by value range
+        (value_begin inclusive, value_end exclusive).
+        """
+    @staticmethod
+    def map_remove_by_value_relative_rank_range(return_type:MapReturnType, value:FilterExpression, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items nearest to value and greater by relative rank.
+        """
+    @staticmethod
+    def map_remove_by_value_relative_rank_range_count(return_type:MapReturnType, value:FilterExpression, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items nearest to value and greater by relative rank
+        with a count limit.
+        """
+    @staticmethod
+    def map_remove_by_index(return_type:MapReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map item identified by index.
+        """
+    @staticmethod
+    def map_remove_by_index_range(return_type:MapReturnType, index:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items starting at specified index to the end of map.
+        """
+    @staticmethod
+    def map_remove_by_index_range_count(return_type:MapReturnType, index:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes "count" map items starting at specified index.
+        """
+    @staticmethod
+    def map_remove_by_rank(return_type:MapReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map item identified by rank.
+        """
+    @staticmethod
+    def map_remove_by_rank_range(return_type:MapReturnType, rank:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes map items starting at specified rank to the last ranked item.
+        """
+    @staticmethod
+    def map_remove_by_rank_range_count(return_type:MapReturnType, rank:FilterExpression, count:FilterExpression, bin:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Create expression that removes "count" map items starting at specified rank.
+        """
+    @staticmethod
+    def bit_resize(policy:BitPolicy, byte_size:FilterExpression, resize_flags:BitwiseResizeFlags, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that resizes byte[] to byte_size according to resize_flags
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_insert(policy:BitPolicy, byte_offset:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that inserts value bytes into byte[] bin at byte_offset
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_remove(policy:BitPolicy, byte_offset:FilterExpression, byte_size:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that removes bytes from byte[] bin at byte_offset for byte_size
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_set(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that sets value on byte[] bin at bit_offset for bit_size
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_or(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that performs bitwise "or" on value and byte[] bin at bit_offset
+        for bit_size and returns byte[].
+        """
+    @staticmethod
+    def bit_xor(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that performs bitwise "xor" on value and byte[] bin at bit_offset
+        for bit_size and returns byte[].
+        """
+    @staticmethod
+    def bit_and(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that performs bitwise "and" on value and byte[] bin at bit_offset
+        for bit_size and returns byte[].
+        """
+    @staticmethod
+    def bit_not(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that negates byte[] bin starting at bit_offset for bit_size
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_lshift(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, shift:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that shifts left byte[] bin starting at bit_offset for bit_size
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_rshift(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, shift:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that shifts right byte[] bin starting at bit_offset for bit_size
+        and returns byte[].
+        """
+    @staticmethod
+    def bit_add(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, signed:builtins.bool, action:BitwiseOverflowActions, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that adds value to byte[] bin starting at bit_offset for bit_size
+        and returns byte[]. BitSize must be <= 64.
+        """
+    @staticmethod
+    def bit_subtract(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, signed:builtins.bool, action:BitwiseOverflowActions, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that subtracts value from byte[] bin starting at bit_offset for bit_size
+        and returns byte[]. BitSize must be <= 64.
+        """
+    @staticmethod
+    def bit_set_int(policy:BitPolicy, bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that sets value to byte[] bin starting at bit_offset for bit_size
+        and returns byte[]. BitSize must be <= 64.
+        """
+    @staticmethod
+    def bit_get(bit_offset:FilterExpression, bit_size:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns bits from byte[] bin starting at bit_offset for bit_size.
+        """
+    @staticmethod
+    def bit_count(bit_offset:FilterExpression, bit_size:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns integer count of set bits from byte[] bin starting at
+        bit_offset for bit_size.
+        """
+    @staticmethod
+    def bit_lscan(bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns integer bit offset of the first specified value bit
+        in byte[] bin starting at bit_offset for bit_size.
+        """
+    @staticmethod
+    def bit_rscan(bit_offset:FilterExpression, bit_size:FilterExpression, value:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns integer bit offset of the last specified value bit
+        in byte[] bin starting at bit_offset for bit_size.
+        """
+    @staticmethod
+    def bit_get_int(bit_offset:FilterExpression, bit_size:FilterExpression, signed:builtins.bool, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns integer from byte[] bin starting at bit_offset for bit_size.
+        Signed indicates if bits should be treated as a signed number.
+        """
+    @staticmethod
+    def hll_init(policy:HLLPolicy, index_bit_count:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that creates a new HLL or resets an existing HLL.
+        """
+    @staticmethod
+    def hll_init_with_min_hash(policy:HLLPolicy, index_bit_count:FilterExpression, min_hash_count:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that creates a new HLL or resets an existing HLL with minhash bits.
+        """
+    @staticmethod
+    def hll_add(policy:HLLPolicy, list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that adds list values to a HLL set and returns HLL set.
+        """
+    @staticmethod
+    def hll_add_with_index(policy:HLLPolicy, list:FilterExpression, index_bit_count:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that adds values to a HLL set and returns HLL set.
+        If HLL bin does not exist, use index_bit_count to create HLL bin.
+        """
+    @staticmethod
+    def hll_add_with_index_and_min_hash(policy:HLLPolicy, list:FilterExpression, index_bit_count:FilterExpression, min_hash_count:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that adds values to a HLL set and returns HLL set.
+        If HLL bin does not exist, use index_bit_count and min_hash_count to create HLL set.
+        """
+    @staticmethod
+    def hll_get_count(bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns estimated number of elements in the HLL bin.
+        """
+    @staticmethod
+    def hll_get_union(list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns a HLL object that is the union of all specified
+        HLL objects in the list with the HLL bin.
+        """
+    @staticmethod
+    def hll_get_union_count(list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns estimated number of elements that would be contained
+        by the union of these HLL objects.
+        """
+    @staticmethod
+    def hll_get_intersect_count(list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns estimated number of elements that would be contained
+        by the intersection of these HLL objects.
+        """
+    @staticmethod
+    def hll_get_similarity(list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns estimated similarity of these HLL objects
+        as a 64 bit float.
+        """
+    @staticmethod
+    def hll_describe(bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns index_bit_count and min_hash_bit_count used to create
+        HLL bin in a list of longs.
+        """
+    @staticmethod
+    def hll_may_contain(list:FilterExpression, bin:FilterExpression) -> FilterExpression:
+        r"""
+        Create expression that returns one if HLL bin may contain all items in the list.
+        """
+
+class HLLPolicy:
+    r"""
+    HLL policy for HLL operations and expressions.
+    """
+    def __new__(cls, write_flags:HLLWriteFlags=HLLWriteFlags.DEFAULT) -> HLLPolicy: ...
 
 class ListPolicy:
     @property
@@ -1637,6 +2018,10 @@ class ListSortFlags(Enum):
     r"""
     Default. Preserve duplicate values when sorting list.
     """
+    DESCENDING = ...
+    r"""
+    Sort in descending order.
+    """
     DROP_DUPLICATES = ...
     r"""
     Drop duplicate values when sorting list.
@@ -2082,6 +2467,23 @@ class BitOperation:
     @staticmethod
     def get_int(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, signed: builtins.bool) -> BitOperation: ...
 
+class ExpOperation:
+    r"""
+    Expression operations. Create expression operations used by the client's operate() method.
+    """
+    @staticmethod
+    def read(name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+        r"""
+        Evaluate the expression and return the result in the record bins with the specified name.
+        """
+        ...
+    @staticmethod
+    def write(bin_name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+        r"""
+        Evaluate the expression and write the result to the specified bin.
+        """
+        ...
+
 class IndexTask:
     r"""
     Task returned by create_index_using_expression() to track index creation status.
@@ -2143,14 +2545,14 @@ class Client:
     def create_index_using_expression(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, index_type: IndexType, expression: FilterExpression, cit: typing.Optional[CollectionIndexType] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[IndexTask]: ...
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[DropIndexTask]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
-    def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]) -> typing.Awaitable[Record]: ...
+    def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[Record]: ...
     def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...
     def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
     def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
     def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_write(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], bins_list: typing.Sequence[typing.Dict[builtins.str, typing.Any]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
-    def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
+    def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_delete(self, batch_policy: typing.Optional[BatchPolicy], delete_policy: typing.Optional[BatchDeletePolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_apply(self, batch_policy: typing.Optional[BatchPolicy], udf_policy: typing.Optional[BatchUDFPolicy], keys: typing.Sequence[Key], udf_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_exists(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key]) -> typing.Awaitable[typing.Sequence[builtins.bool]]: ...

@@ -80,3 +80,4 @@ docs/_build/
 # Pyenv
 .python-version
 Cargo.toml.local
+aerospike.env.local

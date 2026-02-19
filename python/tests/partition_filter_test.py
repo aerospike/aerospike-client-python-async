@@ -569,13 +569,14 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         assert count == 0
 
     async def test_query_partition_filter_reuse(self, client):
-        """Test reusing the same PartitionFilter object."""
+        """Test reusing the same PartitionFilter object across queries."""
+        set_name = "pf_reuse"
         wp = WritePolicy()
         for i in range(1, 11):
-            key = Key("test", "test", i)
+            key = Key("test", set_name, i)
             await client.put(wp, key, {"bin": i})
 
-        stmt = Statement("test", "test", None)
+        stmt = Statement("test", set_name, None)
         pf = PartitionFilter.all()
 
         records1 = await client.query(QueryPolicy(), pf, stmt)
@@ -583,6 +584,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         async for _ in records1:
             count1 += 1
 
+        # PartitionFilter is cloned (by-value) into query, so pf stays fresh
         records2 = await client.query(QueryPolicy(), pf, stmt)
         count2 = 0
         async for _ in records2:
