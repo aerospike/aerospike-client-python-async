@@ -94,6 +94,37 @@ make stubs
 ```
 <br>
 
+## Basic Usage
+
+```python
+import asyncio
+from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key
+
+async def main():
+    policy = ClientPolicy()
+    client = await new_client(policy, "localhost:3000")
+
+    key = Key("test", "demo", "user1")
+
+    # Write a record (bins are plain dicts)
+    await client.put(WritePolicy(), key, {"name": "Alice", "age": 28})
+
+    # Read it back
+    record = await client.get(ReadPolicy(), key)
+    print(record.bins)  # {'name': 'Alice', 'age': 28}
+
+    # Read specific bins only
+    record = await client.get(ReadPolicy(), key, ["name"])
+    print(record.bins)  # {'name': 'Alice'}
+
+    # Delete the record
+    await client.delete(WritePolicy(), key)
+
+    await client.close()
+
+asyncio.run(main())
+```
+
 ## TLS Configuration
 
 The client supports TLS for secure connections and PKI (certificate-based) authentication.
@@ -162,10 +193,9 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
 ```
 
 ### Known TODOs:
-*  Pipeline benchmarks: track performance between runs.
-*  Decide about introducing the Bin class, or keep using Dicts (for Khosrow and Ronen when the latter is back from vacation)?
 *  Next APIs:
    - Transactions
+*  Pipeline benchmarks: track performance between runs.
 *  Object serialization:
     - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
 *  Cross-Python Client compatibility testing - esp data types
@@ -179,3 +209,4 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
+
