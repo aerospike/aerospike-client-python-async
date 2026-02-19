@@ -47,9 +47,15 @@ def load_env_file(env_file_path):
 def pytest_configure(config):
     """Called after command line options have been parsed and all plugins and initial conftest files been loaded."""
     # Load environment variables from aerospike.env (one directory up)
-    env_file = Path(__file__).parent.parent / "aerospike.env"
+    env_dir = Path(__file__).parent.parent
+    env_file = env_dir / "aerospike.env"
     load_env_file(env_file)
-    
+
+    # Local overrides (gitignored) for developer-specific settings like TLS cert paths
+    env_local = env_dir / "aerospike.env.local"
+    if env_local.exists():
+        load_env_file(env_local)
+
     # Print loaded environment variables for debugging
     print(f"Loaded environment variables from {env_file}")
     print(f"CI environment variable: {os.environ.get('CI', 'NOT SET')}\n")

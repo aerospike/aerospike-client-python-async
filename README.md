@@ -29,6 +29,9 @@ Edit the ```aerospike.env``` file to match your Aerospike database node configur
 ```commandline
 export AEROSPIKE_HOST=localhost:3100
 ```
+
+For local-only overrides (e.g. TLS certificate paths), create an `aerospike.env.local` file
+in the repo root. It is gitignored and automatically sourced by `aerospike.env`.
 <br>
 
 ### Setup local virtual environment (pyenv is recommended, but any can work)
@@ -197,14 +200,17 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
    - Transactions
 *  Pipeline benchmarks: track performance between runs.
 *  Object serialization:
-    - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
+   - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
 *  Cross-Python Client compatibility testing - esp data types
-    - Write from legacy, read from new
-    - Write from new, read from legacy
+   - Write from legacy, read from new
+   - Write from new, read from legacy
 *  Track known missing "Rust core" items:
-    - AP/SC
-    - Transactions
-    - Background Tasks
+   - Metrics
+   - Path Expressions
+   - AP/SC
+   - Transactions
+   - Background Tasks
+   - Dynamic Config
 
 ## License
 
