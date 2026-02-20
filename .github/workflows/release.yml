@@ -65,7 +65,7 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           BRANCH="${{ github.ref_name }}"
-          if echo "$VERSION" | grep -qE '-(alpha|beta|rc)'; then
+          if echo "$VERSION" | grep -q -E "\-alpha|\-beta|\-rc"; then
             echo "Pre-release ($VERSION) — allowed from any branch ($BRANCH)"
           elif [ "$BRANCH" != "main" ]; then
             echo "::error::Stable releases must be cut from the main branch (current: $BRANCH)"
