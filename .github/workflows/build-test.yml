@@ -1,4 +1,4 @@
-name: CI Build
+name: CI Build & Test
 
 on:
   push:
@@ -57,9 +57,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
-        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -218,7 +218,8 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
       fail-fast: false
     steps:
@@ -371,7 +372,7 @@ jobs:
           name: wheels-windows-${{ matrix.target }}
           path: aerospike_async
 
-  macos:
+  macos-x86:
     runs-on: macos-latest-large
     strategy:
       matrix:
@@ -379,9 +380,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
-        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -467,7 +468,45 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos-${{ matrix.python }}
+          name: wheels-macos-x86-${{ matrix.python }}
+          path: aerospike_async
+
+  # Build-only: macOS arm64 runners don't support container virtualization
+  # (vfkit fails), so tests can't run. Code is tested on Linux aarch64 and
+  # macOS x86_64 which cover the same Rust/Python logic.
+  macos-arm:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13',
+          'python3.14'
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-arm64-${{ matrix.python }}
           path: aerospike_async
 
   sdist:
