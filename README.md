@@ -1,6 +1,18 @@
 # Aerospike Async Python Client
 
-## Prerequisites
+## Pre-built Wheels
+
+Pre-built wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows (x86_64)
+are available on the [GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases).
+No Rust toolchain is required to install a wheel.  Just download the wheel for your platform and install with:
+
+```bash
+pip install aerospike_async-0.3.0a2-cp313-cp313-macosx_11_0_arm64.whl  # example
+```
+
+## Building from Source
+
+### Prerequisites
 
 This project requires the Rust compiler (`rustc`) and package manager (`cargo`) to be installed, as it uses PyO3 to build a Rust extension for Python.
 
