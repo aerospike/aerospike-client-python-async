@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.2.0) — must match pyproject.toml and Cargo.toml'
+        required: true
+        type: string
+      publish_pypi:
+        description: 'Publish to PyPI?'
+        required: false
+        type: choice
+        options:
+          - 'no'
+          - 'test.pypi.org'
+          - 'pypi.org'
+        default: 'no'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version matches pyproject.toml
+        run: |
+          PYPROJECT_VERSION=$(python3 -c "
+          import tomllib, pathlib
+          data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          print(data['project']['version'])
+          ")
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+          if [ "$PYPROJECT_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Version mismatch: pyproject.toml has '$PYPROJECT_VERSION' but release requested '${{ inputs.version }}'"
+            exit 1
+          fi
+
+      - name: Validate version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Cargo.toml version: $CARGO_VERSION"
+          if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Version mismatch: Cargo.toml has '$CARGO_VERSION' but release requested '${{ inputs.version }}'"
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+          # Also check remote tags
+          if git ls-remote --tags origin "refs/tags/v${{ inputs.version }}" | grep -q .; then
+            echo "::error::Tag v${{ inputs.version }} already exists on remote"
+            exit 1
+          fi
+          echo "Tag v${{ inputs.version }} is available"
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/build-test.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: dist
+
+      - name: List release artifacts
+        run: ls -lh dist/
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          name: "v${{ inputs.version }}"
+          generate_release_notes: true
+          files: dist/*
+
+  publish:
+    if: inputs.publish_pypi != 'no'
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ inputs.publish_pypi == 'pypi.org' && secrets.PYPI_API_TOKEN || secrets.TEST_PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*

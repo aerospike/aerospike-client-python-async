@@ -1,4 +1,4 @@
-name: CI Build
+name: CI Build & Test
 
 on:
   push:
@@ -57,9 +57,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
-        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v3
@@ -218,7 +218,8 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
       fail-fast: false
     steps:
@@ -379,9 +380,9 @@ jobs:
           'python3.10',
           'python3.11',
           'python3.12',
-          'python3.13'
+          'python3.13',
+          'python3.14'
         ]
-        # PyPy disabled due to pyo3::Python::initialize() issues
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -468,6 +469,97 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.python }}
+          path: aerospike_async
+
+  macos-arm:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python: [
+          'python3.10',
+          'python3.11',
+          'python3.12',
+          'python3.13',
+          'python3.14'
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try Podman
+        run: |
+          brew install podman
+          podman machine init
+          podman machine start
+          for i in {1..5}; do
+            if podman run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.0.2; then
+              echo "Aerospike server started successfully on attempt $i"
+              break
+            fi
+            if [ $i -eq 5 ]; then
+              echo "Failed to start Aerospike server after 5 attempts"
+              echo "Checking network connectivity..."
+              nslookup registry-1.docker.io || echo "DNS resolution failed"
+              curl -I https://registry-1.docker.io/v2/ || echo "HTTPS connection failed"
+              exit 1
+            fi
+            echo "Attempt $i failed, retrying in $((2**i)) seconds..."
+            sleep $((2**i))
+          done
+          sleep 5
+          echo "Configuring namespace for TTL support..."
+          podman exec aerospike-server asinfo -v "set-config:context=namespace;id=test;nsup-period=120" || echo "Failed to set nsup-period"
+          podman exec aerospike-server asinfo -v "set-config:context=namespace;id=test;default-ttl=2592000" || echo "Failed to set default-ttl"
+          echo "=== Namespace Configuration ==="
+          podman exec aerospike-server asinfo -v "get-config:context=namespace;id=test" | tr ';' '\n' | grep -E "nsup-period|default-ttl|allow-ttl" || echo "Could not get namespace config"
+          echo "=== Server Build ==="
+          podman exec aerospike-server asinfo -v "build"
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup Python for maturin
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+      - name: Remove python prefix for setting up python (CPython only)
+        run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
+      - name: Setup Python for testing
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install wheel
+        run: ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
+      - name: Install pytest
+        run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
+      - name: Debug module contents (macOS arm64)
+        run: |
+          ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
+          ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+      - name: Run tests
+        env:
+          AEROSPIKE_HOST: localhost:3000
+          AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
+        run: |
+          rm -f python/aerospike_async/__init__.py
+          rm -f aerospike.env
+          ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            podman logs --tail 100 aerospike-server || echo "Could not retrieve server logs"
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-arm64-${{ matrix.python }}
           path: aerospike_async
 
   sdist:
