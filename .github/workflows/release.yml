@@ -61,6 +61,19 @@ jobs:
           fi
           echo "Tag v${{ inputs.version }} is available"
 
+      - name: Enforce stable releases from main
+        run: |
+          VERSION="${{ inputs.version }}"
+          BRANCH="${{ github.ref_name }}"
+          if echo "$VERSION" | grep -qE '-(alpha|beta|rc)'; then
+            echo "Pre-release ($VERSION) — allowed from any branch ($BRANCH)"
+          elif [ "$BRANCH" != "main" ]; then
+            echo "::error::Stable releases must be cut from the main branch (current: $BRANCH)"
+            exit 1
+          else
+            echo "Stable release ($VERSION) from main — OK"
+          fi
+
   build:
     needs: validate
     uses: ./.github/workflows/build-test.yml
