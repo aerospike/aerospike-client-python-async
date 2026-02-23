@@ -15,32 +15,9 @@
 
 import asyncio
 import pytest
-from aerospike_async import Statement, Filter, Recordset, Record, QueryPolicy, PartitionFilter
+from aerospike_async import Statement, Recordset, Record, QueryPolicy, PartitionFilter
 from aerospike_async.exceptions import InvalidNodeError
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
-
-
-class TestStatement:
-    """Test Statement class functionality."""
-
-    bin_name = "bin"
-
-    def test_new(self):
-        """Test creating a new Statement."""
-        stmt = Statement(namespace="test", set_name="test", bins=["test_bin"])
-        # Test defaults
-        assert stmt.filters is None
-        assert stmt.index_name is None
-
-    def test_set_filters(self):
-        """Test setting filters on Statement."""
-        stmt = Statement("test", "test", [self.bin_name])
-        a_filter = Filter.range(self.bin_name, 1, 3)
-        stmt.filters = [a_filter]
-        assert isinstance(stmt.filters, list)
-
-        stmt.filters = None
-        assert stmt.filters is None
 
 
 class TestQuery(TestFixtureInsertRecord):

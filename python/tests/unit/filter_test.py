@@ -19,6 +19,16 @@ from aerospike_async import Filter, CollectionIndexType
 class TestFilter:
     """Test Filter class functionality."""
 
+    def test_equal(self):
+        """Test creating an equal filter."""
+        a_filter = Filter.equal(bin_name="bin", value=42)
+        assert isinstance(a_filter, Filter)
+
+    def test_equal_string(self):
+        """Test creating an equal filter with string value."""
+        a_filter = Filter.equal(bin_name="name", value="hello")
+        assert isinstance(a_filter, Filter)
+
     def test_range(self):
         """Test creating a range filter."""
         a_filter = Filter.range(bin_name="bin", begin=4, end=9)

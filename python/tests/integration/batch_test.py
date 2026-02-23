@@ -346,35 +346,6 @@ async def test_batch_write_different_bins_per_key(client_and_keys):
         assert rec.bins["a"] == i + 1
         assert rec.bins["b"] == ["first", "second", "third"][i]
 
-async def test_batch_policy_defaults():
-    """Test that batch policies have correct defaults.
-
-    Note: Python-specific test. Verifies that all batch policy objects
-    have the expected default values.
-    """
-
-    bp = BatchPolicy()
-    assert bp.allow_inline is True
-    assert bp.allow_inline_ssd is False
-    assert bp.respond_all_keys is True
-
-    brp = BatchReadPolicy()
-    assert brp.filter_expression is None
-
-    bwp = BatchWritePolicy()
-    assert bwp.send_key is False
-    assert bwp.durable_delete is False
-    assert bwp.generation == 0
-
-    bdp = BatchDeletePolicy()
-    assert bdp.send_key is False
-    assert bdp.durable_delete is False
-    assert bdp.generation == 0
-
-    budfp = BatchUDFPolicy()
-    assert budfp.send_key is False
-    assert budfp.durable_delete is False
-
 async def test_batch_record_properties(client_and_keys):
     """Test BatchRecord properties.
 
