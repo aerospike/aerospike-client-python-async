@@ -6,7 +6,7 @@ user ?= ""
 pass ?= ""
 ns ?= "test"
 
-.PHONY: build test install clean stubs local-cargo git-cargo
+.PHONY: build test test-unit test-int install clean stubs local-cargo git-cargo
 all: lint dev build test install clean
 
 local-cargo:
@@ -57,6 +57,14 @@ test:
 	# Clear any stale pytest/bytecode cache that might have incorrect imports
 	@python/clean_caches.sh || true
 	source aerospike.env && python -m pytest python/tests
+
+test-unit:
+	@python/clean_caches.sh || true
+	python -m pytest python/tests/unit
+
+test-int:
+	@python/clean_caches.sh || true
+	source aerospike.env && python -m pytest python/tests/integration
 
 dev-test: dev stubs test
 

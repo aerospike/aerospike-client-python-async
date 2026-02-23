@@ -247,24 +247,5 @@ class TestExpOperationCombined(TestFixtureConnection):
                 pass
 
 
-class TestExpOperationFlags(TestFixtureConnection):
-    """Test ExpOperation flags."""
 
-    def test_exp_write_flags_values(self):
-        """Test ExpWriteFlags enum values."""
-        assert int(ExpWriteFlags.DEFAULT) == 0
-        assert int(ExpWriteFlags.CREATE_ONLY) == 1
-        assert int(ExpWriteFlags.UPDATE_ONLY) == 2
-        assert int(ExpWriteFlags.ALLOW_DELETE) == 4
-        assert int(ExpWriteFlags.POLICY_NO_FAIL) == 8
-        assert int(ExpWriteFlags.EVAL_NO_FAIL) == 16
 
-    def test_exp_read_flags_values(self):
-        """Test ExpReadFlags enum values."""
-        assert int(ExpReadFlags.DEFAULT) == 0
-        assert int(ExpReadFlags.EVAL_NO_FAIL) == 16
-
-    def test_combine_write_flags(self):
-        """Test combining multiple write flags."""
-        combined = int(ExpWriteFlags.CREATE_ONLY) | int(ExpWriteFlags.POLICY_NO_FAIL)
-        assert combined == 9  # 1 + 8

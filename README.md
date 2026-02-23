@@ -1,113 +1,121 @@
 # Aerospike Async Python Client
 
-## Pre-built Wheels
+## Installation
+
+There are two ways to install the client:
+
+1. **Install a pre-built wheel** — no Rust toolchain required.
+2. **Build from source** — requires Rust and Cargo.
+
+---
+
+### Option 1: Install a Pre-built Wheel
 
 Pre-built wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows (x86_64)
 are available on the [GitHub Releases page](https://github.com/aerospike/aerospike-client-python-async/releases).
-No Rust toolchain is required to install a wheel.  Just download the wheel for your platform and install with:
 
 ```bash
 pip install aerospike_async-0.3.0a2-cp313-cp313-macosx_11_0_arm64.whl  # example
 ```
 
-## Building from Source
+---
 
-### Prerequisites
+### Option 2: Build from Source
 
-This project requires the Rust compiler (`rustc`) and package manager (`cargo`) to be installed, as it uses PyO3 to build a Rust extension for Python.
+#### Prerequisites
 
-### Install Rust
+This project uses [PyO3](https://pyo3.rs/) to build a Rust extension for Python.
+You will need the Rust compiler (`rustc`) and package manager (`cargo`).
 
-If Rust is not already installed, install it using rustup:
+If Rust is not already installed:
 
 ```bash
-# Install rustup (Rust toolchain installer)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# After installation, reload your shell or source the profile
 source $HOME/.cargo/env
 ```
 
 Verify the installation:
+
 ```bash
 rustc --version
 cargo --version
 ```
 
-## Setup Instructions
+#### Install Python Dependencies
 
-### Customize your aerospike environment file (aerospike.env)
-Edit the ```aerospike.env``` file to match your Aerospike database node configuration:
+pyenv is recommended, but any virtual environment will work.
+
+```commandline
+pip install -r requirements.txt
+```
+
+#### Build & Test (all-in-one)
+
+Builds the Rust code, generates Python stubs, and runs the full test suite:
+
+```commandline
+make dev-test
+```
+
+#### Build Commands
+
+Build the Rust code into a development wheel and install it into the local virtual environment:
+
+```commandline
+make dev
+```
+
+Regenerate Python stubs (only needed after modifying Rust code):
+
+```commandline
+make stubs
+```
+
+---
+
+## Environment Setup
+
+Edit `aerospike.env` to match your Aerospike database node configuration:
+
 ```commandline
 export AEROSPIKE_HOST=localhost:3100
 ```
 
 For local-only overrides (e.g. TLS certificate paths), create an `aerospike.env.local` file
 in the repo root. It is gitignored and automatically sourced by `aerospike.env`.
-<br>
 
-### Setup local virtual environment (pyenv is recommended, but any can work)
+## Running Tests
 
-#### Install python packages:
-```commandline
-pip install -r requirements.txt
-```
-<br>
+Run all tests (unit + integration):
 
-### All-in-one command:
-1. Build Rust code into a wheel that is added as a Python module into local virtual environment
-2. Generate Python stubs from Rust code
-3. Run tests with Pytest
-```commandline
-make dev-test
-```
-<br>
-
-### Individual commands:
-#### Build Rust code into a wheel that is added as a Python module into local virtual environment :
-```commandline
-make dev
-```
-
-#### Run tests:
 ```commandline
 make test
 ```
-<br>
+
+Run unit tests only (no server required):
+
+```commandline
+make test-unit
+```
+
+Run integration tests only (requires a running Aerospike server):
+
+```commandline
+make test-int
+```
 
 ### macOS File Descriptor Limit
 
-On macOS, you may encounter `ConnectionError: Failed to connect to host(s)` errors when running the full test suite. This occurs because:
-
-- **Default macOS limit**: The default file descriptor limit on macOS is 256 (`ulimit -n` shows the current limit)
-- **Why it's not enough**: The async client creates multiple connections, event loops, and file handles during testing. Running the full test suite can easily exceed 256 open file descriptors, especially with async operations that maintain multiple concurrent connections.
-
-**Solution**: Increase the file descriptor limit before running tests:
+On macOS, you may encounter `ConnectionError: Failed to connect to host(s)` errors when
+running the full test suite. The default file descriptor limit (256) can be exceeded by the
+async client's concurrent connections.
 
 ```bash
-# Check current limit
-ulimit -n
-
-# Increase limit (recommended: 4096)
-ulimit -n 4096
-
-# Verify the new limit
-ulimit -n
-
-# Now run tests
+ulimit -n 4096   # increase for the current shell session
 make test
 ```
 
-**Note**: This change is temporary for the current shell session. To make it permanent, add `ulimit -n 4096` to your shell profile (e.g., `~/.zshrc` or `~/.bash_profile`).
-
-<br>
-
-### Optional - only needed if updating the Rust code
-### Build the Python stubs for the Rust code:
-```commandline
-make stubs
-```
-<br>
+To make this permanent, add `ulimit -n 4096` to your shell profile (`~/.zshrc` or `~/.bash_profile`).
 
 ## Basic Usage
 
