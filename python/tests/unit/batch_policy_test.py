@@ -90,7 +90,30 @@ class TestBatchReadPolicy:
 
     def test_read_touch_ttl_default(self):
         p = BatchReadPolicy()
-        assert isinstance(p.read_touch_ttl, int)
+        assert p.read_touch_ttl == 0
+
+    def test_read_touch_ttl_valid_values(self):
+        p = BatchReadPolicy()
+        p.read_touch_ttl = -1
+        assert p.read_touch_ttl == -1
+        p.read_touch_ttl = 0
+        assert p.read_touch_ttl == 0
+        p.read_touch_ttl = 1
+        assert p.read_touch_ttl == 1
+        p.read_touch_ttl = 50
+        assert p.read_touch_ttl == 50
+        p.read_touch_ttl = 100
+        assert p.read_touch_ttl == 100
+
+    def test_read_touch_ttl_invalid_raises(self):
+        import pytest
+        p = BatchReadPolicy()
+        with pytest.raises(ValueError):
+            p.read_touch_ttl = -2
+        with pytest.raises(ValueError):
+            p.read_touch_ttl = 101
+        with pytest.raises(ValueError):
+            p.read_touch_ttl = 3600
 
 
 class TestBatchUDFPolicy:

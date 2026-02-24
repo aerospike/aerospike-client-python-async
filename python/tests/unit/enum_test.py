@@ -135,10 +135,13 @@ class TestListSortFlags:
 
     def test_variants_exist(self):
         assert ListSortFlags.DEFAULT is not None
+        assert ListSortFlags.DESCENDING is not None
         assert ListSortFlags.DROP_DUPLICATES is not None
 
     def test_variants_distinct(self):
+        assert ListSortFlags.DEFAULT != ListSortFlags.DESCENDING
         assert ListSortFlags.DEFAULT != ListSortFlags.DROP_DUPLICATES
+        assert ListSortFlags.DESCENDING != ListSortFlags.DROP_DUPLICATES
 
 
 class TestListWriteFlags:

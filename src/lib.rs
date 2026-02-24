@@ -5930,13 +5930,16 @@ pub enum Replica {
         }
 
         #[setter]
-        pub fn set_read_touch_ttl(&mut self, value: i32) {
+        pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
             self._as.read_touch_ttl = match value {
                 -1 => aerospike_core::ReadTouchTTL::DontReset,
                 0 => aerospike_core::ReadTouchTTL::ServerDefault,
-                pct if pct >= 1 && pct <= 100 => aerospike_core::ReadTouchTTL::Percent(pct as u8),
-                _ => aerospike_core::ReadTouchTTL::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
+                )),
             };
+            Ok(())
         }
     }
 
