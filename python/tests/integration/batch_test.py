@@ -603,7 +603,7 @@ async def test_batch_exists(client_and_keys):
 async def test_batch_read_ttl(client_and_keys):
     """Test batch read with TTL expiration.
 
-    Note: This test takes a long time to run due to sleeps (19+ seconds total).
+    Note: This test sleeps ~11 seconds total waiting for TTL expiration.
     Marked with @pytest.mark.slow so it can be excluded with: pytest -m "not slow"
 
     TTL must be enabled on the Aerospike server. To enable TTL, configure the server with:
@@ -621,29 +621,28 @@ async def test_batch_read_ttl(client_and_keys):
     # Check if TTL is supported by trying to set expiration and write, then verify TTL is actually set
     bwp = BatchWritePolicy()
     try:
-        bwp.expiration = Expiration.seconds(10)
+        bwp.expiration = Expiration.seconds(5)
         operations = [Operation.put("a", 1)]
         await client.batch_operate(None, bwp, [key1], [operations])
-        # Verify TTL is actually working by reading the record and checking it has a TTL
         rp = ReadPolicy()
         test_rec = await client.get(rp, key1)
         if test_rec is None or test_rec.ttl is None or test_rec.ttl == 0:
             pytest.skip("TTL not enabled on this server (expiration was set but record has no TTL)")
     except Exception as e:
-        # If setting expiration fails, TTL is not supported - skip the test
         pytest.skip(f"TTL not supported on this server: {e}")
 
-    # Write to both keys for the actual test
+    # Write both keys with 5s TTL
     operations = [Operation.put("a", 1)]
     await client.batch_operate(None, bwp, [key1, key2], [operations, operations])
 
-    await asyncio.sleep(8)
+    # Wait 3s (both keys still alive within 5s TTL)
+    await asyncio.sleep(3)
 
     brp1 = BatchReadPolicy()
-    brp1.read_touch_ttl = 80
+    brp1.read_touch_ttl = 80  # refreshes key1's TTL
 
     brp2 = BatchReadPolicy()
-    brp2.read_touch_ttl = -1
+    brp2.read_touch_ttl = -1  # no refresh for key2
 
     bp = BatchPolicy()
     results1 = await client.batch_read(bp, brp1, [key1], ["a"])
@@ -652,6 +651,7 @@ async def test_batch_read_ttl(client_and_keys):
     assert results1[0].result_code == ResultCode.OK
     assert results2[0].result_code == ResultCode.OK
 
+    # Wait 3s — key2 has now exceeded its 5s TTL, key1 was refreshed
     await asyncio.sleep(3)
 
     brp1.read_touch_ttl = -1
@@ -663,7 +663,9 @@ async def test_batch_read_ttl(client_and_keys):
     assert results1[0].result_code == ResultCode.OK
     assert results2[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
-    await asyncio.sleep(8)
+    # Wait 5s — key1's TTL was reset to 5s at t=3s, so it expires at t=8s.
+    # At t=11s both keys should be expired.
+    await asyncio.sleep(5)
 
     results1 = await client.batch_read(bp, brp1, [key1], ["a"])
     results2 = await client.batch_read(bp, brp2, [key2], ["a"])

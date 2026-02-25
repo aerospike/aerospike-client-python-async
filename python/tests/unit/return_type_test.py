@@ -44,23 +44,22 @@ class TestListReturnType:
         """Test that bitwise OR works for combining with INVERTED."""
         combined = ListReturnType.VALUE | ListReturnType.INVERTED
         assert combined is not None
-        # VALUE is 6, INVERTED is 0x10000, combined should be 0x10006
-        assert int(combined) == 0x10006
+        assert int(combined) == int(ListReturnType.VALUE) | int(ListReturnType.INVERTED)
 
     def test_bitwise_or_count(self):
         """Test bitwise OR with COUNT."""
         combined = ListReturnType.COUNT | ListReturnType.INVERTED
-        assert int(combined) == 0x10005  # COUNT is 5
+        assert int(combined) == int(ListReturnType.COUNT) | int(ListReturnType.INVERTED)
 
     def test_bitwise_or_index(self):
         """Test bitwise OR with INDEX."""
         combined = ListReturnType.INDEX | ListReturnType.INVERTED
-        assert int(combined) == 0x10001  # INDEX is 1
+        assert int(combined) == int(ListReturnType.INDEX) | int(ListReturnType.INVERTED)
 
     def test_bitwise_or_rank(self):
         """Test bitwise OR with RANK."""
         combined = ListReturnType.RANK | ListReturnType.INVERTED
-        assert int(combined) == 0x10003  # RANK is 3
+        assert int(combined) == int(ListReturnType.RANK) | int(ListReturnType.INVERTED)
 
     def test_bitwise_and(self):
         """Test that bitwise AND works."""
@@ -110,15 +109,15 @@ class TestListReturnType:
         assert "INVERTED" in repr_str
 
     def test_int_conversion(self):
-        """Test integer conversion."""
+        """Test integer conversion matches wire protocol values."""
         assert int(ListReturnType.NONE) == 0
         assert int(ListReturnType.INDEX) == 1
         assert int(ListReturnType.REVERSE_INDEX) == 2
         assert int(ListReturnType.RANK) == 3
         assert int(ListReturnType.REVERSE_RANK) == 4
         assert int(ListReturnType.COUNT) == 5
-        assert int(ListReturnType.VALUE) == 6
-        assert int(ListReturnType.EXISTS) == 7
+        assert int(ListReturnType.VALUE) == 7
+        assert int(ListReturnType.EXISTS) == 13
         assert int(ListReturnType.INVERTED) == 0x10000
 
 
@@ -145,23 +144,22 @@ class TestMapReturnType:
         """Test that bitwise OR works for combining with INVERTED."""
         combined = MapReturnType.VALUE | MapReturnType.INVERTED
         assert combined is not None
-        # VALUE is 7, INVERTED is 0x10000, combined should be 0x10007
-        assert int(combined) == 0x10007
+        assert int(combined) == int(MapReturnType.VALUE) | int(MapReturnType.INVERTED)
 
     def test_bitwise_or_count(self):
         """Test bitwise OR with COUNT."""
         combined = MapReturnType.COUNT | MapReturnType.INVERTED
-        assert int(combined) == 0x10005  # COUNT is 5
+        assert int(combined) == int(MapReturnType.COUNT) | int(MapReturnType.INVERTED)
 
     def test_bitwise_or_key(self):
         """Test bitwise OR with KEY."""
         combined = MapReturnType.KEY | MapReturnType.INVERTED
-        assert int(combined) == 0x10006  # KEY is 6
+        assert int(combined) == int(MapReturnType.KEY) | int(MapReturnType.INVERTED)
 
     def test_bitwise_or_key_value(self):
         """Test bitwise OR with KEY_VALUE."""
         combined = MapReturnType.KEY_VALUE | MapReturnType.INVERTED
-        assert int(combined) == 0x10008  # KEY_VALUE is 8
+        assert int(combined) == int(MapReturnType.KEY_VALUE) | int(MapReturnType.INVERTED)
 
     def test_bitwise_and(self):
         """Test that bitwise AND works."""
@@ -210,7 +208,7 @@ class TestMapReturnType:
         assert "INVERTED" in repr_str
 
     def test_int_conversion(self):
-        """Test integer conversion."""
+        """Test integer conversion matches wire protocol values."""
         assert int(MapReturnType.NONE) == 0
         assert int(MapReturnType.INDEX) == 1
         assert int(MapReturnType.REVERSE_INDEX) == 2
@@ -220,9 +218,9 @@ class TestMapReturnType:
         assert int(MapReturnType.KEY) == 6
         assert int(MapReturnType.VALUE) == 7
         assert int(MapReturnType.KEY_VALUE) == 8
-        assert int(MapReturnType.EXISTS) == 9
-        assert int(MapReturnType.UNORDERED_MAP) == 10
-        assert int(MapReturnType.ORDERED_MAP) == 11
+        assert int(MapReturnType.EXISTS) == 13
+        assert int(MapReturnType.UNORDERED_MAP) == 16
+        assert int(MapReturnType.ORDERED_MAP) == 17
         assert int(MapReturnType.INVERTED) == 0x10000
 
 

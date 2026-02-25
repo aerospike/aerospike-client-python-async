@@ -25,7 +25,7 @@ from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode
 
 PROPAGATION_RETRIES = 5
-PROPAGATION_DELAY = 0.2
+PROPAGATION_DELAY = 0.01
 
 
 async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
@@ -52,6 +52,18 @@ async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES):
         if attempt < retries - 1:
             await asyncio.sleep(PROPAGATION_DELAY)
     pytest.fail(f"Role {role_name!r} still queryable after {retries} retries")
+
+
+async def wait_for_user_gone(client, username, *, retries=PROPAGATION_RETRIES):
+    """Retry query_users(username) until it raises ServerError (user deleted)."""
+    for attempt in range(retries):
+        try:
+            await client.query_users(username)
+        except ServerError:
+            return
+        if attempt < retries - 1:
+            await asyncio.sleep(PROPAGATION_DELAY)
+    pytest.fail(f"User {username!r} still queryable after {retries} retries")
 
 
 async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
@@ -126,7 +138,8 @@ class TestSecurityFeatures:
     @pytest.fixture(autouse=True)
     async def cleanup_roles(self, client):
         """Clean up test roles before and after each test."""
-        test_roles = ["test_role_1", "test_role_2", "test_app_role", "test_analytics_role"]
+        test_roles = ["test_role_1", "test_role_2", "test_app_role", "test_analytics_role",
+                       "test_role_check_quotas", "test_role_invalid_quota"]
         for role_name in test_roles:
             try:
                 await client.drop_role(role_name)
@@ -192,43 +205,21 @@ class TestSecurityFeatures:
 
         await client.create_user("test_user_1", "pass1", ["read:test"])
         await client.create_user("test_user_2", "pass2", ["write:test"])
+        await wait_for_user(client, "test_user_1")
+        await wait_for_user(client, "test_user_2")
 
-        # Retry for eventual consistency
-        import asyncio
-        for attempt in range(3):
-            users = await client.query_users(None)
-            user_names = [u.user for u in users]
-            if "test_user_1" in user_names and "test_user_2" in user_names:
-                break
-            if attempt < 2:
-                await asyncio.sleep(0.1)
-        assert "test_user_1" in user_names, f"User test_user_1 not found in {user_names}"
-        assert "test_user_2" in user_names, f"User test_user_2 not found in {user_names}"
+        users = await client.query_users(None)
+        user_names = [u.user for u in users]
+        assert "test_user_1" in user_names
+        assert "test_user_2" in user_names
 
     @pytest.mark.asyncio
     async def test_query_users_specific(self, client):
         """Test querying specific user."""
         username = "test_user_1"
-        password = "test_password_123"
-        roles = ["read:test"]
 
-        # Create user
-        await client.create_user(username, password, roles)
-
-        # Retry for eventual consistency
-        import asyncio
-        for attempt in range(3):
-            try:
-                users = await client.query_users(username)
-                if len(users) > 0 and users[0].user == username:
-                    break
-            except ServerError as e:
-                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
-                    await asyncio.sleep(0.1)
-                    continue
-                raise
-            if attempt < 2:
-                await asyncio.sleep(0.1)
+        await client.create_user(username, "test_password_123", ["read:test"])
+        await wait_for_user(client, username)
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -244,35 +235,12 @@ class TestSecurityFeatures:
     async def test_drop_user(self, client):
         """Test user deletion."""
         username = "test_user_1"
-        password = "test_password_123"
-        roles = ["read:test"]
 
-        # Create user
-        await client.create_user(username, password, roles)
-
-        # Retry for eventual consistency
-        import asyncio
-        for attempt in range(3):
-            try:
-                users = await client.query_users(username)
-                if len(users) > 0 and users[0].user == username:
-                    break
-            except ServerError as e:
-                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
-                    await asyncio.sleep(0.1)
-                    continue
-                raise
-            if attempt < 2:
-                await asyncio.sleep(0.1)
-
-        users = await client.query_users(username)
-        assert len(users) > 0
-        assert users[0].user == username
+        await client.create_user(username, "test_password_123", ["read:test"])
+        await wait_for_user(client, username)
 
         await client.drop_user(username)
-
-        with pytest.raises(Exception):
-            await client.query_users(username)
+        await wait_for_user_gone(client, username)
 
     @pytest.mark.asyncio
     async def test_drop_user_nonexistent(self, client):
@@ -283,40 +251,18 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_create_pki_user(self, client):
         """Create a PKI-only user and verify via query_users. Requires server 8.1+."""
-        import asyncio
-
         username = "test_pki_user"
-        roles = ["read:test"]
 
-        await client.create_pki_user(username, roles)
-
-        for attempt in range(3):
-            users = await client.query_users(None)
-            user_names = [u.user for u in users]
-            if username in user_names:
-                break
-            if attempt < 2:
-                await asyncio.sleep(0.1)
-        assert username in user_names, f"User {username} not found in {user_names} after creation"
+        await client.create_pki_user(username, ["read:test"])
+        await wait_for_user(client, username)
 
     @pytest.mark.asyncio
     async def test_change_password_on_pki_user_fails(self, client):
-        """create_pki_user sends hash of 'nopassword'; server creates PKI-only user and rejects change_password."""
-        import asyncio
-
+        """create_pki_user sends hash of 'nopassword'; server rejects change_password."""
         username = "test_pki_user_chg_pw"
-        roles = ["read:test"]
 
-        await client.create_pki_user(username, roles)
-
-        for attempt in range(3):
-            users = await client.query_users(None)
-            user_names = [u.user for u in users]
-            if username in user_names:
-                break
-            if attempt < 2:
-                await asyncio.sleep(0.1)
-        assert username in user_names, f"User {username} not found after creation"
+        await client.create_pki_user(username, ["read:test"])
+        await wait_for_user(client, username)
 
         with pytest.raises(ServerError) as exc_info:
             await client.change_password(username, "new_password_123")
@@ -326,25 +272,11 @@ class TestSecurityFeatures:
     async def test_change_password(self, client):
         """Test password change."""
         username = "test_user_1"
-        password = "test_password_123"
-        new_password = "new_password_456"
-        roles = ["read:test"]
 
-        await client.create_user(username, password, roles)
+        await client.create_user(username, "test_password_123", ["read:test"])
+        await wait_for_user(client, username)
 
-        # Retry for eventual consistency before changing password
-        import asyncio
-        for attempt in range(3):
-            try:
-                await client.change_password(username, new_password)
-                break
-            except ServerError as e:
-                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
-                    await asyncio.sleep(0.1)
-                    continue
-                raise
-            if attempt < 2:
-                await asyncio.sleep(0.1)
+        await client.change_password(username, "new_password_456")
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -360,25 +292,11 @@ class TestSecurityFeatures:
     async def test_grant_roles(self, client):
         """Test granting roles to user."""
         username = "test_user_1"
-        password = "test_password_123"
-        initial_roles = ["read:test"]
-        new_roles = ["write:test", "read:analytics"]
 
-        await client.create_user(username, password, initial_roles)
+        await client.create_user(username, "test_password_123", ["read:test"])
+        await wait_for_user(client, username)
 
-        # Retry for eventual consistency before granting roles
-        import asyncio
-        for attempt in range(3):
-            try:
-                await client.grant_roles(username, new_roles)
-                break
-            except ServerError as e:
-                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
-                    await asyncio.sleep(0.1)
-                    continue
-                raise
-            if attempt < 2:
-                await asyncio.sleep(0.1)
+        await client.grant_roles(username, ["write:test", "read:analytics"])
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -394,25 +312,11 @@ class TestSecurityFeatures:
     async def test_revoke_roles(self, client):
         """Test revoking roles from user."""
         username = "test_user_1"
-        password = "test_password_123"
-        initial_roles = ["read:test", "write:test"]
-        roles_to_revoke = ["write:test"]
 
-        await client.create_user(username, password, initial_roles)
+        await client.create_user(username, "test_password_123", ["read:test", "write:test"])
+        await wait_for_user(client, username)
 
-        # Retry for eventual consistency before revoking roles
-        import asyncio
-        for attempt in range(3):
-            try:
-                await client.revoke_roles(username, roles_to_revoke)
-                break
-            except ServerError as e:
-                if e.result_code == ResultCode.INVALID_USER and attempt < 2:
-                    await asyncio.sleep(0.1)
-                    continue
-                raise
-            if attempt < 2:
-                await asyncio.sleep(0.1)
+        await client.revoke_roles(username, ["write:test"])
 
         users = await client.query_users(username)
         assert len(users) > 0
@@ -436,7 +340,6 @@ class TestSecurityFeatures:
         read_quota = 1000
         write_quota = 500
 
-        # Create role
         try:
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
         except ServerError as e:
@@ -444,7 +347,6 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        # Verify role exists
         roles = await wait_for_role(client, role_name)
         assert roles[0].name == role_name
 
@@ -466,7 +368,6 @@ class TestSecurityFeatures:
             error_str = str(e)
             if "QuotasNotEnabled" in error_str:
                 pytest.skip("Quotas are not enabled on the server")
-            # Server may reject zero quotas - retry with non-zero
             if "InvalidQuota" in error_str:
                 try:
                     await client.create_role(role_name, privileges, allowlist, 1, 1)
@@ -477,7 +378,6 @@ class TestSecurityFeatures:
             else:
                 raise
 
-        # Verify role exists
         roles = await wait_for_role(client, role_name)
         assert roles[0].name == role_name
 
@@ -490,7 +390,6 @@ class TestSecurityFeatures:
         read_quota = 1000
         write_quota = 500
 
-        # Create the role first
         try:
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
         except ServerError as e:
@@ -498,14 +397,12 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        # Now try to create it again - should raise an exception
         with pytest.raises(Exception):
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
 
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
         """Test querying all roles."""
-        # Create test roles
         try:
             await client.create_role("test_role_1", [Privilege(PrivilegeCode.Read, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
@@ -513,7 +410,7 @@ class TestSecurityFeatures:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
             elif "RoleAlreadyExists" in str(e):
-                pass  # Role already exists, continue
+                pass
             else:
                 raise
 
@@ -524,15 +421,13 @@ class TestSecurityFeatures:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
             elif "RoleAlreadyExists" in str(e):
-                pass  # Role already exists, continue
+                pass
             else:
                 raise
 
-        # Verify both roles are visible
         await wait_for_role(client, "test_role_1")
         await wait_for_role(client, "test_role_2")
 
-        # Query all roles - both should appear
         roles = await client.query_roles(None)
         role_names = [r.name for r in roles]
         assert "test_role_1" in role_names
@@ -559,17 +454,14 @@ class TestSecurityFeatures:
         """Test AdminPolicy with custom timeout."""
         from aerospike_async import AdminPolicy
 
-        # Test default AdminPolicy
         default_policy = AdminPolicy()
         assert isinstance(default_policy.timeout, int)
         assert default_policy.timeout >= 0
 
-        # Test custom timeout get/set
         custom_policy = AdminPolicy()
         custom_policy.timeout = 10000
         assert custom_policy.timeout == 10000
 
-        # Test that AdminPolicy can be passed to query_roles
         roles = await client.query_roles(None, policy=custom_policy)
         roles_default = await client.query_roles(None)
         assert isinstance(roles, list)
@@ -626,6 +518,8 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
+        await wait_for_role(client, role_name)
+
         await client.grant_privileges(role_name, new_privileges)
         await client.grant_privileges(role_name, new_privileges)
 
@@ -659,7 +553,8 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        await client.revoke_privileges(role_name, privileges_to_revoke)
+        await wait_for_role(client, role_name)
+
         await client.revoke_privileges(role_name, privileges_to_revoke)
 
         roles = await client.query_roles(role_name)
@@ -689,7 +584,8 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        await client.set_allowlist(role_name, new_allowlist)
+        await wait_for_role(client, role_name)
+
         await client.set_allowlist(role_name, new_allowlist)
 
         roles = await client.query_roles(role_name)
@@ -720,7 +616,8 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        await client.set_quotas(role_name, new_read_quota, new_write_quota)
+        await wait_for_role(client, role_name)
+
         await client.set_quotas(role_name, new_read_quota, new_write_quota)
 
         roles = await client.query_roles(role_name)
@@ -736,46 +633,19 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_create_role_invalid_quota(self, client):
         """Test that creating a role with invalid quota values raises an error."""
-        role_name = "test_role_invalid_quota"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
 
-        check_role_name = "test_role_check_quotas"
-        quotas_enabled = False
-
+        # Verify quotas are enabled by creating and immediately dropping a check role.
         try:
-            await client.drop_role(check_role_name)
-        except:
-            pass
-
-        try:
-            await client.create_role(check_role_name, privileges, allowlist, 1000, 500)
-            quotas_enabled = True
-            try:
-                await client.drop_role(check_role_name)
-            except:
-                pass
+            await client.create_role("test_role_check_quotas", privileges, allowlist, 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
-            if "RoleAlreadyExists" in str(e):
-                try:
-                    await client.drop_role(check_role_name)
-                    await client.create_role(check_role_name, privileges, allowlist, 1000, 500)
-                    quotas_enabled = True
-                    await client.drop_role(check_role_name)
-                except ServerError as e2:
-                    if "QuotasNotEnabled" in str(e2):
-                        pytest.skip("Quotas are not enabled on the server")
-                    raise
-            else:
-                raise
-
-        if not quotas_enabled:
-            pytest.skip("Quotas are not enabled on the server")
+            raise
 
         with pytest.raises(ServerError) as exc_info:
-            await client.create_role(role_name, privileges, allowlist, 0, 0)
+            await client.create_role("test_role_invalid_quota", privileges, allowlist, 0, 0)
 
         error_str = str(exc_info.value)
         assert "InvalidQuota" in error_str
@@ -823,6 +693,4 @@ class TestAuthentication:
 
 
 if __name__ == "__main__":
-    # Run tests with pytest
     pytest.main([__file__, "-v"])
-

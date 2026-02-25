@@ -61,7 +61,7 @@ class TestExpiration(TestFixtureConnection):
         assert exists is True
 
         # Record should still exist after waiting
-        await asyncio.sleep(3)
+        await asyncio.sleep(1)
 
         exists = await client.exists(ReadPolicy(), key)
         assert exists is True

@@ -42,46 +42,40 @@ class TestQueryAggregate(TestFixtureConnection):
     BIN_NAME = "value"
     SET_NAME = "agg_test"
     SIZE = 10
+    _setup_done = False
 
     @pytest.fixture(autouse=True)
     async def setup_aggregation(self, client):
-        """Set up UDF, index, and test data for aggregation tests."""
-        # Register the UDF
-        udf_path = os.path.join(os.path.dirname(__file__), "udf", "sum_example.lua")
-        server_path = "sum_example.lua"
+        """Set up UDF, index, and test data for aggregation tests (skips if already done)."""
+        if not TestQueryAggregate._setup_done:
+            udf_path = os.path.join(os.path.dirname(__file__), "udf", "sum_example.lua")
 
-        try:
-            task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
-            await task.wait_till_complete()
-        except ServerError:
-            pass  # UDF may already be registered
+            try:
+                task = await client.register_udf_from_file(None, udf_path, "sum_example.lua", UDFLang.LUA)
+                await task.wait_till_complete()
+            except ServerError:
+                pass
 
-        # Create index
-        try:
-            await client.create_index(
-                "test", self.SET_NAME, self.BIN_NAME,
-                self.INDEX_NAME, IndexType.NUMERIC
-            )
-            await asyncio.sleep(1)
-        except ServerError as e:
-            if "INDEX_ALREADY_EXISTS" not in str(e) and "200" not in str(e):
-                raise
+            try:
+                await client.create_index(
+                    "test", self.SET_NAME, self.BIN_NAME,
+                    self.INDEX_NAME, IndexType.NUMERIC
+                )
+                await asyncio.sleep(1)
+            except ServerError as e:
+                if "INDEX_ALREADY_EXISTS" not in str(e) and "200" not in str(e):
+                    raise
 
-        # Insert test data: values 1 through SIZE
-        wp = WritePolicy()
-        for i in range(1, self.SIZE + 1):
-            key = Key("test", self.SET_NAME, f"agg_key_{i}")
-            await client.put(wp, key, {self.BIN_NAME: i})
+            wp = WritePolicy()
+            for i in range(1, self.SIZE + 1):
+                key = Key("test", self.SET_NAME, f"agg_key_{i}")
+                await client.put(wp, key, {self.BIN_NAME: i})
+
+            TestQueryAggregate._setup_done = True
 
         yield
 
-        # Cleanup: delete test records
-        for i in range(1, self.SIZE + 1):
-            key = Key("test", self.SET_NAME, f"agg_key_{i}")
-            try:
-                await client.delete(wp, key)
-            except ServerError:
-                pass
+        # No per-test cleanup needed — tests are read-only
 
     async def test_aggregation_with_map_function(self, client):
         """Test aggregation UDF with map function returns mapped values.
