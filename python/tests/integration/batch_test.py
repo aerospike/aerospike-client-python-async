@@ -21,7 +21,8 @@ from aerospike_async import (
     new_client, ClientPolicy, WritePolicy, ReadPolicy, Key,
     BatchPolicy, BatchReadPolicy, BatchWritePolicy, BatchDeletePolicy, BatchUDFPolicy,
     BatchRecord, ListOperation, Operation, ListReturnType,
-    FilterExpression, ListPolicy, Expiration
+    FilterExpression, ListPolicy, Expiration,
+    ExpOperation, ExpWriteFlags, ExpReadFlags,
 )
 from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError
 
@@ -672,3 +673,119 @@ async def test_batch_read_ttl(client_and_keys):
 
     assert results1[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
     assert results2[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+
+@pytest_asyncio.fixture
+async def exp_client_and_keys():
+    """Setup client and create test records for batch expression operation tests."""
+    cp = ClientPolicy()
+    cp.use_services_alternate = True
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
+
+    wp = WritePolicy()
+    keys = [
+        Key("test", "test", "batchexp1"),
+        Key("test", "test", "batchexp2"),
+        Key("test", "test", "batchexp3"),
+    ]
+    for i, key in enumerate(keys, start=1):
+        await client.put(wp, key, {"A": i * 10, "B": i * 100})
+
+    yield client, keys
+    for key in keys:
+        try:
+            await client.delete(wp, key)
+        except ServerError:
+            pass
+    await client.close()
+
+
+async def test_batch_operate_exp_read(exp_client_and_keys):
+    """Test batch_operate with ExpOperation.read across multiple keys."""
+    client, keys = exp_client_and_keys
+
+    expr = FilterExpression.num_add([FilterExpression.int_bin("A"), FilterExpression.int_val(5)])
+    ops = [ExpOperation.read("result", expr)]
+
+    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+
+    assert len(results) == len(keys)
+    for i, result in enumerate(results):
+        assert result.result_code == ResultCode.OK
+        assert result.record.bins["result"] == (i + 1) * 10 + 5
+
+
+async def test_batch_operate_exp_write(exp_client_and_keys):
+    """Test batch_operate with ExpOperation.write across multiple keys."""
+    client, keys = exp_client_and_keys
+    rp = ReadPolicy()
+
+    expr = FilterExpression.num_mul([FilterExpression.int_bin("A"), FilterExpression.int_val(2)])
+    ops = [ExpOperation.write("doubled", expr)]
+
+    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+
+    assert len(results) == len(keys)
+    for result in results:
+        assert result.result_code == ResultCode.OK
+
+    for i, key in enumerate(keys):
+        rec = await client.get(rp, key)
+        assert rec.bins["doubled"] == (i + 1) * 10 * 2
+
+
+async def test_batch_operate_exp_read_and_write(exp_client_and_keys):
+    """Test batch_operate with combined ExpOperation.read + ExpOperation.write."""
+    client, keys = exp_client_and_keys
+
+    sum_expr = FilterExpression.num_add([FilterExpression.int_bin("A"), FilterExpression.int_bin("B")])
+    read_expr = FilterExpression.int_bin("A")
+    ops = [
+        ExpOperation.write("sum", sum_expr),
+        ExpOperation.read("a_val", read_expr),
+    ]
+
+    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+
+    assert len(results) == len(keys)
+    for i, result in enumerate(results):
+        assert result.result_code == ResultCode.OK
+        assert result.record.bins["a_val"] == (i + 1) * 10
+
+
+async def test_batch_operate_exp_with_regular_ops(exp_client_and_keys):
+    """Test batch_operate mixing ExpOperation with regular Operation."""
+    client, keys = exp_client_and_keys
+
+    expr = FilterExpression.num_add([FilterExpression.int_bin("A"), FilterExpression.int_val(1)])
+    ops = [
+        Operation.put("tag", "processed"),
+        ExpOperation.write("incremented", expr),
+    ]
+
+    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+
+    assert len(results) == len(keys)
+    for result in results:
+        assert result.result_code == ResultCode.OK
+
+    rp = ReadPolicy()
+    for i, key in enumerate(keys):
+        rec = await client.get(rp, key)
+        assert rec.bins["tag"] == "processed"
+        assert rec.bins["incremented"] == (i + 1) * 10 + 1
+
+
+async def test_batch_operate_exp_read_eval_no_fail(exp_client_and_keys):
+    """Test batch_operate with EVAL_NO_FAIL flag on missing bin."""
+    client, keys = exp_client_and_keys
+
+    expr = FilterExpression.int_bin("nonexistent")
+    ops = [ExpOperation.read("result", expr, int(ExpReadFlags.EVAL_NO_FAIL))]
+
+    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+
+    assert len(results) == len(keys)
+    for result in results:
+        assert result.result_code == ResultCode.OK
+        assert result.record.bins.get("result") is None

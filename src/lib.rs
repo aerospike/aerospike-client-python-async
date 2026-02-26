@@ -11003,9 +11003,11 @@ pub enum Replica {
                             rust_ops.push(py_op.op.clone());
                         } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
                             rust_ops.push(py_op.op.clone());
+                        } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
+                            rust_ops.push(py_op.op.clone());
                         } else {
                             return Err(PyTypeError::new_err(
-                                "Operation must be Operation, ListOperation, MapOperation, BitOperation, or HllOperation"
+                                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
                             ));
                         }
                         Ok::<(), PyErr>(())
@@ -11196,7 +11198,8 @@ pub enum Replica {
                             OperationType::BitAnd(_, _, _, _, _) | OperationType::BitNot(_, _, _, _) |
                             OperationType::BitLShift(_, _, _, _, _) | OperationType::BitRShift(_, _, _, _, _) |
                             OperationType::BitAdd(_, _, _, _, _, _, _) | OperationType::BitSubtract(_, _, _, _, _, _, _) |
-                            OperationType::BitSetInt(_, _, _, _, _) => {
+                            OperationType::BitSetInt(_, _, _, _, _) |
+                            OperationType::ExpWrite(_, _, _) => {
                                 has_write_op = true;
                             }
                             _ => {}
@@ -11820,11 +11823,41 @@ pub enum Replica {
                                     "HLL operations are not supported in batch_operate. Use operate() instead."
                                 ));
                             }
-                            OperationType::ExpRead(_, _, _) |
-                            OperationType::ExpWrite(_, _, _) => {
-                                return Err(PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(
-                                    "Expression operations are not supported in batch_operate. Use operate() instead."
-                                ));
+                            OperationType::ExpRead(name, exp, flags) => {
+                                use aerospike_core::operations::exp::{self, ExpReadFlags};
+                                let mut core_flags: Vec<ExpReadFlags> = Vec::new();
+                                if *flags & 16 != 0 {
+                                    core_flags.push(ExpReadFlags::EvalNoFail);
+                                }
+                                if core_flags.is_empty() {
+                                    exp::read_exp(name, exp._as.clone(), ExpReadFlags::Default)
+                                } else {
+                                    exp::read_exp(name, exp._as.clone(), core_flags)
+                                }
+                            }
+                            OperationType::ExpWrite(bin_name, exp, flags) => {
+                                use aerospike_core::operations::exp::{self, ExpWriteFlags};
+                                let mut core_flags: Vec<ExpWriteFlags> = Vec::new();
+                                if *flags & 1 != 0 {
+                                    core_flags.push(ExpWriteFlags::CreateOnly);
+                                }
+                                if *flags & 2 != 0 {
+                                    core_flags.push(ExpWriteFlags::UpdateOnly);
+                                }
+                                if *flags & 4 != 0 {
+                                    core_flags.push(ExpWriteFlags::AllowDelete);
+                                }
+                                if *flags & 8 != 0 {
+                                    core_flags.push(ExpWriteFlags::PolicyNoFail);
+                                }
+                                if *flags & 16 != 0 {
+                                    core_flags.push(ExpWriteFlags::EvalNoFail);
+                                }
+                                if core_flags.is_empty() {
+                                    exp::write_exp(bin_name, exp._as.clone(), ExpWriteFlags::Default)
+                                } else {
+                                    exp::write_exp(bin_name, exp._as.clone(), core_flags)
+                                }
                             }
                         };
                         core_ops.push(core_op);
