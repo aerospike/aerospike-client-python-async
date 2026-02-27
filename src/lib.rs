@@ -13368,15 +13368,17 @@ pub enum Replica {
             },
             PythonValue::HashMap(h) => {
                 let mut items = Vec::new();
-                // Sort by key to ensure consistent ordering
                 let mut sorted_entries: Vec<_> = h.iter().collect();
                 sorted_entries.sort_by_key(|(k, _)| format_python_value(k));
-
                 for (k, v) in sorted_entries {
-                    let key_str = format_python_value(k);
-                    let val_str = format_python_value(v);
-                    items.push(format!("{}: {}", key_str, val_str));
+                    items.push(format!("{}: {}", format_python_value(k), format_python_value(v)));
                 }
+                format!("{{{}}}", items.join(", "))
+            },
+            PythonValue::OrderedMap(pairs) => {
+                let items: Vec<_> = pairs.iter()
+                    .map(|(k, v)| format!("{}: {}", format_python_value(k), format_python_value(v)))
+                    .collect();
                 format!("{{{}}}", items.join(", "))
             },
             _ => format!("{:?}", value),
@@ -13753,6 +13755,9 @@ pub enum Replica {
         /// collection and is associated with a value. Map keys and values can be any supported data
         /// type.
         HashMap(HashMap<PythonValue, PythonValue>),
+        /// Ordered map preserving key order from the server (K-ordered / KV-ordered maps).
+        /// Stored as Vec of pairs so insertion order into PyDict yields sorted keys.
+        OrderedMap(Vec<(PythonValue, PythonValue)>),
         /// GeoJSON data type are JSON formatted strings to encode geospatial information.
         GeoJSON(String),
 
@@ -13774,8 +13779,9 @@ pub enum Replica {
                 PythonValue::String(ref val) | PythonValue::GeoJSON(ref val) => val.hash(state),
                 PythonValue::Blob(ref val) | PythonValue::HLL(ref val) => val.hash(state),
                 PythonValue::List(ref val) => val.hash(state),
-                PythonValue::HashMap(_) => panic!("HashMaps cannot be used as map keys."),
-                // PythonValue::OrderedMap(ref val) => val.hash(state),
+                PythonValue::HashMap(_) | PythonValue::OrderedMap(_) => {
+                    panic!("Maps cannot be used as map keys.")
+                }
             }
         }
     }
@@ -13794,7 +13800,7 @@ pub enum Replica {
                 PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
                 PythonValue::List(ref val) => format!("{:?}", val),
                 PythonValue::HashMap(ref val) => format!("{:?}", val),
-                // PythonValue::OrderedMap(ref val) => format!("{:?}", val),
+                PythonValue::OrderedMap(ref val) => format!("{:?}", val),
             }
         }
     }
@@ -13829,6 +13835,15 @@ pub enum Replica {
                 PythonValue::HashMap(h) => {
                     let py_dict = PyDict::new(py);
                     for (k, v) in h {
+                        let py_key = k.into_pyobject(py).unwrap();
+                        let py_val = v.into_pyobject(py).unwrap();
+                        py_dict.set_item(py_key, py_val).unwrap();
+                    }
+                    Ok(py_dict.into_any())
+                }
+                PythonValue::OrderedMap(pairs) => {
+                    let py_dict = PyDict::new(py);
+                    for (k, v) in pairs {
                         let py_key = k.into_pyobject(py).unwrap();
                         let py_val = v.into_pyobject(py).unwrap();
                         py_dict.set_item(py_key, py_val).unwrap();
@@ -13958,6 +13973,13 @@ pub enum Replica {
                     });
                     aerospike_core::Value::HashMap(arr)
                 }
+                PythonValue::OrderedMap(pairs) => {
+                    let mut btree = BTreeMap::new();
+                    for (k, v) in pairs {
+                        btree.insert(k.into(), v.into());
+                    }
+                    aerospike_core::Value::OrderedMap(btree)
+                }
                 PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
                 PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
             }
@@ -13995,11 +14017,11 @@ pub enum Replica {
                     PythonValue::HashMap(arr)
                 }
                 aerospike_core::Value::OrderedMap(om) => {
-                    let mut arr = HashMap::with_capacity(om.len());
-                    om.iter().for_each(|(k, v)| {
-                        arr.insert(k.clone().into(), v.clone().into());
-                    });
-                    PythonValue::HashMap(arr)
+                    let pairs: Vec<(PythonValue, PythonValue)> = om
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect();
+                    PythonValue::OrderedMap(pairs)
                 }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
@@ -14010,13 +14032,11 @@ pub enum Replica {
                     PythonValue::String("*".to_string())
                 }
                 aerospike_core::Value::KeyValueList(kvl) => {
-                    // KeyValueList is used for map operations returning key-value pairs
-                    // Convert to a HashMap (dict) for Python
-                    let mut map = HashMap::with_capacity(kvl.len());
-                    for (k, v) in kvl {
-                        map.insert(k.clone().into(), v.clone().into());
-                    }
-                    PythonValue::HashMap(map)
+                    let pairs: Vec<(PythonValue, PythonValue)> = kvl
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect();
+                    PythonValue::OrderedMap(pairs)
                 }
             }
         }
