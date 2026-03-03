@@ -5103,6 +5103,28 @@ pub enum Replica {
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.socket_timeout = socket_timeout;
         }
+
+        #[getter]
+        pub fn get_read_touch_ttl(&self) -> i32 {
+            match self._as.read_touch_ttl {
+                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTTL::ServerDefault => 0,
+                aerospike_core::ReadTouchTTL::DontReset => -1,
+            }
+        }
+
+        #[setter]
+        pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
+            self._as.read_touch_ttl = match value {
+                -1 => aerospike_core::ReadTouchTTL::DontReset,
+                0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
+                )),
+            };
+            Ok(())
+        }
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -5263,6 +5285,28 @@ pub enum Replica {
                 Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
                 None => self._as.base_policy.filter_expression = None,
             }
+        }
+
+        #[getter]
+        pub fn get_read_touch_ttl(&self) -> i32 {
+            match self._as.base_policy.read_touch_ttl {
+                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTTL::ServerDefault => 0,
+                aerospike_core::ReadTouchTTL::DontReset => -1,
+            }
+        }
+
+        #[setter]
+        pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
+            self._as.base_policy.read_touch_ttl = match value {
+                -1 => aerospike_core::ReadTouchTTL::DontReset,
+                0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
+                )),
+            };
+            Ok(())
         }
     }
 
@@ -5470,6 +5514,28 @@ pub enum Replica {
                 Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
                 None => self._as.base_policy.filter_expression = None,
             }
+        }
+
+        #[getter]
+        pub fn get_read_touch_ttl(&self) -> i32 {
+            match self._as.base_policy.read_touch_ttl {
+                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTTL::ServerDefault => 0,
+                aerospike_core::ReadTouchTTL::DontReset => -1,
+            }
+        }
+
+        #[setter]
+        pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
+            self._as.base_policy.read_touch_ttl = match value {
+                -1 => aerospike_core::ReadTouchTTL::DontReset,
+                0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
+                )),
+            };
+            Ok(())
         }
     }
 

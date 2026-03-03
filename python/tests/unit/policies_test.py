@@ -48,6 +48,28 @@ class TestBasePolicy:
         bp.socket_timeout = 3000
         assert bp.socket_timeout == 3000
 
+    def test_read_touch_ttl_default(self):
+        bp = BasePolicy()
+        assert bp.read_touch_ttl == 0
+
+    def test_read_touch_ttl_valid_values(self):
+        bp = BasePolicy()
+        bp.read_touch_ttl = -1
+        assert bp.read_touch_ttl == -1
+        bp.read_touch_ttl = 0
+        assert bp.read_touch_ttl == 0
+        bp.read_touch_ttl = 50
+        assert bp.read_touch_ttl == 50
+        bp.read_touch_ttl = 100
+        assert bp.read_touch_ttl == 100
+
+    def test_read_touch_ttl_invalid_raises(self):
+        bp = BasePolicy()
+        with pytest.raises(ValueError):
+            bp.read_touch_ttl = -2
+        with pytest.raises(ValueError):
+            bp.read_touch_ttl = 101
+
 
 class TestWritePolicy:
     """Test WritePolicy functionality."""
@@ -96,6 +118,12 @@ class TestWritePolicy:
         wp = WritePolicy()
         wp.socket_timeout = 4000
         assert wp.socket_timeout == 4000
+
+    def test_read_touch_ttl(self):
+        wp = WritePolicy()
+        assert wp.read_touch_ttl == 0
+        wp.read_touch_ttl = 50
+        assert wp.read_touch_ttl == 50
 
     def test_combined_base_and_write_policy_fields(self):
         """Test that WritePolicy can use both BasePolicy and WritePolicy fields together."""
@@ -305,6 +333,19 @@ class TestReadPolicy:
         rp = ReadPolicy()
         rp.socket_timeout = 3000
         assert rp.socket_timeout == 3000
+
+    def test_read_touch_ttl(self):
+        rp = ReadPolicy()
+        assert rp.read_touch_ttl == 0
+        rp.read_touch_ttl = 80
+        assert rp.read_touch_ttl == 80
+        rp.read_touch_ttl = -1
+        assert rp.read_touch_ttl == -1
+
+    def test_read_touch_ttl_invalid_raises(self):
+        rp = ReadPolicy()
+        with pytest.raises(ValueError):
+            rp.read_touch_ttl = 101
 
 
 class TestQueryPolicy:
@@ -601,6 +642,18 @@ class TestBasePolicySync:
         assert bp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
         assert bp.socket_timeout == 5000
         assert bp.base_policy.socket_timeout == 5000
+
+    def test_read_policy_read_touch_ttl_sync(self):
+        rp = ReadPolicy()
+        rp.read_touch_ttl = 80
+        assert rp.read_touch_ttl == 80
+        assert rp.base_policy.read_touch_ttl == 80
+
+    def test_write_policy_read_touch_ttl_sync(self):
+        wp = WritePolicy()
+        wp.read_touch_ttl = 50
+        assert wp.read_touch_ttl == 50
+        assert wp.base_policy.read_touch_ttl == 50
 
     def test_base_policy_clone_reflects_current_state(self):
         """Test that base_policy getter returns a clone that reflects current state."""

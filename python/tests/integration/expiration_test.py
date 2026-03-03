@@ -146,6 +146,34 @@ class TestExpiration(TestFixtureConnection):
         assert exists is False
 
 
+    async def test_read_touch_ttl_resets_on_get(self, client):
+        """Single-key get() with read_touch_ttl resets TTL when threshold met."""
+        key = Key("test", "test", "expire_read_touch_1")
+        wp = WritePolicy()
+        wp.expiration = Expiration.seconds(2)
+        await client.put(wp, key, {"bin": "expirevalue"})
+
+        # Read before expiration with TTL reset enabled.
+        await asyncio.sleep(1)
+        rp = ReadPolicy()
+        rp.read_touch_ttl = 80
+        record = await client.get(rp, key, ["bin"])
+        assert record is not None
+        assert record.bins["bin"] == "expirevalue"
+
+        # Read again without resetting TTL.
+        await asyncio.sleep(1)
+        rp.read_touch_ttl = -1
+        record = await client.get(rp, key, ["bin"])
+        assert record is not None
+        assert record.bins["bin"] == "expirevalue"
+
+        # Record should now expire (original 2s TTL was reset once, then elapsed).
+        await asyncio.sleep(2)
+        exists = await client.exists(ReadPolicy(), key)
+        assert exists is False
+
+
 class TestExpirationMetadata(TestFixtureConnection):
     """Test TTL values in record metadata."""
 

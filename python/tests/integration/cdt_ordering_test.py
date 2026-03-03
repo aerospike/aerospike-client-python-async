@@ -35,7 +35,7 @@ async def client_and_key(aerospike_host, use_services_alternate):
     client = await new_client(cp, aerospike_host)
 
     wp = WritePolicy()
-    for i in range(1, 20):
+    for i in range(1, 25):
         try:
             await client.delete(wp, Key("test", "test", f"cdt_ord_{i}"))
         except Exception:
@@ -294,6 +294,95 @@ class TestNestedOrderedMaps:
         for inner_map in m.values():
             assert isinstance(inner_map, dict)
             assert set(inner_map.keys()) == {"a", "b", "c"}
+
+
+class TestEdgeCases:
+    """Edge cases for ordered map conversion through PythonValue::OrderedMap."""
+
+    async def test_mixed_key_types_sorted(self, client_and_key):
+        """Aerospike sorts by type first (int before string), then by value."""
+        client = client_and_key
+        wp = WritePolicy()
+        rp = ReadPolicy()
+        key = _key(14)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await client.operate(wp, key, [
+            MapOperation.put(BIN, "banana", "s2", policy),
+            MapOperation.put(BIN, 99, "i3", policy),
+            MapOperation.put(BIN, "apple", "s1", policy),
+            MapOperation.put(BIN, 1, "i1", policy),
+            MapOperation.put(BIN, 50, "i2", policy),
+        ])
+
+        record = await client.get(rp, key, [BIN])
+        m = record.bins[BIN]
+        keys = list(m.keys())
+        int_keys = [k for k in keys if isinstance(k, int)]
+        str_keys = [k for k in keys if isinstance(k, str)]
+        assert int_keys == sorted(int_keys)
+        assert str_keys == sorted(str_keys)
+        # Integers sort before strings in Aerospike's type ordering
+        assert keys == int_keys + str_keys
+
+    async def test_bytes_keys_sorted(self, client_and_key):
+        """Bytes keys in a K-ordered map preserve sorted order."""
+        client = client_and_key
+        wp = WritePolicy()
+        rp = ReadPolicy()
+        key = _key(15)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await client.operate(wp, key, [
+            MapOperation.put(BIN, b"\x03", "third", policy),
+            MapOperation.put(BIN, b"\x01", "first", policy),
+            MapOperation.put(BIN, b"\x02", "second", policy),
+        ])
+
+        record = await client.get(rp, key, [BIN])
+        m = record.bins[BIN]
+        assert list(m.keys()) == [b"\x01", b"\x02", b"\x03"]
+
+    async def test_empty_ordered_map(self, client_and_key):
+        """Empty K-ordered map returns an empty dict."""
+        client = client_and_key
+        wp = WritePolicy()
+        rp = ReadPolicy()
+        key = _key(17)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await client.operate(wp, key, [
+            MapOperation.put(BIN, "a", 1, policy),
+        ])
+        await client.operate(wp, key, [
+            MapOperation.remove_by_key(BIN, "a", MapReturnType.NONE),
+        ])
+
+        record = await client.get(rp, key, [BIN])
+        m = record.bins[BIN]
+        assert isinstance(m, dict)
+        assert len(m) == 0
+
+    async def test_get_by_rank_range_ordered(self, client_and_key):
+        """get_by_rank_range on K-ordered map returns values in rank order."""
+        client = client_and_key
+        wp = WritePolicy()
+        key = _key(18)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await client.operate(wp, key, [
+            MapOperation.put(BIN, "c", 300, policy),
+            MapOperation.put(BIN, "a", 100, policy),
+            MapOperation.put(BIN, "b", 200, policy),
+            MapOperation.put(BIN, "d", 400, policy),
+        ])
+
+        # Rank 0 = smallest value (100), get 3 entries by rank
+        record = await client.operate(wp, key, [
+            MapOperation.get_by_rank_range(BIN, 0, 3, MapReturnType.VALUE),
+        ])
+        values = record.bins[BIN]
+        assert values == [100, 200, 300]
 
 
 class TestOrderedMapReturnTypes:
