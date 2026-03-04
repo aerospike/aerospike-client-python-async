@@ -23,6 +23,8 @@ from aerospike_async import (
     BatchRecord, ListOperation, Operation, ListReturnType,
     FilterExpression, ListPolicy, Expiration,
     ExpOperation, ExpWriteFlags, ExpReadFlags,
+    BatchReadOp, BatchWriteOp, BatchDeleteOp,
+    RecordExistsAction,
 )
 from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError
 
@@ -789,3 +791,96 @@ async def test_batch_operate_exp_read_eval_no_fail(exp_client_and_keys):
     for result in results:
         assert result.result_code == ResultCode.OK
         assert result.record.bins.get("result") is None
+
+
+async def test_batch_mixed_read_write_delete(client_and_keys):
+    """Test Client.batch() with a mix of read, write, and delete ops in one call."""
+    client, keys, delete_keys, bin_name = client_and_keys
+
+    k_read = keys[0]
+    k_write = Key("test", "test", "batch_mixed_write")
+    k_delete = delete_keys[0]
+
+    wp = WritePolicy()
+    await client.put(wp, k_write, {bin_name: "old_value"})
+
+    read_op = BatchReadOp(k_read, bins=[bin_name])
+    write_op = BatchWriteOp(k_write, [Operation.put(bin_name, "new_value")])
+    delete_op = BatchDeleteOp(k_delete)
+
+    results = await client.batch(None, [read_op, write_op, delete_op])
+
+    assert len(results) == 3
+
+    assert results[0].result_code == ResultCode.OK
+    assert results[0].record.bins[bin_name] == "batchvalue1"
+
+    assert results[1].result_code == ResultCode.OK
+
+    assert results[2].result_code == ResultCode.OK
+
+    rp = ReadPolicy()
+    rec = await client.get(rp, k_write)
+    assert rec.bins[bin_name] == "new_value"
+
+    exists = await client.exists(rp, k_delete)
+    assert exists is False
+
+
+async def test_batch_mixed_with_invalid_namespace(client_and_keys):
+    """Batch with an invalid namespace fails at the client routing level."""
+    client, keys, _, bin_name = client_and_keys
+
+    k_good = keys[0]
+    k_bad = Key("invalid", "test", "k1")
+
+    good_op = BatchWriteOp(k_good, [Operation.put(bin_name, "updated")])
+    bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
+
+    with pytest.raises(InvalidNodeError):
+        await client.batch(None, [good_op, bad_op])
+
+
+@pytest.mark.xfail(
+    reason="Rust core rejects entire batch when any key targets an unknown namespace; "
+           "Java client returns per-key INVALID_NAMESPACE instead",
+    raises=InvalidNodeError,
+    strict=True,
+)
+async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
+    """Mixed batch should return per-key INVALID_NAMESPACE (mirrors JFC batchWriteComplex)."""
+    client, keys, delete_keys, bin_name = client_and_keys
+
+    k_good = keys[0]
+    k_bad = Key("invalid", "test", "k1")
+    k_good2 = keys[5]
+    k_del = delete_keys[0]
+
+    results = await client.batch(None, [
+        BatchWriteOp(k_good, [Operation.put("bin2", 100)]),
+        BatchWriteOp(k_bad, [Operation.put("bin2", 100)]),
+        BatchWriteOp(k_good2, [Operation.put("bin3", 999)]),
+        BatchDeleteOp(k_del),
+    ])
+
+    assert len(results) == 4
+    assert results[0].result_code == ResultCode.OK
+    assert results[1].result_code == ResultCode.INVALID_NAMESPACE
+    assert results[2].result_code == ResultCode.OK
+    assert results[3].result_code == ResultCode.OK
+
+
+async def test_batch_mixed_with_policy(client_and_keys):
+    """Test Client.batch() with per-op policies."""
+    client, keys, _, bin_name = client_and_keys
+
+    k = keys[1]
+
+    bwp = BatchWritePolicy()
+    bwp.record_exists_action = RecordExistsAction.CREATE_ONLY
+
+    op = BatchWriteOp(k, [Operation.put("new_bin", 42)], policy=bwp)
+
+    results = await client.batch(None, [op])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.KEY_EXISTS_ERROR

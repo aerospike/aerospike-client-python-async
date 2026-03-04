@@ -15,13 +15,19 @@
 
 from aerospike_async import (
     AdminPolicy,
+    BatchDeleteOp,
     BatchDeletePolicy,
     BatchPolicy,
+    BatchReadOp,
     BatchReadPolicy,
     BatchUDFPolicy,
+    BatchWriteOp,
     BatchWritePolicy,
     Expiration,
     FilterExpression as fe,
+    Key,
+    Operation,
+    RecordExistsAction,
 )
 
 
@@ -202,3 +208,75 @@ def test_batch_policy_defaults():
     budfp = BatchUDFPolicy()
     assert budfp.send_key is False
     assert budfp.durable_delete is False
+
+
+class TestBatchWritePolicyRecordExistsAction:
+
+    def test_default_is_update(self):
+        p = BatchWritePolicy()
+        assert p.record_exists_action == RecordExistsAction.UPDATE
+
+    def test_set_create_only(self):
+        p = BatchWritePolicy()
+        p.record_exists_action = RecordExistsAction.CREATE_ONLY
+        assert p.record_exists_action == RecordExistsAction.CREATE_ONLY
+
+    def test_set_replace(self):
+        p = BatchWritePolicy()
+        p.record_exists_action = RecordExistsAction.REPLACE
+        assert p.record_exists_action == RecordExistsAction.REPLACE
+
+
+class TestBatchReadOp:
+
+    def test_bins_only(self):
+        k = Key("ns", "set", "k1")
+        op = BatchReadOp(k, bins=["a", "b"])
+        assert op is not None
+
+    def test_no_bins_no_ops(self):
+        k = Key("ns", "set", "k1")
+        op = BatchReadOp(k)
+        assert op is not None
+
+    def test_with_policy(self):
+        k = Key("ns", "set", "k1")
+        p = BatchReadPolicy()
+        p.read_touch_ttl = 50
+        op = BatchReadOp(k, bins=["a"], policy=p)
+        assert op is not None
+
+    def test_with_operations(self):
+        k = Key("ns", "set", "k1")
+        op = BatchReadOp(k, operations=[Operation.get()])
+        assert op is not None
+
+
+class TestBatchWriteOp:
+
+    def test_basic(self):
+        k = Key("ns", "set", "k1")
+        op = BatchWriteOp(k, operations=[Operation.put("b", 1)])
+        assert op is not None
+
+    def test_with_policy(self):
+        k = Key("ns", "set", "k1")
+        p = BatchWritePolicy()
+        p.record_exists_action = RecordExistsAction.CREATE_ONLY
+        op = BatchWriteOp(k, [Operation.put("b", 1)], policy=p)
+        assert op is not None
+
+
+class TestBatchDeleteOp:
+
+    def test_basic(self):
+        k = Key("ns", "set", "k1")
+        op = BatchDeleteOp(k)
+        assert op is not None
+
+    def test_with_policy(self):
+        k = Key("ns", "set", "k1")
+        p = BatchDeletePolicy()
+        p.durable_delete = True
+        op = BatchDeleteOp(k, policy=p)
+        assert op is not None

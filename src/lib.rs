@@ -60,6 +60,115 @@ fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     }
 }
 
+/// Extract a list of Python operation objects into the internal `OperationType` representation.
+fn extract_py_ops(py_ops: &[Py<PyAny>]) -> PyResult<Vec<OperationType>> {
+    let mut rust_ops = Vec::new();
+    for op_obj in py_ops {
+        Python::attach(|py| {
+            if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
+                rust_ops.push(py_op.op.clone());
+            } else {
+                return Err(PyTypeError::new_err(
+                    "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
+                ));
+            }
+            Ok::<(), PyErr>(())
+        })?;
+    }
+    Ok(rust_ops)
+}
+
+/// Convert a list of `OperationType` to core `Operation` objects.
+///
+/// Returns the converted operations and whether any of them are writes.
+fn convert_op_types_to_core(
+    ops: &[OperationType],
+) -> PyResult<(Vec<aerospike_core::operations::Operation>, bool)> {
+    use aerospike_core::operations;
+    let mut core_ops = Vec::new();
+    let mut has_write = false;
+    for op in ops {
+        let core_op = match op {
+            OperationType::Get() => operations::get(),
+            OperationType::GetBin(name) => operations::get_bin(name),
+            OperationType::GetHeader() => operations::get_header(),
+            OperationType::Put(name, val) => {
+                has_write = true;
+                let bin = aerospike_core::Bin::new(name.clone(), val.clone().into());
+                operations::put(&bin)
+            }
+            OperationType::Add(name, val) => {
+                has_write = true;
+                let bin = aerospike_core::Bin::new(name.clone(), val.clone().into());
+                operations::add(&bin)
+            }
+            OperationType::Append(name, val) => {
+                has_write = true;
+                let bin = aerospike_core::Bin::new(name.clone(), val.clone().into());
+                operations::append(&bin)
+            }
+            OperationType::Prepend(name, val) => {
+                has_write = true;
+                let bin = aerospike_core::Bin::new(name.clone(), val.clone().into());
+                operations::prepend(&bin)
+            }
+            OperationType::Delete() => {
+                has_write = true;
+                operations::delete()
+            }
+            OperationType::Touch() => {
+                has_write = true;
+                operations::touch()
+            }
+            OperationType::ExpRead(name, exp, flags) => {
+                use aerospike_core::operations::exp::{self, ExpReadFlags};
+                let mut core_flags: Vec<ExpReadFlags> = Vec::new();
+                if *flags & 16 != 0 {
+                    core_flags.push(ExpReadFlags::EvalNoFail);
+                }
+                if core_flags.is_empty() {
+                    exp::read_exp(name, exp._as.clone(), ExpReadFlags::Default)
+                } else {
+                    exp::read_exp(name, exp._as.clone(), core_flags)
+                }
+            }
+            OperationType::ExpWrite(bin_name, exp, flags) => {
+                has_write = true;
+                use aerospike_core::operations::exp::{self, ExpWriteFlags};
+                let mut core_flags: Vec<ExpWriteFlags> = Vec::new();
+                if *flags & 1 != 0 { core_flags.push(ExpWriteFlags::CreateOnly); }
+                if *flags & 2 != 0 { core_flags.push(ExpWriteFlags::UpdateOnly); }
+                if *flags & 4 != 0 { core_flags.push(ExpWriteFlags::AllowDelete); }
+                if *flags & 8 != 0 { core_flags.push(ExpWriteFlags::PolicyNoFail); }
+                if *flags & 16 != 0 { core_flags.push(ExpWriteFlags::EvalNoFail); }
+                if core_flags.is_empty() {
+                    exp::write_exp(bin_name, exp._as.clone(), ExpWriteFlags::Default)
+                } else {
+                    exp::write_exp(bin_name, exp._as.clone(), core_flags)
+                }
+            }
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(
+                    format!("Operation type {other:?} is not yet supported in Client.batch(). \
+                             Use batch_operate() for list, map, bit, and HLL operations.")
+                ));
+            }
+        };
+        core_ops.push(core_op);
+    }
+    Ok((core_ops, has_write))
+}
+
 // Define a function to gather stub information.
 define_stub_info_gatherer!(stub_info);
 
@@ -6092,6 +6201,26 @@ pub enum Replica {
         pub fn set_expiration(&mut self, expiration: Expiration) {
             self._as.expiration = (&expiration).into();
         }
+
+        #[getter(record_exists_action)]
+        pub fn get_record_exists_action(&self) -> RecordExistsAction {
+            (&self._as.record_exists_action).into()
+        }
+
+        #[setter(record_exists_action)]
+        pub fn set_record_exists_action(&mut self, record_exists_action: RecordExistsAction) {
+            self._as.record_exists_action = (&record_exists_action).into();
+        }
+
+        #[getter(generation_policy)]
+        pub fn get_generation_policy(&self) -> GenerationPolicy {
+            (&self._as.generation_policy).into()
+        }
+
+        #[setter(generation_policy)]
+        pub fn set_generation_policy(&mut self, generation_policy: GenerationPolicy) {
+            self._as.generation_policy = (&generation_policy).into();
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -6225,6 +6354,113 @@ pub enum Replica {
         #[setter]
         pub fn set_durable_delete(&mut self, durable_delete: bool) {
             self._as.durable_delete = durable_delete;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BatchReadOp / BatchWriteOp / BatchDeleteOp  (mixed-batch input types)
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// A single read operation for use with :meth:`Client.batch`.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchReadOp",
+        module = "_aerospike_async_native",
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchReadOp {
+        key: aerospike_core::Key,
+        policy: aerospike_core::BatchReadPolicy,
+        bins: Option<Vec<String>>,
+        ops: Vec<OperationType>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchReadOp {
+        #[new]
+        #[pyo3(signature = (key, bins=None, operations=None, policy=None))]
+        pub fn new(
+            key: &Key,
+            bins: Option<Vec<String>>,
+            operations: Option<Vec<Py<PyAny>>>,
+            policy: Option<&BatchReadPolicy>,
+        ) -> PyResult<Self> {
+            let ops = match operations {
+                Some(ref py_ops) => extract_py_ops(py_ops)?,
+                None => Vec::new(),
+            };
+            Ok(BatchReadOp {
+                key: key._as.clone(),
+                policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
+                bins,
+                ops,
+            })
+        }
+    }
+
+    /// A single write operation for use with :meth:`Client.batch`.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchWriteOp",
+        module = "_aerospike_async_native",
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchWriteOp {
+        key: aerospike_core::Key,
+        policy: aerospike_core::BatchWritePolicy,
+        ops: Vec<OperationType>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchWriteOp {
+        #[new]
+        #[pyo3(signature = (key, operations, policy=None))]
+        pub fn new(
+            key: &Key,
+            operations: Vec<Py<PyAny>>,
+            policy: Option<&BatchWritePolicy>,
+        ) -> PyResult<Self> {
+            let ops = extract_py_ops(&operations)?;
+            Ok(BatchWriteOp {
+                key: key._as.clone(),
+                policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
+                ops,
+            })
+        }
+    }
+
+    /// A single delete operation for use with :meth:`Client.batch`.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "BatchDeleteOp",
+        module = "_aerospike_async_native",
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchDeleteOp {
+        key: aerospike_core::Key,
+        policy: aerospike_core::BatchDeletePolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchDeleteOp {
+        #[new]
+        #[pyo3(signature = (key, policy=None))]
+        pub fn new(
+            key: &Key,
+            policy: Option<&BatchDeletePolicy>,
+        ) -> PyResult<Self> {
+            Ok(BatchDeleteOp {
+                key: key._as.clone(),
+                policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
+            })
         }
     }
 
@@ -12167,6 +12403,125 @@ pub enum Replica {
             })
         }
 
+        /// Execute a mixed batch of read, write, and delete operations in a single server call.
+        ///
+        /// Each operation is specified via :class:`BatchReadOp`, :class:`BatchWriteOp`,
+        /// or :class:`BatchDeleteOp`, each carrying its own key and per-record policy.
+        ///
+        /// Args:
+        ///     batch_policy: Optional :class:`BatchPolicy` for the entire batch.
+        ///     ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`, and/or
+        ///          :class:`BatchDeleteOp` objects.
+        ///
+        /// Returns:
+        ///     A list of :class:`BatchRecord` results in the same order as the input ops.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Sequence[BatchRecord]]", imports=("typing")))]
+        pub fn batch<'a>(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            ops: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            #[derive(Clone)]
+            enum ExtractedOp {
+                Read {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchReadPolicy,
+                    bins: Option<Vec<String>>,
+                    ops: Vec<OperationType>,
+                },
+                Write {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchWritePolicy,
+                    ops: Vec<OperationType>,
+                },
+                Delete {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchDeletePolicy,
+                },
+            }
+
+            let mut extracted: Vec<ExtractedOp> = Vec::new();
+            for op_obj in ops {
+                Python::attach(|py| {
+                    if let Ok(read_op) = op_obj.extract::<PyRef<BatchReadOp>>(py) {
+                        extracted.push(ExtractedOp::Read {
+                            key: read_op.key.clone(),
+                            policy: read_op.policy.clone(),
+                            bins: read_op.bins.clone(),
+                            ops: read_op.ops.clone(),
+                        });
+                    } else if let Ok(write_op) = op_obj.extract::<PyRef<BatchWriteOp>>(py) {
+                        extracted.push(ExtractedOp::Write {
+                            key: write_op.key.clone(),
+                            policy: write_op.policy.clone(),
+                            ops: write_op.ops.clone(),
+                        });
+                    } else if let Ok(delete_op) = op_obj.extract::<PyRef<BatchDeleteOp>>(py) {
+                        extracted.push(ExtractedOp::Delete {
+                            key: delete_op.key.clone(),
+                            policy: delete_op.policy.clone(),
+                        });
+                    } else {
+                        return Err(PyTypeError::new_err(
+                            "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp"
+                        ));
+                    }
+                    Ok::<(), PyErr>(())
+                })?;
+            }
+
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::BatchOperation;
+
+                let mut batch_ops = Vec::new();
+                for ext in &extracted {
+                    match ext {
+                        ExtractedOp::Read { key, policy, bins, ops } if ops.is_empty() => {
+                            batch_ops.push(
+                                BatchOperation::read(policy, key.clone(), bins_flag(bins.clone()))
+                            );
+                        }
+                        ExtractedOp::Read { key, policy, bins: _, ops } => {
+                            let (core_ops, _has_write) = convert_op_types_to_core(ops)?;
+                            batch_ops.push(
+                                BatchOperation::read_ops(policy, key.clone(), core_ops)
+                            );
+                        }
+                        ExtractedOp::Write { key, policy, ops } => {
+                            let (core_ops, _) = convert_op_types_to_core(ops)?;
+                            batch_ops.push(
+                                BatchOperation::write(policy, key.clone(), core_ops)
+                            );
+                        }
+                        ExtractedOp::Delete { key, policy } => {
+                            batch_ops.push(
+                                BatchOperation::delete(policy, key.clone())
+                            );
+                        }
+                    }
+                }
+
+                let results = client
+                    .read()
+                    .await
+                    .batch(&batch_policy, &batch_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Python::attach(|_py| {
+                    let py_results: Vec<BatchRecord> = results
+                        .into_iter()
+                        .map(|br| BatchRecord { _as: br })
+                        .collect();
+                    Ok(py_results)
+                })
+            })
+        }
+
         /// Execute a UDF (User Defined Function) on a single record.
         ///
         /// Args:
@@ -14297,6 +14652,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BatchWritePolicy>()?;
     m.add_class::<BatchDeletePolicy>()?;
     m.add_class::<BatchUDFPolicy>()?;
+    m.add_class::<BatchReadOp>()?;
+    m.add_class::<BatchWriteOp>()?;
+    m.add_class::<BatchDeleteOp>()?;
     m.add_class::<ListOrderType>()?;
     m.add_class::<ListWriteFlags>()?;
     m.add_class::<ListPolicy>()?;
