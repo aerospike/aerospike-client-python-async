@@ -843,12 +843,12 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
 
 @pytest.mark.xfail(
     reason="Rust core rejects entire batch when any key targets an unknown namespace; "
-           "Java client returns per-key INVALID_NAMESPACE instead",
+           "per-key INVALID_NAMESPACE not yet supported",
     raises=InvalidNodeError,
     strict=True,
 )
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
-    """Mixed batch should return per-key INVALID_NAMESPACE (mirrors JFC batchWriteComplex)."""
+    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE when supported."""
     client, keys, delete_keys, bin_name = client_and_keys
 
     k_good = keys[0]

@@ -15,7 +15,9 @@
 # the License.
 
 """
-Post-process the generated .pyi stub files to fix issues that pyo3_stub_gen cannot handle automatically.
+Fix generated .pyi only where stub_gen can’t. Prefer .rs annotations and stub_gen; 
+add postprocess logic only when stub_gen can’t produce the stub (e.g. IntEnum for MapWriteFlags).
+
 
 This consolidated script replaces multiple separate stub processing scripts and handles:
 1. Exception classes: create_exception! macro doesn't generate stubs, so we manually add them
@@ -23,6 +25,8 @@ This consolidated script replaces multiple separate stub processing scripts and 
    ReadPolicy and WritePolicy, so we replace the placeholder with full method definitions
 3. Import/export fixes: Ensures Key, Client, and Record are properly exported in __init__.pyi
 4. Import cleanup: Fixes circular imports and uses relative imports where appropriate
+5. Operation classes (Operation, ListOperation, MapOperation, etc.): stub_gen does not emit these,
+   so we add full class stubs when missing. Keep the stub block in sync with lib.rs.
 
 All fixes are applied idempotently - safe to run multiple times.
 """
@@ -171,6 +175,41 @@ def fix_imports(content: str, pyi_file_path: str = "") -> str:
             flags=re.MULTILINE
         )
 
+    return content
+
+
+def fix_map_policy_classmethod_signatures(content: str) -> str:
+    """Remove _cls parameter from MapPolicy classmethods so callers pass (order, flags) only."""
+    content = re.sub(
+        r'def new_with_flags\(cls, _cls:type, order:typing\.Optional\[MapOrder\], flags:typing\.Any\)',
+        'def new_with_flags(cls, order: typing.Optional[MapOrder], flags: typing.Any)',
+        content,
+        flags=re.MULTILINE,
+    )
+    content = re.sub(
+        r'def new_with_flags_and_persisted_index\(cls, _cls:type, order:typing\.Optional\[MapOrder\], flags:typing\.Any\)',
+        'def new_with_flags_and_persisted_index(cls, order: typing.Optional[MapOrder], flags: typing.Any)',
+        content,
+        flags=re.MULTILINE,
+    )
+    return content
+
+
+def fix_map_write_flags_int_enum(content: str) -> str:
+    """Use IntEnum for MapWriteFlags so int() and | bitmask are valid for type checkers."""
+    content = re.sub(
+        r'^from enum import Enum\b',
+        'from enum import Enum, IntEnum',
+        content,
+        flags=re.MULTILINE,
+    )
+    content = re.sub(
+        r'^class MapWriteFlags\(Enum\):',
+        'class MapWriteFlags(IntEnum):',
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
     return content
 
 
@@ -326,7 +365,8 @@ def add_client_stubs(content: str) -> str:
             'set_allowlist', 'set_quotas'
         ]
         info_udf_methods = [
-            'execute_udf', 'register_udf', 'register_udf_from_file', 'remove_udf',
+            'execute_udf', 'query_operate', 'query_execute_udf',
+            'register_udf', 'register_udf_from_file', 'remove_udf',
             'node_names', 'info', 'info_on_all_nodes'
         ]
         new_api_methods = [
@@ -382,6 +422,10 @@ def add_client_stubs(content: str) -> str:
                         method_stubs.append('    def set_quotas(self, role_name: builtins.str, read_quota: builtins.int, write_quota: builtins.int) -> typing.Awaitable[typing.Any]: ...')
                     elif method == 'execute_udf':
                         method_stubs.append('    def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...')
+                    elif method == 'query_operate':
+                        method_stubs.append('    def query_operate(self, write_policy: WritePolicy, statement: Statement, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[ExecuteTask]: ...')
+                    elif method == 'query_execute_udf':
+                        method_stubs.append('    def query_execute_udf(self, write_policy: WritePolicy, statement: Statement, package_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[ExecuteTask]: ...')
                     elif method == 'register_udf':
                         method_stubs.append('    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...')
                     elif method == 'register_udf_from_file':
@@ -543,7 +587,7 @@ def add_key_stubs(content: str) -> str:
 
 
 def add_operation_stubs(content: str) -> str:
-    """Add Operation class stubs if missing (pyo3_stub_gen limitation)."""
+    """Add Operation class stubs if missing (stub_gen does not emit these classes)."""
     # Operation classes are large with many static methods, so we add minimal stubs
     # that indicate the classes exist. The actual methods are available at runtime.
     operation_stubs = '''class Operation:
@@ -591,6 +635,8 @@ class ListOperation:
     @staticmethod
     def set(bin_name: builtins.str, index: builtins.int, value: typing.Any) -> ListOperation: ...
     @staticmethod
+    def set_with_policy(bin_name: builtins.str, policy: ListPolicy, index: builtins.int, value: typing.Any) -> ListOperation: ...
+    @staticmethod
     def remove(bin_name: builtins.str, index: builtins.int) -> ListOperation: ...
     @staticmethod
     def remove_range(bin_name: builtins.str, index: builtins.int, count: builtins.int) -> ListOperation: ...
@@ -615,9 +661,15 @@ class ListOperation:
     @staticmethod
     def increment(bin_name: builtins.str, index: builtins.int, value: builtins.int, policy: ListPolicy) -> ListOperation: ...
     @staticmethod
+    def increment_by_one(bin_name: builtins.str, index: builtins.int) -> ListOperation: ...
+    @staticmethod
+    def increment_by_one_with_policy(bin_name: builtins.str, policy: ListPolicy, index: builtins.int) -> ListOperation: ...
+    @staticmethod
     def sort(bin_name: builtins.str, flags: ListSortFlags) -> ListOperation: ...
     @staticmethod
     def set_order(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
+    @staticmethod
+    def set_order_with_index(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
     @staticmethod
     def get_by_index(bin_name: builtins.str, index: builtins.int, return_type: ListReturnType) -> ListOperation: ...
     @staticmethod
@@ -652,6 +704,8 @@ class ListOperation:
     def remove_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: ListReturnType) -> ListOperation: ...
     @staticmethod
     def create(bin_name: builtins.str, order: ListOrderType, pad: builtins.bool, persist_index: builtins.bool) -> ListOperation: ...
+    @staticmethod
+    def create_with_index(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
 
 class MapOperation:
     r"""
@@ -722,6 +776,8 @@ class MapOperation:
     @staticmethod
     def set_map_policy(bin_name: builtins.str, policy: MapPolicy) -> MapOperation: ...
     @staticmethod
+    def set_policy(bin_name: builtins.str, policy: MapPolicy) -> MapOperation: ...
+    @staticmethod
     def get_by_key_relative_index_range(bin_name: builtins.str, key: typing.Any, index: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
     @staticmethod
     def get_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
@@ -731,6 +787,8 @@ class MapOperation:
     def remove_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
     @staticmethod
     def create(bin_name: builtins.str, order: MapOrder) -> MapOperation: ...
+    @staticmethod
+    def create_with_index(bin_name: builtins.str, order: MapOrder) -> MapOperation: ...
 
 class BitOperation:
     r"""
@@ -811,6 +869,24 @@ class ExpOperation:
                 # Insert at the end if neither found
                 content = content + '\n' + operation_stubs
                 print("  ✓ Added Operation class stubs (at end)")
+    else:
+        # stub_gen may emit ListOperation/MapOperation but miss newer methods; replace with full stubs
+        idx_mo = operation_stubs.index('class MapOperation:')
+        idx_bo = operation_stubs.index('class BitOperation:')
+        list_operation_stub = operation_stubs[operation_stubs.index('class ListOperation:'):idx_mo].rstrip()
+        map_operation_stub = operation_stubs[idx_mo:idx_bo].rstrip()
+        start_lo = content.find('class ListOperation:')
+        start_mo = content.find('class MapOperation:')
+        start_bo = content.find('class BitOperation:')
+        if start_lo != -1 and start_mo != -1:
+            content = content[:start_lo] + list_operation_stub + '\n\n' + content[start_mo:]
+            start_bo = content.find('class BitOperation:')
+        if start_mo != -1 and start_bo != -1:
+            start_mo = content.find('class MapOperation:')
+            start_bo = content.find('class BitOperation:')
+            if start_mo != -1 and start_bo != -1:
+                content = content[:start_mo] + map_operation_stub + '\n\n' + content[start_bo:]
+                print("  ✓ Replaced ListOperation/MapOperation stubs (complete method set)")
 
     return content
 
@@ -834,6 +910,13 @@ class DropIndexTask:
     """
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+
+class ExecuteTask:
+    r"""
+    Task returned by query_operate() and query_execute_udf() to track background job completion.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
 '''
 
     if 'class IndexTask:' not in content:
@@ -853,6 +936,22 @@ class DropIndexTask:
             else:
                 content = content + '\n' + index_task_stub
                 print("  ✓ Added IndexTask class stubs (at end)")
+
+    if 'class ExecuteTask:' not in content:
+        execute_task_stub = '''class ExecuteTask:
+    r"""
+    Task returned by query_operate() and query_execute_udf() to track background job completion.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+'''
+        client_match = re.search(r'^class Client:', content, re.MULTILINE)
+        if client_match:
+            insert_pos = client_match.start()
+            content = content[:insert_pos] + execute_task_stub + '\n' + content[insert_pos:]
+        else:
+            content = content + '\n' + execute_task_stub
+        print("  ✓ Added ExecuteTask class stubs (pyo3_stub_gen limitation)")
 
     return content
 
@@ -1325,6 +1424,8 @@ def postprocess_stubs(pyi_file_path: str):
 
     elif '_aerospike_async_native.pyi' in pyi_file_path:
         # Process native module stub - replace placeholder policy stubs and add missing classes
+        content = fix_map_policy_classmethod_signatures(content)
+        content = fix_map_write_flags_int_enum(content)
         content = add_return_type_stubs(content)
         content = add_policy_stubs(content)
         # Note: PartitionFilter and PartitionStatus are generated by pyo3_stub_gen automatically

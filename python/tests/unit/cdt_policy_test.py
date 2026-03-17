@@ -23,6 +23,7 @@ from aerospike_async import (
     MapPolicy,
     MapOrder,
     MapWriteMode,
+    MapWriteFlags,
 )
 
 
@@ -122,6 +123,47 @@ class TestMapPolicy:
         for mode in [MapWriteMode.UPDATE, MapWriteMode.UPDATE_ONLY, MapWriteMode.CREATE_ONLY]:
             mp.write_mode = mode
             assert mp.write_mode == mode
+
+    def test_construction_with_flags(self):
+        mp = MapPolicy(None, None, MapWriteFlags.CREATE_ONLY, None)
+        assert int(mp.flags) == int(MapWriteFlags.CREATE_ONLY)
+
+    def test_construction_with_persist_index(self):
+        mp = MapPolicy(None, None, None, True)
+        assert mp.persist_index is True
+
+    def test_flags_setter(self):
+        mp = MapPolicy(None, None)
+        for flag in [
+            MapWriteFlags.DEFAULT,
+            MapWriteFlags.CREATE_ONLY,
+            MapWriteFlags.UPDATE_ONLY,
+            MapWriteFlags.NO_FAIL,
+            MapWriteFlags.PARTIAL,
+        ]:
+            mp.flags = flag
+            assert int(mp.flags) == int(flag)
+
+    def test_persist_index_setter(self):
+        mp = MapPolicy(None, None)
+        mp.persist_index = True
+        assert mp.persist_index is True
+        mp.persist_index = False
+        assert mp.persist_index is False
+
+    def test_new_with_flags(self):
+        mp = MapPolicy.new_with_flags(MapOrder.KEY_ORDERED, MapWriteFlags.UPDATE_ONLY)
+        assert mp.order == MapOrder.KEY_ORDERED
+        assert int(mp.flags) == int(MapWriteFlags.UPDATE_ONLY)
+        assert mp.persist_index is False
+
+    def test_new_with_flags_and_persisted_index(self):
+        mp = MapPolicy.new_with_flags_and_persisted_index(
+            MapOrder.KEY_ORDERED, MapWriteFlags.DEFAULT
+        )
+        assert mp.order == MapOrder.KEY_ORDERED
+        assert int(mp.flags) == int(MapWriteFlags.DEFAULT)
+        assert mp.persist_index is True
 
 
 class TestHLLPolicy:

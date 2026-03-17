@@ -50,6 +50,8 @@ lint:
 	cargo clippy
 
 dev:
+	# Show resolved Rust core (at a glance)
+	@echo "Rust core: $$(cargo tree -p aerospike-core --depth 0 2>/dev/null | head -1)"
 	# Generate a temp wheel & install it as a Python module in local virtual environment
 	maturin develop
 

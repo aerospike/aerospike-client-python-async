@@ -5,7 +5,7 @@ import aerospike_async
 import builtins
 import typing
 from ._aerospike_async_native import GeoJSON, Key, Record
-from enum import Enum
+from enum import Enum, IntEnum
 
 class AdminPolicy:
     @property
@@ -899,6 +899,15 @@ class FilterExpression:
         Return the debug representation of the inner expression (used for equality).
         Exposed for inspection; same string used by __eq__.
         """
+    def base64(self) -> builtins.str:
+        r"""
+        Encode the expression to a base64 string.
+        """
+    @staticmethod
+    def from_base64(b64:builtins.str) -> FilterExpression:
+        r"""
+        Create an expression from a base64-encoded expression string.
+        """
     @staticmethod
     def unknown() -> FilterExpression:
         r"""
@@ -1557,10 +1566,32 @@ class MapPolicy:
     def write_mode(self) -> MapWriteMode: ...
     @write_mode.setter
     def write_mode(self, value: MapWriteMode) -> None: ...
-    def __new__(cls, order:typing.Optional[MapOrder], write_mode:typing.Optional[MapWriteMode]) -> MapPolicy:
+    @property
+    def flags(self) -> MapWriteFlags: ...
+    @flags.setter
+    def flags(self, value: typing.Any) -> None: ...
+    @property
+    def persist_index(self) -> builtins.bool: ...
+    @persist_index.setter
+    def persist_index(self, value: builtins.bool) -> None: ...
+    def __new__(cls, order:typing.Optional[MapOrder]=None, write_mode:typing.Optional[MapWriteMode]=None, flags:typing.Optional[typing.Any]=None, persist_index:typing.Optional[builtins.bool]=None) -> MapPolicy:
         r"""
         Create a new MapPolicy with the specified order and write mode.
+        Optionally pass flags and persist_index for server 4.3+ behavior.
+        Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
         Default is unordered map with update write mode.
+        """
+    @classmethod
+    def new_with_flags(cls, order: typing.Optional[MapOrder], flags: typing.Any) -> MapPolicy:
+        r"""
+        Create a new MapPolicy with order and write flags (server 4.3+).
+        Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
+        """
+    @classmethod
+    def new_with_flags_and_persisted_index(cls, order: typing.Optional[MapOrder], flags: typing.Any) -> MapPolicy:
+        r"""
+        Create a new MapPolicy with order, write flags, and persisted index (server 4.3+).
+        Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
         """
 
 class MapReturnType:
@@ -2093,6 +2124,28 @@ class MapOrder(Enum):
     Order map by key, then value.
     """
 
+class MapWriteFlags(IntEnum):
+    DEFAULT = ...
+    r"""
+    Default. Allow create or update.
+    """
+    CREATE_ONLY = ...
+    r"""
+    If the key already exists, the item will be denied. If the key does not exist, a new item will be created.
+    """
+    UPDATE_ONLY = ...
+    r"""
+    If the key already exists, the item will be overwritten. If the key does not exist, the item will be denied.
+    """
+    NO_FAIL = ...
+    r"""
+    Do not raise error if a map item is denied due to write flag constraints.
+    """
+    PARTIAL = ...
+    r"""
+    Allow other valid map items to be committed if a map item is denied due to write flag constraints.
+    """
+
 class MapWriteMode(Enum):
     UPDATE = ...
     r"""
@@ -2312,6 +2365,8 @@ class ListOperation:
     @staticmethod
     def set(bin_name: builtins.str, index: builtins.int, value: typing.Any) -> ListOperation: ...
     @staticmethod
+    def set_with_policy(bin_name: builtins.str, policy: ListPolicy, index: builtins.int, value: typing.Any) -> ListOperation: ...
+    @staticmethod
     def remove(bin_name: builtins.str, index: builtins.int) -> ListOperation: ...
     @staticmethod
     def remove_range(bin_name: builtins.str, index: builtins.int, count: builtins.int) -> ListOperation: ...
@@ -2336,9 +2391,15 @@ class ListOperation:
     @staticmethod
     def increment(bin_name: builtins.str, index: builtins.int, value: builtins.int, policy: ListPolicy) -> ListOperation: ...
     @staticmethod
+    def increment_by_one(bin_name: builtins.str, index: builtins.int) -> ListOperation: ...
+    @staticmethod
+    def increment_by_one_with_policy(bin_name: builtins.str, policy: ListPolicy, index: builtins.int) -> ListOperation: ...
+    @staticmethod
     def sort(bin_name: builtins.str, flags: ListSortFlags) -> ListOperation: ...
     @staticmethod
     def set_order(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
+    @staticmethod
+    def set_order_with_index(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
     @staticmethod
     def get_by_index(bin_name: builtins.str, index: builtins.int, return_type: ListReturnType) -> ListOperation: ...
     @staticmethod
@@ -2373,6 +2434,8 @@ class ListOperation:
     def remove_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: ListReturnType) -> ListOperation: ...
     @staticmethod
     def create(bin_name: builtins.str, order: ListOrderType, pad: builtins.bool, persist_index: builtins.bool) -> ListOperation: ...
+    @staticmethod
+    def create_with_index(bin_name: builtins.str, order: ListOrderType) -> ListOperation: ...
 
 class MapOperation:
     r"""
@@ -2443,6 +2506,8 @@ class MapOperation:
     @staticmethod
     def set_map_policy(bin_name: builtins.str, policy: MapPolicy) -> MapOperation: ...
     @staticmethod
+    def set_policy(bin_name: builtins.str, policy: MapPolicy) -> MapOperation: ...
+    @staticmethod
     def get_by_key_relative_index_range(bin_name: builtins.str, key: typing.Any, index: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
     @staticmethod
     def get_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
@@ -2452,6 +2517,8 @@ class MapOperation:
     def remove_by_value_relative_rank_range(bin_name: builtins.str, value: typing.Any, rank: builtins.int, count: typing.Optional[builtins.int], return_type: MapReturnType) -> MapOperation: ...
     @staticmethod
     def create(bin_name: builtins.str, order: MapOrder) -> MapOperation: ...
+    @staticmethod
+    def create_with_index(bin_name: builtins.str, order: MapOrder) -> MapOperation: ...
 
 class BitOperation:
     r"""
@@ -2522,6 +2589,13 @@ class IndexTask:
 class DropIndexTask:
     r"""
     Task returned by drop_index() to track index deletion status.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+
+class ExecuteTask:
+    r"""
+    Task returned by query_operate() and query_execute_udf() to track background job completion.
     """
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...

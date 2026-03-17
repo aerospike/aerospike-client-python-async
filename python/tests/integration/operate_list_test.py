@@ -227,12 +227,12 @@ async def test_operate_list_set(client_and_key):
     })
 
     # Set element at index 1
-    record = await client.operate(
+    await client.operate(
         wp,
         key,
         [
             ListOperation.set("listbin", 1, 99)
-        ]
+        ],
     )
 
     # Verify the element was set
@@ -1353,11 +1353,18 @@ async def test_operate_list_create_context(client_and_key):
     record = await client.operate(
         wp,
         key,
-            [
-                ListOperation.append_items("oplistbin", input_list, list_policy),
-                Operation.get_bin("oplistbin")
-            ]
+        [
+            ListOperation.append_items("oplistbin", input_list, list_policy),
+            Operation.get_bin("oplistbin"),
+        ],
     )
+    created = record.bins.get("oplistbin")
+    # append_items returns count, get_bin returns the list - extract the list
+    if isinstance(created, list) and len(created) >= 2 and isinstance(created[0], (int, float)):
+        created_list = created[1]
+    else:
+        created_list = created
+    assert created_list == input_list
 
     # Append value 2 to new list created at index 3 (after the original 3 lists)
     record = await client.operate(
@@ -1392,4 +1399,124 @@ async def test_operate_list_create_context(client_and_key):
     assert isinstance(new_list, list)
     assert len(new_list) == 1
     assert new_list[0] == 2
+
+
+async def test_operate_list_set_with_policy(client_and_key):
+    """Test List set_with_policy (Item 2)."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    list_policy = ListPolicy(None, None)
+    await client.put(wp, key, {"listbin": [10, 20, 30]})
+
+    await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.set_with_policy("listbin", list_policy, 1, 99),
+            Operation.get_bin("listbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert rec.bins.get("listbin") == [10, 99, 30]
+
+
+async def test_operate_list_increment_by_one(client_and_key):
+    """Test List increment_by_one (Item 2)."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    await client.put(wp, key, {"listbin": [1, 2, 3]})
+
+    await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.increment_by_one("listbin", 1),
+            Operation.get_bin("listbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert rec.bins.get("listbin") == [1, 3, 3]
+
+
+async def test_operate_list_increment_by_one_with_policy(client_and_key):
+    """Test List increment_by_one_with_policy (Item 2)."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    list_policy = ListPolicy(None, None)
+    await client.put(wp, key, {"listbin": [5, 10, 15]})
+
+    await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.increment_by_one_with_policy("listbin", list_policy, 2),
+            Operation.get_bin("listbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert rec.bins.get("listbin") == [5, 10, 16]
+
+
+async def test_operate_list_create_with_index(client_and_key):
+    """Test List create_with_index (Item 2). Server creates list with persisted index."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    list_policy = ListPolicy(None, None)
+    await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.create_with_index("listbin", ListOrderType.ORDERED),
+            ListOperation.append("listbin", 1, list_policy),
+            ListOperation.append("listbin", 2, list_policy),
+            Operation.get_bin("listbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert rec.bins.get("listbin") == [1, 2]
+
+
+async def test_operate_list_set_order_with_index(client_and_key):
+    """Test List set_order_with_index (Item 2). Sets order and enables persisted index."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    list_policy = ListPolicy(None, None)
+    await client.operate(
+        wp,
+        key,
+        [
+            ListOperation.append("listbin", 1, list_policy),
+            ListOperation.append("listbin", 2, list_policy),
+            ListOperation.set_order_with_index("listbin", ListOrderType.ORDERED),
+            ListOperation.size("listbin"),
+            Operation.get_bin("listbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert rec.bins.get("listbin") == [1, 2]
 

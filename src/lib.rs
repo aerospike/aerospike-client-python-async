@@ -1220,6 +1220,48 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  ExecuteTask
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1)]
+    #[derive(Clone)]
+    pub struct ExecuteTask {
+        _as: aerospike_core::ExecuteTask,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl ExecuteTask {
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
+        pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status =
+                    task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete<'a>(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let task = self._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  Version
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1892,6 +1934,43 @@ pub enum Replica {
                 MapWriteMode::CreateOnly => aerospike_core::operations::maps::MapWriteMode::CreateOnly,
             }
         }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  MapWriteFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "MapWriteFlags", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum MapWriteFlags {
+        /// Default. Allow create or update.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// If the key already exists, the item will be denied. If the key does not exist, a new item will be created.
+        #[pyo3(name = "CREATE_ONLY")]
+        CreateOnly = 1,
+        /// If the key already exists, the item will be overwritten. If the key does not exist, the item will be denied.
+        #[pyo3(name = "UPDATE_ONLY")]
+        UpdateOnly = 2,
+        /// Do not raise error if a map item is denied due to write flag constraints.
+        #[pyo3(name = "NO_FAIL")]
+        NoFail = 4,
+        /// Allow other valid map items to be committed if a map item is denied due to write flag constraints.
+        #[pyo3(name = "PARTIAL")]
+        Partial = 8,
+    }
+
+    impl From<MapWriteFlags> for u8 {
+        fn from(flags: MapWriteFlags) -> Self {
+            flags as u8
+        }
+    }
+
+    #[pymethods]
+    impl MapWriteFlags {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2969,6 +3048,21 @@ pub enum Replica {
         /// Exposed for inspection; same string used by __eq__.
         pub fn _debug_inner(&self) -> String {
             format!("{:?}", self._as)
+        }
+
+        /// Encode the expression to a base64 string.
+        pub fn base64(&self) -> PyResult<String> {
+            self._as
+                .base64()
+                .map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[staticmethod]
+        /// Create an expression from a base64-encoded expression string.
+        pub fn from_base64(b64: &str) -> PyResult<FilterExpression> {
+            aerospike_core::expressions::from_base64(b64)
+                .map(|expr| FilterExpression { _as: expr })
+                .map_err(|e| PyErr::from(RustClientError(e)))
         }
 
         #[staticmethod]
@@ -7314,6 +7408,16 @@ pub enum Replica {
         ListRemoveByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, ListReturnType),
         /// List create operation - creates a list with order and persisted index.
         ListCreate(String, ListOrderType, bool, bool),
+        /// List set_with_policy operation - sets element at index with list policy.
+        ListSetWithPolicy(String, i64, PythonValue, ListPolicy),
+        /// List increment_by_one operation - increments element at index by 1.
+        ListIncrementByOne(String, i64),
+        /// List increment_by_one_with_policy operation - increments element at index by 1 with policy.
+        ListIncrementByOneWithPolicy(String, i64, ListPolicy),
+        /// List create_with_index operation - creates list with persisted index.
+        ListCreateWithIndex(String, ListOrderType),
+        /// List set_order_with_index operation - sets list order with persisted index.
+        ListSetOrderWithIndex(String, ListOrderType),
         /// Map size operation - gets map size.
         MapSize(String),
         /// Map clear operation - clears the map.
@@ -7386,6 +7490,10 @@ pub enum Replica {
         MapRemoveByValueRelativeRankRange(String, PythonValue, i64, Option<i64>, MapReturnType),
         /// Map create operation - creates a map with order.
         MapCreate(String, MapOrder),
+        /// Map create_with_index operation - creates map with persisted index.
+        MapCreateWithIndex(String, MapOrder),
+        /// Map set_policy operation - sets map policy (full policy including persist_index).
+        MapSetPolicy(String, MapPolicy),
         /// Bit resize operation - resizes byte array (requires BitPolicy).
         BitResize(String, i64, Option<BitwiseResizeFlags>, BitPolicy),
         /// Bit insert operation - inserts bytes (requires BitPolicy).
@@ -7619,6 +7727,15 @@ pub enum Replica {
             }
         }
 
+        /// Create a List set_with_policy operation (sets element at index with list policy).
+        #[staticmethod]
+        pub fn set_with_policy(bin_name: String, policy: ListPolicy, index: i64, value: PythonValue) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSetWithPolicy(bin_name, index, value, policy),
+            }
+        }
+
         /// Create a List remove operation (removes element at index).
         #[staticmethod]
         pub fn remove(bin_name: String, index: i64) -> Self {
@@ -7724,6 +7841,24 @@ pub enum Replica {
             ListOperation {
                 ctx: None,
                 op: OperationType::ListIncrement(bin_name, index, value, policy),
+            }
+        }
+
+        /// Create a List increment_by_one operation (increments element at index by 1).
+        #[staticmethod]
+        pub fn increment_by_one(bin_name: String, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListIncrementByOne(bin_name, index),
+            }
+        }
+
+        /// Create a List increment_by_one_with_policy operation (increments element at index by 1 with policy).
+        #[staticmethod]
+        pub fn increment_by_one_with_policy(bin_name: String, policy: ListPolicy, index: i64) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListIncrementByOneWithPolicy(bin_name, index, policy),
             }
         }
 
@@ -7899,6 +8034,24 @@ pub enum Replica {
             ListOperation {
                 op: OperationType::ListCreate(bin_name, order, pad, persist_index),
                 ctx: None,
+            }
+        }
+
+        /// Create a List create_with_index operation (creates list with persisted index).
+        #[staticmethod]
+        pub fn create_with_index(bin_name: String, order: ListOrderType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListCreateWithIndex(bin_name, order),
+            }
+        }
+
+        /// Create a List set_order_with_index operation (sets list order with persisted index).
+        #[staticmethod]
+        pub fn set_order_with_index(bin_name: String, order: ListOrderType) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListSetOrderWithIndex(bin_name, order),
             }
         }
 
@@ -8221,6 +8374,24 @@ pub enum Replica {
             MapOperation {
                 op: OperationType::MapCreate(bin_name, order),
                 ctx: None,
+            }
+        }
+
+        /// Create a Map create_with_index operation (creates map with persisted index).
+        #[staticmethod]
+        pub fn create_with_index(bin_name: String, order: MapOrder) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapCreateWithIndex(bin_name, order),
+            }
+        }
+
+        /// Create a Map set_policy operation (sets full map policy including order and persist_index).
+        #[staticmethod]
+        pub fn set_policy(bin_name: String, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapSetPolicy(bin_name, policy),
             }
         }
 
@@ -9086,7 +9257,10 @@ pub enum Replica {
     impl PartialEq for MapPolicy {
         fn eq(&self, other: &Self) -> bool {
             // Compare the underlying policy fields manually since core client doesn't implement PartialEq
-            self._as.order as u8 == other._as.order as u8 && self._as.write_mode as u8 == other._as.write_mode as u8
+            self._as.order as u8 == other._as.order as u8
+                && self._as.write_mode as u8 == other._as.write_mode as u8
+                && self._as.flags == other._as.flags
+                && self._as.persist_index == other._as.persist_index
         }
     }
 
@@ -9094,25 +9268,111 @@ pub enum Replica {
 
     impl Default for MapPolicy {
         fn default() -> Self {
-            Self::new(None, None)
+            MapPolicy {
+                _as: aerospike_core::operations::maps::MapPolicy::new(
+                    aerospike_core::operations::maps::MapOrder::Unordered,
+                    aerospike_core::operations::maps::MapWriteMode::Update,
+                ),
+            }
         }
+    }
+
+    fn flags_u8_to_map_write_flags(v: u8) -> MapWriteFlags {
+        match v {
+            0 => MapWriteFlags::Default,
+            1 => MapWriteFlags::CreateOnly,
+            2 => MapWriteFlags::UpdateOnly,
+            4 => MapWriteFlags::NoFail,
+            8 => MapWriteFlags::Partial,
+            _ => MapWriteFlags::Default,
+        }
+    }
+
+    /// Extract flags as u8 from MapWriteFlags or int (bitmask). Used for MapPolicy.
+    fn map_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+        if let Ok(m) = ob.extract::<MapWriteFlags>() {
+            return Ok(u8::from(m));
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i as u8);
+        }
+        Err(PyValueError::new_err("flags must be MapWriteFlags or int"))
     }
 
     #[gen_stub_pymethods]
     #[pymethods]
     impl MapPolicy {
         #[new]
+        #[pyo3(signature = (order=None, write_mode=None, flags=None, persist_index=None))]
         /// Create a new MapPolicy with the specified order and write mode.
+        /// Optionally pass flags and persist_index for server 4.3+ behavior.
+        /// Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
         /// Default is unordered map with update write mode.
-        pub fn new(order: Option<MapOrder>, write_mode: Option<MapWriteMode>) -> Self {
+        pub fn new(
+            py: Python<'_>,
+            order: Option<MapOrder>,
+            write_mode: Option<MapWriteMode>,
+            flags: Option<Py<PyAny>>,
+            persist_index: Option<bool>,
+        ) -> PyResult<Self> {
             let order = order.unwrap_or(MapOrder::Unordered);
-            let write_mode = write_mode.unwrap_or(MapWriteMode::Update);
-            MapPolicy {
-                _as: aerospike_core::operations::maps::MapPolicy::new(
-                    (&order).into(),
+            let core_order: aerospike_core::operations::maps::MapOrder = (&order).into();
+            let f = match &flags {
+                None => 0u8,
+                Some(obj) => map_policy_flags_from_py(&obj.bind(py))?,
+            };
+            let _as = if persist_index == Some(true) {
+                aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(
+                    core_order, f,
+                )
+            } else if f != 0 {
+                aerospike_core::operations::maps::MapPolicy::new_with_flags(core_order, f)
+            } else {
+                let write_mode = write_mode.unwrap_or(MapWriteMode::Update);
+                aerospike_core::operations::maps::MapPolicy::new(
+                    core_order,
                     (&write_mode).into(),
+                )
+            };
+            Ok(MapPolicy { _as })
+        }
+
+        /// Create a new MapPolicy with order and write flags (server 4.3+).
+        /// Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
+        #[classmethod]
+        fn new_with_flags(
+            _cls: &Bound<'_, pyo3::types::PyType>,
+            _py: Python<'_>,
+            order: Option<MapOrder>,
+            flags: &Bound<'_, PyAny>,
+        ) -> PyResult<Self> {
+            let order = order.unwrap_or(MapOrder::Unordered);
+            let f = map_policy_flags_from_py(flags)?;
+            Ok(MapPolicy {
+                _as: aerospike_core::operations::maps::MapPolicy::new_with_flags(
+                    (&order).into(),
+                    f,
                 ),
-            }
+            })
+        }
+
+        /// Create a new MapPolicy with order, write flags, and persisted index (server 4.3+).
+        /// Flags may be MapWriteFlags or int (bitmask), e.g. CREATE_ONLY | PARTIAL | NO_FAIL.
+        #[classmethod]
+        fn new_with_flags_and_persisted_index(
+            _cls: &Bound<'_, pyo3::types::PyType>,
+            _py: Python<'_>,
+            order: Option<MapOrder>,
+            flags: &Bound<'_, PyAny>,
+        ) -> PyResult<Self> {
+            let order = order.unwrap_or(MapOrder::Unordered);
+            let f = map_policy_flags_from_py(flags)?;
+            Ok(MapPolicy {
+                _as: aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(
+                    (&order).into(),
+                    f,
+                ),
+            })
         }
 
         #[getter]
@@ -9141,6 +9401,27 @@ pub enum Replica {
         #[setter]
         pub fn set_write_mode(&mut self, write_mode: MapWriteMode) {
             self._as.write_mode = (&write_mode).into();
+        }
+
+        #[getter]
+        pub fn get_flags(&self) -> MapWriteFlags {
+            flags_u8_to_map_write_flags(self._as.flags)
+        }
+
+        #[setter]
+        pub fn set_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
+            self._as.flags = map_policy_flags_from_py(flags)?;
+            Ok(())
+        }
+
+        #[getter]
+        pub fn get_persist_index(&self) -> bool {
+            self._as.persist_index
+        }
+
+        #[setter]
+        pub fn set_persist_index(&mut self, persist_index: bool) {
+            self._as.persist_index = persist_index;
         }
     }
 
@@ -9980,6 +10261,10 @@ pub enum Replica {
                             // Store the value for list_set operation
                             value_storage.push(value.clone().into());
                         }
+                        OperationType::ListSetWithPolicy(_, _, value, _) => {
+                            // Store the value for list set_with_policy operation
+                            value_storage.push(value.clone().into());
+                        }
                         OperationType::ListAppend(_, value, _) => {
                             // Store the value for list_append operation
                             value_storage.push(value.clone().into());
@@ -10118,13 +10403,16 @@ pub enum Replica {
                         OperationType::ListGetRangeFrom(_, _) | OperationType::ListPopRange(_, _, _) |
                         OperationType::ListPopRangeFrom(_, _) | OperationType::ListRemoveRangeFrom(_, _) |
                         OperationType::ListTrim(_, _, _) | OperationType::ListIncrement(_, _, _, _) |
+                        OperationType::ListIncrementByOne(_, _) | OperationType::ListIncrementByOneWithPolicy(_, _, _) |
                         OperationType::ListSort(_, _) | OperationType::ListSetOrder(_, _) |
+                        OperationType::ListCreateWithIndex(_, _) | OperationType::ListSetOrderWithIndex(_, _) |
                         OperationType::ListGetByIndex(_, _, _) | OperationType::ListGetByIndexRange(_, _, _, _) |
                         OperationType::ListGetByRank(_, _, _) | OperationType::ListGetByRankRange(_, _, _, _) |
                         OperationType::ListRemoveByIndex(_, _, _) | OperationType::ListRemoveByIndexRange(_, _, _, _) |
                         OperationType::ListRemoveByRank(_, _, _) | OperationType::ListRemoveByRankRange(_, _, _, _) |
                         OperationType::ListCreate(_, _, _, _) |
                         OperationType::MapSize(_) | OperationType::MapClear(_) |
+                        OperationType::MapCreateWithIndex(_, _) | OperationType::MapSetPolicy(_, _) |
                         OperationType::MapGetByIndex(_, _, _) | OperationType::MapRemoveByIndex(_, _, _) |
                         OperationType::MapGetByIndexRange(_, _, _, _) | OperationType::MapRemoveByIndexRange(_, _, _, _) |
                         OperationType::MapGetByIndexRangeFrom(_, _, _) | OperationType::MapRemoveByIndexRangeFrom(_, _, _) |
@@ -10249,6 +10537,30 @@ pub enum Replica {
                             value_idx += 1;
                             op
                         }
+                        OperationType::ListSetWithPolicy(bin_name, index, _, policy) => {
+                            use aerospike_core::operations::lists;
+                            let op = lists::set_with_policy(&policy._as, bin_name, *index, value_storage[value_idx].clone());
+                            value_idx += 1;
+                            op
+                        }
+                        OperationType::ListIncrementByOne(bin_name, index) => {
+                            use aerospike_core::operations::lists;
+                            lists::increment_by_one(bin_name, *index)
+                        }
+                        OperationType::ListIncrementByOneWithPolicy(bin_name, index, policy) => {
+                            use aerospike_core::operations::lists;
+                            lists::increment_by_one_with_policy(&policy._as, bin_name, *index)
+                        }
+                        OperationType::ListCreateWithIndex(bin_name, order) => {
+                            use aerospike_core::operations::lists;
+                            let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                            lists::create_with_index(bin_name, core_order)
+                        }
+                        OperationType::ListSetOrderWithIndex(bin_name, order) => {
+                            use aerospike_core::operations::lists;
+                            let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                            lists::set_order_with_index(bin_name, core_order)
+                        }
                         OperationType::ListRemove(bin_name, index) => {
                             // Use the operations module's list remove() function
                             use aerospike_core::operations::lists;
@@ -10329,7 +10641,7 @@ pub enum Replica {
                             // Use the operations module's list set_order() function
                             use aerospike_core::operations::lists;
                             let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
-                            lists::set_order(bin_name, core_order, vec![])
+                            lists::set_order(bin_name, core_order)
                         }
                         OperationType::ListGetByIndex(bin_name, index, return_type) => {
                             // Use the operations module's list get_by_index() function with return type
@@ -10715,6 +11027,15 @@ pub enum Replica {
                             use aerospike_core::operations::maps;
                             let core_order = policy._as.order;
                             maps::set_order(bin_name, core_order)
+                        }
+                        OperationType::MapSetPolicy(bin_name, policy) => {
+                            use aerospike_core::operations::maps;
+                            maps::set_policy(&policy._as, bin_name, vec![])
+                        }
+                        OperationType::MapCreateWithIndex(bin_name, order) => {
+                            use aerospike_core::operations::maps;
+                            let core_order: aerospike_core::operations::maps::MapOrder = order.into();
+                            maps::create_with_index(bin_name, core_order)
                         }
                         OperationType::MapGetByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
                             // Use the operations module's map get_by_key_relative_index_range() function
@@ -11467,10 +11788,13 @@ pub enum Replica {
                         match op {
                             OperationType::Put(_, _) | OperationType::Add(_, _) | OperationType::Append(_, _) |
                             OperationType::Prepend(_, _) | OperationType::Delete() | OperationType::Touch() |
-                            OperationType::ListSet(_, _, _) | OperationType::ListAppend(_, _, _) |
-                            OperationType::ListAppendItems(_, _, _) | OperationType::ListInsert(_, _, _, _) |
-                            OperationType::ListInsertItems(_, _, _, _) | OperationType::ListIncrement(_, _, _, _) |
+                            OperationType::ListSet(_, _, _) | OperationType::ListSetWithPolicy(_, _, _, _) |
+                            OperationType::ListAppend(_, _, _) | OperationType::ListAppendItems(_, _, _) |
+                            OperationType::ListInsert(_, _, _, _) | OperationType::ListInsertItems(_, _, _, _) |
+                            OperationType::ListIncrement(_, _, _, _) | OperationType::ListIncrementByOne(_, _) |
+                            OperationType::ListIncrementByOneWithPolicy(_, _, _) |
                             OperationType::ListSort(_, _) | OperationType::ListSetOrder(_, _) |
+                            OperationType::ListCreateWithIndex(_, _) | OperationType::ListSetOrderWithIndex(_, _) |
                             OperationType::ListRemove(_, _) | OperationType::ListRemoveRange(_, _, _) |
                             OperationType::ListRemoveRangeFrom(_, _) | OperationType::ListPop(_, _) |
                             OperationType::ListPopRange(_, _, _) | OperationType::ListPopRangeFrom(_, _) |
@@ -11484,7 +11808,8 @@ pub enum Replica {
                             OperationType::MapPut(_, _, _, _) | OperationType::MapPutItems(_, _, _) |
                             OperationType::MapIncrementValue(_, _, _, _) | OperationType::MapDecrementValue(_, _, _, _) |
                             OperationType::MapClear(_) | OperationType::MapSetMapPolicy(_, _) |
-                            OperationType::MapCreate(_, _) | OperationType::MapRemoveByKey(_, _, _) |
+                            OperationType::MapSetPolicy(_, _) | OperationType::MapCreate(_, _) |
+                            OperationType::MapCreateWithIndex(_, _) | OperationType::MapRemoveByKey(_, _, _) |
                             OperationType::MapRemoveByKeyRange(_, _, _, _) | OperationType::MapRemoveByIndex(_, _, _) |
                             OperationType::MapRemoveByIndexRange(_, _, _, _) |
                             OperationType::MapRemoveByIndexRangeFrom(_, _, _) | OperationType::MapRemoveByRank(_, _, _) |
@@ -11570,6 +11895,30 @@ pub enum Replica {
                                 value_idx += 1;
                                 op
                             }
+                            OperationType::ListSetWithPolicy(bin_name, index, _, policy) => {
+                                use aerospike_core::operations::lists;
+                                let op = lists::set_with_policy(&policy._as, bin_name, *index, value_storage[value_idx].clone());
+                                value_idx += 1;
+                                op
+                            }
+                            OperationType::ListIncrementByOne(bin_name, index) => {
+                                use aerospike_core::operations::lists;
+                                lists::increment_by_one(bin_name, *index)
+                            }
+                            OperationType::ListIncrementByOneWithPolicy(bin_name, index, policy) => {
+                                use aerospike_core::operations::lists;
+                                lists::increment_by_one_with_policy(&policy._as, bin_name, *index)
+                            }
+                            OperationType::ListCreateWithIndex(bin_name, order) => {
+                                use aerospike_core::operations::lists;
+                                let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                                lists::create_with_index(bin_name, core_order)
+                            }
+                            OperationType::ListSetOrderWithIndex(bin_name, order) => {
+                                use aerospike_core::operations::lists;
+                                let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
+                                lists::set_order_with_index(bin_name, core_order)
+                            }
                             OperationType::ListRemove(bin_name, index) => {
                                 use aerospike_core::operations::lists;
                                 lists::remove(bin_name, *index)
@@ -11636,7 +11985,7 @@ pub enum Replica {
                             OperationType::ListSetOrder(bin_name, order) => {
                                 use aerospike_core::operations::lists;
                                 let core_order: aerospike_core::operations::lists::ListOrderType = order.into();
-                                lists::set_order(bin_name, core_order, vec![])
+                                lists::set_order(bin_name, core_order)
                             }
                             OperationType::ListGetByIndex(bin_name, index, return_type) => {
                                 use aerospike_core::operations::lists;
@@ -11969,6 +12318,15 @@ pub enum Replica {
                                 use aerospike_core::operations::maps;
                                 let core_order = policy._as.order;
                                 maps::set_order(bin_name, core_order)
+                            }
+                            OperationType::MapSetPolicy(bin_name, policy) => {
+                                use aerospike_core::operations::maps;
+                                maps::set_policy(&policy._as, bin_name, vec![])
+                            }
+                            OperationType::MapCreateWithIndex(bin_name, order) => {
+                                use aerospike_core::operations::maps;
+                                let core_order: aerospike_core::operations::maps::MapOrder = order.into();
+                                maps::create_with_index(bin_name, core_order)
                             }
                             OperationType::MapGetByKeyRelativeIndexRange(bin_name, _, index, count, return_type) => {
                                 use aerospike_core::operations::maps;
@@ -12572,6 +12930,90 @@ pub enum Replica {
                         None => Ok(None),
                     }
                 })
+            })
+        }
+
+        /// Execute a query/scan and apply write operations to matching records (background job).
+        /// Returns an ExecuteTask to poll for completion. Supports scalar and expression write
+        /// operations (put, add, delete, touch, append, prepend, ExpOperation.write).
+        /// List/map/bit/HLL operations are not supported for background query.
+        ///
+        /// Args:
+        ///     write_policy: WritePolicy for the background operation.
+        ///     statement: Statement (namespace, set, optional filters).
+        ///     operations: List of Operation objects (e.g. Operation.put, Operation.add, Operation.delete, Operation.touch).
+        ///
+        /// Returns:
+        ///     ExecuteTask to monitor completion (query_status, wait_till_complete).
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[ExecuteTask]", imports=("typing")))]
+        pub fn query_operate<'a>(
+            &self,
+            write_policy: &WritePolicy,
+            statement: &Statement,
+            operations: Vec<Py<PyAny>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = write_policy._as.clone();
+            let client = self._as.clone();
+            let core_statement = statement._as.clone();
+
+            let rust_ops = extract_py_ops(&operations)?;
+            let (core_ops, _) = convert_op_types_to_core(&rust_ops).map_err(|e| {
+                PyValueError::new_err(format!(
+                    "query_operate supports scalar and expression operations (put, add, delete, touch, append, prepend, ExpOperation.write). List/map/bit/HLL operations are not supported for background query. {}",
+                    e.to_string()
+                ))
+            })?;
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let task = client
+                    .read()
+                    .await
+                    .query_operate(&policy, core_statement, &core_ops)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(ExecuteTask { _as: task })
+            })
+        }
+
+        /// Apply a UDF to records matching the statement filter (background job).
+        /// Returns an ExecuteTask to poll for completion. Records are not returned.
+        /// If the statement has no filter, the UDF is applied to all records in the namespace/set.
+        ///
+        /// Args:
+        ///     write_policy: WritePolicy for the background operation.
+        ///     statement: Statement (namespace, set, optional filters).
+        ///     package_name: Server-side UDF package name.
+        ///     function_name: UDF function to invoke.
+        ///     args: Optional arguments to pass to the UDF.
+        ///
+        /// Returns:
+        ///     ExecuteTask to monitor completion (query_status, wait_till_complete).
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[ExecuteTask]", imports=("typing")))]
+        pub fn query_execute_udf<'a>(
+            &self,
+            write_policy: &WritePolicy,
+            statement: &Statement,
+            package_name: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = write_policy._as.clone();
+            let client = self._as.clone();
+            let mut core_statement = statement._as.clone();
+            let rust_args = args.map(|a| a.into_iter().map(|v| v.into()).collect::<Vec<aerospike_core::Value>>());
+            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref());
+
+            pyo3_asyncio::future_into_py(py, async move {
+                let args_ref = rust_args.as_deref();
+                let task = client
+                    .read()
+                    .await
+                    .query_execute_udf(&policy, core_statement, &package_name, &function_name, args_ref)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(ExecuteTask { _as: task })
             })
         }
 
@@ -14660,6 +15102,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ListPolicy>()?;
     m.add_class::<MapOrder>()?;
     m.add_class::<MapWriteMode>()?;
+    m.add_class::<MapWriteFlags>()?;
     m.add_class::<MapReturnType>()?;
     m.add_class::<MapPolicy>()?;
     m.add_class::<BitwiseResizeFlags>()?;
@@ -14674,6 +15117,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<UdfRemoveTask>()?;
     m.add_class::<IndexTask>()?;
     m.add_class::<DropIndexTask>()?;
+    m.add_class::<ExecuteTask>()?;
     m.add_class::<Version>()?;
     m.add_class::<Node>()?;
     #[cfg(feature = "tls")]
