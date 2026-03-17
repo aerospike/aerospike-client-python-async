@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, MapOperation,
-                             MapPolicy, MapOrder, MapWriteMode, MapReturnType, ResultCode, CTX, Operation)
+                             MapPolicy, MapOrder, MapWriteMode, MapWriteFlags, MapReturnType, ResultCode, CTX, Operation)
 from aerospike_async.exceptions import ServerError
 
 
@@ -678,7 +678,7 @@ async def test_operate_map_get_by_index_range_from(client_and_key):
     await client.delete(wp, key)
 
     # Create a map with items
-    record = await client.operate(
+    await client.operate(
         wp,
         key,
         [
@@ -686,7 +686,7 @@ async def test_operate_map_get_by_index_range_from(client_and_key):
             MapOperation.put("mapbin", 3, 3, map_policy),
             MapOperation.put("mapbin", 2, 2, map_policy),
             MapOperation.put("mapbin", 1, 1, map_policy),
-        ]
+        ],
     )
 
     # Get by index range from index 2 to end
@@ -1235,9 +1235,7 @@ async def test_operate_map_remove_by_key_list(client_and_key):
     # First result: putItems size (7)
     assert 7 in results
 
-    # Second result: removeByKey("NOTFOUND") returns None
-    # Python may represent this as None or omit it - check for None in results
-    none_found = any(r is None for r in results)
+    # Second result: removeByKey("NOTFOUND") returns None (client may omit or include None)
 
     # Third result: removeByKey("Jim") returns value 98
     assert 98 in results
@@ -1245,16 +1243,11 @@ async def test_operate_map_remove_by_key_list(client_and_key):
     # Fourth result: removeByKeyList returns count (2 - Sally and Lenny, UNKNOWN doesn't exist)
     assert 2 in results
 
-    # Fifth result: removeByValue(55) returns key "Charlie"
-    charlie_found = False
-    for r in results:
-        if isinstance(r, list) and "Charlie" in r:
-            charlie_found = True
-            break
-        elif r == "Charlie":
-            charlie_found = True
-            break
-    assert charlie_found
+    # Fifth result: removeByValue(55) returns key "Charlie" (may be str or in a list)
+    assert any(
+        r == "Charlie" or (isinstance(r, list) and "Charlie" in r)
+        for r in results
+    )
 
     # Sixth result: map_size returns 3 (remaining items: John, Harry, Abe)
     assert 3 in results
@@ -1737,7 +1730,7 @@ async def test_operate_nested_map_value(client_and_key):
     # Delete record first to ensure clean state
     try:
         await client.delete(wp, key)
-    except:
+    except ServerError:
         pass  # Ignore if record doesn't exist
 
     # Create nested map
@@ -1847,4 +1840,133 @@ async def test_operate_map_create_context(client_and_key):
     assert isinstance(key3_map, dict)
     assert len(key3_map) == 1
     assert key3_map["key31"] == 99
+
+
+async def test_operate_map_put_with_write_flags(client_and_key):
+    """Test Map put with MapPolicy.new_with_flags (MapWriteFlags). Server 4.3+."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    create_only = MapPolicy.new_with_flags(MapOrder.UNORDERED, MapWriteFlags.CREATE_ONLY)
+    update_only = MapPolicy.new_with_flags(MapOrder.UNORDERED, MapWriteFlags.UPDATE_ONLY)
+
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put("mapbin", "a", 1, create_only),
+            MapOperation.put("mapbin", "b", 2, create_only),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["mapbin"])
+    assert rec.bins.get("mapbin") == {"a": 1, "b": 2}
+
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put("mapbin", "a", 10, update_only),
+            MapOperation.put("mapbin", "b", 20, update_only),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["mapbin"])
+    assert rec.bins.get("mapbin") == {"a": 10, "b": 20}
+
+
+async def test_operate_map_create_with_index(client_and_key):
+    """Test Map create_with_index (persisted index). Server 4.3+."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    policy = MapPolicy(None, None)
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.create_with_index("mapbin", MapOrder.KEY_ORDERED),
+            MapOperation.put("mapbin", "k1", 1, policy),
+            MapOperation.put("mapbin", "k2", 2, policy),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["mapbin"])
+    assert rec.bins.get("mapbin") == {"k1": 1, "k2": 2}
+
+
+async def test_operate_map_set_policy(client_and_key):
+    """Test Map set_policy (full policy including persist_index)."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put("mapbin", "x", 1, policy),
+            MapOperation.put("mapbin", "y", 2, policy),
+            MapOperation.set_policy("mapbin", MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)),
+            MapOperation.size("mapbin"),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["mapbin"])
+    assert rec.bins.get("mapbin") == {"x": 1, "y": 2}
+
+
+async def test_operate_map_put_items_partial(client_and_key):
+    """Test Map put_items with CREATE_ONLY | PARTIAL | NO_FAIL flag combinations."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    default_policy = MapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
+    input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", input_map, default_policy),
+            MapOperation.put_items("mapbin2", input_map, default_policy),
+        ],
+    )
+
+    # sourceMap: key 3 is new, key 5 already exists. CREATE_ONLY | PARTIAL | NO_FAIL adds 3 only.
+    # CREATE_ONLY | NO_FAIL (no PARTIAL) on bin2: denied items are skipped, no partial add.
+    # Stub uses IntEnum so int() is valid; runtime enum is from Rust so int() required for |.
+    flags_partial = (
+        int(MapWriteFlags.CREATE_ONLY) | int(MapWriteFlags.PARTIAL) | int(MapWriteFlags.NO_FAIL)
+    )
+    flags_no_fail = int(MapWriteFlags.CREATE_ONLY) | int(MapWriteFlags.NO_FAIL)
+    policy_partial = MapPolicy(MapOrder.UNORDERED, None, flags_partial, None)
+    policy_no_fail = MapPolicy(MapOrder.UNORDERED, None, flags_no_fail, None)
+    source_items = [(3, 3), (5, 15)]
+
+    await client.operate(
+        wp,
+        key,
+        [
+            MapOperation.put_items("mapbin", source_items, policy_partial),
+            MapOperation.put_items("mapbin2", source_items, policy_no_fail),
+        ],
+    )
+
+    rec = await client.get(rp, key, ["mapbin", "mapbin2"])
+    assert rec.bins.get("mapbin") is not None
+    assert len(rec.bins["mapbin"]) == 5
+    assert rec.bins.get("mapbin2") is not None
+    assert len(rec.bins["mapbin2"]) == 4
 

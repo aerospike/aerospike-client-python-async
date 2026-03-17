@@ -25,6 +25,7 @@ from aerospike_async import (
     ListSortFlags,
     ListWriteFlags,
     MapOrder,
+    MapWriteFlags,
     MapWriteMode,
     TaskStatus,
     UDFLang,
@@ -190,6 +191,28 @@ class TestMapWriteMode:
         assert MapWriteMode.UPDATE != MapWriteMode.UPDATE_ONLY
         assert MapWriteMode.UPDATE_ONLY != MapWriteMode.CREATE_ONLY
         assert MapWriteMode.UPDATE != MapWriteMode.CREATE_ONLY
+
+
+class TestMapWriteFlags:
+
+    def test_variants_exist(self):
+        assert MapWriteFlags.DEFAULT is not None
+        assert MapWriteFlags.CREATE_ONLY is not None
+        assert MapWriteFlags.UPDATE_ONLY is not None
+        assert MapWriteFlags.NO_FAIL is not None
+        assert MapWriteFlags.PARTIAL is not None
+
+    def test_variants_distinct(self):
+        flags = [
+            MapWriteFlags.DEFAULT,
+            MapWriteFlags.CREATE_ONLY,
+            MapWriteFlags.UPDATE_ONLY,
+            MapWriteFlags.NO_FAIL,
+            MapWriteFlags.PARTIAL,
+        ]
+        for i, a in enumerate(flags):
+            for b in flags[i + 1 :]:
+                assert a != b
 
 
 class TestTaskStatus:

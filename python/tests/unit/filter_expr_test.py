@@ -211,3 +211,39 @@ class TestFilterExprCreate:
     def test_unknown(self):
         expr = fe.unknown()
         assert isinstance(expr, fe)
+
+
+class TestFilterExprBase64:
+    """Test FilterExpression.base64() and FilterExpression.from_base64()."""
+
+    def test_base64_roundtrip_int_eq(self):
+        expr = fe.eq(fe.int_bin("x"), fe.int_val(42))
+        b64 = expr.base64()
+        assert isinstance(b64, str)
+        assert len(b64) > 0
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
+
+    def test_base64_roundtrip_string_compare(self):
+        expr = fe.eq(fe.string_bin("name"), fe.string_val("alice"))
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
+
+    def test_base64_roundtrip_complex_expression(self):
+        expr = fe.and_(
+            exps=[
+                fe.ge(fe.int_bin("a"), fe.int_val(1)),
+                fe.le(fe.int_bin("a"), fe.int_val(10)),
+            ]
+        )
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
+
+    def test_from_base64_invalid_raises(self):
+        import pytest
+        from aerospike_async.exceptions import BadResponse
+
+        with pytest.raises(BadResponse):
+            fe.from_base64("not-valid-base64!!!")

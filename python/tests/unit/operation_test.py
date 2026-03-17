@@ -105,6 +105,28 @@ class TestListOperation:
         op = ListOperation.set("listbin", 0, "value")
         assert isinstance(op, ListOperation)
 
+    def test_set_with_policy(self):
+        lp = ListPolicy(None, None)
+        op = ListOperation.set_with_policy("listbin", lp, 0, "value")
+        assert isinstance(op, ListOperation)
+
+    def test_increment_by_one(self):
+        op = ListOperation.increment_by_one("listbin", 0)
+        assert isinstance(op, ListOperation)
+
+    def test_increment_by_one_with_policy(self):
+        lp = ListPolicy(None, None)
+        op = ListOperation.increment_by_one_with_policy("listbin", lp, 0)
+        assert isinstance(op, ListOperation)
+
+    def test_create_with_index(self):
+        op = ListOperation.create_with_index("listbin", ListOrderType.ORDERED)
+        assert isinstance(op, ListOperation)
+
+    def test_set_order_with_index(self):
+        op = ListOperation.set_order_with_index("listbin", ListOrderType.ORDERED)
+        assert isinstance(op, ListOperation)
+
     def test_remove(self):
         op = ListOperation.remove("listbin", 0)
         assert isinstance(op, ListOperation)
@@ -226,8 +248,17 @@ class TestMapOperation:
         op = MapOperation.set_map_policy("mapbin", mp)
         assert isinstance(op, MapOperation)
 
+    def test_set_policy(self):
+        mp = MapPolicy(None, None)
+        op = MapOperation.set_policy("mapbin", mp)
+        assert isinstance(op, MapOperation)
+
     def test_create(self):
         op = MapOperation.create("mapbin", MapOrder.KEY_ORDERED)
+        assert isinstance(op, MapOperation)
+
+    def test_create_with_index(self):
+        op = MapOperation.create_with_index("mapbin", MapOrder.KEY_ORDERED)
         assert isinstance(op, MapOperation)
 
     def test_set_context(self):

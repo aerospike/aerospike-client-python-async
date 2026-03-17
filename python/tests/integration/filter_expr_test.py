@@ -13,11 +13,21 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import uuid
+
 import pytest
-from aerospike_async import ReadPolicy, Record
+from aerospike_async import (
+    ReadPolicy,
+    Record,
+    Key,
+    WritePolicy,
+    Statement,
+    QueryPolicy,
+    PartitionFilter,
+    FilterExpression as fe,
+)
 from aerospike_async.exceptions import ServerError, ResultCode
-from aerospike_async import FilterExpression as fe
-from fixtures import TestFixtureInsertRecord
+from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
 class TestFilterExprUsage(TestFixtureInsertRecord):
@@ -137,3 +147,59 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         with pytest.raises(ServerError) as exc_info:
             await client.get(rp, key, ["mapbin"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
+
+
+class TestFilterExprBase64Query(TestFixtureConnection):
+    """Use FilterExpression restored from base64 in a query and verify result count."""
+
+    NAMESPACE = "test"
+    BIN_NAME = "bin"
+
+    @pytest.fixture
+    async def client_and_data(self, client):
+        """Create a set with records bin=0..19 for expression query tests. Unique set per run to avoid CI collisions."""
+        set_name = f"base64_expr_{uuid.uuid4().hex[:8]}"
+        wp = WritePolicy()
+        for i in range(20):
+            key = Key(self.NAMESPACE, set_name, i)
+            await client.put(wp, key, {self.BIN_NAME: i})
+        yield client, set_name
+
+    async def test_query_with_restored_expression_single_match(self, client_and_data):
+        """Round-trip expression to base64, use restored expr in query; expect count 1."""
+        client, set_name = client_and_data
+        expr = fe.eq(fe.int_bin(self.BIN_NAME), fe.int_val(1))
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+
+        qp = QueryPolicy()
+        qp.filter_expression = restored
+        stmt = Statement(self.NAMESPACE, set_name, None)
+        records = await client.query(qp, PartitionFilter.all(), stmt)
+        count = 0
+        async for _ in records:
+            count += 1
+        records.close()
+        assert count == 1
+
+    async def test_query_with_restored_expression_range(self, client_and_data):
+        """Round-trip range expression (bin >= 10 and bin < 20), query; expect count 10."""
+        client, set_name = client_and_data
+        expr = fe.and_(
+            exps=[
+                fe.ge(fe.int_bin(self.BIN_NAME), fe.int_val(10)),
+                fe.lt(fe.int_bin(self.BIN_NAME), fe.int_val(20)),
+            ]
+        )
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+
+        qp = QueryPolicy()
+        qp.filter_expression = restored
+        stmt = Statement(self.NAMESPACE, set_name, None)
+        records = await client.query(qp, PartitionFilter.all(), stmt)
+        count = 0
+        async for _ in records:
+            count += 1
+        records.close()
+        assert count == 10
