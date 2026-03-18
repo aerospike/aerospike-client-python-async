@@ -32,6 +32,22 @@ from aerospike_async.exceptions import (
     ValueError,
     ClientError,
     ResultCode,
+    RecordError,
+    IndexError as AsyncIndexError,
+    SecurityError,
+    RecordNotFound,
+    GenerationError,
+    InvalidRequest,
+    RecordExistsError,
+    BinTypeError,
+    RecordTooBig,
+    BinNotFound,
+    FilteredOut,
+    OpNotApplicable,
+    IndexNotFound,
+    IndexFoundError,
+    NotAuthenticated,
+    SecurityNotEnabled,
 )
 
 
@@ -98,6 +114,77 @@ class TestServerError:
         """Test that the message is preserved."""
         err = ServerError("something broke", ResultCode.SERVER_ERROR)
         assert "something broke" in str(err)
+
+
+class TestServerErrorSubclasses:
+    """Test ServerError subclasses (construction, isinstance, except hierarchy)."""
+
+    def test_subclass_constructable(self):
+        """Each subclass is constructable with (message, result_code, in_doubt)."""
+        pairs = [
+            (RecordNotFound, ResultCode.KEY_NOT_FOUND_ERROR),
+            (GenerationError, ResultCode.GENERATION_ERROR),
+            (InvalidRequest, ResultCode.PARAMETER_ERROR),
+            (RecordExistsError, ResultCode.KEY_EXISTS_ERROR),
+            (BinTypeError, ResultCode.BIN_TYPE_ERROR),
+            (RecordTooBig, ResultCode.RECORD_TOO_BIG),
+            (BinNotFound, ResultCode.BIN_NOT_FOUND),
+            (FilteredOut, ResultCode.FILTERED_OUT),
+            (OpNotApplicable, ResultCode.OP_NOT_APPLICABLE),
+            (IndexNotFound, ResultCode.INDEX_NOT_FOUND),
+            (IndexFoundError, ResultCode.INDEX_FOUND),
+            (NotAuthenticated, ResultCode.NOT_AUTHENTICATED),
+            (SecurityNotEnabled, ResultCode.SECURITY_NOT_ENABLED),
+        ]
+        for exc_cls, rc in pairs:
+            err = exc_cls("msg", rc, False)
+            assert err.result_code == rc
+            assert err.in_doubt is False
+            assert "msg" in str(err)
+
+    def test_subclass_isinstance_server_error(self):
+        """Subclass instances are isinstance(exc, ServerError)."""
+        err = RecordNotFound("x", ResultCode.KEY_NOT_FOUND_ERROR)
+        assert isinstance(err, ServerError)
+        assert isinstance(InvalidRequest("x", ResultCode.PARAMETER_ERROR), ServerError)
+
+    def test_subclass_isinstance_grouping_base(self):
+        """Grouped subclasses are isinstance of their grouping base."""
+        assert isinstance(RecordNotFound("x", ResultCode.KEY_NOT_FOUND_ERROR), RecordError)
+        assert isinstance(BinNotFound("x", ResultCode.BIN_NOT_FOUND), RecordError)
+        assert isinstance(IndexNotFound("x", ResultCode.INDEX_NOT_FOUND), AsyncIndexError)
+        assert isinstance(NotAuthenticated("x", ResultCode.NOT_AUTHENTICATED), SecurityError)
+
+    def test_subclass_result_code_in_doubt(self):
+        """Subclass instances expose result_code and in_doubt."""
+        err = GenerationError("g", ResultCode.GENERATION_ERROR, True)
+        assert err.result_code == ResultCode.GENERATION_ERROR
+        assert err.in_doubt is True
+
+    def test_except_server_error_catches_subclasses(self):
+        """except ServerError catches subclass instances."""
+        try:
+            raise RecordNotFound("not found", ResultCode.KEY_NOT_FOUND_ERROR)
+        except ServerError:
+            pass
+        else:
+            raise AssertionError("RecordNotFound should be caught by except ServerError")
+
+    def test_except_record_error_catches_record_not_found_not_invalid_request(self):
+        """except RecordError catches RecordNotFound but not InvalidRequest."""
+        try:
+            raise RecordNotFound("x", ResultCode.KEY_NOT_FOUND_ERROR)
+        except RecordError:
+            pass
+        except InvalidRequest:
+            raise AssertionError("RecordNotFound should not be InvalidRequest")
+
+        try:
+            raise InvalidRequest("x", ResultCode.PARAMETER_ERROR)
+        except RecordError:
+            raise AssertionError("InvalidRequest should not be caught by except RecordError")
+        except InvalidRequest:
+            pass
 
 
 class TestResultCode:

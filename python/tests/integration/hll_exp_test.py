@@ -1,3 +1,18 @@
+# Copyright 2023-2026 Aerospike, Inc.
+#
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
 """Tests for HLL FilterExpression methods."""
 
 import pytest
@@ -5,7 +20,7 @@ from aerospike_async import (
     ExpType, FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     HllOperation, HLLPolicy, ListReturnType,
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureConnection
 
 
@@ -42,7 +57,7 @@ class TestHLLExp(TestFixtureConnection):
 
         # Negative: count == 0 should not match
         rp.filter_expression = fe.eq(fe.hll_get_count(fe.hll_bin("hll1")), fe.int_val(0))
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -68,7 +83,7 @@ class TestHLLExp(TestFixtureConnection):
             ),
             fe.hll_get_union_count(fe.list_val(hlls), fe.hll_bin("hll1")),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -95,7 +110,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_intersect_count(fe.list_val([hll2]), fe.hll_bin("hll1")),
             fe.hll_get_intersect_count(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -120,7 +135,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_similarity(fe.list_val([hll2]), fe.hll_bin("hll1")),
             fe.hll_get_similarity(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -147,7 +162,7 @@ class TestHLLExp(TestFixtureConnection):
                 fe.hll_describe(fe.hll_bin("hll2")), [],
             ),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -174,7 +189,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_may_contain(fe.list_val(["new_val"]), fe.hll_bin("hll2")),
             fe.int_val(1),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll2"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -197,7 +212,7 @@ class TestHLLExp(TestFixtureConnection):
                 fe.hll_add(HLLPolicy(), fe.list_val(["new_val"]), fe.hll_bin("hll2")),
             ),
         )
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, hll_key, ["hll1"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 

@@ -20,7 +20,7 @@ Tests different write behaviors based on record existence.
 
 import pytest
 from aerospike_async import Key, WritePolicy, ReadPolicy, RecordExistsAction
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, RecordNotFound, RecordExistsError
 from fixtures import TestFixtureConnection
 
 
@@ -125,7 +125,7 @@ class TestReplaceOnly(TestFixtureConnection):
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(RecordNotFound) as exc_info:
             await client.put(wp, key, {"bin": "value"})
 
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -204,7 +204,7 @@ class TestUpdateOnly(TestFixtureConnection):
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.UPDATE_ONLY
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(RecordNotFound) as exc_info:
             await client.put(wp, key, {"bin": "value"})
 
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -251,7 +251,7 @@ class TestCreateOnly(TestFixtureConnection):
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.CREATE_ONLY
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(RecordExistsError) as exc_info:
             await client.put(wp, key, {"bin2": "value2"})
 
         assert exc_info.value.result_code == ResultCode.KEY_EXISTS_ERROR

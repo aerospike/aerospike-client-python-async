@@ -18,7 +18,7 @@ import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, BitOperation,
                              BitPolicy, BitwiseWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions)
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
 
 @pytest_asyncio.fixture
@@ -131,12 +131,12 @@ async def test_operate_bit_bin(client_and_key):
 
     # Test error cases
     # Bin doesn't exist
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(BinNotFound) as exi:
         await client.operate(wp, key, [BitOperation.set("b", 1, 1, bit0, put_mode)])
     assert exi.value.result_code == ResultCode.BIN_NOT_FOUND
 
     # CREATE_ONLY on existing bin
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(InvalidRequest) as exi:
         await client.operate(wp, key, [BitOperation.set("bitbin", 1, 1, bit0, add_mode)])
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
 
@@ -488,7 +488,7 @@ async def test_operate_bit_add(client_and_key):
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     await client.put(wp, key, {"bitbin": initial_bytes})
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(
             wp,
             key,
@@ -570,7 +570,7 @@ async def test_operate_bit_subtract(client_and_key):
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
     await client.put(wp, key, {"bitbin": initial_bytes})
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(
             wp,
             key,
@@ -898,71 +898,70 @@ async def test_operate_bit_null_blob(client_and_key):
     initial_bytes = bytes([])
     await client.put(wp, key, {"bitbin": initial_bytes})
 
-    # All these operations should fail with ServerError
-    # Most operations fail with OP_NOT_APPLICABLE, remove fails with PARAMETER_ERROR
-    with pytest.raises(ServerError) as exi:
+    # All these operations should fail with OpNotApplicable (OP_NOT_APPLICABLE) or InvalidRequest (PARAMETER_ERROR)
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.set("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [getattr(BitOperation, "or")("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.xor("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [getattr(BitOperation, "and")("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [getattr(BitOperation, "not")("bitbin", 0, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.lshift("bitbin", 0, 1, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.rshift("bitbin", 0, 1, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     # Remove should fail with PARAMETER_ERROR
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(InvalidRequest) as exi:
         await client.operate(wp, key, [BitOperation.remove("bitbin", 0, 1, policy)])
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.add("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.subtract("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.set_int("bitbin", 0, 1, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     # Read operations should also fail with OP_NOT_APPLICABLE
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.get("bitbin", 0, 1)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.count("bitbin", 0, 1)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.lscan("bitbin", 0, 1, True)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.rscan("bitbin", 0, 1, True)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(OpNotApplicable) as exi:
         await client.operate(wp, key, [BitOperation.get_int("bitbin", 0, 1, False)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 

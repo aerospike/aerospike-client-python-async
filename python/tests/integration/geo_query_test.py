@@ -25,7 +25,7 @@ from aerospike_async import (
     CollectionIndexType,
     IndexType,
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 
@@ -74,6 +74,7 @@ class TestGeoQuery(TestFixtureConnection):
             await asyncio.sleep(2.0)
         except ServerError as e:
             if e.result_code == ResultCode.INDEX_FOUND:
+                assert isinstance(e, IndexFoundError)
                 print(f"Index {index_name} already exists, continuing...")
                 await asyncio.sleep(0.5)
             else:

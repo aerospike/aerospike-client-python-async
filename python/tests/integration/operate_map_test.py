@@ -18,7 +18,7 @@ import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, MapOperation,
                              MapPolicy, MapOrder, MapWriteMode, MapWriteFlags, MapReturnType, ResultCode, CTX, Operation)
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ServerError, RecordNotFound
 
 
 @pytest_asyncio.fixture
@@ -1278,7 +1278,7 @@ async def test_operate_map_remove_by_key_list_for_non_existing_key(client_and_ke
     await client.delete(wp, key)
 
     # Try to remove from a non-existing key - should raise KEY_NOT_FOUND_ERROR
-    with pytest.raises(ServerError) as exi:
+    with pytest.raises(RecordNotFound) as exi:
         await client.operate(
             wp,
             key,

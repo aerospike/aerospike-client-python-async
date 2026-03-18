@@ -158,7 +158,7 @@ class TestClientError:
         
         # But they are different types
         assert type(client_error) == ClientError
-        assert type(server_error) == ServerError
+        assert isinstance(server_error, ServerError)
         assert type(connection_error) == ConnectionError
         assert type(value_error) == ValueError
         assert type(timeout_error) == TimeoutError

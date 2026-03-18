@@ -26,7 +26,7 @@ from aerospike_async import (
     PartitionFilter,
     FilterExpression as fe,
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
@@ -46,7 +46,7 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, key, ["brand", "year"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -85,7 +85,7 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(different_list))
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, key, ["listbin"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
@@ -144,7 +144,7 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(different_map))
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(FilteredOut) as exc_info:
             await client.get(rp, key, ["mapbin"])
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 

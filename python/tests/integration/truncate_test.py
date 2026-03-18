@@ -15,7 +15,7 @@
 
 import time
 import pytest
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest
 from fixtures import TestFixtureInsertRecord
 
 
@@ -45,3 +45,4 @@ class TestTruncate(TestFixtureInsertRecord):
             await client.truncate("test", isolated_set, future_threshold)
         except ServerError as e:
             assert e.result_code == ResultCode.PARAMETER_ERROR
+            assert isinstance(e, InvalidRequest)

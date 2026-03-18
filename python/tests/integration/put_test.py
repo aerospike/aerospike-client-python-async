@@ -18,7 +18,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest
 
 
 @pytest_asyncio.fixture
@@ -339,7 +339,7 @@ async def test_put_bin_limit(client_and_key):
         bins[str(num)] = num
 
     # Try to put the record - should fail with too many bins
-    # The server will reject this with a ParameterError
-    with pytest.raises(ServerError) as exi:
+    # The server will reject this with a PARAMETER_ERROR
+    with pytest.raises(InvalidRequest) as exi:
         await client.put(wp, key, bins)
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR

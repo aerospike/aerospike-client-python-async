@@ -182,7 +182,7 @@ create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::
 // ServerError is a custom exception with a result_code property
 // Note: It extends PyException directly, but Python-side it should be treated as an AerospikeError subclass
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
-#[pyclass(extends = PyException)]
+#[pyclass(extends = PyException, subclass)]
 pub struct ServerError {
     result_code: CoreResultCode,
     in_doubt: bool,
@@ -209,13 +209,23 @@ impl ServerError {
     }
 }
 
-// Helper function to create ServerError as a PyErr
+// Resolve the Python ServerError subclass for the given result code (for dispatch).
+fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> PyResult<pyo3::Bound<'_, pyo3::types::PyAny>> {
+    let module = py.import("aerospike_async.exceptions")?;
+    let func = module.getattr("_get_server_error_class")?;
+    let rc_wrapper = ResultCode(result_code);
+    let py_rc = Py::new(py, rc_wrapper)?;
+    func.call1((py_rc,))
+}
+
+// Helper function to create ServerError (or subclass) as a PyErr
 fn create_server_error(message: String, result_code: CoreResultCode, in_doubt: bool) -> PyErr {
     Python::attach(|py| -> PyErr {
-        let server_error_type = py.get_type::<ServerError>();
-        let result_code_wrapper = ResultCode(result_code);
-        match server_error_type.call1((message.clone(), result_code_wrapper, in_doubt)) {
-            Ok(server_error_obj) => PyErr::from_value(server_error_obj),
+        let exc_cls = resolve_server_error_class(py, result_code)
+            .unwrap_or_else(|_| py.get_type::<ServerError>().into_any());
+        let rc = ResultCode(result_code);
+        match exc_cls.call1((message.clone(), rc, in_doubt)) {
+            Ok(obj) => PyErr::from_value(obj),
             Err(e) => e,
         }
     })

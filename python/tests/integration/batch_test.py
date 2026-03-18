@@ -26,7 +26,7 @@ from aerospike_async import (
     BatchReadOp, BatchWriteOp, BatchDeleteOp,
     RecordExistsAction,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError, RecordNotFound
 
 @pytest_asyncio.fixture
 async def client_and_keys():
@@ -248,6 +248,7 @@ async def test_batch_delete(client_and_keys):
             assert rec is None
         except ServerError as e:
             assert e.result_code == ResultCode.KEY_NOT_FOUND_ERROR
+            assert isinstance(e, RecordNotFound)
 
 async def test_batch_delete_key_not_found(client_and_keys):
     """Test batch delete with non-existent key.

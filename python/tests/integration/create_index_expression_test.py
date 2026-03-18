@@ -22,7 +22,7 @@ from aerospike_async import (
     FilterExpression,
     TaskStatus,
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 
@@ -173,7 +173,7 @@ class TestCreateIndexUsingExpression(TestFixtureConnection):
         await task.wait_till_complete()
 
         # Try to create another index with same name - should fail
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(IndexFoundError) as exc_info:
             await client.create_index_using_expression(
                 namespace="test",
                 set_name="test",

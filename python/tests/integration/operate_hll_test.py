@@ -23,7 +23,7 @@ from fixtures import TestFixtureConnection
 from aerospike_async import (
     Key, WritePolicy, ReadPolicy, HllOperation, HLLWriteFlags, Operation
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
 
 async def safe_delete(client, key):
@@ -72,14 +72,14 @@ class TestHllInit(TestFixtureConnection):
         await safe_delete(client, key)
 
         # Index bits too low (min is 4)
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(InvalidRequest) as exc_info:
             await client.operate(WritePolicy(), key, [
                 HllOperation.init("hll", 2)
             ])
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
         # Index bits too high (max is 16)
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(InvalidRequest) as exc_info:
             await client.operate(WritePolicy(), key, [
                 HllOperation.init("hll", 20)
             ])
@@ -257,7 +257,7 @@ class TestHllFold(TestFixtureConnection):
         ])
 
         # Try to fold up to index_bits=10 - should fail
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(OpNotApplicable) as exc_info:
             await client.operate(WritePolicy(), key, [
                 HllOperation.fold("hll", 10)
             ])
@@ -290,7 +290,7 @@ class TestHllFlags(TestFixtureConnection):
         await safe_delete(client, key)
 
         # Init fails on non-existent bin with UPDATE_ONLY
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(BinNotFound) as exc_info:
             await client.operate(WritePolicy(), key, [
                 HllOperation.init("hll", 8, flags=int(HLLWriteFlags.UPDATE_ONLY))
             ])

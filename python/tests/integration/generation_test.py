@@ -20,7 +20,7 @@ Tests that generation policies work correctly for concurrent update scenarios.
 
 import pytest
 from aerospike_async import Key, WritePolicy, ReadPolicy, GenerationPolicy
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, GenerationError
 from fixtures import TestFixtureConnection
 
 
@@ -101,7 +101,7 @@ class TestGeneration(TestFixtureConnection):
         wp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
         wp.generation = 9999  # Wrong generation
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(GenerationError) as exc_info:
             await client.put(wp, key, {"bin": "value2"})
 
         assert exc_info.value.result_code == ResultCode.GENERATION_ERROR
@@ -160,7 +160,7 @@ class TestGeneration(TestFixtureConnection):
         wp.generation_policy = GenerationPolicy.EXPECT_GEN_GREATER
         wp.generation = current_gen
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(GenerationError) as exc_info:
             await client.put(wp, key, {"bin": "value2"})
 
         assert exc_info.value.result_code == ResultCode.GENERATION_ERROR
@@ -194,7 +194,7 @@ class TestGeneration(TestFixtureConnection):
         wp.generation_policy = GenerationPolicy.EXPECT_GEN_GREATER
         wp.generation = 1
 
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(GenerationError) as exc_info:
             await client.put(wp, key, {"bin": "value4"})
 
         assert exc_info.value.result_code == ResultCode.GENERATION_ERROR

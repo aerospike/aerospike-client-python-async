@@ -22,7 +22,7 @@ import asyncio
 import pytest
 import os
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
 PROPAGATION_RETRIES = 5
 PROPAGATION_DELAY = 0.01
@@ -94,6 +94,7 @@ async def security_enabled():
             yield True
         except ServerError as e:
             if e.result_code == ResultCode.SECURITY_NOT_ENABLED:
+                assert isinstance(e, SecurityNotEnabled)
                 pytest.skip("Security is not enabled on the server")
             else:
                 yield True
