@@ -15,7 +15,7 @@
 
 import pytest
 from aerospike_async import WritePolicy, ReadPolicy
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, BinTypeError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -37,7 +37,7 @@ class TestAppend(TestFixtureInsertRecord):
         assert retval is None
 
     async def test_append_unsupported_bin_type(self, client, key):
-        """Test append operation with unsupported bin type raises ServerError."""
-        with pytest.raises(ServerError) as exc_info:
+        """Test append operation with unsupported bin type raises BinTypeError."""
+        with pytest.raises(BinTypeError) as exc_info:
             await client.append(WritePolicy(), key, {"year": "d"})
         assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR

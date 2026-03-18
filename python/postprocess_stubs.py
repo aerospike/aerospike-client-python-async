@@ -43,9 +43,11 @@ EXCEPTION_STUB_CLASSES = '''class AerospikeError(builtins.Exception):
 
 class ServerError(AerospikeError):
     """Exception raised when the Aerospike server returns an error."""
-    def __init__(self, message: builtins.str, result_code: ResultCode) -> None: ...
+    def __init__(self, message: builtins.str, result_code: ResultCode, in_doubt: builtins.bool = False) -> None: ...
     @property
     def result_code(self) -> ResultCode: ...
+    @property
+    def in_doubt(self) -> builtins.bool: ...
 
 class UDFBadResponse(AerospikeError):
     """Exception raised when a UDF (User Defined Function) returns a bad response."""
@@ -112,6 +114,35 @@ class ClientError(AerospikeError):
     def __init__(self, message: builtins.str) -> None: ...
 '''
 
+# ServerError subclasses (Python-defined; used by Rust create_server_error dispatch)
+SERVER_ERROR_SUBCLASS_STUBS = '''
+class RecordError(ServerError):
+    """Record-level server errors."""
+    def __init__(self, message: builtins.str, result_code: ResultCode, in_doubt: builtins.bool = False) -> None: ...
+
+class IndexError(ServerError):
+    """Index-related server errors."""
+    def __init__(self, message: builtins.str, result_code: ResultCode, in_doubt: builtins.bool = False) -> None: ...
+
+class SecurityError(ServerError):
+    """Security and authentication server errors."""
+    def __init__(self, message: builtins.str, result_code: ResultCode, in_doubt: builtins.bool = False) -> None: ...
+
+class RecordNotFound(RecordError): ...
+class GenerationError(RecordError): ...
+class InvalidRequest(ServerError): ...
+class RecordExistsError(RecordError): ...
+class BinTypeError(RecordError): ...
+class RecordTooBig(RecordError): ...
+class BinNotFound(RecordError): ...
+class FilteredOut(ServerError): ...
+class OpNotApplicable(ServerError): ...
+class IndexNotFound(IndexError): ...
+class IndexFoundError(IndexError): ...
+class NotAuthenticated(SecurityError): ...
+class SecurityNotEnabled(SecurityError): ...
+'''
+
 EXCEPTION_STUB__ALL__ = '''
 __all__ = [
     "AerospikeError",
@@ -133,6 +164,22 @@ __all__ = [
     "InvalidRustClientArgs",
     "ClientError",
     "ResultCode",
+    "RecordError",
+    "IndexError",
+    "SecurityError",
+    "RecordNotFound",
+    "GenerationError",
+    "InvalidRequest",
+    "RecordExistsError",
+    "BinTypeError",
+    "RecordTooBig",
+    "BinNotFound",
+    "FilteredOut",
+    "OpNotApplicable",
+    "IndexNotFound",
+    "IndexFoundError",
+    "NotAuthenticated",
+    "SecurityNotEnabled",
 ]
 '''
 
@@ -144,6 +191,7 @@ from .._aerospike_async_native import ResultCode
 
 # Exception classes
 {EXCEPTION_STUB_CLASSES}
+{SERVER_ERROR_SUBCLASS_STUBS}
 
 # ResultCode is re-exported from the main module for convenience
 # It's defined in _aerospike_async_native and added to exceptions submodule at runtime
@@ -1373,7 +1421,6 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('# via create_exception!(aerospike_async.exceptions, ...) and add_submodule\n')
         f.write('# Users can import: from aerospike_async.exceptions import AerospikeError\n')
         f.write('\n')
-        f.write('import sys\n')
         f.write('from .. import _aerospike_async_native\n')
         f.write('\n')
         f.write('# Access the exceptions submodule created by PyO3\n')
@@ -1402,6 +1449,61 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('ClientError = _exceptions.ClientError\n')
         f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
         f.write('ResultCode = _aerospike_async_native.ResultCode\n')
+        f.write('\n')
+        f.write('# ServerError subclasses for specific result codes (grouping bases first)\n')
+        f.write('class RecordError(ServerError):\n')
+        f.write('    """Record-level server errors."""\n\n\n')
+        f.write('class IndexError(ServerError):\n')
+        f.write('    """Index-related server errors."""\n\n\n')
+        f.write('class SecurityError(ServerError):\n')
+        f.write('    """Security and authentication server errors."""\n\n\n')
+        f.write('# Tier 1 — core server errors\n')
+        f.write('class RecordNotFound(RecordError):\n')
+        f.write('    """Record not found (KEY_NOT_FOUND_ERROR)."""\n\n')
+        f.write('class GenerationError(RecordError):\n')
+        f.write('    """Generation check failed (GENERATION_ERROR)."""\n\n')
+        f.write('class InvalidRequest(ServerError):\n')
+        f.write('    """Invalid request / parameter error (PARAMETER_ERROR)."""\n\n')
+        f.write('class RecordExistsError(RecordError):\n')
+        f.write('    """Record already exists (KEY_EXISTS_ERROR)."""\n\n')
+        f.write('class BinTypeError(RecordError):\n')
+        f.write('    """Bin type incompatible (BIN_TYPE_ERROR)."""\n\n')
+        f.write('class RecordTooBig(RecordError):\n')
+        f.write('    """Record too big (RECORD_TOO_BIG)."""\n\n')
+        f.write('class BinNotFound(RecordError):\n')
+        f.write('    """Bin not found (BIN_NOT_FOUND)."""\n\n')
+        f.write('class FilteredOut(ServerError):\n')
+        f.write('    """Record filtered out (FILTERED_OUT)."""\n\n')
+        f.write('class OpNotApplicable(ServerError):\n')
+        f.write('    """Operation not applicable (OP_NOT_APPLICABLE)."""\n\n')
+        f.write('# Tier 2 — index and security\n')
+        f.write('class IndexNotFound(IndexError):\n')
+        f.write('    """Index not found (INDEX_NOT_FOUND)."""\n\n')
+        f.write('class IndexFoundError(IndexError):\n')
+        f.write('    """Index already exists (INDEX_FOUND)."""\n\n')
+        f.write('class NotAuthenticated(SecurityError):\n')
+        f.write('    """Not authenticated (NOT_AUTHENTICATED)."""\n\n')
+        f.write('class SecurityNotEnabled(SecurityError):\n')
+        f.write('    """Security not enabled (SECURITY_NOT_ENABLED)."""\n\n')
+        f.write('# ResultCode -> exception class for Rust create_server_error() dispatch\n')
+        f.write('_RC_TO_CLS = {\n')
+        f.write('    ResultCode.KEY_NOT_FOUND_ERROR: RecordNotFound,\n')
+        f.write('    ResultCode.GENERATION_ERROR: GenerationError,\n')
+        f.write('    ResultCode.PARAMETER_ERROR: InvalidRequest,\n')
+        f.write('    ResultCode.KEY_EXISTS_ERROR: RecordExistsError,\n')
+        f.write('    ResultCode.BIN_TYPE_ERROR: BinTypeError,\n')
+        f.write('    ResultCode.RECORD_TOO_BIG: RecordTooBig,\n')
+        f.write('    ResultCode.BIN_NOT_FOUND: BinNotFound,\n')
+        f.write('    ResultCode.FILTERED_OUT: FilteredOut,\n')
+        f.write('    ResultCode.OP_NOT_APPLICABLE: OpNotApplicable,\n')
+        f.write('    ResultCode.INDEX_NOT_FOUND: IndexNotFound,\n')
+        f.write('    ResultCode.INDEX_FOUND: IndexFoundError,\n')
+        f.write('    ResultCode.NOT_AUTHENTICATED: NotAuthenticated,\n')
+        f.write('    ResultCode.SECURITY_NOT_ENABLED: SecurityNotEnabled,\n')
+        f.write('}\n\n')
+        f.write('def _get_server_error_class(result_code):\n')
+        f.write('    """Return the ServerError subclass for the given result code, or ServerError."""\n')
+        f.write('    return _RC_TO_CLS.get(result_code, ServerError)\n')
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 

@@ -15,7 +15,7 @@
 
 import pytest
 from aerospike_async import WritePolicy, ReadPolicy
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, BinTypeError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -46,7 +46,7 @@ class TestPrepend(TestFixtureInsertRecord):
         assert rec.bins["brand1"] == "F"
 
     async def test_prepend_unsupported_type(self, client, key):
-        """Test prepend operation with unsupported type raises ServerError."""
-        with pytest.raises(ServerError) as exc_info:
+        """Test prepend operation with unsupported type raises BinTypeError."""
+        with pytest.raises(BinTypeError) as exc_info:
             await client.prepend(WritePolicy(), key, {"year": "d"})
         assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR

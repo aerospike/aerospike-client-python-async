@@ -20,7 +20,7 @@ from aerospike_async import (
     ExpOperation, ExpWriteFlags, ExpReadFlags,
     FilterExpression as fe, WritePolicy, ReadPolicy, Key
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, BinNotFound
 from fixtures import TestFixtureConnection
 
 
@@ -201,7 +201,7 @@ class TestExpOperationWrite(TestFixtureConnection):
 
             expr = fe.int_val(200)
             # This should fail because newbin doesn't exist and UPDATE_ONLY is set
-            with pytest.raises(ServerError) as exc_info:
+            with pytest.raises(BinNotFound) as exc_info:
                 await client.operate(wp, key, [
                     ExpOperation.write("newbin", expr, int(ExpWriteFlags.UPDATE_ONLY))
                 ])

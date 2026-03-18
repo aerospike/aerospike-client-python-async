@@ -17,7 +17,7 @@
 
 import pytest
 from aerospike_async import IndexType, CollectionIndexType, TaskStatus
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 
@@ -82,7 +82,7 @@ class TestIndex(TestFixtureConnection):
         await client.create_index("test", "test", "brand", "indexname", IndexType.STRING, cit=CollectionIndexType.DEFAULT)
 
         # Try to create another index with same name should fail
-        with pytest.raises(ServerError) as exc_info:
+        with pytest.raises(IndexFoundError) as exc_info:
             await client.create_index("test", "test", "year", "indexname", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
         assert exc_info.value.result_code == ResultCode.INDEX_FOUND
 
