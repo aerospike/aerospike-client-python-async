@@ -25,6 +25,7 @@ from aerospike_async import (
     ExpOperation, ExpWriteFlags, ExpReadFlags,
     BatchReadOp, BatchWriteOp, BatchDeleteOp,
     RecordExistsAction,
+    MapOperation, MapPolicy, MapReturnType, CTX,
 )
 from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError, RecordNotFound
 
@@ -885,3 +886,108 @@ async def test_batch_mixed_with_policy(client_and_keys):
     results = await client.batch(None, [op])
     assert len(results) == 1
     assert results[0].result_code == ResultCode.KEY_EXISTS_ERROR
+
+
+async def test_batch_write_map_put(client_and_keys):
+    """Client.batch BatchWriteOp accepts map CDT operations."""
+    client, keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_cdt_map_write")
+    wp = WritePolicy()
+    await client.put(wp, k, {"_init": 0})
+
+    mp = MapPolicy(None, None)
+    results = await client.batch(None, [
+        BatchWriteOp(k, [MapOperation.put("mb", "x", 99, mp)]),
+    ])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(ReadPolicy(), k)
+    assert rec.bins["mb"]["x"] == 99
+
+
+async def test_batch_read_map_get_by_key(client_and_keys):
+    """Client.batch BatchReadOp with map read operations."""
+    client, keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_cdt_map_read")
+    wp = WritePolicy()
+    mp = MapPolicy(None, None)
+    await client.put(wp, k, {"_init": 0})
+    await client.operate(wp, k, [MapOperation.put("mb", "k1", 42, mp)])
+
+    results = await client.batch(None, [
+        BatchReadOp(k, operations=[
+            MapOperation.get_by_key("mb", "k1", MapReturnType.VALUE),
+        ]),
+    ])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.OK
+    assert results[0].record.bins["mb"] == 42
+
+
+async def test_batch_write_list_append(client_and_keys):
+    """Client.batch BatchWriteOp accepts list CDT operations."""
+    client, keys, _, _bin_name = client_and_keys
+
+    k = keys[0]
+    lp = ListPolicy(None, None)
+    results = await client.batch(None, [
+        BatchWriteOp(k, [ListOperation.append("lbin2", 7, lp)]),
+    ])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(ReadPolicy(), k)
+    assert rec.bins["lbin2"] == [0, 1, 7]
+
+
+async def test_batch_write_with_nested_context(client_and_keys):
+    """Client.batch applies CDT context on map operations (nested map key)."""
+    client, _keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_cdt_nested_ctx")
+    wp = WritePolicy()
+    await client.delete(wp, k)
+
+    m1 = {"key11": 9, "key12": 4}
+    m2 = {"key21": 3, "key22": 5}
+    await client.put(wp, k, {"mapbin": {"key1": m1, "key2": m2}})
+
+    mp = MapPolicy(None, None)
+    results = await client.batch(None, [
+        BatchWriteOp(k, [
+            MapOperation.put("mapbin", "key21", 11, mp).set_context([CTX.map_key("key2")]),
+        ]),
+    ])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(ReadPolicy(), k, ["mapbin"])
+    full_map = rec.bins["mapbin"]
+    assert full_map["key2"]["key21"] == 11
+    assert full_map["key2"]["key22"] == 5
+
+
+async def test_batch_mixed_cdt_and_scalar(client_and_keys):
+    """Client.batch BatchWriteOp can mix scalar Operation and MapOperation."""
+    client, _keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_mixed_scalar_cdt")
+    wp = WritePolicy()
+    await client.put(wp, k, {"_init": 0})
+
+    mp = MapPolicy(None, None)
+    results = await client.batch(None, [
+        BatchWriteOp(k, [
+            Operation.put("txt", "hello"),
+            MapOperation.put("mb", "a", 1, mp),
+        ]),
+    ])
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(ReadPolicy(), k)
+    assert rec.bins["txt"] == "hello"
+    assert rec.bins["mb"]["a"] == 1
