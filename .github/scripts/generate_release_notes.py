@@ -15,7 +15,8 @@
 Transform GitHub-generated release notes into a custom format:
 - Release date at top
 - ## Bug Fixes and ## Improvements sections
-- JIRA/ticket identifiers (e.g. [CLIENT-1234]) moved to the end of each line
+- JIRA/ticket identifiers (e.g. [CLIENT-1234]) moved to the end of each line (after PR link)
+- PR links preserved as ([#N](url))
 - Full Changelog link at bottom
 
 Reads raw markdown from stdin; writes formatted markdown to stdout.
@@ -28,17 +29,25 @@ import sys
 
 # Match ticket IDs like [CLIENT-4385], [AEROSPIKE-123], etc.
 TICKET_RE = re.compile(r"\[([A-Z][A-Z0-9]*-[0-9]+)\]")
+PR_SUFFIX_RE = re.compile(
+    r"\s+by\s+@[\w-]+\s+in\s+(https?://\S+)", re.IGNORECASE
+)
 
 
-def move_ticket_to_end(line: str) -> str:
-    """Remove ticket from line and append it at the end."""
-    tickets = TICKET_RE.findall(line)
-    rest = TICKET_RE.sub("", line).strip()
-    # Collapse multiple spaces and trim
+def split_description_and_tickets(text: str) -> tuple[str, list[str]]:
+    """Strip ticket brackets from text; return (clean description, ticket keys like CLIENT-4385)."""
+    tickets = TICKET_RE.findall(text)
+    rest = TICKET_RE.sub("", text).strip()
     rest = re.sub(r"  +", " ", rest).strip()
-    if tickets:
-        rest = f"{rest} [{tickets[0]}]"
-    return rest
+    return rest, tickets
+
+
+def pr_link_markdown(url: str) -> str:
+    """Markdown link for the PR, e.g. ([#123](https://github.com/org/repo/pull/123))."""
+    m = re.search(r"/pull/(\d+)", url, re.IGNORECASE)
+    if m:
+        return f"([#{m.group(1)}]({url}))"
+    return f"([pull]({url}))"
 
 
 def is_bug_fix(title: str) -> bool:
@@ -47,22 +56,33 @@ def is_bug_fix(title: str) -> bool:
     return t.startswith("fix ") or t.startswith("fixes ") or t.startswith("bug") or t.startswith("fix:")
 
 
-def parse_bullet(line: str) -> str | None:
+def parse_bullet(line: str) -> tuple[str, str] | None:
     """
-    Extract the bullet text from a line like '* Fix something by @user in https://...'
-    Returns None if this doesn't look like a change bullet.
+    Parse a line like '* Fix something by @user in https://.../pull/99'.
+
+    Returns (formatted_bullet, description_for_bug_vs_improvement) or None.
+    Formatted line: description, then ([#N](url)), then [TICKET] at end.
     """
     line = line.strip()
     if not line.startswith("* ") and not line.startswith("- "):
         return None
     text = line[2:].strip()
-    # Strip " by @user in URL" suffix (GitHub format)
-    by_match = re.search(r"\s+by\s+@[\w-]+\s+in\s+https?://\S+", text, re.IGNORECASE)
+    pr_url = ""
+    by_match = PR_SUFFIX_RE.search(text)
     if by_match:
+        pr_url = by_match.group(1).rstrip(").,;")
         text = text[: by_match.start()].strip()
     if not text:
         return None
-    return text
+    desc, tickets = split_description_and_tickets(text)
+    if not desc:
+        return None
+    parts = [desc]
+    if pr_url:
+        parts.append(pr_link_markdown(pr_url))
+    if tickets:
+        parts.append(f"[{tickets[0]}]")
+    return " ".join(parts), desc
 
 
 def main() -> None:
@@ -83,11 +103,11 @@ def main() -> None:
             if url_match and not changelog_url:
                 changelog_url = url_match.group(0)
             continue
-        bullet = parse_bullet(line)
-        if bullet is None:
+        parsed = parse_bullet(line)
+        if parsed is None:
             continue
-        formatted = move_ticket_to_end(bullet)
-        if is_bug_fix(formatted):
+        formatted, desc_for_category = parsed
+        if is_bug_fix(desc_for_category):
             bug_fixes.append(formatted)
         else:
             improvements.append(formatted)
