@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import Filter, CollectionIndexType
+from aerospike_async import Filter, CollectionIndexType, CTX, FilterExpression
 
 
 class TestFilter:
@@ -36,7 +36,7 @@ class TestFilter:
 
     def test_contains(self):
         """Test creating a contains filter."""
-        a_filter = Filter.contains(bin_name="bin", value=3.0, cit=CollectionIndexType.LIST)
+        a_filter = Filter.contains(bin_name="bin", value=3, cit=CollectionIndexType.LIST)
         assert isinstance(a_filter, Filter)
 
     def test_contains_range(self):
@@ -70,3 +70,63 @@ class TestFilter:
             cit=CollectionIndexType.DEFAULT
         )
         assert isinstance(a_filter, Filter)
+
+
+class TestFilterByIndex:
+    """Secondary index name is carried on the filter via *_by_index constructors."""
+
+    region = '{"type":"AeroCircle","coordinates":[[-89.0000,23.0000], 1000]}'
+    point = '{"type":"Point","coordinates":[-89.0000,23.0000]}'
+
+    def test_equal_by_index(self):
+        assert isinstance(Filter.equal_by_index("idx_year", 42), Filter)
+
+    def test_range_by_index(self):
+        assert isinstance(Filter.range_by_index("idx_year", 1, 100), Filter)
+
+    def test_contains_by_index(self):
+        f = Filter.contains_by_index("idx_tags", 7, cit=CollectionIndexType.LIST)
+        assert isinstance(f, Filter)
+
+    def test_contains_range_by_index(self):
+        f = Filter.contains_range_by_index("idx_tags", 1, 9, cit=CollectionIndexType.LIST)
+        assert isinstance(f, Filter)
+
+    def test_within_region_by_index_default_cit(self):
+        f = Filter.within_region_by_index("idx_geo", self.region, cit=None)
+        assert isinstance(f, Filter)
+
+    def test_within_region_by_index_list_cit(self):
+        f = Filter.within_region_by_index("idx_geo", self.region, cit=CollectionIndexType.LIST)
+        assert isinstance(f, Filter)
+
+    def test_within_radius_by_index_default_cit(self):
+        f = Filter.within_radius_by_index("idx_geo", -89.0, 23.0, 1000.0, cit=None)
+        assert isinstance(f, Filter)
+
+    def test_within_radius_by_index_map_keys_cit(self):
+        f = Filter.within_radius_by_index(
+            "idx_geo", -89.0, 23.0, 1000.0, cit=CollectionIndexType.MAP_KEYS
+        )
+        assert isinstance(f, Filter)
+
+    def test_regions_containing_point_by_index_default_cit(self):
+        f = Filter.regions_containing_point_by_index("idx_geo", self.point, cit=None)
+        assert isinstance(f, Filter)
+
+    def test_regions_containing_point_by_index_map_values_cit(self):
+        f = Filter.regions_containing_point_by_index(
+            "idx_geo", self.point, cit=CollectionIndexType.MAP_VALUES
+        )
+        assert isinstance(f, Filter)
+
+
+class TestFilterContextAndExpression:
+    def test_filter_with_context(self):
+        f = Filter.equal("bin", 1).context([CTX.list_index(0)])
+        assert isinstance(f, Filter)
+
+    def test_filter_with_expression(self):
+        expr = FilterExpression.int_bin("year")
+        f = Filter.range("year", 1960, 1970).expression(expr)
+        assert isinstance(f, Filter)

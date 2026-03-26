@@ -261,6 +261,67 @@ def fix_map_write_flags_int_enum(content: str) -> str:
     return content
 
 
+def fix_filter_chaining_stub_methods(content: str) -> str:
+    """stub_gen emits Filter.context / Filter.expression with docstring bodies but no `...` (invalid .pyi)."""
+    pattern = (
+        r'    def context\(self, ctx:typing\.Sequence\[CTX\]\) -> Filter:\s*\n'
+        r'        r""".*?"""\s*\n'
+        r'    def expression\(self, exp:FilterExpression\) -> Filter:\s*\n'
+        r'        r""".*?"""\s*\n'
+    )
+    replacement = (
+        '    def context(self, ctx: typing.Sequence[CTX]) -> Filter: ...\n'
+        '    def expression(self, exp: FilterExpression) -> Filter: ...\n'
+    )
+    new_content, n = re.subn(pattern, replacement, content, count=1, flags=re.DOTALL)
+    if n:
+        print('  ✓ Normalized Filter.context / Filter.expression stub bodies')
+    return new_content
+
+
+def fix_client_keyword_only_policy_params(content: str) -> str:
+    """Align Client stubs with pyo3 keyword-only `policy` on truncate and create_index."""
+    n = 0
+    content, c1 = re.subn(
+        r'    def truncate\(self, namespace: builtins\.str, set_name: builtins\.str, '
+        r'before_nanos: typing\.Optional\[builtins\.int\] = None\) -> typing\.Awaitable\[typing\.Any\]: \.\.\.',
+        '    def truncate(self, namespace: builtins.str, set_name: builtins.str, '
+        'before_nanos: typing.Optional[builtins.int] = None, *, policy: typing.Optional[AdminPolicy] = None) '
+        '-> typing.Awaitable[typing.Any]: ...',
+        content,
+        count=1,
+    )
+    n += c1
+    content, c2 = re.subn(
+        r'    def create_index\(self, namespace: builtins\.str, set_name: builtins\.str, bin_name: builtins\.str, '
+        r'index_name: builtins\.str, index_type: IndexType, cit: typing\.Optional\[CollectionIndexType\] = None, '
+        r'ctx: typing\.Optional\[typing\.Sequence\[CTX\]\] = None\) -> typing\.Awaitable\[typing\.Any\]: \.\.\.',
+        '    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, '
+        'index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None, '
+        'ctx: typing.Optional[typing.Sequence[CTX]] = None, *, policy: typing.Optional[AdminPolicy] = None) '
+        '-> typing.Awaitable[typing.Any]: ...',
+        content,
+        count=1,
+    )
+    n += c2
+    if c2 == 0:
+        content, c3 = re.subn(
+            r'    def create_index\(self, namespace: builtins\.str, set_name: builtins\.str, bin_name: builtins\.str, '
+            r'index_name: builtins\.str, index_type: IndexType, cit: typing\.Optional\[CollectionIndexType\] = None\) '
+            r'-> typing\.Awaitable\[typing\.Any\]: \.\.\.',
+            '    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, '
+            'index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None, '
+            'ctx: typing.Optional[typing.Sequence[CTX]] = None, *, policy: typing.Optional[AdminPolicy] = None) '
+            '-> typing.Awaitable[typing.Any]: ...',
+            content,
+            count=1,
+        )
+        n += c3
+    if n:
+        print(f'  ✓ Fixed Client truncate/create_index keyword-only policy stubs ({n} substitution(s))')
+    return content
+
+
 def ensure_exports(content: str) -> str:
     """Ensure all classes are properly imported from _aerospike_async_native in __init__.pyi.
 
@@ -353,8 +414,8 @@ def add_client_stubs(content: str) -> str:
     def touch(self, policy: WritePolicy, key: Key) -> typing.Awaitable[typing.Any]: ...
     def exists(self, policy: ReadPolicy, key: Key) -> typing.Awaitable[typing.Any]: ...
     def exists_legacy(self, policy: ReadPolicy, key: Key) -> typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]: ...
-    def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None) -> typing.Awaitable[typing.Any]: ...
-    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None) -> typing.Awaitable[typing.Any]: ...
+    def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...
+    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: IndexType, cit: typing.Optional[CollectionIndexType] = None, ctx: typing.Optional[typing.Sequence[CTX]] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...
     def create_index_using_expression(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, index_type: IndexType, expression: FilterExpression, cit: typing.Optional[CollectionIndexType] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[IndexTask]: ...
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[DropIndexTask]: ...
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
@@ -1530,6 +1591,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = fix_map_write_flags_int_enum(content)
         content = add_return_type_stubs(content)
         content = add_policy_stubs(content)
+        content = fix_filter_chaining_stub_methods(content)
         # Note: PartitionFilter and PartitionStatus are generated by pyo3_stub_gen automatically
         content = add_record_stubs(content)
         content = add_key_stubs(content)
@@ -1539,6 +1601,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_version_stubs(content)
         content = add_node_stubs(content)
         content = add_client_stubs(content)
+        content = fix_client_keyword_only_policy_params(content)
         content = add_batch_policy_stubs(content)
         content = ensure_statement_set_name(content)
 

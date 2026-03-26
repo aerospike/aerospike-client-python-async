@@ -25,7 +25,6 @@ class TestStatement:
         """Test creating a new Statement."""
         stmt = Statement(namespace="test", set_name="test", bins=["test_bin"])
         assert stmt.filters is None
-        assert stmt.index_name is None
 
     def test_set_filters(self):
         """Test setting filters on Statement."""

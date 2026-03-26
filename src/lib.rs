@@ -37,14 +37,9 @@ use pyo3_stub_gen::{
 
 use tokio::sync::{Mutex, RwLock};
 
-#[allow(unused_imports)]
-use aerospike_core::as_geo;
-use aerospike_core::as_val;
 use aerospike_core::errors::Error;
 use aerospike_core::query::RecordStream;
 use aerospike_core::ResultCode as CoreResultCode;
-use aerospike_core::Value;
-use aerospike_core::ParticleType;
 
 
 fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
@@ -1357,7 +1352,7 @@ fn convert_ops_with_ctx_to_core(
 
         // Apply context if present
         let final_op = if let Some(ctx) = &op_with_ctx.ctx {
-            core_op.set_context(ctx.as_slice().to_vec())
+            core_op.context(ctx.as_slice().to_vec())
         } else {
             core_op
         };
@@ -10659,29 +10654,16 @@ pub enum Replica {
     #[pymethods]
     impl Statement {
         #[new]
-        #[pyo3(signature = (namespace, set_name = None, bins = None, index_name = None))]
+        #[pyo3(signature = (namespace, set_name = None, bins = None))]
         pub fn __construct(
             namespace: &str,
             set_name: Option<&str>,
             bins: Option<Vec<String>>,
-            index_name: Option<String>,
         ) -> Self {
             let set_name_str = set_name.unwrap_or("");
-            let mut stmt = Statement {
+            Statement {
                 _as: aerospike_core::Statement::new(namespace, set_name_str, bins_flag(bins)),
-            };
-            stmt._as.index_name = index_name;
-            stmt
-        }
-
-        #[getter]
-        pub fn get_index_name(&self) -> Option<String> {
-            self._as.index_name.clone()
-        }
-
-        #[setter]
-        pub fn set_index_name(&mut self, index_name: Option<String>) {
-            self._as.index_name = index_name;
+            }
         }
 
         #[getter]
@@ -10745,18 +10727,16 @@ pub enum Replica {
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// Query filter definition. Currently, only one filter is allowed in a Statement, and must be on a
-    /// bin which has a secondary index defined.
+    /// Query filter definition. Currently, only one filter is allowed in a Statement, and must target a
+    /// bin that has a secondary index (or use `*_by_index` with the index name).
     ///
-    /// Filter instances should be instantiated using one of the provided macros:
+    /// Build filters from the class static methods, for example `equal`, `range`, `contains`,
+    /// `contains_range`, `within_region`, `within_radius`, `regions_containing_point`, and the
+    /// corresponding `equal_by_index`, `range_by_index`, `contains_by_index`, `contains_range_by_index`,
+    /// `within_region_by_index`, `within_radius_by_index`, and `regions_containing_point_by_index`.
     ///
-    /// - `as_eq`
-    /// - `as_range`
-    /// - `as_contains`
-    /// - `as_contains_range`
-    /// - `as_within_region`
-    /// - `as_within_radius`
-    /// - `as_regions_containing_point`
+    /// Use instance methods `context` and `expression` to attach a CDT path or expression-based index
+    /// to a filter (for example `Filter.equal("bin", 1).context([CTX.list_index(0)])`).
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(
         name = "Filter",
@@ -10786,12 +10766,38 @@ pub enum Replica {
             Ok(format!("Filter({:?})", self._as))
         }
 
+        /// Attach a CDT context path for a secondary index on a nested list or map element.
+        pub fn context(&self, ctx: Vec<CTX>) -> Self {
+            let core_ctx = ctx_to_vec(&ctx);
+            Filter {
+                _as: self._as.clone().context(core_ctx),
+            }
+        }
+
+        /// Attach the expression used when the secondary index was created with
+        /// `create_index_using_expression`.
+        pub fn expression(&self, exp: &FilterExpression) -> Self {
+            Filter {
+                _as: self._as.clone().expression(exp._as.clone()),
+            }
+        }
+
         #[staticmethod]
         pub fn equal(bin_name: &str, value: PythonValue) -> Self {
             Filter {
-                _as: aerospike_core::as_eq!(
+                _as: aerospike_core::query::Filter::equal(
                     bin_name,
-                    aerospike_core::Value::from(value)
+                    aerospike_core::Value::from(value),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        pub fn equal_by_index(index_name: &str, value: PythonValue) -> Self {
+            Filter {
+                _as: aerospike_core::query::Filter::equal_by_index(
+                    index_name,
+                    aerospike_core::Value::from(value),
                 ),
             }
         }
@@ -10799,10 +10805,21 @@ pub enum Replica {
         #[staticmethod]
         pub fn range(bin_name: &str, begin: PythonValue, end: PythonValue) -> Self {
             Filter {
-                _as: aerospike_core::as_range!(
+                _as: aerospike_core::query::Filter::range(
                     bin_name,
                     aerospike_core::Value::from(begin),
-                    aerospike_core::Value::from(end)
+                    aerospike_core::Value::from(end),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        pub fn range_by_index(index_name: &str, begin: PythonValue, end: PythonValue) -> Self {
+            Filter {
+                _as: aerospike_core::query::Filter::range_by_index(
+                    index_name,
+                    aerospike_core::Value::from(begin),
+                    aerospike_core::Value::from(end),
                 ),
             }
         }
@@ -10816,10 +10833,27 @@ pub enum Replica {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
             Filter {
-                _as: aerospike_core::as_contains!(
+                _as: aerospike_core::query::Filter::contains(
                     bin_name,
                     aerospike_core::Value::from(value),
-                    aerospike_core::query::CollectionIndexType::from(cit)
+                    aerospike_core::query::CollectionIndexType::from(cit),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        pub fn contains_by_index(
+            index_name: &str,
+            value: PythonValue,
+            cit: Option<&CollectionIndexType>,
+        ) -> Self {
+            let default = CollectionIndexType::Default;
+            let cit = cit.unwrap_or(&default);
+            Filter {
+                _as: aerospike_core::query::Filter::contains_by_index(
+                    index_name,
+                    aerospike_core::Value::from(value),
+                    aerospike_core::query::CollectionIndexType::from(cit),
                 ),
             }
         }
@@ -10834,19 +10868,35 @@ pub enum Replica {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
             Filter {
-                _as: aerospike_core::as_contains_range!(
+                _as: aerospike_core::query::Filter::contains_range(
                     bin_name,
                     aerospike_core::Value::from(begin),
                     aerospike_core::Value::from(end),
-                    aerospike_core::query::CollectionIndexType::from(cit)
+                    aerospike_core::query::CollectionIndexType::from(cit),
                 ),
             }
         }
 
         #[staticmethod]
-        // Example code :
-        // $pointString = '{"type":"AeroCircle","coordinates":[[-89.0000,23.0000], 1000]}'
-        // Filter::regionsContainingPoint("binName", $pointString)
+        pub fn contains_range_by_index(
+            index_name: &str,
+            begin: PythonValue,
+            end: PythonValue,
+            cit: Option<&CollectionIndexType>,
+        ) -> Self {
+            let default = CollectionIndexType::Default;
+            let cit = cit.unwrap_or(&default);
+            Filter {
+                _as: aerospike_core::query::Filter::contains_range_by_index(
+                    index_name,
+                    aerospike_core::Value::from(begin),
+                    aerospike_core::Value::from(end),
+                    aerospike_core::query::CollectionIndexType::from(cit),
+                ),
+            }
+        }
+
+        #[staticmethod]
         pub fn within_region(
             bin_name: &str,
             region: &str,
@@ -10854,28 +10904,49 @@ pub enum Replica {
         ) -> Self {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
-            Filter {
-                _as: aerospike_core::as_within_region!(
-                    bin_name,
-                    region,
-                    aerospike_core::query::CollectionIndexType::from(cit)
-                ),
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_region(bin_name, region),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_region_cit(
+                        bin_name,
+                        region,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
             }
         }
 
         #[staticmethod]
-        // Example code :
-        // $lng = -89.0005;
-        // $lat = 43.0004;
-        // $radius = 1000;
-        // $filter = Filter::withinRadius("binName", $lng, $lat, $radius);
-        // Note: Public API uses (lng, lat) to match GeoJSON standard [longitude, latitude]
-        //
-        // WORKAROUND: The as_within_radius! macro has bugs:
-        // 1. It expects parameters in (lat, lng) order, not (lng, lat)
-        // 2. It has a typo: generates "Aeroircle" instead of "AeroCircle"
-        // Since we can't fix the macro (it's in aerospike-core), we manually construct
-        // the AeroCircle GeoJSON string with correct type name and use within_region
+        pub fn within_region_by_index(
+            index_name: &str,
+            region: &str,
+            cit: Option<&CollectionIndexType>,
+        ) -> Self {
+            let default = CollectionIndexType::Default;
+            let cit = cit.unwrap_or(&default);
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_region_by_index(
+                        index_name,
+                        region,
+                    ),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_region_by_index_cit(
+                        index_name,
+                        region,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
+            }
+        }
+
+        #[staticmethod]
+        /// Public API uses (lng, lat) to match GeoJSON [longitude, latitude].
         pub fn within_radius(
             bin_name: &str,
             lng: f64,
@@ -10885,29 +10956,61 @@ pub enum Replica {
         ) -> Self {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
-
-            // Manually construct AeroCircle GeoJSON string
-            // Format: { "type": "AeroCircle", "coordinates": [[lng, lat], radius] }
-            // Note: Must use "AeroCircle" (correct) not "Aeroircle" (macro typo)
-            let aero_circle = format!(
-                "{{ \"type\": \"AeroCircle\", \"coordinates\": [[{:.8}, {:.8}], {}] }}",
-                lng, lat, radius
-            );
-
-            // Use within_region with correctly formatted AeroCircle string
-            Filter {
-                _as: aerospike_core::as_within_region!(
-                    bin_name,
-                    &aero_circle,
-                    aerospike_core::query::CollectionIndexType::from(cit)
-                ),
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_radius(
+                        bin_name,
+                        lng,
+                        lat,
+                        radius,
+                    ),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_radius_cit(
+                        bin_name,
+                        lng,
+                        lat,
+                        radius,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
             }
         }
 
         #[staticmethod]
-        // Example code :
-        // $pointString = '{"type":"Point","coordinates":[-89.0000,23.0000]}'
-        // Filter::regionsContainingPoint("binName", $pointString)
+        pub fn within_radius_by_index(
+            index_name: &str,
+            lng: f64,
+            lat: f64,
+            radius: f64,
+            cit: Option<&CollectionIndexType>,
+        ) -> Self {
+            let default = CollectionIndexType::Default;
+            let cit = cit.unwrap_or(&default);
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_radius_by_index(
+                        index_name,
+                        lng,
+                        lat,
+                        radius,
+                    ),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_within_radius_by_index_cit(
+                        index_name,
+                        lng,
+                        lat,
+                        radius,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
+            }
+        }
+
+        #[staticmethod]
         pub fn regions_containing_point(
             bin_name: &str,
             point: &str,
@@ -10915,12 +11018,44 @@ pub enum Replica {
         ) -> Self {
             let default = CollectionIndexType::Default;
             let cit = cit.unwrap_or(&default);
-            Filter {
-                _as: aerospike_core::as_regions_containing_point!(
-                    bin_name,
-                    point,
-                    aerospike_core::query::CollectionIndexType::from(cit)
-                ),
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_contains(bin_name, point),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_contains_cit(
+                        bin_name,
+                        point,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
+            }
+        }
+
+        #[staticmethod]
+        pub fn regions_containing_point_by_index(
+            index_name: &str,
+            point: &str,
+            cit: Option<&CollectionIndexType>,
+        ) -> Self {
+            let default = CollectionIndexType::Default;
+            let cit = cit.unwrap_or(&default);
+            if matches!(cit, CollectionIndexType::Default) {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_contains_by_index(
+                        index_name,
+                        point,
+                    ),
+                }
+            } else {
+                Filter {
+                    _as: aerospike_core::query::Filter::geo_contains_by_index_cit(
+                        index_name,
+                        point,
+                        aerospike_core::query::CollectionIndexType::from(cit),
+                    ),
+                }
             }
         }
     }
@@ -12439,7 +12574,7 @@ pub enum Replica {
         /// Create a secondary index on a bin containing scalar values. This asynchronous server call
         /// returns before the command is complete.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, *, policy = None))]
+        #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, ctx = None, *, policy = None))]
         pub fn create_index<'a>(
             &self,
             namespace: String,
@@ -12448,6 +12583,7 @@ pub enum Replica {
             index_name: String,
             index_type: IndexType,
             cit: Option<CollectionIndexType>,
+            ctx: Option<Vec<CTX>>,
             policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
@@ -12456,6 +12592,7 @@ pub enum Replica {
 
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
+            let ctx_core = ctx.map(|c| ctx_to_vec(&c));
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
@@ -12469,7 +12606,7 @@ pub enum Replica {
                         &index_name,
                         index_type,
                         cit,
-                        None,
+                        ctx_core.as_deref(),
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;

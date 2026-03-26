@@ -226,10 +226,8 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
    - Write from new, read from legacy
 *  Track known missing "Rust core" items:
    - Metrics
-   - Path Expressions
-   - AP/SC
+   - Strong Consistency (SC)
    - Transactions
-   - Background Tasks
    - Dynamic Config
 
 ## License
