@@ -58,7 +58,7 @@ dev:
 test:
 	# Clear any stale pytest/bytecode cache that might have incorrect imports
 	@python/clean_caches.sh || true
-	source aerospike.env && python -m pytest python/tests
+	source aerospike.env 2>/dev/null || source aerospike.env.example && python -m pytest python/tests
 
 test-unit:
 	@python/clean_caches.sh || true
@@ -66,7 +66,7 @@ test-unit:
 
 test-int:
 	@python/clean_caches.sh || true
-	source aerospike.env && python -m pytest python/tests/integration
+	source aerospike.env 2>/dev/null || source aerospike.env.example && python -m pytest python/tests/integration
 
 dev-test: dev stubs test
 

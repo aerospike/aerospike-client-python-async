@@ -11350,16 +11350,17 @@ pub enum Replica {
         let as_seeds = seeds.clone();
 
         Ok(pyo3_asyncio::future_into_py(py, async move {
+            log::debug!(target: "aerospike_async", "connecting to {}", as_seeds);
             let c = aerospike_core::Client::new(&as_policy, &as_seeds)
                 .await
                 .map_err(|e| PyErr::from(RustClientError(e)))?;
 
+            log::debug!(target: "aerospike_async", "connected to {}", seeds);
             let res = Client {
                 _as: Arc::new(RwLock::new(c)),
                 seeds: seeds.clone(),
             };
 
-            // Python::with_gil(|_py| Ok(res))
             Ok(res)
         })?
         .into())
@@ -14354,16 +14355,11 @@ impl log::Log for ResilientPyLogger {
 
     fn log(&self, record: &log::Record) {
         if unsafe { pyo3::ffi::Py_IsInitialized() } != 0 {
-            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.inner.log(record);
-            }))
-            .is_err()
-            {
-                eprintln!("{} {}: {}", record.level(), record.target(), record.args());
-            }
-        } else {
-            eprintln!("{} {}: {}", record.level(), record.target(), record.args());
+            }));
         }
+        // Silently drop messages when Python is unavailable (shutdown).
     }
 
     fn flush(&self) {
@@ -14381,9 +14377,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     // Uses ResilientPyLogger to avoid panics on background threads during shutdown.
     let inner = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?;
     let logger = ResilientPyLogger { inner };
-    log::set_max_level(log::LevelFilter::Trace);
+    log::set_max_level(log::LevelFilter::Debug);
     let _ = log::set_logger(Box::leak(Box::new(logger)));
-    log::info!(target: "aerospike_async", "native module initialized (pyo3-log bridge active)");
+    log::debug!(target: "aerospike_async", "pyo3-log bridge active");
 
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;
