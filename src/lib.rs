@@ -14340,44 +14340,50 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     GeoJSON::new(py, point_dict.as_any())
 }
 
-// Simple logger implementation that writes to stderr
-struct SimpleLogger;
+/// Logger that forwards to Python's `logging` via pyo3-log when the interpreter
+/// is available, falling back to stderr for messages emitted on background tokio
+/// threads after Python shutdown.
+struct ResilientPyLogger {
+    inner: pyo3_log::Logger,
+}
 
-impl log::Log for SimpleLogger {
+impl log::Log for ResilientPyLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        // Check RUST_LOG environment variable
-        if let Ok(rust_log) = std::env::var("RUST_LOG") {
-            let level = match rust_log.to_lowercase().as_str() {
-                s if s.contains("trace") => log::Level::Trace,
-                s if s.contains("debug") => log::Level::Debug,
-                s if s.contains("info") => log::Level::Info,
-                s if s.contains("warn") => log::Level::Warn,
-                s if s.contains("error") => log::Level::Error,
-                _ => log::Level::Error,
-            };
-            metadata.level() <= level
-        } else {
-            false
-        }
+        self.inner.enabled(metadata)
     }
 
     fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            eprintln!("[{}] {}: {}", record.level(), record.target(), record.args());
+        if unsafe { pyo3::ffi::Py_IsInitialized() } != 0 {
+            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.inner.log(record);
+            }))
+            .is_err()
+            {
+                eprintln!("{} {}: {}", record.level(), record.target(), record.args());
+            }
+        } else {
+            eprintln!("{} {}: {}", record.level(), record.target(), record.args());
         }
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.inner.flush();
+        }));
+    }
 }
-
-static LOGGER: SimpleLogger = SimpleLogger;
 
 #[pymodule]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Initialize logger if RUST_LOG is set
-    if std::env::var("RUST_LOG").is_ok() {
-        let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(log::LevelFilter::Trace));
-    }
+    // Bridge Rust `log` records to Python's `logging` module.
+    // Rust module paths become Python logger names, e.g.
+    //   aerospike_core::cluster -> logging.getLogger("aerospike_core.cluster")
+    // Uses ResilientPyLogger to avoid panics on background threads during shutdown.
+    let inner = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?;
+    let logger = ResilientPyLogger { inner };
+    log::set_max_level(log::LevelFilter::Trace);
+    let _ = log::set_logger(Box::leak(Box::new(logger)));
+    log::info!(target: "aerospike_async", "native module initialized (pyo3-log bridge active)");
 
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;

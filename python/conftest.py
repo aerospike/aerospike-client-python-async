@@ -16,6 +16,7 @@
 """
 Pytest configuration to automatically load environment variables from aerospike.env
 """
+import logging
 import os
 import pytest
 from pathlib import Path
@@ -60,6 +61,27 @@ def pytest_configure(config):
     print(f"Loaded environment variables from {env_file}")
     print(f"CI environment variable: {os.environ.get('CI', 'NOT SET')}\n")
     
+    # Configure logging from AEROSPIKE_LOG_LEVEL / AEROSPIKE_LOG_FILE
+    log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
+    if log_level:
+        numeric = getattr(logging, log_level, None)
+        if numeric is None:
+            print(f"Warning: invalid AEROSPIKE_LOG_LEVEL={log_level!r}, ignoring\n")
+        else:
+            log_file = os.environ.get("AEROSPIKE_LOG_FILE")
+            handler: logging.Handler
+            if log_file:
+                handler = logging.FileHandler(log_file)
+            else:
+                handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+            ))
+            for prefix in ("aerospike_core", "aerospike_async"):
+                logger = logging.getLogger(prefix)
+                logger.setLevel(numeric)
+                logger.addHandler(handler)
+
     # Ensure python path includes the python directory for imports
     import sys
     python_dir = Path(__file__).parent
