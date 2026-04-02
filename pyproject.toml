@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "aerospike_client_python_async"
-version = "0.3.0-alpha.11"
+version = "0.3.0-alpha.12"
 requires-python = ">=3.10"
 python-packages = ["aerospike_async"]
 classifiers = [
@@ -22,7 +22,7 @@ python-source = "python"
 asyncio_mode = "auto"
 addopts = "-s"
 log_cli = true
-log_cli_level = "DEBUG"
+log_cli_level = "WARNING"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]

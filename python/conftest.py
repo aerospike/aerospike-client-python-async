@@ -16,50 +16,65 @@
 """
 Pytest configuration to automatically load environment variables from aerospike.env
 """
+import logging
 import os
 import pytest
 from pathlib import Path
 
 
-def load_env_file(env_file_path):
-    """Load environment variables from a .env file"""
+def load_env_file(env_file_path, *, override: bool = True):
+    """Load KEY=value / export KEY=value lines from a file into os.environ."""
     if not os.path.exists(env_file_path):
         return
-    
     with open(env_file_path, 'r') as f:
         for line in f:
             line = line.strip()
-            # Skip empty lines and comments
             if not line or line.startswith('#'):
                 continue
-            
-            # Parse export VAR=value format
             if line.startswith('export '):
-                line = line[7:]  # Remove 'export ' prefix
-            
+                line = line[7:]
             if '=' in line:
                 key, value = line.split('=', 1)
-                # Remove quotes if present
-                value = value.strip('"\'')
-                os.environ[key] = value
+                key = key.strip()
+                value = value.strip().strip('"\'')
+                if override or key not in os.environ:
+                    os.environ[key] = value
 
 
 def pytest_configure(config):
     """Called after command line options have been parsed and all plugins and initial conftest files been loaded."""
-    # Load environment variables from aerospike.env (one directory up)
-    env_dir = Path(__file__).parent.parent
-    env_file = env_dir / "aerospike.env"
-    load_env_file(env_file)
-
-    # Local overrides (gitignored) for developer-specific settings like TLS cert paths
-    env_local = env_dir / "aerospike.env.local"
+    root = Path(__file__).parent.parent
+    env_local = root / "aerospike.env"
+    env_example = root / "aerospike.env.example"
     if env_local.exists():
-        load_env_file(env_local)
+        load_env_file(env_local, override=True)
+        print(f"Loaded environment variables from {env_local}\n")
+    else:
+        load_env_file(env_example, override=False)
+        print(f"Loaded default environment variables from {env_example} (no {env_local.name})\n")
 
-    # Print loaded environment variables for debugging
-    print(f"Loaded environment variables from {env_file}")
-    print(f"CI environment variable: {os.environ.get('CI', 'NOT SET')}\n")
     
+    # Configure logging from AEROSPIKE_LOG_LEVEL / AEROSPIKE_LOG_FILE
+    log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
+    if log_level:
+        numeric = getattr(logging, log_level, None)
+        if numeric is None:
+            print(f"Warning: invalid AEROSPIKE_LOG_LEVEL={log_level!r}, ignoring\n")
+        else:
+            log_file = os.environ.get("AEROSPIKE_LOG_FILE")
+            handler: logging.Handler
+            if log_file:
+                handler = logging.FileHandler(log_file)
+            else:
+                handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+            ))
+            for prefix in ("aerospike_core", "aerospike_async"):
+                logger = logging.getLogger(prefix)
+                logger.setLevel(numeric)
+                logger.addHandler(handler)
+
     # Ensure python path includes the python directory for imports
     import sys
     python_dir = Path(__file__).parent

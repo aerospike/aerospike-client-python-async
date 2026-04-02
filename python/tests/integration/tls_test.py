@@ -25,9 +25,15 @@ def _tls_host_env():
     return os.environ.get("AEROSPIKE_TLS_HOST") or os.environ.get("AEROSPIKE_HOST_TLS")
 
 
+def _tls_ca_exists():
+    """True only when the configured CA file actually exists on disk."""
+    ca = os.environ.get("AEROSPIKE_TLS_CA_FILE")
+    return ca is not None and os.path.isfile(ca)
+
+
 @pytest.mark.skipif(
-    not _tls_host_env(),
-    reason="AEROSPIKE_TLS_HOST or AEROSPIKE_HOST_TLS not set - TLS server not available"
+    not _tls_host_env() or not _tls_ca_exists(),
+    reason="TLS host not set or CA file does not exist — TLS server not available"
 )
 class TestTlsConnection:
     """Test TLS connection functionality (requires TLS-enabled server)."""
@@ -110,9 +116,15 @@ class TestTlsConnection:
         await client.close()
 
 
+def _tls_client_cert_exists():
+    """True only when the configured client cert file actually exists on disk."""
+    cert = os.environ.get("AEROSPIKE_TLS_CLIENT_CERT_FILE")
+    return cert is not None and os.path.isfile(cert)
+
+
 @pytest.mark.skipif(
-    not _tls_host_env() or not os.environ.get("AEROSPIKE_TLS_CLIENT_CERT_FILE"),
-    reason="AEROSPIKE_TLS_HOST/AEROSPIKE_HOST_TLS or AEROSPIKE_TLS_CLIENT_CERT_FILE not set - PKI server not available"
+    not _tls_host_env() or not _tls_ca_exists() or not _tls_client_cert_exists(),
+    reason="TLS host/CA/client-cert not set or files missing — PKI not available"
 )
 class TestPkiConnection:
     """Test PKI authentication (requires TLS server with client certificate support)."""
