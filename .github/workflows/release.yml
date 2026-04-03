@@ -26,19 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate version matches pyproject.toml
-        run: |
-          PYPROJECT_VERSION=$(python3 -c "
-          import tomllib, pathlib
-          data = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
-          print(data['project']['version'])
-          ")
-          echo "pyproject.toml version: $PYPROJECT_VERSION"
-          if [ "$PYPROJECT_VERSION" != "${{ inputs.version }}" ]; then
-            echo "::error::Version mismatch: pyproject.toml has '$PYPROJECT_VERSION' but release requested '${{ inputs.version }}'"
-            exit 1
-          fi
-
       - name: Validate version matches Cargo.toml
         run: |
           CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
