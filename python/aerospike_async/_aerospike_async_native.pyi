@@ -2294,7 +2294,7 @@ class MapWriteMode(Enum):
 
 class PrivilegeCode(Enum):
     r"""
-    Secondary index collection type.
+    Privilege code for access control.
     """
     UserAdmin = ...
     r"""

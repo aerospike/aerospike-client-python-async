@@ -1,0 +1,2750 @@
+// Copyright 2023-2026 Aerospike, Inc.
+//
+// Portions may be licensed to Aerospike, Inc. under one or more contributor
+// license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
+
+use std::collections::BTreeMap;
+
+use pyo3::prelude::*;
+
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
+
+
+
+use crate::cdt::*;
+use crate::errors::RustClientError;
+use crate::record::PythonValue;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpressionType (ExpType)
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression Data Types for usage in some `FilterExpressions`
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy)]
+    pub enum ExpType {
+        #[pyo3(name = "NIL")]
+        Nil,
+        #[pyo3(name = "BOOL")]
+        Bool,
+        #[pyo3(name = "INT")]
+        Int,
+        #[pyo3(name = "STRING")]
+        String,
+        #[pyo3(name = "LIST")]
+        List,
+        #[pyo3(name = "MAP")]
+        Map,
+        #[pyo3(name = "BLOB")]
+        Blob,
+        #[pyo3(name = "FLOAT")]
+        Float,
+        #[pyo3(name = "GEO")]
+        Geo,
+        #[pyo3(name = "HLL")]
+        HLL,
+    }
+
+    impl From<&ExpType> for aerospike_core::expressions::ExpType {
+        fn from(input: &ExpType) -> Self {
+            match &input {
+                ExpType::Nil => aerospike_core::expressions::ExpType::NIL,
+                ExpType::Bool => aerospike_core::expressions::ExpType::BOOL,
+                ExpType::Int => aerospike_core::expressions::ExpType::INT,
+                ExpType::String => aerospike_core::expressions::ExpType::STRING,
+                ExpType::List => aerospike_core::expressions::ExpType::LIST,
+                ExpType::Map => aerospike_core::expressions::ExpType::MAP,
+                ExpType::Blob => aerospike_core::expressions::ExpType::BLOB,
+                ExpType::Float => aerospike_core::expressions::ExpType::FLOAT,
+                ExpType::Geo => aerospike_core::expressions::ExpType::GEO,
+                ExpType::HLL => aerospike_core::expressions::ExpType::HLL,
+            }
+        }
+    }
+
+    #[pymethods]
+    impl ExpType {
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpWriteFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression write flags for expression operations.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ExpWriteFlags", module = "_aerospike_async_native", eq, eq_int)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ExpWriteFlags {
+        /// Default. Allow create or update.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// If bin does not exist, a new bin will be created.
+        /// If bin exists, the operation will be denied.
+        #[pyo3(name = "CREATE_ONLY")]
+        CreateOnly = 1,
+        /// If bin exists, the bin will be overwritten.
+        /// If bin does not exist, the operation will be denied.
+        #[pyo3(name = "UPDATE_ONLY")]
+        UpdateOnly = 2,
+        /// If expression results in nil value, then delete the bin.
+        #[pyo3(name = "ALLOW_DELETE")]
+        AllowDelete = 4,
+        /// Do not raise error if operation is denied.
+        #[pyo3(name = "POLICY_NO_FAIL")]
+        PolicyNoFail = 8,
+        /// Ignore failures caused by the expression resolving to unknown or a non-bin type.
+        #[pyo3(name = "EVAL_NO_FAIL")]
+        EvalNoFail = 16,
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpReadFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Expression read flags for expression operations.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "ExpReadFlags", module = "_aerospike_async_native", eq, eq_int)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ExpReadFlags {
+        /// Default.
+        #[pyo3(name = "DEFAULT")]
+        Default = 0,
+        /// Ignore failures caused by the expression resolving to unknown or a non-bin type.
+        #[pyo3(name = "EVAL_NO_FAIL")]
+        EvalNoFail = 16,
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Filter Expression
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Filter expression, which can be applied to most commands, to control which records are
+    /// affected by the command.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(
+        name = "FilterExpression",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Clone, Debug)]
+    pub struct FilterExpression {
+        pub(crate) _as: aerospike_core::expressions::Expression,
+    }
+
+    impl PartialEq for FilterExpression {
+        fn eq(&self, other: &Self) -> bool {
+            // For now, we'll use a simple approach - compare the debug representation
+            // This is not perfect but will work for testing purposes
+            format!("{:?}", self._as) == format!("{:?}", other._as)
+        }
+    }
+
+    impl Eq for FilterExpression {}
+
+    impl std::hash::Hash for FilterExpression {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            // Use the debug representation for hashing
+            format!("{:?}", self._as).hash(state);
+        }
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl FilterExpression {
+        #[staticmethod]
+        /// Create a record key expression of specified type.
+        pub fn key(exp_type: ExpType) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::key((&exp_type).into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns if the primary key is stored in the record meta data
+        /// as a boolean expression. This would occur when `send_key` is true on record write.
+        pub fn key_exists() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::key_exists(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create 64 bit int bin expression.
+        pub fn int_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create string bin expression.
+        pub fn string_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::string_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create blob bin expression.
+        pub fn blob_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::blob_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create boolean bin expression.
+        pub fn bool_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::bool_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create 64 bit float bin expression.
+        pub fn float_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::float_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create geo bin expression.
+        pub fn geo_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::geo_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create list bin expression.
+        pub fn list_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::list_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create map bin expression.
+        pub fn map_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a HLL bin expression
+        pub fn hll_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::hll_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns if bin of specified name exists.
+        pub fn bin_exists(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::ne(
+                    aerospike_core::expressions::bin_type(name),
+                    aerospike_core::expressions::int_val(0_i64),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns bin's integer particle type.
+        pub fn bin_type(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::bin_type(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record set name string.
+        pub fn set_name() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::set_name(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns the record size. Usually evaluates quickly because
+        /// record metadata is cached in memory. Requires server version 7.0+.
+        pub fn record_size() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::record_size(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record size on disk. If server storage-engine is
+        /// memory, then zero is returned. Deprecated: use record_size() for server version 7.0+.
+        /// Implemented via record_size() for server 7.0+.
+        pub fn device_size() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::record_size(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns record size in memory. Deprecated: use record_size() for server 7.0+.
+        /// Implemented via record_size() for server 7.0+.
+        pub fn memory_size() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::record_size(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record last update time expressed as 64 bit integer
+        /// nanoseconds since 1970-01-01 epoch.
+        pub fn last_update() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::last_update(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns milliseconds since the record was last updated.
+        /// This expression usually evaluates quickly because record meta data is cached in memory.
+        pub fn since_update() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::since_update(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record expiration time expressed as 64 bit integer
+        /// nanoseconds since 1970-01-01 epoch.
+        pub fn void_time() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::void_time(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record expiration time (time to live) in integer seconds.
+        pub fn ttl() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::ttl(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns if record has been deleted and is still in tombstone state.
+        /// This expression usually evaluates quickly because record meta data is cached in memory.
+        pub fn is_tombstone() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::is_tombstone(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function that returns record digest modulo as integer.
+        pub fn digest_modulo(modulo: i64) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::digest_modulo(modulo),
+            }
+        }
+
+        #[staticmethod]
+        /// Create function like regular expression string operation.
+        pub fn regex_compare(regex: String, flags: i64, bin: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::regex_compare(regex, flags, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create compare geospatial operation.
+        pub fn geo_compare(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::geo_compare(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Creates 64 bit integer value
+        pub fn int_val(val: i64) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Creates a Boolean value
+        pub fn bool_val(val: bool) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::bool_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Creates String bin value
+        pub fn string_val(val: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::string_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Creates 64 bit float bin value
+        pub fn float_val(val: f64) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::float_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Creates Blob bin value
+        pub fn blob_val(val: Vec<u8>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::blob_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Create List bin value.
+        pub fn list_val(val: Vec<PythonValue>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::list_val(
+                    val.into_iter()
+                        .map(|v| aerospike_core::Value::from(v))
+                        .collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create Map bin value.
+        /// Converts HashMap to BTreeMap (OrderedMap) for exact byte-level matching.
+        /// map_val accepts both HashMap and BTreeMap (OrderedMap) via the MapLike trait.
+        /// We use BTreeMap to ensure deterministic key ordering for serialization matching.
+        pub fn map_val(val: PythonValue) -> Self {
+            match val {
+                PythonValue::HashMap(h) => {
+                    // Convert to BTreeMap for deterministic key ordering. Rust HashMap iteration
+                    // order is non-deterministic, so we sort keys to ensure exact byte-level matching
+                    // with the server's stored format (which uses sorted keys for KEY_ORDERED maps).
+                    let mut btree_map: BTreeMap<aerospike_core::Value, aerospike_core::Value> = BTreeMap::new();
+                    for (k, v) in h {
+                        btree_map.insert(aerospike_core::Value::from(k), aerospike_core::Value::from(v));
+                    }
+
+                    // BTreeMap implements MapLike, so we can pass it directly
+                    FilterExpression {
+                        _as: aerospike_core::expressions::map_val(btree_map),
+                    }
+                }
+                _ => panic!("map_val requires a map value (HashMap)"),
+            }
+        }
+
+        #[staticmethod]
+        /// Create geospatial json string value.
+        pub fn geo_val(val: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::geo_val(val),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a Nil PHPValue
+        pub fn nil() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::nil(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an infinity value for expression and CDT range boundaries.
+        pub fn infinity() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::infinity(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a wildcard value for expression and CDT value matching.
+        pub fn wildcard() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::wildcard(),
+            }
+        }
+
+        #[staticmethod]
+        #[pyo3(name = "not_")]
+        /// Create "not" operator expression.
+        pub fn not(exp: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::not(exp._as),
+            }
+        }
+
+        #[staticmethod]
+        #[pyo3(name = "and_")]
+        /// Create "and" (&&) operator that applies to a variable number of expressions.
+        /// // (a > 5 || a == 0) && b < 3
+        pub fn and(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::and(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        #[pyo3(name = "or_")]
+        /// Create "or" (||) operator that applies to a variable number of expressions.
+        pub fn or(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::or(exps.into_iter().map(|exp| exp._as).collect()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "xor" (^) operator that applies to a variable number of expressions.
+        pub fn xor(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::xor(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create equal (==) expression.
+        pub fn eq(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::eq(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create not equal (!=) expression
+        pub fn ne(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::ne(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create greater than (>) operation.
+        pub fn gt(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::gt(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create greater than or equal (>=) operation.
+        pub fn ge(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::ge(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create less than (<) operation.
+        pub fn lt(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::lt(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create less than or equals (<=) operation.
+        pub fn le(left: FilterExpression, right: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::le(left._as, right._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "add" (+) operator that applies to a variable number of expressions.
+        /// Return sum of all `FilterExpressions` given. All arguments must resolve to the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn num_add(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_add(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "subtract" (-) operator that applies to a variable number of expressions.
+        /// If only one `FilterExpressions` is provided, return the negation of that argument.
+        /// Otherwise, return the sum of the 2nd to Nth `FilterExpressions` subtracted from the 1st
+        /// `FilterExpressions`. All `FilterExpressions` must resolve to the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn num_sub(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_sub(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "multiply" (*) operator that applies to a variable number of expressions.
+        /// Return the product of all `FilterExpressions`. If only one `FilterExpressions` is supplied, return
+        /// that `FilterExpressions`. All `FilterExpressions` must resolve to the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn num_mul(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_mul(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "divide" (/) operator that applies to a variable number of expressions.
+        /// If there is only one `FilterExpressions`, returns the reciprocal for that `FilterExpressions`.
+        /// Otherwise, return the first `FilterExpressions` divided by the product of the rest.
+        /// All `FilterExpressions` must resolve to the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn num_div(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_div(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "power" operator that raises a "base" to the "exponent" power.
+        /// All arguments must resolve to floats.
+        /// Requires server version 5.6.0+.
+        pub fn num_pow(base: FilterExpression, exponent: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_pow(base._as, exponent._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "log" operator for logarithm of "num" with base "base".
+        /// All arguments must resolve to floats.
+        /// Requires server version 5.6.0+.
+        pub fn num_log(num: FilterExpression, base: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_log(num._as, base._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create "modulo" (%) operator that determines the remainder of "numerator"
+        /// divided by "denominator". All arguments must resolve to integers.
+        /// Requires server version 5.6.0+.
+        pub fn num_mod(numerator: FilterExpression, denominator: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_mod(numerator._as, denominator._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create operator that returns absolute value of a number.
+        /// All arguments must resolve to integer or float.
+        /// Requires server version 5.6.0+.
+        pub fn num_abs(value: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_abs(value._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that rounds a floating point number down to the closest integer value.
+        /// The return type is float.
+        // Requires server version 5.6.0+.
+        pub fn num_floor(num: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_floor(num._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that rounds a floating point number up to the closest integer value.
+        /// The return type is float.
+        /// Requires server version 5.6.0+.
+        pub fn num_ceil(num: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::num_ceil(num._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that converts an integer to a float.
+        /// Requires server version 5.6.0+.
+        pub fn to_int(num: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::to_int(num._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that converts a float to an integer.
+        /// Requires server version 5.6.0+.
+        pub fn to_float(num: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::to_float(num._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "and" (&) operator that is applied to two or more integers.
+        /// All arguments must resolve to integers.
+        /// Requires server version 5.6.0+.
+        pub fn int_and(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_and(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "or" (|) operator that is applied to two or more integers.
+        /// All arguments must resolve to integers.
+        /// Requires server version 5.6.0+.
+        pub fn int_or(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_or(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "xor" (^) operator that is applied to two or more integers.
+        /// All arguments must resolve to integers.
+        /// Requires server version 5.6.0+.
+        pub fn int_xor(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_xor(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "not" (~) operator.
+        /// Requires server version 5.6.0+.
+        pub fn int_not(exp: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_not(exp._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "left shift" (<<) operator.
+        /// Requires server version 5.6.0+.
+        pub fn int_lshift(value: FilterExpression, shift: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_lshift(value._as, shift._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "logical right shift" (>>>) operator.
+        /// Requires server version 5.6.0+.
+        pub fn int_rshift(value: FilterExpression, shift: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_rshift(value._as, shift._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create integer "arithmetic right shift" (>>) operator.
+        /// The sign bit is preserved and not shifted.
+        /// Requires server version 5.6.0+.
+        pub fn int_arshift(value: FilterExpression, shift: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_arshift(value._as, shift._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns count of integer bits that are set to 1.
+        /// Requires server version 5.6.0+
+        pub fn int_count(exp: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_count(exp._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that scans integer bits from left (most significant bit) to
+        /// right (least significant bit), looking for a search bit value. When the
+        /// search value is found, the index of that bit (where the most significant bit is
+        /// index 0) is returned. If "search" is true, the scan will search for the bit
+        /// value 1. If "search" is false it will search for bit value 0.
+        /// Requires server version 5.6.0+.
+        pub fn int_lscan(value: FilterExpression, search: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_lscan(value._as, search._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that scans integer bits from right (least significant bit) to
+        /// left (most significant bit), looking for a search bit value. When the
+        /// search value is found, the index of that bit (where the most significant bit is
+        /// index 0) is returned. If "search" is true, the scan will search for the bit
+        /// value 1. If "search" is false it will search for bit value 0.
+        /// Requires server version 5.6.0+.
+        pub fn int_rscan(value: FilterExpression, search: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::int_rscan(value._as, search._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns the minimum value in a variable number of expressions.
+        /// All arguments must be the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn min(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::min(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns the maximum value in a variable number of expressions.
+        /// All arguments must be the same type (integer or float).
+        /// Requires server version 5.6.0+.
+        pub fn max(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::max(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Variables
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Conditionally select an expression from a variable number of expression pairs
+        /// followed by default expression action.
+        /// Requires server version 5.6.0+.
+        /// ```
+        /// // Args Format: bool exp1, action exp1, bool exp2, action exp2, ..., action-default
+        /// // Apply operator based on type.
+        pub fn cond(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::cond(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Define variables and expressions in scope.
+        /// Requires server version 5.6.0+.
+        /// ```
+        /// // 5 < a < 10
+        pub fn exp_let(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_let(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        #[pyo3(name = "def_")]
+        /// Assign variable to an expression that can be accessed later.
+        /// Requires server version 5.6.0+.
+        /// ```
+        /// // 5 < a < 10
+        pub fn def(name: String, value: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::def(name, value._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Retrieve expression value from a variable.
+        /// Requires server version 5.6.0+.
+        pub fn var(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::var(name),
+            }
+        }
+
+        fn __richcmp__(&self, other: &FilterExpression, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        /// Return the debug representation of the inner expression (used for equality).
+        /// Exposed for inspection; same string used by __eq__.
+        pub fn _debug_inner(&self) -> String {
+            format!("{:?}", self._as)
+        }
+
+        /// Encode the expression to a base64 string.
+        pub fn base64(&self) -> PyResult<String> {
+            self._as
+                .base64()
+                .map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[staticmethod]
+        /// Create an expression from a base64-encoded expression string.
+        pub fn from_base64(b64: &str) -> PyResult<FilterExpression> {
+            aerospike_core::expressions::from_base64(b64)
+                .map(|expr| FilterExpression { _as: expr })
+                .map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[staticmethod]
+        /// Create unknown value. Used to intentionally fail an expression.
+        /// The failure can be ignored with `ExpWriteFlags` `EVAL_NO_FAIL`
+        /// or `ExpReadFlags` `EVAL_NO_FAIL`.
+        /// Requires server version 5.6.0+.
+        pub fn unknown() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::unknown(),
+            }
+        }
+
+        //--------------------------------------------------
+        // List CDT Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that returns list size.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: lists::size(bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list item identified by index and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index(
+            return_type: ListReturnType,
+            value_type: ExpType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index(
+                    core_return_type,
+                    (&value_type).into(),
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list item identified by rank and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank(
+            return_type: ListReturnType,
+            value_type: ExpType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank(
+                    core_return_type,
+                    (&value_type).into(),
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by value and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value(
+                    core_return_type,
+                    value._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_range(
+            return_type: ListReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_range(
+                    core_return_type,
+                    value_begin.as_ref().map(|v| v._as.clone()),
+                    value_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items identified by values and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_list(
+            return_type: ListReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_list(
+                    core_return_type,
+                    values._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items starting at specified index to the end of list
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index_range(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index_range(
+                    core_return_type,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" list items starting at specified index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_index_range_count(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_index_range_count(
+                    core_return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items starting at specified rank to the last ranked item
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank_range(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank_range(
+                    core_return_type,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" list items starting at specified rank and returns
+        /// selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_rank_range_count(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_rank_range_count(
+                    core_return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items nearest to value and greater by relative rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_relative_rank_range(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_relative_rank_range(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects list items nearest to value and greater by relative rank with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_get_by_value_relative_rank_range_count(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            FilterExpression {
+                _as: lists::get_by_value_relative_rank_range_count(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // List CDT Write Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that appends value to end of list.
+        pub fn list_append(
+            policy: ListPolicy,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::append(policy._as, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that appends list items to end of list.
+        pub fn list_append_items(
+            policy: ListPolicy,
+            list: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::append_items(policy._as, list._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts value to specified index of list.
+        pub fn list_insert(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::insert(policy._as, index._as, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts each input list item starting at specified index of list.
+        pub fn list_insert_items(
+            policy: ListPolicy,
+            index: FilterExpression,
+            list: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::insert_items(policy._as, index._as, list._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that increments list[index] by value.
+        pub fn list_increment(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::increment(policy._as, index._as, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets item value at specified index in list.
+        pub fn list_set(
+            policy: ListPolicy,
+            index: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::set(policy._as, index._as, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes all items in list.
+        pub fn list_clear(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::clear(bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sorts list according to sort_flags.
+        pub fn list_sort(
+            sort_flags: ListSortFlags,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let core_flags: aerospike_core::operations::lists::ListSortFlags = (&sort_flags).into();
+            FilterExpression {
+                _as: lists::sort(core_flags, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        //--------------------------------------------------
+        // List CDT Remove Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by value.
+        pub fn list_remove_by_value(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value(return_type, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by values.
+        pub fn list_remove_by_value_list(
+            return_type: ListReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_list(return_type, values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items identified by value range
+        /// (value_begin inclusive, value_end exclusive).
+        pub fn list_remove_by_value_range(
+            return_type: ListReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_range(
+                    return_type,
+                    value_begin.map(|e| e._as),
+                    value_end.map(|e| e._as),
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items nearest to value and greater by relative rank.
+        pub fn list_remove_by_value_relative_rank_range(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_relative_rank_range(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items nearest to value and greater by relative rank
+        /// with a count limit.
+        pub fn list_remove_by_value_relative_rank_range_count(
+            return_type: ListReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_value_relative_rank_range_count(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list item identified by index.
+        pub fn list_remove_by_index(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items starting at specified index to the end of list.
+        pub fn list_remove_by_index_range(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index_range(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" list items starting at specified index.
+        pub fn list_remove_by_index_range_count(
+            return_type: ListReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_index_range_count(
+                    return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list item identified by rank.
+        pub fn list_remove_by_rank(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes list items starting at specified rank to the last ranked item.
+        pub fn list_remove_by_rank_range(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank_range(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" list items starting at specified rank.
+        pub fn list_remove_by_rank_range_count(
+            return_type: ListReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            FilterExpression {
+                _as: lists::remove_by_rank_range_count(
+                    return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that returns map size.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_size(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: maps::size(bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by key and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            key: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_key(
+                    core_return_type,
+                    (&value_type).into(),
+                    key._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by rank and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_rank(
+                    core_return_type,
+                    (&value_type).into(),
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map item identified by index and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index(
+            return_type: MapReturnType,
+            value_type: ExpType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_index(
+                    core_return_type,
+                    (&value_type).into(),
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by value and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_value(
+                    core_return_type,
+                    value._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If valueBegin is None, the range is less than valueEnd. If valueEnd is None, the range is greater than equal to valueBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_range(
+            return_type: MapReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_value_range(
+                    core_return_type,
+                    value_begin.as_ref().map(|v| v._as.clone()),
+                    value_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by values and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_list(
+            return_type: MapReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_value_list(
+                    core_return_type,
+                    values._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by key range (keyBegin inclusive, keyEnd exclusive)
+        /// and returns selected data specified by returnType.
+        /// If keyBegin is None, the range is less than keyEnd. If keyEnd is None, the range is greater than equal to keyBegin.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_range(
+            return_type: MapReturnType,
+            key_begin: Option<FilterExpression>,
+            key_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_key_range(
+                    core_return_type,
+                    key_begin.as_ref().map(|v| v._as.clone()),
+                    key_end.as_ref().map(|v| v._as.clone()),
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items identified by keys and returns selected data
+        /// specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_list(
+            return_type: MapReturnType,
+            keys: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_key_list(
+                    core_return_type,
+                    keys._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to key and greater by index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_relative_index_range(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_key_relative_index_range(
+                    core_return_type,
+                    key._as,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to key and greater by index with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_key_relative_index_range_count(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_key_relative_index_range_count(
+                    core_return_type,
+                    key._as,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to value and greater by relative rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_relative_rank_range(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_value_relative_rank_range(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items nearest to value and greater by relative rank with a count limit
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_value_relative_rank_range_count(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_value_relative_rank_range_count(
+                    core_return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items starting at specified index to the end of map
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index_range(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_index_range(
+                    core_return_type,
+                    index._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" map items starting at specified index
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_index_range_count(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_index_range_count(
+                    core_return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects map items starting at specified rank to the last ranked item
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank_range(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_rank_range(
+                    core_return_type,
+                    rank._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that selects "count" map items starting at specified rank
+        /// and returns selected data specified by returnType.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn map_get_by_rank_range_count(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            let core_return_type = return_type;
+            FilterExpression {
+                _as: maps::get_by_rank_range_count(
+                    core_return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &ctx_vec,
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Write Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that writes key/value item to map bin.
+        pub fn map_put(
+            policy: MapPolicy,
+            key: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::put(&policy._as, key._as, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that writes each map item to map bin.
+        pub fn map_put_items(
+            policy: MapPolicy,
+            map: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::put_items(&policy._as, map._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that increments values by incr for all items identified by key.
+        pub fn map_increment(
+            policy: MapPolicy,
+            key: FilterExpression,
+            incr: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::increment(&policy._as, key._as, incr._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        //--------------------------------------------------
+        // Map CDT Remove Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that removes all items in map.
+        pub fn map_clear(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::clear(bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by key.
+        pub fn map_remove_by_key(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key(return_type, key._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by keys.
+        pub fn map_remove_by_key_list(
+            return_type: MapReturnType,
+            keys: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_list(return_type, keys._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by key range
+        /// (key_begin inclusive, key_end exclusive).
+        pub fn map_remove_by_key_range(
+            return_type: MapReturnType,
+            key_begin: Option<FilterExpression>,
+            key_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_range(
+                    return_type,
+                    key_begin.map(|e| e._as),
+                    key_end.map(|e| e._as),
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to key and greater by index.
+        pub fn map_remove_by_key_relative_index_range(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_relative_index_range(
+                    return_type,
+                    key._as,
+                    index._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to key and greater by index
+        /// with a count limit.
+        pub fn map_remove_by_key_relative_index_range_count(
+            return_type: MapReturnType,
+            key: FilterExpression,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_key_relative_index_range_count(
+                    return_type,
+                    key._as,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by value.
+        pub fn map_remove_by_value(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value(return_type, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by values.
+        pub fn map_remove_by_value_list(
+            return_type: MapReturnType,
+            values: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_list(return_type, values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items identified by value range
+        /// (value_begin inclusive, value_end exclusive).
+        pub fn map_remove_by_value_range(
+            return_type: MapReturnType,
+            value_begin: Option<FilterExpression>,
+            value_end: Option<FilterExpression>,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_range(
+                    return_type,
+                    value_begin.map(|e| e._as),
+                    value_end.map(|e| e._as),
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to value and greater by relative rank.
+        pub fn map_remove_by_value_relative_rank_range(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_relative_rank_range(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items nearest to value and greater by relative rank
+        /// with a count limit.
+        pub fn map_remove_by_value_relative_rank_range_count(
+            return_type: MapReturnType,
+            value: FilterExpression,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_value_relative_rank_range_count(
+                    return_type,
+                    value._as,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by index.
+        pub fn map_remove_by_index(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items starting at specified index to the end of map.
+        pub fn map_remove_by_index_range(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index_range(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" map items starting at specified index.
+        pub fn map_remove_by_index_range_count(
+            return_type: MapReturnType,
+            index: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_index_range_count(
+                    return_type,
+                    index._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map item identified by rank.
+        pub fn map_remove_by_rank(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes map items starting at specified rank to the last ranked item.
+        pub fn map_remove_by_rank_range(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank_range(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes "count" map items starting at specified rank.
+        pub fn map_remove_by_rank_range_count(
+            return_type: MapReturnType,
+            rank: FilterExpression,
+            count: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::maps;
+            FilterExpression {
+                _as: maps::remove_by_rank_range_count(
+                    return_type,
+                    rank._as,
+                    count._as,
+                    bin._as,
+                    &crate::cdt::ctx_to_vec(&ctx),
+                ),
+            }
+        }
+
+        //--------------------------------------------------
+        // Bitwise Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that resizes byte[] to byte_size according to resize_flags
+        /// and returns byte[].
+        pub fn bit_resize(
+            policy: BitPolicy,
+            byte_size: FilterExpression,
+            resize_flags: BitwiseResizeFlags,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::resize(&policy._as, byte_size._as, resize_flags.into(), bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that inserts value bytes into byte[] bin at byte_offset
+        /// and returns byte[].
+        pub fn bit_insert(
+            policy: BitPolicy,
+            byte_offset: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::insert(&policy._as, byte_offset._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that removes bytes from byte[] bin at byte_offset for byte_size
+        /// and returns byte[].
+        pub fn bit_remove(
+            policy: BitPolicy,
+            byte_offset: FilterExpression,
+            byte_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::remove(&policy._as, byte_offset._as, byte_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets value on byte[] bin at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_set(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::set(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "or" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_or(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::or(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "xor" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_xor(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::xor(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that performs bitwise "and" on value and byte[] bin at bit_offset
+        /// for bit_size and returns byte[].
+        pub fn bit_and(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::and(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that negates byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_not(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::not(&policy._as, bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that shifts left byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_lshift(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            shift: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::lshift(&policy._as, bit_offset._as, bit_size._as, shift._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that shifts right byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[].
+        pub fn bit_rshift(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            shift: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::rshift(&policy._as, bit_offset._as, bit_size._as, shift._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds value to byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_add(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            signed: bool,
+            action: BitwiseOverflowActions,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::add(
+                    &policy._as,
+                    bit_offset._as,
+                    bit_size._as,
+                    value._as,
+                    signed,
+                    action.into(),
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that subtracts value from byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_subtract(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            signed: bool,
+            action: BitwiseOverflowActions,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::subtract(
+                    &policy._as,
+                    bit_offset._as,
+                    bit_size._as,
+                    value._as,
+                    signed,
+                    action.into(),
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that sets value to byte[] bin starting at bit_offset for bit_size
+        /// and returns byte[]. BitSize must be <= 64.
+        pub fn bit_set_int(
+            policy: BitPolicy,
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::set_int(&policy._as, bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns bits from byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_get(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::get(bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer count of set bits from byte[] bin starting at
+        /// bit_offset for bit_size.
+        pub fn bit_count(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::count(bit_offset._as, bit_size._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer bit offset of the first specified value bit
+        /// in byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_lscan(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::lscan(bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer bit offset of the last specified value bit
+        /// in byte[] bin starting at bit_offset for bit_size.
+        pub fn bit_rscan(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            value: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::rscan(bit_offset._as, bit_size._as, value._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns integer from byte[] bin starting at bit_offset for bit_size.
+        /// Signed indicates if bits should be treated as a signed number.
+        pub fn bit_get_int(
+            bit_offset: FilterExpression,
+            bit_size: FilterExpression,
+            signed: bool,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::get_int(bit_offset._as, bit_size._as, signed, bin._as),
+            }
+        }
+
+        //--------------------------------------------------
+        // HLL Expressions
+        //--------------------------------------------------
+
+        #[staticmethod]
+        /// Create expression that creates a new HLL or resets an existing HLL.
+        pub fn hll_init(
+            policy: HLLPolicy,
+            index_bit_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::init(policy._as, index_bit_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that creates a new HLL or resets an existing HLL with minhash bits.
+        pub fn hll_init_with_min_hash(
+            policy: HLLPolicy,
+            index_bit_count: FilterExpression,
+            min_hash_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::init_with_min_hash(policy._as, index_bit_count._as, min_hash_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds list values to a HLL set and returns HLL set.
+        pub fn hll_add(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add(policy._as, list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds values to a HLL set and returns HLL set.
+        /// If HLL bin does not exist, use index_bit_count to create HLL bin.
+        pub fn hll_add_with_index(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            index_bit_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add_with_index(policy._as, list._as, index_bit_count._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that adds values to a HLL set and returns HLL set.
+        /// If HLL bin does not exist, use index_bit_count and min_hash_count to create HLL set.
+        pub fn hll_add_with_index_and_min_hash(
+            policy: HLLPolicy,
+            list: FilterExpression,
+            index_bit_count: FilterExpression,
+            min_hash_count: FilterExpression,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::add_with_index_and_min_hash(
+                    policy._as,
+                    list._as,
+                    index_bit_count._as,
+                    min_hash_count._as,
+                    bin._as,
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements in the HLL bin.
+        pub fn hll_get_count(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_count(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns a HLL object that is the union of all specified
+        /// HLL objects in the list with the HLL bin.
+        pub fn hll_get_union(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_union(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements that would be contained
+        /// by the union of these HLL objects.
+        pub fn hll_get_union_count(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_union_count(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated number of elements that would be contained
+        /// by the intersection of these HLL objects.
+        pub fn hll_get_intersect_count(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_intersect_count(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns estimated similarity of these HLL objects
+        /// as a 64 bit float.
+        pub fn hll_get_similarity(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::get_similarity(list._as, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns index_bit_count and min_hash_bit_count used to create
+        /// HLL bin in a list of longs.
+        pub fn hll_describe(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::describe(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns one if HLL bin may contain all items in the list.
+        pub fn hll_may_contain(list: FilterExpression, bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::hll;
+            FilterExpression {
+                _as: hll::may_contain(list._as, bin._as),
+            }
+        }
+    }
