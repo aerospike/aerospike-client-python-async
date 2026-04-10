@@ -7,6 +7,86 @@ import typing
 from ._aerospike_async_native import GeoJSON, Key, Record
 from enum import Enum, IntEnum
 
+__all__ = [
+    "AdminPolicy",
+    "AuthMode",
+    "BasePolicy",
+    "BatchDeleteOp",
+    "BatchDeletePolicy",
+    "BatchPolicy",
+    "BatchReadOp",
+    "BatchReadPolicy",
+    "BatchRecord",
+    "BatchUDFPolicy",
+    "BatchWriteOp",
+    "BatchWritePolicy",
+    "BitOperation",
+    "BitPolicy",
+    "BitwiseOverflowActions",
+    "BitwiseResizeFlags",
+    "BitwiseWriteFlags",
+    "CTX",
+    "Client",
+    "ClientPolicy",
+    "CollectionIndexType",
+    "CommitLevel",
+    "ConsistencyLevel",
+    "DropIndexTask",
+    "ExecuteTask",
+    "ExpOperation",
+    "ExpReadFlags",
+    "ExpType",
+    "ExpWriteFlags",
+    "Expiration",
+    "Filter",
+    "FilterExpression",
+    "GenerationPolicy",
+    "HLLPolicy",
+    "HLLWriteFlags",
+    "HllOperation",
+    "IndexTask",
+    "IndexType",
+    "Key",
+    "ListOperation",
+    "ListOrderType",
+    "ListPolicy",
+    "ListReturnType",
+    "ListSortFlags",
+    "ListWriteFlags",
+    "MapOperation",
+    "MapOrder",
+    "MapPolicy",
+    "MapReturnType",
+    "MapWriteFlags",
+    "MapWriteMode",
+    "Node",
+    "Operation",
+    "PartitionFilter",
+    "PartitionStatus",
+    "Privilege",
+    "PrivilegeCode",
+    "QueryDuration",
+    "QueryPolicy",
+    "ReadPolicy",
+    "Record",
+    "RecordExistsAction",
+    "Recordset",
+    "RegisterTask",
+    "Replica",
+    "ResultCode",
+    "SpecialValue",
+    "Statement",
+    "TaskStatus",
+    "TlsConfig",
+    "UDFLang",
+    "UdfRemoveTask",
+    "Version",
+    "WritePolicy",
+    "geojson",
+    "new_client",
+    "null",
+]
+
 class AdminPolicy:
     @property
     def timeout(self) -> builtins.int: ...
@@ -378,13 +458,13 @@ class ClientPolicy:
     @cluster_name.setter
     def cluster_name(self, value: typing.Optional[builtins.str]) -> None: ...
     @property
-    def tls_config(self) -> typing.Optional[None]:
+    def tls_config(self) -> typing.Optional[TlsConfig]:
         r"""
         TLS configuration for secure connections.
         Set to None to disable TLS, or use TlsConfig to configure TLS.
         """
     @tls_config.setter
-    def tls_config(self, value: typing.Optional[None]) -> None: ...
+    def tls_config(self, value: typing.Optional[TlsConfig]) -> None: ...
     def __new__(cls) -> ClientPolicy: ...
     def set_auth_mode(self, mode:AuthMode, user:typing.Optional[builtins.str]=None, password:typing.Optional[builtins.str]=None) -> None:
         r"""
@@ -653,6 +733,16 @@ class FilterExpression:
     def nil() -> FilterExpression:
         r"""
         Create a Nil PHPValue
+        """
+    @staticmethod
+    def infinity() -> FilterExpression:
+        r"""
+        Create an infinity value for expression and CDT range boundaries.
+        """
+    @staticmethod
+    def wildcard() -> FilterExpression:
+        r"""
+        Create a wildcard value for expression and CDT value matching.
         """
     @staticmethod
     def not_(exp:FilterExpression) -> FilterExpression:
@@ -1525,13 +1615,14 @@ class ListPolicy:
     @order.setter
     def order(self, value: ListOrderType) -> None: ...
     @property
-    def write_flags(self) -> ListWriteFlags: ...
+    def write_flags(self) -> builtins.int: ...
     @write_flags.setter
-    def write_flags(self, value: ListWriteFlags) -> None: ...
-    def __new__(cls, order:typing.Optional[ListOrderType], write_flags:typing.Optional[ListWriteFlags]) -> ListPolicy:
+    def write_flags(self, value: typing.Union[ListWriteFlags, int]) -> None: ...
+    def __new__(cls, order: typing.Optional[ListOrderType] = None, write_flags: typing.Optional[typing.Union[ListWriteFlags, int]] = None) -> ListPolicy:
         r"""
         Create a new ListPolicy with the specified order and write flags.
         Default is unordered list with default write flags.
+        write_flags may be ListWriteFlags or int (bitmask), e.g. ADD_UNIQUE | NO_FAIL.
         """
 
 class ListReturnType:
@@ -1878,6 +1969,31 @@ class Statement:
             function_args: Optional list of arguments to pass to the function.
         """
 
+class TlsConfig:
+    def __new__(cls, cafile:builtins.str) -> TlsConfig:
+        r"""
+        Create a new TlsConfig from CA certificate file.
+
+        Args:
+            cafile: Path to the CA certificate file (PEM format)
+
+        Returns:
+            TlsConfig instance configured with the CA certificate
+        """
+    @staticmethod
+    def with_client_auth(cafile:builtins.str, certfile:builtins.str, keyfile:builtins.str) -> TlsConfig:
+        r"""
+        Create a TlsConfig with client authentication from certificate and key files.
+
+        Args:
+            cafile: Path to the CA certificate file (PEM format)
+            certfile: Path to the client certificate file (PEM format)
+            keyfile: Path to the client private key file (PEM format)
+
+        Returns:
+            TlsConfig instance configured with CA and client certificates
+        """
+
 class WritePolicy(BasePolicy):
     def __new__(cls) -> WritePolicy: ...
     @property
@@ -1978,7 +2094,7 @@ class ConsistencyLevel(Enum):
     CONSISTENCY_ONE = ...
     CONSISTENCY_ALL = ...
 
-class ExpReadFlags(Enum):
+class ExpReadFlags(IntEnum):
     r"""
     Expression read flags for expression operations.
     """
@@ -2006,7 +2122,7 @@ class ExpType(Enum):
     GEO = ...
     HLL = ...
 
-class ExpWriteFlags(Enum):
+class ExpWriteFlags(IntEnum):
     r"""
     Expression write flags for expression operations.
     """
@@ -2042,7 +2158,7 @@ class GenerationPolicy(Enum):
     EXPECT_GEN_EQUAL = ...
     EXPECT_GEN_GREATER = ...
 
-class HLLWriteFlags(Enum):
+class HLLWriteFlags(IntEnum):
     r"""
     HLL write flags for HLL operations.
     """
@@ -2276,6 +2392,24 @@ class Replica(Enum):
     MASTER = ...
     SEQUENCE = ...
     PREFER_RACK = ...
+
+class SpecialValue(Enum):
+    r"""
+    Markers for Aerospike CDT map/list range and value operations.
+    These use dedicated wire particles, distinct from Python ``float('inf')`` or the ``"*"`` string.
+    """
+    NULL = ...
+    r"""
+    Null particle boundary (e.g. unbounded start of a key range).
+    """
+    INFINITY = ...
+    r"""
+    Positive infinity particle (e.g. unbounded end of a value range).
+    """
+    WILDCARD = ...
+    r"""
+    Wildcard particle for value matching.
+    """
 
 class TaskStatus(Enum):
     NOT_FOUND = ...
@@ -2662,9 +2796,11 @@ class Client:
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[Record]: ...
     def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...
-    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
-    def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
-    def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...
+    def query_operate(self, write_policy: WritePolicy, statement: Statement, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[ExecuteTask]: ...
+    def query_execute_udf(self, write_policy: WritePolicy, statement: Statement, package_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[ExecuteTask]: ...
+    def register_udf(self, policy: typing.Optional[AdminPolicy], udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...
+    def register_udf_from_file(self, policy: typing.Optional[AdminPolicy], client_path: builtins.str, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...
+    def remove_udf(self, policy: typing.Optional[AdminPolicy], server_path: builtins.str) -> typing.Awaitable[UdfRemoveTask]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_write(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], bins_list: typing.Sequence[typing.Dict[builtins.str, typing.Any]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
@@ -2703,6 +2839,20 @@ def null() -> typing.Any:
     Matches the legacy client's aerospike.null() function.
     """
 
+
+class RegisterTask:
+    r"""
+    Task returned by register_udf() / register_udf_from_file() to track UDF registration.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+
+class UdfRemoveTask:
+    r"""
+    Task returned by remove_udf() to track UDF removal.
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
 
 class HllOperation:
     r"""

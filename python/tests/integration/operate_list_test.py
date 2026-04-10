@@ -16,7 +16,7 @@
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
-                             ListPolicy, ListOrderType, ListReturnType, ListSortFlags, CTX)
+                             ListPolicy, ListOrderType, ListWriteFlags, ListReturnType, ListSortFlags, CTX)
 
 
 @pytest_asyncio.fixture
@@ -1519,4 +1519,28 @@ async def test_operate_list_set_order_with_index(client_and_key):
 
     rec = await client.get(rp, key, ["listbin"])
     assert rec.bins.get("listbin") == [1, 2]
+
+
+async def test_list_append_with_combined_write_flags(client_and_key):
+    """ADD_UNIQUE | NO_FAIL: duplicate append silently skipped instead of raising."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    rp = ReadPolicy()
+    await client.delete(wp, key)
+
+    combined = int(ListWriteFlags.ADD_UNIQUE) | int(ListWriteFlags.NO_FAIL)
+    policy = ListPolicy(ListOrderType.UNORDERED, combined)
+
+    await client.operate(wp, key, [
+        ListOperation.append("listbin", 1, policy),
+        ListOperation.append("listbin", 2, policy),
+    ])
+    # Duplicate: should be silently skipped (NO_FAIL prevents error)
+    await client.operate(wp, key, [
+        ListOperation.append("listbin", 1, policy),
+    ])
+
+    rec = await client.get(rp, key, ["listbin"])
+    assert sorted(rec.bins["listbin"]) == [1, 2]
 

@@ -2791,27 +2791,47 @@ pub enum Replica {
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(name = "ListWriteFlags", module = "_aerospike_async_native")]
+    #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListWriteFlags {
         /// Default is the default behavior. It means: Allow duplicate values and insertions at any index.
         #[pyo3(name = "DEFAULT")]
-        Default,
+        Default = 0,
         /// AddUnique means: Only add unique values.
         #[pyo3(name = "ADD_UNIQUE")]
-        AddUnique,
+        AddUnique = 1,
         /// InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
         #[pyo3(name = "INSERT_BOUNDED")]
-        InsertBounded,
+        InsertBounded = 2,
         /// NoFail means: do not raise error if a list item fails due to write flag constraints.
         #[pyo3(name = "NO_FAIL")]
-        NoFail,
+        NoFail = 4,
         /// Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
         #[pyo3(name = "PARTIAL")]
-        Partial,
+        Partial = 8,
     }
 
     #[pymethods]
     impl ListWriteFlags {
+        /// Bitwise OR of list write flags (bitmask). Result is an ``int`` suitable for ``ListPolicy``.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// ``int | ListWriteFlags`` support.
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(b | a)
+        }
+
+        /// Raw flag bitmask as ``int``.
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
         fn __richcmp__(&self, other: &ListWriteFlags, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
             match op {
                 pyo3::class::basic::CompareOp::Eq => Ok(self == other),
@@ -2838,6 +2858,12 @@ pub enum Replica {
                 ListWriteFlags::NoFail => aerospike_core::operations::lists::ListWriteFlags::NoFail,
                 ListWriteFlags::Partial => aerospike_core::operations::lists::ListWriteFlags::Partial,
             }
+        }
+    }
+
+    impl From<ListWriteFlags> for u8 {
+        fn from(flags: ListWriteFlags) -> Self {
+            flags as u8
         }
     }
 
@@ -3827,6 +3853,22 @@ pub enum Replica {
         pub fn nil() -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::nil(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an infinity value for expression and CDT range boundaries.
+        pub fn infinity() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::infinity(),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a wildcard value for expression and CDT value matching.
+        pub fn wildcard() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::wildcard(),
             }
         }
 
@@ -9919,7 +9961,12 @@ pub enum Replica {
 
     impl Default for ListPolicy {
         fn default() -> Self {
-            Self::new(None, None)
+            ListPolicy {
+                _as: aerospike_core::operations::lists::ListPolicy::new(
+                    aerospike_core::operations::lists::ListOrderType::Unordered,
+                    aerospike_core::operations::lists::ListWriteFlags::Default,
+                ),
+            }
         }
     }
 
@@ -9927,17 +9974,26 @@ pub enum Replica {
     #[pymethods]
     impl ListPolicy {
         #[new]
+        #[pyo3(signature = (order=None, write_flags=None))]
         /// Create a new ListPolicy with the specified order and write flags.
         /// Default is unordered list with default write flags.
-        pub fn new(order: Option<ListOrderType>, write_flags: Option<ListWriteFlags>) -> Self {
+        /// write_flags may be ListWriteFlags or int (bitmask), e.g. ADD_UNIQUE | NO_FAIL.
+        pub fn new(
+            py: Python<'_>,
+            order: Option<ListOrderType>,
+            write_flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
             let order = order.unwrap_or(ListOrderType::Unordered);
-            let write_flags = write_flags.unwrap_or(ListWriteFlags::Default);
-            ListPolicy {
-                _as: aerospike_core::operations::lists::ListPolicy::new(
-                    (&order).into(),
-                    (&write_flags).into(),
-                ),
-            }
+            let f = match &write_flags {
+                None => 0u8,
+                Some(obj) => list_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(ListPolicy {
+                _as: aerospike_core::operations::lists::ListPolicy {
+                    attributes: (&order).into(),
+                    flags: f,
+                },
+            })
         }
 
         #[getter]
@@ -9954,26 +10010,14 @@ pub enum Replica {
         }
 
         #[getter]
-        pub fn get_write_flags(&self) -> ListWriteFlags {
-            match self._as.flags {
-                0 => ListWriteFlags::Default,
-                1 => ListWriteFlags::AddUnique,
-                2 => ListWriteFlags::InsertBounded,
-                4 => ListWriteFlags::NoFail,
-                8 => ListWriteFlags::Partial,
-                _ => ListWriteFlags::Default,
-            }
+        pub fn get_write_flags(&self) -> u8 {
+            self._as.flags
         }
 
         #[setter]
-        pub fn set_write_flags(&mut self, write_flags: ListWriteFlags) {
-            self._as.flags = match write_flags {
-                ListWriteFlags::Default => 0,
-                ListWriteFlags::AddUnique => 1,
-                ListWriteFlags::InsertBounded => 2,
-                ListWriteFlags::NoFail => 4,
-                ListWriteFlags::Partial => 8,
-            };
+        pub fn set_write_flags(&mut self, write_flags: &Bound<'_, PyAny>) -> PyResult<()> {
+            self._as.flags = list_policy_flags_from_py(write_flags)?;
+            Ok(())
         }
     }
 
@@ -10492,6 +10536,17 @@ pub enum Replica {
             8 => MapWriteFlags::Partial,
             _ => MapWriteFlags::Default,
         }
+    }
+
+    /// Extract flags as u8 from ListWriteFlags or int (bitmask). Used for ListPolicy.
+    fn list_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+        if let Ok(f) = ob.extract::<ListWriteFlags>() {
+            return Ok(u8::from(f));
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i as u8);
+        }
+        Err(PyValueError::new_err("write_flags must be ListWriteFlags or int"))
     }
 
     /// Extract flags as u8 from MapWriteFlags or int (bitmask). Used for MapPolicy.
@@ -13936,6 +13991,60 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  SpecialValue (CDT range / value boundaries)
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Markers for Aerospike CDT map/list range and value operations.
+    /// These use dedicated wire particles, distinct from Python ``float('inf')`` or the ``"*"`` string.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(name = "SpecialValue", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum SpecialValue {
+        /// Null particle boundary (e.g. unbounded start of a key range).
+        #[pyo3(name = "NULL")]
+        Null,
+        /// Positive infinity particle (e.g. unbounded end of a value range).
+        #[pyo3(name = "INFINITY")]
+        Infinity,
+        /// Wildcard particle for value matching.
+        #[pyo3(name = "WILDCARD")]
+        Wildcard,
+    }
+
+    #[pymethods]
+    impl SpecialValue {
+        fn __richcmp__(
+            &self,
+            other: &SpecialValue,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        fn __repr__(&self) -> String {
+            match self {
+                SpecialValue::Null => "SpecialValue.NULL".to_string(),
+                SpecialValue::Infinity => "SpecialValue.INFINITY".to_string(),
+                SpecialValue::Wildcard => "SpecialValue.WILDCARD".to_string(),
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  PythonValue
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -13972,6 +14081,9 @@ pub enum Replica {
 
         /// HLL value
         HLL(Vec<u8>),
+
+        /// CDT boundary markers (see :class:`SpecialValue`).
+        CdtSpecial(SpecialValue),
     }
 
     #[allow(clippy::derived_hash_with_manual_eq)]
@@ -13991,6 +14103,7 @@ pub enum Replica {
                 PythonValue::HashMap(_) | PythonValue::OrderedMap(_) => {
                     panic!("Maps cannot be used as map keys.")
                 }
+                PythonValue::CdtSpecial(ref s) => s.hash(state),
             }
         }
     }
@@ -14010,6 +14123,11 @@ pub enum Replica {
                 PythonValue::List(ref val) => format!("{:?}", val),
                 PythonValue::HashMap(ref val) => format!("{:?}", val),
                 PythonValue::OrderedMap(ref val) => format!("{:?}", val),
+                PythonValue::CdtSpecial(s) => match s {
+                    SpecialValue::Null => "SpecialValue.NULL".to_string(),
+                    SpecialValue::Infinity => "SpecialValue.INFINITY".to_string(),
+                    SpecialValue::Wildcard => "SpecialValue.WILDCARD".to_string(),
+                },
             }
         }
     }
@@ -14064,6 +14182,9 @@ pub enum Replica {
                     Ok(geo.into_pyobject(py).map(|v| v.into_any()).unwrap())
                 }
                 PythonValue::HLL(b) => Ok(HLL::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::CdtSpecial(s) => {
+                    Ok(s.into_pyobject(py).map(|v| v.into_any()).unwrap())
+                }
             }
         }
     }
@@ -14075,6 +14196,10 @@ pub enum Replica {
             // Handle None first - check if the object is None
             if obj.is_none() {
                 return Ok(PythonValue::Nil);
+            }
+
+            if let Ok(sv) = <SpecialValue as FromPyObject>::extract(obj) {
+                return Ok(PythonValue::CdtSpecial(sv));
             }
 
             let b: PyResult<bool> = obj.extract();
@@ -14191,6 +14316,11 @@ pub enum Replica {
                 }
                 PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
                 PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
+                PythonValue::CdtSpecial(s) => match s {
+                    SpecialValue::Null => aerospike_core::Value::Nil,
+                    SpecialValue::Infinity => aerospike_core::Value::Infinity,
+                    SpecialValue::Wildcard => aerospike_core::Value::Wildcard,
+                },
             }
         }
     }
@@ -14234,12 +14364,8 @@ pub enum Replica {
                 }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
-                aerospike_core::Value::Infinity => {
-                    PythonValue::Float(ordered_float::OrderedFloat(f64::INFINITY))
-                }
-                aerospike_core::Value::Wildcard => {
-                    PythonValue::String("*".to_string())
-                }
+                aerospike_core::Value::Infinity => PythonValue::CdtSpecial(SpecialValue::Infinity),
+                aerospike_core::Value::Wildcard => PythonValue::CdtSpecial(SpecialValue::Wildcard),
                 aerospike_core::Value::KeyValueList(kvl) => {
                     let pairs: Vec<(PythonValue, PythonValue)> = kvl
                         .into_iter()
@@ -14451,6 +14577,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<MapWriteMode>()?;
     m.add_class::<MapWriteFlags>()?;
     m.add_class::<MapReturnType>()?;
+    m.add_class::<SpecialValue>()?;
     m.add_class::<MapPolicy>()?;
     m.add_class::<BitwiseResizeFlags>()?;
     m.add_class::<BitwiseWriteFlags>()?;

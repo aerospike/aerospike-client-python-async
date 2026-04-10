@@ -521,3 +521,31 @@ def test_u64_boundary_values():
     test_list = ASList([i64_max, i64_max_plus_one])
     assert test_list[0] == i64_max
     assert test_list[1] == -9223372036854775808  # i64::MIN (overflow)
+
+
+def test_special_value_enum_distinct():
+    """CDT boundary markers are distinct enum members."""
+    from aerospike_async import SpecialValue
+
+    assert SpecialValue.NULL != SpecialValue.INFINITY
+    assert SpecialValue.INFINITY != SpecialValue.WILDCARD
+    assert "SpecialValue.INFINITY" == repr(SpecialValue.INFINITY)
+
+
+def test_map_operation_accepts_special_value_range_endpoints():
+    """Map get_by_key_range accepts SpecialValue for open-ended CDT ranges."""
+    from aerospike_async import MapOperation, MapReturnType, SpecialValue
+
+    op = MapOperation.get_by_key_range(
+        "m", SpecialValue.NULL, SpecialValue.INFINITY, MapReturnType.KEY,
+    )
+    assert op is not None
+
+
+def test_list_operation_accepts_special_value_range_endpoints():
+    from aerospike_async import ListOperation, ListReturnType, SpecialValue
+
+    op = ListOperation.get_by_value_range(
+        "lst", 1, SpecialValue.INFINITY, ListReturnType.VALUE,
+    )
+    assert op is not None

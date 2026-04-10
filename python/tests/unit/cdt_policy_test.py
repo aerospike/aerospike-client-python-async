@@ -66,12 +66,12 @@ class TestListPolicy:
 
     def test_construction_with_write_flags(self):
         lp = ListPolicy(None, ListWriteFlags.ADD_UNIQUE)
-        assert lp.write_flags == ListWriteFlags.ADD_UNIQUE
+        assert lp.write_flags == int(ListWriteFlags.ADD_UNIQUE)
 
     def test_construction_with_both(self):
         lp = ListPolicy(ListOrderType.ORDERED, ListWriteFlags.INSERT_BOUNDED)
         assert lp.order == ListOrderType.ORDERED
-        assert lp.write_flags == ListWriteFlags.INSERT_BOUNDED
+        assert lp.write_flags == int(ListWriteFlags.INSERT_BOUNDED)
 
     def test_order_setter(self):
         lp = ListPolicy(None, None)
@@ -90,7 +90,42 @@ class TestListPolicy:
             ListWriteFlags.PARTIAL,
         ]:
             lp.write_flags = flag
-            assert lp.write_flags == flag
+            assert lp.write_flags == int(flag)
+
+    def test_construction_with_combined_flags_via_or(self):
+        """OR'd enums produce an int; ListPolicy should accept it."""
+        combined = int(ListWriteFlags.ADD_UNIQUE) | int(ListWriteFlags.NO_FAIL)
+        lp = ListPolicy(ListOrderType.ORDERED, combined)
+        assert lp.order == ListOrderType.ORDERED
+        assert lp.write_flags == combined
+
+    def test_construction_with_enum_pipe_or(self):
+        combined = ListWriteFlags.ADD_UNIQUE | ListWriteFlags.NO_FAIL
+        lp = ListPolicy(ListOrderType.UNORDERED, combined)
+        assert lp.write_flags == 5
+
+    def test_construction_with_int_bitmask(self):
+        lp = ListPolicy(ListOrderType.ORDERED, 5)
+        assert lp.write_flags == 5
+
+    def test_setter_with_int_bitmask(self):
+        lp = ListPolicy(None, None)
+        lp.write_flags = 5  # ADD_UNIQUE | NO_FAIL
+        assert lp.write_flags == 5
+
+    def test_setter_with_single_enum_still_works(self):
+        lp = ListPolicy(None, None)
+        lp.write_flags = ListWriteFlags.ADD_UNIQUE
+        assert lp.write_flags == int(ListWriteFlags.ADD_UNIQUE)
+
+    def test_no_args_defaults(self):
+        lp = ListPolicy()
+        assert lp.order == ListOrderType.UNORDERED
+        assert lp.write_flags == int(ListWriteFlags.DEFAULT)
+
+    def test_invalid_write_flags_type_raises(self):
+        with pytest.raises(Exception):
+            ListPolicy(None, "bad")
 
 
 class TestMapPolicy:

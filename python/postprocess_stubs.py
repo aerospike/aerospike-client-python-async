@@ -243,21 +243,63 @@ def fix_map_policy_classmethod_signatures(content: str) -> str:
     return content
 
 
-def fix_map_write_flags_int_enum(content: str) -> str:
-    """Use IntEnum for MapWriteFlags so int() and | bitmask are valid for type checkers."""
+def fix_list_policy_write_flags_type(content: str) -> str:
+    """Narrow ListPolicy write_flags from Any to Union[ListWriteFlags, int] for better type hints."""
     content = re.sub(
-        r'^from enum import Enum\b',
-        'from enum import Enum, IntEnum',
+        r'def __new__\(cls, order:typing\.Optional\[ListOrderType\]=None, '
+        r'write_flags:typing\.Optional\[typing\.Any\]=None\) -> ListPolicy:',
+        'def __new__(cls, order: typing.Optional[ListOrderType] = None, '
+        'write_flags: typing.Optional[typing.Union[ListWriteFlags, int]] = None) -> ListPolicy:',
         content,
-        flags=re.MULTILINE,
     )
+    n = 0
+    content, c = re.subn(
+        r'(@write_flags\.setter\s+def write_flags\(self, value:) typing\.Any(\) -> None:)',
+        r'\1 typing.Union[ListWriteFlags, int]\2',
+        content,
+        count=1,
+    )
+    n += c
+    if n:
+        print('  ✓ Narrowed ListPolicy.write_flags type to Union[ListWriteFlags, int]')
+    content, c2 = re.subn(
+        r'(def write_flags\(self\)\s*->\s*)ListWriteFlags(\s*:)',
+        r'\1builtins.int\2',
+        content,
+        count=1,
+    )
+    if c2:
+        print('  ✓ ListPolicy.write_flags getter stub uses int (bitmask)')
+    return content
+
+
+def fix_map_write_flags_int_enum(content: str) -> str:
+    """Use IntEnum for PAC flag enums so int() and bitmask ops type-check.
+
+    pyo3_stub_gen emits ``(Enum)`` for all pyclass enums; several are ``eq_int``
+    in Rust and behave as integers at runtime. MapWriteFlags was the original
+    case; Exp*/HLL write/read flags need the same stub treatment.
+    """
     content = re.sub(
-        r'^class MapWriteFlags\(Enum\):',
-        'class MapWriteFlags(IntEnum):',
+        r'^from enum import Enum\b(?!\s*,\s*IntEnum)',
+        'from enum import Enum, IntEnum',
         content,
         count=1,
         flags=re.MULTILINE,
     )
+    for cls_name in (
+        "MapWriteFlags",
+        "ExpReadFlags",
+        "ExpWriteFlags",
+        "HLLWriteFlags",
+    ):
+        content = re.sub(
+            rf'^class {cls_name}\(Enum\):',
+            f'class {cls_name}(IntEnum):',
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
     return content
 
 
@@ -421,9 +463,11 @@ def add_client_stubs(content: str) -> str:
     def query(self, policy: QueryPolicy, partition_filter: PartitionFilter, statement: Statement) -> typing.Awaitable[typing.Any]: ...
     def operate(self, policy: WritePolicy, key: Key, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[Record]: ...
     def execute_udf(self, policy: WritePolicy, key: Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[typing.Optional[typing.Any]]: ...
-    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
-    def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...
-    def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...
+    def query_operate(self, write_policy: WritePolicy, statement: Statement, operations: typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]) -> typing.Awaitable[ExecuteTask]: ...
+    def query_execute_udf(self, write_policy: WritePolicy, statement: Statement, package_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[ExecuteTask]: ...
+    def register_udf(self, policy: typing.Optional[AdminPolicy], udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...
+    def register_udf_from_file(self, policy: typing.Optional[AdminPolicy], client_path: builtins.str, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...
+    def remove_udf(self, policy: typing.Optional[AdminPolicy], server_path: builtins.str) -> typing.Awaitable[UdfRemoveTask]: ...
     def batch_read(self, batch_policy: typing.Optional[BatchPolicy], read_policy: typing.Optional[BatchReadPolicy], keys: typing.Sequence[Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_write(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], bins_list: typing.Sequence[typing.Dict[builtins.str, typing.Any]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
     def batch_operate(self, batch_policy: typing.Optional[BatchPolicy], write_policy: typing.Optional[BatchWritePolicy], keys: typing.Sequence[Key], operations_list: typing.Sequence[typing.Sequence[typing.Union[Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation]]]) -> typing.Awaitable[typing.Sequence[BatchRecord]]: ...
@@ -536,11 +580,11 @@ def add_client_stubs(content: str) -> str:
                     elif method == 'query_execute_udf':
                         method_stubs.append('    def query_execute_udf(self, write_policy: WritePolicy, statement: Statement, package_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None) -> typing.Awaitable[ExecuteTask]: ...')
                     elif method == 'register_udf':
-                        method_stubs.append('    def register_udf(self, udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...')
+                        method_stubs.append('    def register_udf(self, policy: typing.Optional[AdminPolicy], udf_body: builtins.bytes, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...')
                     elif method == 'register_udf_from_file':
-                        method_stubs.append('    def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: UDFLang, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[RegisterTask]: ...')
+                        method_stubs.append('    def register_udf_from_file(self, policy: typing.Optional[AdminPolicy], client_path: builtins.str, server_path: builtins.str, language: UDFLang) -> typing.Awaitable[RegisterTask]: ...')
                     elif method == 'remove_udf':
-                        method_stubs.append('    def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]: ...')
+                        method_stubs.append('    def remove_udf(self, policy: typing.Optional[AdminPolicy], server_path: builtins.str) -> typing.Awaitable[UdfRemoveTask]: ...')
                     elif method == 'node_names':
                         method_stubs.append('    def node_names(self) -> typing.Awaitable[typing.List[builtins.str]]: ...')
                     elif method == 'info':
@@ -1005,7 +1049,7 @@ class ExpOperation:
 
 
 def add_index_task_stubs(content: str) -> str:
-    """Add IndexTask class stubs if missing (pyo3_stub_gen limitation)."""
+    """Add task class stubs if missing (pyo3_stub_gen limitation)."""
     index_task_stub = '''class IndexTask:
     r"""
     Task returned by create_index_using_expression() to track index creation status.
@@ -1061,6 +1105,26 @@ class ExecuteTask:
         else:
             content = content + '\n' + execute_task_stub
         print("  ✓ Added ExecuteTask class stubs (pyo3_stub_gen limitation)")
+
+    for cls_name, desc in (
+        ("RegisterTask", "Task returned by register_udf() / register_udf_from_file() to track UDF registration."),
+        ("UdfRemoveTask", "Task returned by remove_udf() to track UDF removal."),
+    ):
+        if f'class {cls_name}:' not in content:
+            stub = f'''class {cls_name}:
+    r"""
+    {desc}
+    """
+    def query_status(self) -> typing.Awaitable[TaskStatus]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[builtins.bool]: ...
+'''
+            client_match = re.search(r'^class Client:', content, re.MULTILINE)
+            if client_match:
+                insert_pos = client_match.start()
+                content = content[:insert_pos] + stub + '\n' + content[insert_pos:]
+            else:
+                content = content + '\n' + stub
+            print(f"  ✓ Added {cls_name} class stub (pyo3_stub_gen limitation)")
 
     return content
 
@@ -1199,6 +1263,28 @@ def add_node_stubs(content: str) -> str:
                 content = content + '\n' + node_stub
                 print("  ✓ Added Node class stubs (at end)")
 
+    return content
+
+
+def add_dunder_all(content: str) -> str:
+    """Generate __all__ from top-level class/function definitions so `import *` is resolved by all type checkers."""
+    names = sorted(set(
+        re.findall(r'^class (\w+)[\s(:]', content, re.MULTILINE)
+        + re.findall(r'^def (\w+)\(', content, re.MULTILINE)
+    ))
+    if not names:
+        return content
+    all_block = '__all__ = [\n' + ''.join(f'    "{n}",\n' for n in names) + ']\n'
+    if '__all__' in content:
+        content = re.sub(r'^__all__\s*=\s*\[.*?\]\s*\n', all_block, content, count=1, flags=re.DOTALL | re.MULTILINE)
+        print(f'  ✓ Replaced __all__ ({len(names)} names)')
+    else:
+        first_class = re.search(r'^class ', content, re.MULTILINE)
+        if first_class:
+            content = content[:first_class.start()] + all_block + '\n' + content[first_class.start():]
+        else:
+            content = all_block + '\n' + content
+        print(f'  ✓ Added __all__ ({len(names)} names)')
     return content
 
 
@@ -1588,6 +1674,7 @@ def postprocess_stubs(pyi_file_path: str):
     elif '_aerospike_async_native.pyi' in pyi_file_path:
         # Process native module stub - replace placeholder policy stubs and add missing classes
         content = fix_map_policy_classmethod_signatures(content)
+        content = fix_list_policy_write_flags_type(content)
         content = fix_map_write_flags_int_enum(content)
         content = add_return_type_stubs(content)
         content = add_policy_stubs(content)
@@ -1604,6 +1691,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = fix_client_keyword_only_policy_params(content)
         content = add_batch_policy_stubs(content)
         content = ensure_statement_set_name(content)
+        content = add_dunder_all(content)
 
         # When processing native module, ensure package structure exists
         # Always create/regenerate main package __init__.pyi

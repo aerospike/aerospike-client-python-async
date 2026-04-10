@@ -247,3 +247,26 @@ class TestFilterExprBase64:
 
         with pytest.raises(BadResponse):
             fe.from_base64("not-valid-base64!!!")
+
+
+class TestFilterExprInfinityWildcard:
+    """CDT infinity / wildcard particles as filter expression values."""
+
+    def test_infinity_wildcard_distinct(self):
+        a = fe.infinity()
+        b = fe.wildcard()
+        assert isinstance(a, fe)
+        assert isinstance(b, fe)
+        assert a != b
+
+    def test_infinity_base64_roundtrip(self):
+        expr = fe.infinity()
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
+
+    def test_wildcard_base64_roundtrip(self):
+        expr = fe.wildcard()
+        b64 = expr.base64()
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
