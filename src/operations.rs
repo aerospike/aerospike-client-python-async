@@ -1486,29 +1486,26 @@ pub(crate) fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
 }
 
 /// Extract a list of Python operation objects into the internal `OperationType` representation.
-pub(crate) fn extract_py_ops(py_ops: &[Py<PyAny>]) -> PyResult<Vec<OperationType>> {
-    let mut rust_ops = Vec::new();
+pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<Vec<OperationType>> {
+    let mut rust_ops = Vec::with_capacity(py_ops.len());
     for op_obj in py_ops {
-        Python::attach(|py| {
-            if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
-                rust_ops.push(py_op.op.clone());
-            } else {
-                return Err(PyTypeError::new_err(
-                    "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
-                ));
-            }
-            Ok::<(), PyErr>(())
-        })?;
+        if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
+        } else {
+            return Err(PyTypeError::new_err(
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
+            ));
+        }
     }
     Ok(rust_ops)
 }
@@ -1603,53 +1600,50 @@ pub(crate) struct OpWithCtx {
 }
 
 /// Extract Python operation objects into `OpWithCtx` (preserves list/map CDT context).
-pub(crate) fn extract_py_ops_with_ctx(py_ops: &[Py<PyAny>]) -> PyResult<Vec<OpWithCtx>> {
-    let mut rust_ops = Vec::new();
+pub(crate) fn extract_py_ops_with_ctx(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<Vec<OpWithCtx>> {
+    let mut rust_ops = Vec::with_capacity(py_ops.len());
     for op_obj in py_ops {
-        Python::attach(|py| {
-            if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx: None,
-                });
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
-                let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
-                    ctx_vec.iter().map(|c| c.ctx.clone()).collect()
-                });
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx,
-                });
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
-                let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
-                    ctx_vec.iter().map(|c| c.ctx.clone()).collect()
-                });
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx,
-                });
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx: None,
-                });
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx: None,
-                });
-            } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
-                rust_ops.push(OpWithCtx {
-                    op: py_op.op.clone(),
-                    ctx: None,
-                });
-            } else {
-                return Err(PyTypeError::new_err(
-                    "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
-                ));
-            }
-            Ok::<(), PyErr>(())
-        })?;
+        if let Ok(py_op) = op_obj.extract::<PyRef<Operation>>(py) {
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx: None,
+            });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<ListOperation>>(py) {
+            let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
+                ctx_vec.iter().map(|c| c.ctx.clone()).collect()
+            });
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx,
+            });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<MapOperation>>(py) {
+            let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
+                ctx_vec.iter().map(|c| c.ctx.clone()).collect()
+            });
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx,
+            });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx: None,
+            });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx: None,
+            });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx: None,
+            });
+        } else {
+            return Err(PyTypeError::new_err(
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
+            ));
+        }
     }
     Ok(rust_ops)
 }

@@ -22,6 +22,7 @@ from aerospike_async import (
     new_client, ClientPolicy, WritePolicy, ReadPolicy, Key,
     MapOperation, MapOrder, MapPolicy, MapReturnType, Operation,
 )
+from aerospike_async.exceptions import InvalidRequest, ResultCode
 
 
 BIN = "mapbin"
@@ -433,3 +434,23 @@ class TestOrderedMapReturnTypes:
         result = record.bins[BIN]
         assert isinstance(result, dict)
         assert set(result.keys()) == {"b", "c", "d"}
+
+
+class TestKOrderedMapKeyConstraints:
+    """K-ordered map operations that the server rejects."""
+
+    async def test_non_scalar_map_key_raises_parameter_error(self, client_and_key):
+        """List (non-scalar) key in a KEY_ORDERED map put is rejected with PARAMETER_ERROR."""
+        client = client_and_key
+        wp = WritePolicy()
+        key = _key(19)
+        policy = MapPolicy(MapOrder.KEY_ORDERED, None)
+
+        await client.delete(wp, key)
+        with pytest.raises(InvalidRequest) as exc_info:
+            await client.operate(
+                wp,
+                key,
+                [MapOperation.put(BIN, [1, 2], "value", policy)],
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR

@@ -13,6 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import base64
 import os
 import pytest
 import pytest_asyncio
@@ -397,6 +398,35 @@ async def test_batch_read_with_filter_expression(client_and_keys):
     assert results[0].result_code == ResultCode.OK
     assert results[0].record is not None
     assert results[0].record.bins[bin_name] == "match"
+
+
+async def test_batch_read_invalid_filter_expression_bytes_returns_parameter_error():
+    """Decodable base64 that is not valid expression wire data yields PARAMETER_ERROR per record.
+
+    ``FilterExpression.from_base64`` stores raw bytes; the server validates on execute.
+    """
+    cp = ClientPolicy()
+    cp.use_services_alternate = True
+    client = await new_client(cp, os.environ.get("AEROSPIKE_HOST", "localhost:3000"))
+    wp = WritePolicy()
+    key = Key("test", "test", "batch_bad_filter_expr_key")
+    try:
+        await client.delete(wp, key)
+        await client.put(wp, key, {"b": 1})
+        garbage_b64 = base64.b64encode(b"\xff\x00not-a-valid-expression").decode("ascii")
+        bad_expr = FilterExpression.from_base64(garbage_b64)
+        brp = BatchReadPolicy()
+        brp.filter_expression = bad_expr
+        results = await client.batch_read(None, brp, [key], ["b"])
+        assert len(results) == 1
+        assert results[0].result_code == ResultCode.PARAMETER_ERROR
+    finally:
+        try:
+            await client.delete(wp, key)
+        except Exception:
+            pass
+        await client.close()
+
 
 async def test_batch_write_with_policy(client_and_keys):
     """Test batch write with custom write policy.

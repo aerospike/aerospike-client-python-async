@@ -222,6 +222,20 @@ async def test_put_GeoJSON(client_and_key):
     assert rec is not None
     assert rec.bins == {"bin": geo}
 
+
+async def test_geojson_get_round_trip_preserves_type_and_string(client_and_key):
+    """Write GeoJSON to a bin; read that bin back as GeoJSON with the same string form."""
+    client, rp, key = client_and_key
+
+    geo = GeoJSON('{"type":"Point","coordinates":[1.0,2.0]}')
+    wp = WritePolicy()
+    await client.put(wp, key, {"geo": geo})
+    record = await client.get(rp, key, ["geo"])
+    assert record is not None
+    assert isinstance(record.bins["geo"], GeoJSON)
+    assert str(record.bins["geo"]) == str(geo)
+
+
 async def test_put_edge_types(client_and_key):
     """Test putting edge case types: None, null(), large u64 (in List), and geojson helper."""
     client, rp, key = client_and_key
