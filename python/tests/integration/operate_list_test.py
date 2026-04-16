@@ -13,10 +13,12 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
                              ListPolicy, ListOrderType, ListWriteFlags, ListReturnType, ListSortFlags, CTX)
+from aerospike_async.exceptions import BinTypeError, ResultCode
 
 
 @pytest_asyncio.fixture
@@ -34,6 +36,24 @@ async def client_and_key(aerospike_host):
     await client.delete(wp, key)
 
     return client, key
+
+
+async def test_list_append_on_integer_bin_raises_bin_type_error(client_and_key):
+    """List append against a non-list bin yields BIN_TYPE_ERROR."""
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    await client.delete(wp, key)
+    await client.put(wp, key, {"mybin": 42})
+    list_policy = ListPolicy(None, None)
+    with pytest.raises(BinTypeError) as exc_info:
+        await client.operate(
+            wp,
+            key,
+            [ListOperation.append("mybin", 1, list_policy)],
+        )
+    assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR
+
 
 async def test_operate_list_size_and_pop(client_and_key):
     """Test operate with List size and pop operations.

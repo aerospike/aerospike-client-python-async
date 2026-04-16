@@ -856,7 +856,7 @@ use crate::record::{Key, PythonValue, Record};
                     match stream.as_mut().next().await {
                         Some(Ok(rec)) => {
                             Python::attach(|py| {
-                                let res = Record { _as: rec };
+                                let res = Record { _as: rec, cached_bins: None };
                                 let py_obj: Py<PyAny> = res.into_pyobject(py).unwrap().unbind().into();
                                 Ok(Some(py_obj))
                             })

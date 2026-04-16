@@ -37,9 +37,22 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
-    #[derive(Clone)]
     pub struct Record {
         pub(crate) _as: aerospike_core::Record,
+        /// Lazily-cached Python dict for the ``bins`` property.
+        /// Avoids re-cloning and re-converting on every access.
+        pub(crate) cached_bins: Option<Py<PyAny>>,
+    }
+
+    impl Clone for Record {
+        fn clone(&self) -> Self {
+            Record {
+                _as: self._as.clone(),
+                // Don't carry the cache across clones; the new owner
+                // will lazily rebuild it if needed.
+                cached_bins: None,
+            }
+        }
     }
 
     #[pymethods]
@@ -53,10 +66,19 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         }
 
         #[getter]
-        pub fn get_bins(&self) -> Py<PyAny> {
-            let b = self._as.bins.clone();
-            let v: PythonValue = b.into();
-            Python::attach(|py| v.into_pyobject(py).unwrap().unbind())
+        pub fn get_bins(&mut self, py: Python<'_>) -> Py<PyAny> {
+            if let Some(ref cached) = self.cached_bins {
+                return cached.clone_ref(py);
+            }
+            let dict = PyDict::new(py);
+            for (k, v) in &self._as.bins {
+                let pv: PythonValue = v.clone().into();
+                let py_val = pv.into_pyobject(py).unwrap();
+                dict.set_item(k, py_val).unwrap();
+            }
+            let py_obj: Py<PyAny> = dict.into_any().unbind();
+            self.cached_bins = Some(py_obj.clone_ref(py));
+            py_obj
         }
 
         #[getter]
@@ -1310,6 +1332,6 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
     impl From<aerospike_core::Record> for Record {
         fn from(other: aerospike_core::Record) -> Self {
-            Record { _as: other }
+            Record { _as: other, cached_bins: None }
         }
     }

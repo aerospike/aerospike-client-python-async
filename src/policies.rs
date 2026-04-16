@@ -808,7 +808,7 @@ use crate::TlsConfig;
         ///     Optional[Record]: The record if present, None otherwise.
         #[getter]
         pub fn get_record(&self) -> Option<Record> {
-            self._as.record.as_ref().map(|r| Record { _as: r.clone() })
+            self._as.record.as_ref().map(|r| Record { _as: r.clone(), cached_bins: None })
         }
 
         #[getter]
@@ -1306,13 +1306,14 @@ use crate::TlsConfig;
         #[new]
         #[pyo3(signature = (key, bins=None, operations=None, policy=None))]
         pub fn new(
+            py: Python<'_>,
             key: &Key,
             bins: Option<Vec<String>>,
             operations: Option<Vec<Py<PyAny>>>,
             policy: Option<&BatchReadPolicy>,
         ) -> PyResult<Self> {
             let ops = match operations {
-                Some(ref py_ops) => extract_py_ops_with_ctx(py_ops)?,
+                Some(ref py_ops) => extract_py_ops_with_ctx(py, py_ops)?,
                 None => Vec::new(),
             };
             Ok(BatchReadOp {
@@ -1344,11 +1345,12 @@ use crate::TlsConfig;
         #[new]
         #[pyo3(signature = (key, operations, policy=None))]
         pub fn new(
+            py: Python<'_>,
             key: &Key,
             operations: Vec<Py<PyAny>>,
             policy: Option<&BatchWritePolicy>,
         ) -> PyResult<Self> {
-            let ops = extract_py_ops_with_ctx(&operations)?;
+            let ops = extract_py_ops_with_ctx(py, &operations)?;
             Ok(BatchWriteOp {
                 key: key._as.clone(),
                 policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
@@ -1409,9 +1411,11 @@ use crate::TlsConfig;
     impl ClientPolicy {
         #[new]
         fn new() -> PyResult<Self> {
-            let res = ClientPolicy {
-                _as: aerospike_core::ClientPolicy::default(),
-            };
+            let mut cp = aerospike_core::ClientPolicy::default();
+            // Use multiple connection pools per node to reduce mutex
+            // contention when many async tasks share the same client.
+            cp.conn_pools_per_node = 4;
+            let res = ClientPolicy { _as: cp };
 
             Ok(res)
         }

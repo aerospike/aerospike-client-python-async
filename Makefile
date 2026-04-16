@@ -74,10 +74,12 @@ build:
 	# Generate distributable Python wheel binary and put it in the target folder
 	maturin build -r
 
-bench: dev
-	rm -f bench.json
-	python benchmarks.py -o bench.json
-	pyperf hist aerospike_async/bench.json
+bench:
+	python -m benchmarks.benchmark -k 100000 -z 32 -w I -c 100000 -d 120 --warmup 0 --cooldown 0
+	python -m benchmarks.benchmark -k 100000 -z 32 -w RU,50 -d 10
+
+bench-quick:
+	python -m benchmarks.benchmark -k 1000 -z 4 -w RU,50 -d 5 --warmup 0 --cooldown 0
 
 clean:
 	cargo clean

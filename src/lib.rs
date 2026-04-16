@@ -30,11 +30,12 @@ use pyo3_stub_gen::{
     derive::gen_stub_pymethods,
 };
 
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 use aerospike_core::errors::Error;
 
 
+mod completion;
 mod enums;
 mod errors;
 mod tasks;
@@ -87,7 +88,7 @@ use crate::operations::{
 
             log::debug!(target: "aerospike_async", "connected to {}", seeds);
             let res = Client {
-                _as: Arc::new(RwLock::new(c)),
+                _as: Arc::new(c),
                 seeds: seeds.clone(),
             };
 
@@ -100,18 +101,18 @@ use crate::operations::{
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
     pub struct Client {
-        _as: Arc<RwLock<aerospike_core::Client>>,
+        _as: Arc<aerospike_core::Client>,
         seeds: String,
     }
 
     // Helper function to check if a key exists (internal use, shared by exists() and exists_legacy())
     impl Client {
         async fn exists_internal(
-            client: std::sync::Arc<RwLock<aerospike_core::Client>>,
+            client: Arc<aerospike_core::Client>,
             policy: aerospike_core::ReadPolicy,
             key: aerospike_core::Key,
         ) -> Result<bool, Error> {
-            client.read().await.exists(&policy, &key).await
+            client.exists(&policy, &key).await
         }
     }
 
@@ -135,12 +136,10 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .close()
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(())
+                Ok(None::<bool>)
             })
         }
 
@@ -151,8 +150,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 Ok(client
-                    .read()
-                    .await
                     .is_connected())
             })
         }
@@ -185,15 +182,13 @@ use crate::operations::{
                 bin_vec.push(aerospike_core::Bin::new(name, val.into()));
             }
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .put(&policy, &key, &bin_vec)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(())
+                Ok(None::<bool>)
             })
         }
 
@@ -209,18 +204,13 @@ use crate::operations::{
             bins: Option<Vec<String>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            // Get the filter expression from the ReadPolicy
-            let has_filter_expression = policy.get_filter_expression().is_some();
-
-            // The filter expression should already be properly set in the base_policy
+            let has_filter_expression = policy._as.base_policy.filter_expression.is_some();
             let policy = policy._as.clone();
             let key = key._as.clone();
             let client = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 let res = client
-                    .read()
-                    .await
                     .get(&policy, &key, bins_flag(bins))
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -231,7 +221,7 @@ use crate::operations::{
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
-                Ok(Record { _as: res })
+                Ok(Record { _as: res, cached_bins: None })
             })
         }
 
@@ -259,18 +249,16 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            let rust_ops = extract_py_ops_with_ctx(&operations)?;
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
                 let res = client
-                    .read()
-                    .await
                     .operate(&policy, &key, &core_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Record { _as: res })
+                Ok(Record { _as: res, cached_bins: None })
             })
         }
 
@@ -295,15 +283,13 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .add(&policy, &key, &bins)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -327,15 +313,13 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .append(&policy, &key, &bins)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -359,15 +343,13 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .prepend(&policy, &key, &bins)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -384,10 +366,8 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 let res = client
-                    .read()
-                    .await
                     .delete(&policy, &key)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -409,15 +389,13 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .touch(&policy, &key)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -435,41 +413,31 @@ use crate::operations::{
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
             let client = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
 
-                let mut batch_ops = Vec::new();
-                for key in keys {
-                    let op = BatchOperation::read(&read_policy, key, bins_flag(bins.clone()));
-                    batch_ops.push(op);
+                let bf = bins_flag(bins);
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, bf.clone()));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -491,66 +459,48 @@ use crate::operations::{
             let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects and PyDicts from Python lists
-            let mut rust_keys = Vec::new();
-            let mut bins_vecs = Vec::new();
-            for (key_obj, bins_obj) in keys.into_iter().zip(bins_list.into_iter()) {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            let mut bins_vecs = Vec::with_capacity(keys.len());
+            for (key_obj, bins_obj) in keys.iter().zip(bins_list.iter()) {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
 
-                    let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
-                    let mut bin_vec = Vec::new();
-                    for (py_key, py_val) in bins_dict.iter() {
-                        let name = py_key.extract::<String>().map_err(|_| {
-                            PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                                "A bin name must be a string or unicode string"
-                            )
-                        })?;
-                        let val: PythonValue = py_val.extract()?;
-                        bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-                    }
-                    bins_vecs.push(bin_vec);
-                    Ok::<(), PyErr>(())
-                })?;
+                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
+                let mut bin_vec = Vec::new();
+                for (py_key, py_val) in bins_dict.iter() {
+                    let name = py_key.extract::<String>().map_err(|_| {
+                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                            "A bin name must be a string or unicode string"
+                        )
+                    })?;
+                    let val: PythonValue = py_val.extract()?;
+                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+                }
+                bins_vecs.push(bin_vec);
             }
-            let keys = rust_keys;
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::operations;
 
-                // Create all operations while bins_vecs is still in scope
-                let mut all_ops: Vec<Vec<aerospike_core::operations::Operation>> = Vec::new();
-                for bins in &bins_vecs {
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for (key, bins) in rust_keys.into_iter().zip(bins_vecs.iter()) {
                     let ops: Vec<aerospike_core::operations::Operation> = bins
                         .iter()
                         .map(|bin| operations::put(bin))
                         .collect();
-                    all_ops.push(ops);
-                }
-
-                // Now create batch operations
-                let mut batch_ops = Vec::new();
-                for (key, ops) in keys.into_iter().zip(all_ops.into_iter()) {
-                    let op = BatchOperation::write(&write_policy, key, ops);
-                    batch_ops.push(op);
+                    batch_ops.push(BatchOperation::write(&write_policy, key, ops));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -572,30 +522,24 @@ use crate::operations::{
             let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
 
-            // Extract operations before moving into async block
-            let mut rust_ops_list = Vec::new();
+            let mut rust_ops_list = Vec::with_capacity(operations_list.len());
             for operations in operations_list {
-                rust_ops_list.push(extract_py_ops_with_ctx(&operations)?);
+                rust_ops_list.push(extract_py_ops_with_ctx(py, &operations)?);
             }
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
 
                 let read_policy = aerospike_core::BatchReadPolicy::default();
 
-                let mut batch_ops = Vec::new();
-                for (key, ops) in keys.into_iter().zip(rust_ops_list.into_iter()) {
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list.into_iter()) {
                     let (core_ops, has_write_op) = convert_ops_with_ctx_to_core(&ops, true)?;
                     let batch_op = if has_write_op {
                         BatchOperation::write(&write_policy, key, core_ops)
@@ -606,19 +550,14 @@ use crate::operations::{
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -635,40 +574,29 @@ use crate::operations::{
             let delete_policy = delete_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
 
-                let mut batch_ops = Vec::new();
-                for key in keys {
-                    let op = BatchOperation::delete(&delete_policy, key);
-                    batch_ops.push(op);
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::delete(&delete_policy, key));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -685,41 +613,30 @@ use crate::operations::{
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::Bins;
 
-                let mut batch_ops = Vec::new();
-                for key in keys {
-                    let op = BatchOperation::read(&read_policy, key, Bins::None);
-                    batch_ops.push(op);
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let exists_list: Vec<bool> = results
-                        .into_iter()
-                        .map(|br| br.record.is_some())
-                        .collect();
-                    Ok(exists_list)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| br.record.is_some())
+                    .collect::<Vec<bool>>())
             })
         }
 
@@ -736,41 +653,30 @@ use crate::operations::{
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::Bins;
 
-                let mut batch_ops = Vec::new();
-                for key in keys {
-                    let op = BatchOperation::read(&read_policy, key, Bins::None);
-                    batch_ops.push(op);
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let records: Vec<Option<Record>> = results
-                        .into_iter()
-                        .map(|br| br.record.map(|r| Record { _as: r }))
-                        .collect();
-                    Ok(records)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                    .collect::<Vec<Option<Record>>>())
             })
         }
 
@@ -790,48 +696,36 @@ use crate::operations::{
             let udf_policy = udf_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            // Extract Key objects from Python list
-            let mut rust_keys = Vec::new();
-            for key_obj in keys {
-                Python::attach(|py| {
-                    let key = key_obj.extract::<PyRef<Key>>(py)?;
-                    rust_keys.push(key._as.clone());
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut rust_keys = Vec::with_capacity(keys.len());
+            for key_obj in &keys {
+                let key = key_obj.extract::<PyRef<Key>>(py)?;
+                rust_keys.push(key._as.clone());
             }
-            let keys = rust_keys;
 
-            // Convert args before moving into async block
             let rust_args = args.map(|args| {
                 args.into_iter()
                     .map(|v| v.into())
                     .collect::<Vec<aerospike_core::Value>>()
             });
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
 
-                let mut batch_ops = Vec::new();
-                for key in keys {
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
                     let rust_args_owned = rust_args.as_ref().map(|a| a.to_vec());
-                    let op = BatchOperation::udf(&udf_policy, key, &udf_name, &function_name, rust_args_owned);
-                    batch_ops.push(op);
+                    batch_ops.push(BatchOperation::udf(&udf_policy, key, &udf_name, &function_name, rust_args_owned));
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -876,40 +770,37 @@ use crate::operations::{
                 },
             }
 
-            let mut extracted: Vec<ExtractedOp> = Vec::new();
-            for op_obj in ops {
-                Python::attach(|py| {
-                    if let Ok(read_op) = op_obj.extract::<PyRef<BatchReadOp>>(py) {
-                        extracted.push(ExtractedOp::Read {
-                            key: read_op.key.clone(),
-                            policy: read_op.policy.clone(),
-                            bins: read_op.bins.clone(),
-                            ops: read_op.ops.clone(),
-                        });
-                    } else if let Ok(write_op) = op_obj.extract::<PyRef<BatchWriteOp>>(py) {
-                        extracted.push(ExtractedOp::Write {
-                            key: write_op.key.clone(),
-                            policy: write_op.policy.clone(),
-                            ops: write_op.ops.clone(),
-                        });
-                    } else if let Ok(delete_op) = op_obj.extract::<PyRef<BatchDeleteOp>>(py) {
-                        extracted.push(ExtractedOp::Delete {
-                            key: delete_op.key.clone(),
-                            policy: delete_op.policy.clone(),
-                        });
-                    } else {
-                        return Err(PyTypeError::new_err(
-                            "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp"
-                        ));
-                    }
-                    Ok::<(), PyErr>(())
-                })?;
+            let mut extracted: Vec<ExtractedOp> = Vec::with_capacity(ops.len());
+            for op_obj in &ops {
+                if let Ok(read_op) = op_obj.extract::<PyRef<BatchReadOp>>(py) {
+                    extracted.push(ExtractedOp::Read {
+                        key: read_op.key.clone(),
+                        policy: read_op.policy.clone(),
+                        bins: read_op.bins.clone(),
+                        ops: read_op.ops.clone(),
+                    });
+                } else if let Ok(write_op) = op_obj.extract::<PyRef<BatchWriteOp>>(py) {
+                    extracted.push(ExtractedOp::Write {
+                        key: write_op.key.clone(),
+                        policy: write_op.policy.clone(),
+                        ops: write_op.ops.clone(),
+                    });
+                } else if let Ok(delete_op) = op_obj.extract::<PyRef<BatchDeleteOp>>(py) {
+                    extracted.push(ExtractedOp::Delete {
+                        key: delete_op.key.clone(),
+                        policy: delete_op.policy.clone(),
+                    });
+                } else {
+                    return Err(PyTypeError::new_err(
+                        "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp"
+                    ));
+                }
             }
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
 
-                let mut batch_ops = Vec::new();
+                let mut batch_ops = Vec::with_capacity(extracted.len());
                 for ext in &extracted {
                     match ext {
                         ExtractedOp::Read { key, policy, bins, ops } if ops.is_empty() => {
@@ -938,19 +829,14 @@ use crate::operations::{
                 }
 
                 let results = client
-                    .read()
-                    .await
                     .batch(&batch_policy, &batch_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|_py| {
-                    let py_results: Vec<BatchRecord> = results
-                        .into_iter()
-                        .map(|br| BatchRecord { _as: br })
-                        .collect();
-                    Ok(py_results)
-                })
+                Ok(results
+                    .into_iter()
+                    .map(|br| BatchRecord { _as: br })
+                    .collect::<Vec<BatchRecord>>())
             })
         }
 
@@ -989,8 +875,6 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let rust_args_ref = rust_args.as_ref().map(|a| a.as_slice());
                 let result = client
-                    .read()
-                    .await
                     .execute_udf(&policy, &key, &server_path, &function_name, rust_args_ref)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1031,7 +915,7 @@ use crate::operations::{
             let client = self._as.clone();
             let core_statement = statement._as.clone();
 
-            let rust_ops = extract_py_ops(&operations)?;
+            let rust_ops = extract_py_ops(py, &operations)?;
             let (core_ops, _) = convert_scalar_ops_to_core(&rust_ops).map_err(|e| {
                 PyValueError::new_err(format!(
                     "query_operate supports scalar and expression operations (put, add, delete, touch, append, prepend, ExpOperation.write). List/map/bit/HLL operations are not supported for background query. {}",
@@ -1041,8 +925,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .query_operate(&policy, core_statement, &core_ops)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1082,8 +964,6 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let args_ref = rust_args.as_deref();
                 let task = client
-                    .read()
-                    .await
                     .query_execute_udf(&policy, core_statement, &package_name, &function_name, args_ref)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1116,8 +996,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .register_udf(&admin_policy, &udf_body, &server_path, lang)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1153,8 +1031,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .register_udf_from_file(&admin_policy, &client_path, &server_path, lang)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1185,8 +1061,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .remove_udf(&admin_policy, &server_path)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1209,7 +1083,7 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            completion::batched_future_into_py(py, async move {
                 let res = Self::exists_internal(client, policy, key)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1243,8 +1117,6 @@ use crate::operations::{
                     // Get metadata by calling get() with empty bins
                     let read_policy = aerospike_core::ReadPolicy::default();
                     Some(client
-                        .read()
-                        .await
                         .get(&read_policy, &key, aerospike_core::Bins::None)
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?)
@@ -1292,13 +1164,11 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .truncate(&admin_policy, &namespace, &set_name, before_nanos)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1327,8 +1197,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .create_index_on_bin(
                         &admin_policy,
                         &namespace,
@@ -1342,7 +1210,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1362,8 +1230,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .drop_index(&admin_policy, &namespace, &set_name, &index_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1394,8 +1260,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let task = client
-                    .read()
-                    .await
                     .create_index_using_expression(
                         &admin_policy,
                         &namespace,
@@ -1428,8 +1292,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let res = client
-                    .read()
-                    .await
                     .query(&policy, partition_filter._as, stmt)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1459,13 +1321,11 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
-                    .read()
-                    .await
                     .create_user(&admin_policy, &user, &password, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1486,13 +1346,11 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
-                    .read()
-                    .await
                     .create_pki_user(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1505,13 +1363,11 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .drop_user(&admin_policy, &user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1530,13 +1386,11 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .change_password(&admin_policy, &user, &password)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1556,13 +1410,11 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
-                    .read()
-                    .await
                     .grant_roles(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1582,13 +1434,11 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client
-                    .read()
-                    .await
                     .revoke_roles(&admin_policy, &user, &roles)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1608,8 +1458,6 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let user = user.as_deref();
                 let res = client
-                    .read()
-                    .await
                     .query_users(&admin_policy, user)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1635,8 +1483,6 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let role: Option<&str> = role.as_deref();
                 let res = client
-                    .read()
-                    .await
                     .query_roles(&admin_policy, role)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1669,13 +1515,11 @@ use crate::operations::{
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|r| r._as.clone()).collect();
                 client
-                    .read()
-                    .await
                     .create_role(&admin_policy, &role_name, &privileges, &allowlist, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1693,13 +1537,11 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .drop_role(&admin_policy, &role_name)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1720,13 +1562,11 @@ use crate::operations::{
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
-                    .read()
-                    .await
                     .grant_privileges(&admin_policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1747,13 +1587,11 @@ use crate::operations::{
                 let privileges: Vec<aerospike_core::Privilege> =
                     privileges.iter().map(|p| p._as.clone()).collect();
                 client
-                    .read()
-                    .await
                     .revoke_privileges(&admin_policy, &role_name, &privileges)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1774,13 +1612,11 @@ use crate::operations::{
             pyo3_asyncio::future_into_py(py, async move {
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 client
-                    .read()
-                    .await
                     .set_allowlist(&admin_policy, &role_name, &allowlist)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1803,13 +1639,11 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .set_quotas(&admin_policy, &role_name, read_quota, write_quota)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
 
@@ -1838,8 +1672,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let node_names = client
-                    .read()
-                    .await
                     .node_names();
 
                 Ok(node_names)
@@ -1853,8 +1685,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let node = client
-                    .read()
-                    .await
                     .get_node(&name)
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(Node { _as: node })
@@ -1868,8 +1698,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let nodes = client
-                    .read()
-                    .await
                     .nodes();
 
                 let py_nodes: Vec<Node> = nodes.into_iter().map(|n| Node { _as: n }).collect();
@@ -1890,8 +1718,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let node = client
-                    .read()
-                    .await
                     .cluster
                     .get_random_node()
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1919,8 +1745,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 let nodes = client
-                    .read()
-                    .await
                     .nodes();
 
                 let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -1962,8 +1786,6 @@ use crate::operations::{
 
             pyo3_asyncio::future_into_py(py, async move {
                 client
-                    .read()
-                    .await
                     .set_xdr_filter(
                         &admin_policy,
                         &datacenter,
@@ -1972,7 +1794,7 @@ use crate::operations::{
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Python::attach(|py| Ok(py.None()))
+                Ok(None::<bool>)
             })
         }
     }
@@ -2162,6 +1984,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TlsConfig>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
+    m.add_class::<completion::CompletionDrainer>()?;
+    completion::init(py)?;
 
     // Create and register the exceptions submodule
     // Exceptions are only available via aerospike_async.exceptions submodule
