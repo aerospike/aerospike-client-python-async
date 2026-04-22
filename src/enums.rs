@@ -93,6 +93,10 @@ use aerospike_core::ResultCode as CoreResultCode;
 pub enum Replica {
     #[pyo3(name = "MASTER")]
     Master,
+    #[pyo3(name = "MASTER_PROLES")]
+    MasterProles,
+    #[pyo3(name = "RANDOM")]
+    Random,
     #[pyo3(name = "SEQUENCE")]
     Sequence,
     #[pyo3(name = "PREFER_RACK")]
@@ -103,6 +107,8 @@ pub enum Replica {
         fn from(input: &Replica) -> Self {
             match &input {
                 Replica::Master => aerospike_core::policy::Replica::Master,
+                Replica::MasterProles => aerospike_core::policy::Replica::MasterProles,
+                Replica::Random => aerospike_core::policy::Replica::Random,
                 Replica::Sequence => aerospike_core::policy::Replica::Sequence,
                 Replica::PreferRack => aerospike_core::policy::Replica::PreferRack,
             }
@@ -113,6 +119,8 @@ pub enum Replica {
         fn from(input: &aerospike_core::policy::Replica) -> Self {
             match input {
                 aerospike_core::policy::Replica::Master => Replica::Master,
+                aerospike_core::policy::Replica::MasterProles => Replica::MasterProles,
+                aerospike_core::policy::Replica::Random => Replica::Random,
                 aerospike_core::policy::Replica::Sequence => Replica::Sequence,
                 aerospike_core::policy::Replica::PreferRack => Replica::PreferRack,
             }
@@ -140,26 +148,32 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  ConsistencyLevel
+    //  ReadModeAP
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Read policy for AP (availability) namespaces.
+    /// Indicates how duplicates should be consulted in a read operation.
+    /// Only makes a difference during migrations and only applicable in AP mode.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub enum ConsistencyLevel {
-        #[pyo3(name = "CONSISTENCY_ONE")]
-        ConsistencyOne,
-        #[pyo3(name = "CONSISTENCY_ALL")]
-        ConsistencyAll,
+    pub enum ReadModeAP {
+        /// A single node should be involved in the read operation.
+        #[pyo3(name = "ONE")]
+        One,
+        /// All duplicates should be consulted in the read operation.
+        #[pyo3(name = "ALL")]
+        All,
     }
 
     #[pymethods]
-    impl ConsistencyLevel {
-        fn __richcmp__(&self, other: &ConsistencyLevel, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+    impl ReadModeAP {
+        fn __richcmp__(&self, other: &ReadModeAP, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
             match op {
                 pyo3::class::basic::CompareOp::Eq => Ok(self == other),
                 pyo3::class::basic::CompareOp::Ne => Ok(self != other),
-                _ => Ok(false),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
             }
         }
 
@@ -172,28 +186,91 @@ pub enum Replica {
         }
     }
 
-    impl From<&ConsistencyLevel> for aerospike_core::ConsistencyLevel {
-        fn from(input: &ConsistencyLevel) -> Self {
-            match &input {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::policy::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::policy::ConsistencyLevel::ConsistencyAll
-                }
+    impl From<&ReadModeAP> for aerospike_core::policy::ReadModeAP {
+        fn from(input: &ReadModeAP) -> Self {
+            match input {
+                ReadModeAP::One => aerospike_core::policy::ReadModeAP::One,
+                ReadModeAP::All => aerospike_core::policy::ReadModeAP::All,
             }
         }
     }
 
-    impl From<&aerospike_core::ConsistencyLevel> for ConsistencyLevel {
-        fn from(input: &aerospike_core::ConsistencyLevel) -> Self {
+    impl From<&aerospike_core::policy::ReadModeAP> for ReadModeAP {
+        fn from(input: &aerospike_core::policy::ReadModeAP) -> Self {
             match input {
-                aerospike_core::policy::ConsistencyLevel::ConsistencyOne => {
-                    ConsistencyLevel::ConsistencyOne
-                }
-                aerospike_core::policy::ConsistencyLevel::ConsistencyAll => {
-                    ConsistencyLevel::ConsistencyAll
-                }
+                aerospike_core::policy::ReadModeAP::One => ReadModeAP::One,
+                aerospike_core::policy::ReadModeAP::All => ReadModeAP::All,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ReadModeSC
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Read policy for SC (strong consistency) namespaces.
+    /// Determines SC read consistency options.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum ReadModeSC {
+        /// Ensures this client will only see an increasing sequence of record versions.
+        /// Client only reads from master. This is the default.
+        #[pyo3(name = "SESSION")]
+        Session,
+        /// Ensures all clients will only see an increasing sequence of record versions.
+        /// Client only reads from master.
+        #[pyo3(name = "LINEARIZE")]
+        Linearize,
+        /// The client may read from master or any full (non-migrating) replica.
+        /// Increasing sequence of record versions is not guaranteed.
+        #[pyo3(name = "ALLOW_REPLICA")]
+        AllowReplica,
+        /// The client may read from master or any full (non-migrating) replica or from
+        /// unavailable partitions. Increasing sequence of record versions is not guaranteed.
+        #[pyo3(name = "ALLOW_UNAVAILABLE")]
+        AllowUnavailable,
+    }
+
+    #[pymethods]
+    impl ReadModeSC {
+        fn __richcmp__(&self, other: &ReadModeSC, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&ReadModeSC> for aerospike_core::policy::ReadModeSC {
+        fn from(input: &ReadModeSC) -> Self {
+            match input {
+                ReadModeSC::Session => aerospike_core::policy::ReadModeSC::Session,
+                ReadModeSC::Linearize => aerospike_core::policy::ReadModeSC::Linearize,
+                ReadModeSC::AllowReplica => aerospike_core::policy::ReadModeSC::AllowReplica,
+                ReadModeSC::AllowUnavailable => aerospike_core::policy::ReadModeSC::AllowUnavailable,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::policy::ReadModeSC> for ReadModeSC {
+        fn from(input: &aerospike_core::policy::ReadModeSC) -> Self {
+            match input {
+                aerospike_core::policy::ReadModeSC::Session => ReadModeSC::Session,
+                aerospike_core::policy::ReadModeSC::Linearize => ReadModeSC::Linearize,
+                aerospike_core::policy::ReadModeSC::AllowReplica => ReadModeSC::AllowReplica,
+                aerospike_core::policy::ReadModeSC::AllowUnavailable => ReadModeSC::AllowUnavailable,
             }
         }
     }
@@ -774,4 +851,365 @@ pub enum Replica {
         fn QUERY_TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::QueryTimeout) }
         #[classattr]
         fn QUERY_GENERIC() -> ResultCode { ResultCode(CoreResultCode::QueryGeneric) }
+        #[classattr]
+        fn MRT_BLOCKED() -> ResultCode { ResultCode(CoreResultCode::MrtBlocked) }
+        #[classattr]
+        fn MRT_VERSION_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::MrtVersionMismatch) }
+        #[classattr]
+        fn MRT_EXPIRED() -> ResultCode { ResultCode(CoreResultCode::MrtExpired) }
+        #[classattr]
+        fn MRT_TOO_MANY_WRITES() -> ResultCode { ResultCode(CoreResultCode::MrtTooManyWrites) }
+        #[classattr]
+        fn MRT_COMMITTED() -> ResultCode { ResultCode(CoreResultCode::MrtCommitted) }
+        #[classattr]
+        fn MRT_ABORTED() -> ResultCode { ResultCode(CoreResultCode::MrtAborted) }
+        #[classattr]
+        fn MRT_ALREADY_LOCKED() -> ResultCode { ResultCode(CoreResultCode::MrtAlreadyLocked) }
+        #[classattr]
+        fn MRT_MONITOR_EXISTS() -> ResultCode { ResultCode(CoreResultCode::MrtMonitorExists) }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TxnState
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum TxnState {
+        #[pyo3(name = "OPEN")]
+        Open,
+        #[pyo3(name = "VERIFIED")]
+        Verified,
+        #[pyo3(name = "COMMITTED")]
+        Committed,
+        #[pyo3(name = "ABORTED")]
+        Aborted,
+    }
+
+    #[pymethods]
+    impl TxnState {
+        fn __richcmp__(&self, other: &TxnState, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<aerospike_core::TxnState> for TxnState {
+        fn from(s: aerospike_core::TxnState) -> Self {
+            match s {
+                aerospike_core::TxnState::Open => TxnState::Open,
+                aerospike_core::TxnState::Verified => TxnState::Verified,
+                aerospike_core::TxnState::Committed => TxnState::Committed,
+                aerospike_core::TxnState::Aborted => TxnState::Aborted,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  CommitStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum CommitStatus {
+        #[pyo3(name = "OK")]
+        Ok,
+        #[pyo3(name = "ALREADY_COMMITTED")]
+        AlreadyCommitted,
+        #[pyo3(name = "ROLL_FORWARD_ABANDONED")]
+        RollForwardAbandoned,
+        #[pyo3(name = "CLOSE_ABANDONED")]
+        CloseAbandoned,
+    }
+
+    #[pymethods]
+    impl CommitStatus {
+        fn __richcmp__(&self, other: &CommitStatus, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<aerospike_core::CommitStatus> for CommitStatus {
+        fn from(s: aerospike_core::CommitStatus) -> Self {
+            match s {
+                aerospike_core::CommitStatus::Ok => CommitStatus::Ok,
+                aerospike_core::CommitStatus::AlreadyCommitted => CommitStatus::AlreadyCommitted,
+                aerospike_core::CommitStatus::RollForwardAbandoned => CommitStatus::RollForwardAbandoned,
+                aerospike_core::CommitStatus::CloseAbandoned => CommitStatus::CloseAbandoned,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  AbortStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum AbortStatus {
+        #[pyo3(name = "OK")]
+        Ok,
+        #[pyo3(name = "ALREADY_ABORTED")]
+        AlreadyAborted,
+        #[pyo3(name = "ROLL_BACK_ABANDONED")]
+        RollBackAbandoned,
+        #[pyo3(name = "CLOSE_ABANDONED")]
+        CloseAbandoned,
+    }
+
+    #[pymethods]
+    impl AbortStatus {
+        fn __richcmp__(&self, other: &AbortStatus, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<aerospike_core::AbortStatus> for AbortStatus {
+        fn from(s: aerospike_core::AbortStatus) -> Self {
+            match s {
+                aerospike_core::AbortStatus::Ok => AbortStatus::Ok,
+                aerospike_core::AbortStatus::AlreadyAborted => AbortStatus::AlreadyAborted,
+                aerospike_core::AbortStatus::RollBackAbandoned => AbortStatus::RollBackAbandoned,
+                aerospike_core::AbortStatus::CloseAbandoned => AbortStatus::CloseAbandoned,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  LoopVarPart
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Identifies which element of a loop variable to access in path expressions.
+    ///
+    /// Used with loop-variable expression constructors such as
+    /// ``FilterExpression.int_loop_var``, ``FilterExpression.map_loop_var``, etc.
+    ///
+    /// Requires Aerospike Server version >= 8.1.1.
+    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "LoopVarPart", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct LoopVarPart(pub i64);
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl LoopVarPart {
+        /// Map key part of the loop variable.
+        #[classattr]
+        const MAP_KEY: LoopVarPart = LoopVarPart(0);
+        /// Value part of the loop variable (list element or map value).
+        #[classattr]
+        const VALUE: LoopVarPart = LoopVarPart(1);
+        /// Index part of the loop variable (parent list index).
+        #[classattr]
+        const INDEX: LoopVarPart = LoopVarPart(2);
+
+        fn __richcmp__(&self, other: &LoopVarPart, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        fn __repr__(&self) -> String {
+            let name = match self.0 {
+                0 => "MAP_KEY",
+                1 => "VALUE",
+                2 => "INDEX",
+                _ => "UNKNOWN",
+            };
+            format!("LoopVarPart.{}", name)
+        }
+    }
+
+    impl From<&LoopVarPart> for aerospike_core::expressions::LoopVarPart {
+        fn from(p: &LoopVarPart) -> Self {
+            aerospike_core::expressions::LoopVarPart(p.0)
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SelectFlag
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
+    ///
+    /// Flags may be combined with bitwise OR, e.g. ``SelectFlag.VALUE | SelectFlag.NO_FAIL``.
+    ///
+    /// Requires Aerospike Server version >= 8.1.1.
+    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "SelectFlag", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct SelectFlag(pub i64);
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl SelectFlag {
+        /// Return the full matching subtree (root to leaf), keeping only matched nodes.
+        #[classattr]
+        const MATCHING_TREE: SelectFlag = SelectFlag(0);
+        /// Return the values of the finally-selected nodes.
+        #[classattr]
+        const VALUE: SelectFlag = SelectFlag(1);
+        /// Synonym for ``VALUE`` — clarifies list element expectations.
+        #[classattr]
+        const LIST_VALUE: SelectFlag = SelectFlag(1);
+        /// Synonym for ``VALUE`` — clarifies map value expectations.
+        #[classattr]
+        const MAP_VALUE: SelectFlag = SelectFlag(1);
+        /// Return only the map keys of the finally-selected nodes.
+        #[classattr]
+        const MAP_KEY: SelectFlag = SelectFlag(2);
+        /// Return map key-value pairs of the finally-selected nodes.
+        #[classattr]
+        const MAP_KEY_VALUE: SelectFlag = SelectFlag(3);
+        /// Ignore type mismatches instead of failing.
+        #[classattr]
+        const NO_FAIL: SelectFlag = SelectFlag(0x10);
+
+        /// Combine flags with bitwise OR.
+        fn __or__(&self, other: &SelectFlag) -> SelectFlag {
+            SelectFlag(self.0 | other.0)
+        }
+
+        fn __richcmp__(&self, other: &SelectFlag, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        fn __repr__(&self) -> String {
+            format!("SelectFlag({})", self.0)
+        }
+    }
+
+    impl From<&SelectFlag> for aerospike_core::operations::path::SelectFlag {
+        fn from(f: &SelectFlag) -> Self {
+            aerospike_core::operations::path::SelectFlag(f.0)
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ModifyFlag
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
+    ///
+    /// Requires Aerospike Server version >= 8.1.1.
+    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "ModifyFlag", module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct ModifyFlag(pub i64);
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl ModifyFlag {
+        /// Default behavior — fails on type mismatches.
+        #[classattr]
+        const DEFAULT: ModifyFlag = ModifyFlag(0);
+        /// Ignore type errors instead of failing.
+        #[classattr]
+        const NO_FAIL: ModifyFlag = ModifyFlag(0x10);
+
+        /// Combine flags with bitwise OR.
+        fn __or__(&self, other: &ModifyFlag) -> ModifyFlag {
+            ModifyFlag(self.0 | other.0)
+        }
+
+        fn __richcmp__(&self, other: &ModifyFlag, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        fn __repr__(&self) -> String {
+            format!("ModifyFlag({})", self.0)
+        }
+    }
+
+    impl From<&ModifyFlag> for aerospike_core::operations::path::ModifyFlag {
+        fn from(f: &ModifyFlag) -> Self {
+            aerospike_core::operations::path::ModifyFlag(f.0)
+        }
     }

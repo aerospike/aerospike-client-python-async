@@ -671,10 +671,12 @@ use crate::record::PythonValue;
     /// Used to specify the location of nested lists/maps within a record.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "CTX", module = "_aerospike_async_native")]
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     pub struct CTX {
         pub(crate) ctx: aerospike_core::operations::cdt_context::CdtContext,
     }
+
+    impl Eq for CTX {}
 
     #[gen_stub_pymethods]
     #[pymethods]
@@ -784,6 +786,35 @@ use crate::record::PythonValue;
             };
             CTX {
                 ctx: aerospike_core::operations::cdt_context::ctx_map_value(core_value),
+            }
+        }
+
+        /// Select all children (elements or entries) of the current collection level.
+        ///
+        /// Equivalent to calling ``all_children_with_filter`` with a constant
+        /// ``true`` expression.  Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn all_children() -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_all_children(),
+            }
+        }
+
+        /// Select all children of the current collection level that satisfy ``exp``.
+        ///
+        /// The expression is evaluated per child element.  Use loop-variable
+        /// expressions (``FilterExpression.int_loop_var``,
+        /// ``FilterExpression.float_loop_var``,
+        /// ``FilterExpression.string_loop_var``,
+        /// ``FilterExpression.map_loop_var``,
+        /// ``FilterExpression.bool_loop_var``) inside ``exp`` to reference the
+        /// current element.  Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn all_children_with_filter(exp: crate::expressions::FilterExpression) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_all_children_with_filter(
+                    exp._as,
+                ),
             }
         }
     }

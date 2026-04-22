@@ -97,6 +97,86 @@ use crate::operations::{
         .into())
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Txn
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Multi-Record Transaction handle.
+    ///
+    /// Pass a `Txn` instance to record operations to group them into a single
+    /// atomic transaction. Call :meth:`Client.commit` or :meth:`Client.abort`
+    /// to finalize the transaction.
+    ///
+    /// Example::
+    ///
+    ///     txn = aerospike_async.Txn()
+    ///     # use txn in put/get policy.txn field
+    ///     status = await client.commit(txn)
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(module = "_aerospike_async_native")]
+    #[derive(Clone)]
+    pub struct Txn {
+        pub(crate) _as: Arc<aerospike_core::Txn>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl Txn {
+        /// Create a new multi-record transaction.
+        #[new]
+        pub fn new() -> Self {
+            Txn { _as: Arc::new(aerospike_core::Txn::new()) }
+        }
+
+        /// Unique transaction ID assigned by the client.
+        #[getter]
+        pub fn id(&self) -> i64 {
+            self._as.id()
+        }
+
+        /// Current state of the transaction.
+        #[getter]
+        pub fn state(&self) -> TxnState {
+            self._as.state().into()
+        }
+
+        /// Force the transaction into a given state.
+        ///
+        /// Primarily useful for testing error paths that depend on a
+        /// non-``OPEN`` transaction (commands must be issued against an
+        /// ``OPEN`` transaction). Production code should let
+        /// :meth:`Client.commit` / :meth:`Client.abort` drive state
+        /// transitions.
+        #[setter]
+        pub fn set_state(&self, state: TxnState) {
+            let core_state = match state {
+                TxnState::Open => aerospike_core::TxnState::Open,
+                TxnState::Verified => aerospike_core::TxnState::Verified,
+                TxnState::Committed => aerospike_core::TxnState::Committed,
+                TxnState::Aborted => aerospike_core::TxnState::Aborted,
+            };
+            self._as.set_state(core_state);
+        }
+
+        /// Transaction timeout in seconds. Zero means use the server default.
+        #[getter]
+        pub fn timeout(&self) -> u32 {
+            self._as.timeout().as_secs() as u32
+        }
+
+        /// Namespace in use by this transaction, if one has been set.
+        #[getter]
+        pub fn namespace(&self) -> Option<String> {
+            self._as.namespace()
+        }
+
+        fn __repr__(&self) -> String {
+            format!("Txn(id={}, state={:?}, namespace={:?})", self._as.id(), self._as.state(), self._as.namespace())
+        }
+    }
+
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1)]
     #[derive(Clone)]
@@ -1705,6 +1785,67 @@ use crate::operations::{
             })
         }
 
+        /// Commit a multi-record transaction.
+        ///
+        /// Verifies all transaction record versions, then applies all writes
+        /// atomically. Returns a :class:`CommitStatus` indicating the outcome.
+        /// Raises :exc:`aerospike_async.exceptions.CommitFailedError` if the
+        /// commit fails part-way through.
+        ///
+        /// Args:
+        ///     txn: The transaction to commit.
+        ///
+        /// Returns:
+        ///     CommitStatus: The outcome of the commit.
+        ///
+        /// Raises:
+        ///     CommitFailedError: If the transaction could not be committed.
+        ///
+        /// Example::
+        ///
+        ///     status = await client.commit(txn)
+        ///     assert status == CommitStatus.OK
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[CommitStatus]", imports=("typing")))]
+        pub fn commit<'a>(&self, txn: &Txn, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let txn_arc = txn._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                let status = client
+                    .commit(&txn_arc)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(CommitStatus::from(status))
+            })
+        }
+
+        /// Abort a multi-record transaction, rolling back all writes.
+        ///
+        /// Args:
+        ///     txn: The transaction to abort.
+        ///
+        /// Returns:
+        ///     AbortStatus: The outcome of the abort.
+        ///
+        /// Raises:
+        ///     AerospikeError: If the abort itself encounters a server error.
+        ///
+        /// Example::
+        ///
+        ///     status = await client.abort(txn)
+        ///     assert status == AbortStatus.OK
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[AbortStatus]", imports=("typing")))]
+        pub fn abort<'a>(&self, txn: &Txn, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let txn_arc = txn._as.clone();
+            pyo3_asyncio::future_into_py(py, async move {
+                let status = client
+                    .abort(&txn_arc)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(AbortStatus::from(status))
+            })
+        }
+
         /// Execute an info command on a random cluster node.
         ///
         /// Args:
@@ -1899,7 +2040,15 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<Replica>()?;
     m.add_class::<Expiration>()?;
     m.add_class::<CommitLevel>()?;
-    m.add_class::<ConsistencyLevel>()?;
+    m.add_class::<TxnState>()?;
+    m.add_class::<CommitStatus>()?;
+    m.add_class::<AbortStatus>()?;
+    m.add_class::<LoopVarPart>()?;
+    m.add_class::<SelectFlag>()?;
+    m.add_class::<ModifyFlag>()?;
+    m.add_class::<Txn>()?;
+    m.add_class::<ReadModeAP>()?;
+    m.add_class::<ReadModeSC>()?;
     m.add_class::<RecordExistsAction>()?;
     m.add_class::<GenerationPolicy>()?;
     m.add_class::<IndexType>()?;
@@ -1935,6 +2084,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ExpOperation>()?;
     m.add_class::<ExpWriteFlags>()?;
     m.add_class::<ExpReadFlags>()?;
+    m.add_class::<CdtOperation>()?;
 
     m.add_class::<BasePolicy>()?;
     m.add_class::<AdminPolicy>()?;
@@ -1998,6 +2148,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("BadResponse", py.get_type::<BadResponse>())?;
     exceptions_module.add("ConnectionError", py.get_type::<ConnectionError>())?;
     exceptions_module.add("InvalidNodeError", py.get_type::<InvalidNodeError>())?;
+    exceptions_module.add("InvalidNamespaceError", py.get_type::<InvalidNamespaceError>())?;
     exceptions_module.add("NoMoreConnections", py.get_type::<NoMoreConnections>())?;
     exceptions_module.add("RecvError", py.get_type::<RecvError>())?;
     exceptions_module.add("Base64DecodeError", py.get_type::<Base64DecodeError>())?;
@@ -2009,6 +2160,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("PasswordHashError", py.get_type::<PasswordHashError>())?;
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
+    exceptions_module.add("CommitFailedError", py.get_type::<CommitFailedError>())?;
     exceptions_module.add("ResultCode", py.get_type::<ResultCode>())?;
     m.add_submodule(&exceptions_module)?;
 

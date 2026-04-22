@@ -105,12 +105,20 @@ class InvalidNodeError(AerospikeError):
     """Exception raised when an invalid node is encountered."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class InvalidNamespaceError(AerospikeError):
+    """Exception raised when an invalid namespace is encountered."""
+    def __init__(self, message: builtins.str) -> None: ...
+
 class NoMoreConnections(AerospikeError):
     """Exception raised when no more connections are available."""
     def __init__(self, message: builtins.str) -> None: ...
 
 class ClientError(AerospikeError):
     """Exception raised for client-side errors."""
+    def __init__(self, message: builtins.str) -> None: ...
+
+class CommitFailedError(AerospikeError):
+    """Exception raised when a multi-record transaction commit fails."""
     def __init__(self, message: builtins.str) -> None: ...
 '''
 
@@ -152,7 +160,9 @@ __all__ = [
     "BadResponse",
     "ConnectionError",
     "InvalidNodeError",
+    "InvalidNamespaceError",
     "NoMoreConnections",
+    "CommitFailedError",
     "RecvError",
     "Base64DecodeError",
     "InvalidUTF8",
@@ -222,6 +232,16 @@ def fix_imports(content: str, pyi_file_path: str = "") -> str:
             content,
             flags=re.MULTILINE
         )
+        # pyo3_stub_gen emits a bare "import aerospike_async" at the top of the
+        # native submodule stub. It's unused (the file only references local
+        # types) and triggers "unused import" warnings in IDEs.
+        content = re.sub(
+            r'^import aerospike_async\s*\n',
+            '',
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
 
     return content
 
@@ -279,6 +299,12 @@ def fix_map_write_flags_int_enum(content: str) -> str:
     pyo3_stub_gen emits ``(Enum)`` for all pyclass enums; several are ``eq_int``
     in Rust and behave as integers at runtime. MapWriteFlags was the original
     case; Exp*/HLL write/read flags need the same stub treatment.
+
+    Also rewrites each member line from ``NAME = ...`` to ``NAME: int`` within
+    every ``class X(IntEnum):`` block. pyo3_stub_gen emits members with an
+    ellipsis value; for IntEnum subclasses Pyright/PyCharm flag that as
+    ``EllipsisType is not assignable to int``. The typeshed convention for
+    IntEnum stubs is an annotation-only form (e.g. ``SIGABRT: int``).
     """
     content = re.sub(
         r'^from enum import Enum\b(?!\s*,\s*IntEnum)',
@@ -300,7 +326,52 @@ def fix_map_write_flags_int_enum(content: str) -> str:
             count=1,
             flags=re.MULTILINE,
         )
+
+    def _rewrite_int_enum_block(match: re.Match) -> str:
+        header = match.group(1)
+        body = match.group(2)
+        new_body, n = re.subn(
+            r'^(    )([A-Z_][A-Z0-9_]*) = \.\.\.(\s*)$',
+            r'\1\2: builtins.int\3',
+            body,
+            flags=re.MULTILINE,
+        )
+        _rewrite_int_enum_block.total += n  # type: ignore[attr-defined]
+        return header + new_body
+
+    _rewrite_int_enum_block.total = 0  # type: ignore[attr-defined]
+    content = re.sub(
+        r'(^class \w+\(IntEnum\):\n)((?:(?:    .*)?\n)*?)(?=^class |\Z)',
+        _rewrite_int_enum_block,
+        content,
+        flags=re.MULTILINE,
+    )
+    total = _rewrite_int_enum_block.total  # type: ignore[attr-defined]
+    if total:
+        print(f"  ✓ Rewrote {total} IntEnum member(s) to annotation-only form")
     return content
+
+
+def fix_circular_classattr_refs(content: str) -> str:
+    """Replace pyo3_stub_gen circular self-reference values with ``...``.
+
+    When a class with unique constant values gets ``#[gen_stub_pymethods]``,
+    pyo3_stub_gen emits self-referential values like::
+
+        MAP_KEY: LoopVarPart = LoopVarPart.MAP_KEY
+
+    These circular references confuse type checkers.  Replace every occurrence
+    of ``ATTR_NAME: ClassName = ClassName.ATTR_NAME`` with ``ATTR_NAME: ClassName = ...``.
+    """
+    fixed, n = re.subn(
+        r'^( {4})([A-Z_]+): (\w+) = \3\.\2\s*$',
+        r'\1\2: \3 = ...',
+        content,
+        flags=re.MULTILINE,
+    )
+    if n:
+        print(f"  ✓ Fixed {n} circular classattr self-reference(s) (pyo3_stub_gen limitation)")
+    return fixed
 
 
 def fix_filter_chaining_stub_methods(content: str) -> str:
@@ -479,6 +550,8 @@ def add_client_stubs(content: str) -> str:
     def node_names(self) -> typing.Awaitable[typing.List[builtins.str]]: ...
     def get_node(self, name: builtins.str) -> typing.Awaitable[Node]: ...
     def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...
+    def commit(self, txn: Txn) -> typing.Awaitable[CommitStatus]: ...
+    def abort(self, txn: Txn) -> typing.Awaitable[AbortStatus]: ...
     def info(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, builtins.str]]: ...
     def info_on_all_nodes(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, typing.Dict[builtins.str, builtins.str]]]: ...
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
@@ -597,6 +670,10 @@ def add_client_stubs(content: str) -> str:
                         method_stubs.append('    def get_node(self, name: builtins.str) -> typing.Awaitable[Node]: ...')
                     elif method == 'nodes':
                         method_stubs.append('    def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...')
+                    elif method == 'commit':
+                        method_stubs.append('    def commit(self, txn: Txn) -> typing.Awaitable[CommitStatus]: ...')
+                    elif method == 'abort':
+                        method_stubs.append('    def abort(self, txn: Txn) -> typing.Awaitable[AbortStatus]: ...')
                     elif method == 'set_xdr_filter':
                         method_stubs.append('    def set_xdr_filter(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[FilterExpression] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...')
 
@@ -957,13 +1034,13 @@ class BitOperation:
     @staticmethod
     def set(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
-    def or(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
+    def or_(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
     def xor(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
-    def and(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
+    def and_(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, value: typing.Any, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
-    def not(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, policy: BitPolicy) -> BitOperation: ...
+    def not_(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
     def lshift(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, shift: builtins.int, policy: BitPolicy) -> BitOperation: ...
     @staticmethod
@@ -1023,23 +1100,29 @@ class ExpOperation:
                 content = content + '\n' + operation_stubs
                 print("  ✓ Added Operation class stubs (at end)")
     else:
-        # stub_gen may emit ListOperation/MapOperation but miss newer methods; replace with full stubs
-        idx_mo = operation_stubs.index('class MapOperation:')
-        idx_bo = operation_stubs.index('class BitOperation:')
-        list_operation_stub = operation_stubs[operation_stubs.index('class ListOperation:'):idx_mo].rstrip()
-        map_operation_stub = operation_stubs[idx_mo:idx_bo].rstrip()
-        start_lo = content.find('class ListOperation:')
-        start_mo = content.find('class MapOperation:')
-        start_bo = content.find('class BitOperation:')
-        if start_lo != -1 and start_mo != -1:
-            content = content[:start_lo] + list_operation_stub + '\n\n' + content[start_mo:]
-            start_bo = content.find('class BitOperation:')
-        if start_mo != -1 and start_bo != -1:
-            start_mo = content.find('class MapOperation:')
-            start_bo = content.find('class BitOperation:')
-            if start_mo != -1 and start_bo != -1:
-                content = content[:start_mo] + map_operation_stub + '\n\n' + content[start_bo:]
-                print("  ✓ Replaced ListOperation/MapOperation stubs (complete method set)")
+        # Only replace ListOperation/MapOperation if stub_gen produced an incomplete version
+        # (missing set_context, which is part of the PAC public API).
+        # When stub_gen emits complete stubs, this branch is a no-op.
+        lo_start = content.find('class ListOperation:')
+        lo_end = content.find('\nclass MapOperation:')
+        if lo_start != -1 and lo_end != -1:
+            lo_body = content[lo_start:lo_end]
+            if not re.search(r'^\s+def set_context\(', lo_body, re.MULTILINE):
+                idx_mo = operation_stubs.index('class MapOperation:')
+                idx_bo = operation_stubs.index('class BitOperation:')
+                list_operation_stub = operation_stubs[operation_stubs.index('class ListOperation:'):idx_mo].rstrip()
+                map_operation_stub = operation_stubs[idx_mo:idx_bo].rstrip()
+                start_lo = content.find('class ListOperation:')
+                start_mo = content.find('class MapOperation:')
+                start_bo = content.find('class BitOperation:')
+                if start_lo != -1 and start_mo != -1:
+                    content = content[:start_lo] + list_operation_stub + '\n\n' + content[start_mo:]
+                if start_mo != -1 and start_bo != -1:
+                    start_mo = content.find('class MapOperation:')
+                    start_bo = content.find('class BitOperation:')
+                    if start_mo != -1 and start_bo != -1:
+                        content = content[:start_mo] + map_operation_stub + '\n\n' + content[start_bo:]
+                        print("  ✓ Replaced ListOperation/MapOperation stubs (complete method set)")
 
     return content
 
@@ -1436,6 +1519,86 @@ def add_return_type_stubs(content: str) -> str:
         content = re.sub(map_pattern, map_return_type_stub, content)
         print("  ✓ Replaced MapReturnType class stubs (pyo3_stub_gen limitation)")
 
+    loop_var_part_stub = '''class LoopVarPart:
+    r"""
+    Identifies which element of a loop variable to access in path expressions.
+
+    Requires Aerospike Server version >= 8.1.1.
+    """
+    MAP_KEY: LoopVarPart
+    """Map key part of the loop variable."""
+    VALUE: LoopVarPart
+    """Value part of the loop variable (list element or map value)."""
+    INDEX: LoopVarPart
+    """Index part of the loop variable (parent list index)."""
+
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...'''
+
+    select_flag_stub = '''class SelectFlag:
+    r"""
+    Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
+
+    Flags may be combined with bitwise OR, e.g. ``SelectFlag.VALUE | SelectFlag.NO_FAIL``.
+
+    Requires Aerospike Server version >= 8.1.1.
+    """
+    MATCHING_TREE: SelectFlag
+    """Return the full matching subtree (root to leaf), keeping only matched nodes."""
+    VALUE: SelectFlag
+    """Return the values of the finally-selected nodes."""
+    LIST_VALUE: SelectFlag
+    """Synonym for ``VALUE`` — clarifies list element expectations."""
+    MAP_VALUE: SelectFlag
+    """Synonym for ``VALUE`` — clarifies map value expectations."""
+    MAP_KEY: SelectFlag
+    """Return only the map keys of the finally-selected nodes."""
+    MAP_KEY_VALUE: SelectFlag
+    """Return map key-value pairs of the finally-selected nodes."""
+    NO_FAIL: SelectFlag
+    """Ignore type mismatches instead of failing."""
+
+    def __or__(self, other: SelectFlag) -> SelectFlag:
+        """Combine flags with bitwise OR."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...'''
+
+    modify_flag_stub = '''class ModifyFlag:
+    r"""
+    Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
+
+    Requires Aerospike Server version >= 8.1.1.
+    """
+    DEFAULT: ModifyFlag
+    """Default behavior — fails on type mismatches."""
+    NO_FAIL: ModifyFlag
+    """Ignore type errors instead of failing."""
+
+    def __or__(self, other: ModifyFlag) -> ModifyFlag:
+        """Combine flags with bitwise OR."""
+        ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __repr__(self) -> builtins.str: ...'''
+
+    for cls_name, stub, name in [
+        ("LoopVarPart", loop_var_part_stub, "LoopVarPart"),
+        ("SelectFlag", select_flag_stub, "SelectFlag"),
+        ("ModifyFlag", modify_flag_stub, "ModifyFlag"),
+    ]:
+        # Match the full class block (from 'class X:' up to the next top-level class or EOF).
+        # This is robust regardless of whether stub_gen emits '...' only or full methods.
+        pattern_str = rf'^class {cls_name}:[\s\S]*?(?=\nclass |\Z)'
+        if re.search(pattern_str, content, re.MULTILINE):
+            content = re.sub(pattern_str, stub, content, flags=re.MULTILINE)
+            print(f"  ✓ Replaced {name} class stubs (pyo3_stub_gen limitation)")
+
     return content
 
 
@@ -1583,7 +1746,9 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('BadResponse = _exceptions.BadResponse\n')
         f.write('ConnectionError = _exceptions.ConnectionError\n')
         f.write('InvalidNodeError = _exceptions.InvalidNodeError\n')
+        f.write('InvalidNamespaceError = _exceptions.InvalidNamespaceError\n')
         f.write('NoMoreConnections = _exceptions.NoMoreConnections\n')
+        f.write('CommitFailedError = _exceptions.CommitFailedError\n')
         f.write('RecvError = _exceptions.RecvError\n')
         f.write('Base64DecodeError = _exceptions.Base64DecodeError\n')
         f.write('InvalidUTF8 = _exceptions.InvalidUTF8\n')
@@ -1654,6 +1819,63 @@ def ensure_exceptions_submodule(package_dir: str):
     print(f"  ✓ Regenerated exceptions submodule runtime __init__.py: {init_py_path}")
 
 
+def add_cdt_operation_stubs(content: str) -> str:
+    """Add CdtOperation class stub (pyo3_stub_gen emits a minimal placeholder)."""
+    cdt_operation_stub = '''class CdtOperation:
+    r"""
+    CDT path expression operations for reading and writing nested CDT data.
+
+    Requires Aerospike Server version >= 8.1.1.
+    """
+    def __new__(cls) -> CdtOperation: ...
+    @staticmethod
+    def select_by_path(
+        bin_name: builtins.str,
+        flag: SelectFlag,
+        ctx: typing.Sequence[CTX],
+    ) -> CdtOperation:
+        """Create a CDT path select operation."""
+        ...
+    @staticmethod
+    def modify_by_path(
+        bin_name: builtins.str,
+        flag: ModifyFlag,
+        exp: FilterExpression,
+        ctx: typing.Sequence[CTX],
+    ) -> CdtOperation:
+        """Create a CDT path modify operation."""
+        ...'''
+
+    # Only replace if stub_gen produced an incomplete CdtOperation (no select_by_path method).
+    # The old pattern r'class CdtOperation:\s*r"""[\s\S]*?"""\s*\.\\.\\.\\.\\.'  can expand
+    # across the whole file and corrupt it when CdtOperation has method docstrings with '...'
+    # inside them (e.g. doctest continuation lines).
+    cdt_start = content.find('class CdtOperation:')
+    cdt_next = content.find('\nclass ', cdt_start + 1) if cdt_start != -1 else -1
+    cdt_body = content[cdt_start:cdt_next] if (cdt_start != -1 and cdt_next != -1) else ''
+    if cdt_start != -1 and 'def select_by_path' not in cdt_body:
+        # stub_gen emitted a minimal placeholder — replace with full stub
+        if cdt_next != -1:
+            content = content[:cdt_start] + cdt_operation_stub + content[cdt_next:]
+        else:
+            content = content[:cdt_start] + cdt_operation_stub
+        print("  ✓ Replaced CdtOperation class stub (pyo3_stub_gen limitation)")
+    elif 'class CdtOperation:' not in content:
+        # Append after ExpOperation if present, otherwise at end of operation section
+        insert_after = 'class ExpOperation:'
+        idx = content.find(insert_after)
+        if idx != -1:
+            # Find end of ExpOperation block
+            next_class = content.find('\nclass ', idx + 1)
+            if next_class == -1:
+                content += '\n\n' + cdt_operation_stub + '\n'
+            else:
+                content = content[:next_class] + '\n\n' + cdt_operation_stub + content[next_class:]
+            print("  ✓ Inserted CdtOperation class stub")
+
+    return content
+
+
 def postprocess_stubs(pyi_file_path: str):
     """Post-process the generated .pyi file to fix all stub issues."""
     print(f"Post-processing stubs: {pyi_file_path}")
@@ -1677,6 +1899,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = fix_list_policy_write_flags_type(content)
         content = fix_map_write_flags_int_enum(content)
         content = add_return_type_stubs(content)
+        content = fix_circular_classattr_refs(content)
         content = add_policy_stubs(content)
         content = fix_filter_chaining_stub_methods(content)
         # Note: PartitionFilter and PartitionStatus are generated by pyo3_stub_gen automatically
@@ -1685,6 +1908,7 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_operation_stubs(content)
         content = add_index_task_stubs(content)
         content = add_hll_operation_stubs(content)
+        content = add_cdt_operation_stubs(content)
         content = add_version_stubs(content)
         content = add_node_stubs(content)
         content = add_client_stubs(content)

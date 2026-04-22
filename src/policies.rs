@@ -26,6 +26,7 @@ use crate::enums::*;
 use crate::expressions::FilterExpression;
 use crate::operations::{extract_py_ops_with_ctx, OpWithCtx};
 use crate::record::{Key, Record};
+use crate::Txn;
 #[cfg(feature = "tls")]
 use crate::TlsConfig;
 
@@ -66,20 +67,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -133,6 +137,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -278,20 +302,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -302,6 +329,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         // Override filter expression methods to sync with internal base_policy
@@ -508,20 +555,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -532,6 +582,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -647,20 +717,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -671,6 +744,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -898,20 +991,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -922,6 +1018,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]

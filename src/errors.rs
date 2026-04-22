@@ -83,6 +83,7 @@ create_exception!(aerospike_async.exceptions, BadResponse, AerospikeError);
 // Connection-related exceptions
 create_exception!(aerospike_async.exceptions, ConnectionError, AerospikeError);
 create_exception!(aerospike_async.exceptions, InvalidNodeError, AerospikeError);
+create_exception!(aerospike_async.exceptions, InvalidNamespaceError, AerospikeError);
 create_exception!(aerospike_async.exceptions, NoMoreConnections, AerospikeError);
 create_exception!(aerospike_async.exceptions, RecvError, AerospikeError);
 
@@ -102,6 +103,7 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 
 // Client-side errors
 create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
+create_exception!(aerospike_async.exceptions, CommitFailedError, AerospikeError);
 
 
 // Must define a wrapper type because of the orphan rule
@@ -123,6 +125,7 @@ impl From<RustClientError> for PyErr {
             Error::Connection(string) => ConnectionError::new_err(string),
             Error::InvalidArgument(string) => ValueError::new_err(string),
             Error::InvalidNode(string) => InvalidNodeError::new_err(string),
+            Error::InvalidNamespace(string) => InvalidNamespaceError::new_err(string),
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
             Error::ServerError(result_code, in_doubt, node) => {
                 let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
@@ -131,48 +134,47 @@ impl From<RustClientError> for PyErr {
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string) => TimeoutError::new_err(string),
             Error::Chain(first, second) => {
-                // For Chain errors, look for the most specific error type
-                // Check first error
-                match first.as_ref() {
-                    Error::ServerError(result_code, in_doubt, node) => {
-                        let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                        create_server_error(message, *result_code, *in_doubt)
+                // v3 wraps errors as Chain(outer, cause). Promote the most
+                // specific error: if either side is a ServerError, use that;
+                // otherwise convert the outer and append the cause message.
+                fn find_server_error(e: &Error) -> Option<(CoreResultCode, bool, &str)> {
+                    match e {
+                        Error::ServerError(rc, id, node) => Some((*rc, *id, node.as_str())),
+                        _ => None,
+                    }
+                }
+
+                if let Some((rc, id, node)) = find_server_error(&first).or_else(|| find_server_error(&second)) {
+                    let message = format!("Code: {:?}, In Doubt: {}, Node: {}", rc, id, node);
+                    return create_server_error(message, rc, id);
+                }
+
+                let cause_msg = format!("{}", second);
+                match *first {
+                    Error::Timeout(msg) => {
+                        TimeoutError::new_err(format!("{msg}: {cause_msg}"))
                     },
-                    Error::BadResponse(msg) => {
-                        BadResponse::new_err(msg.clone())
+                    Error::Connection(msg) => {
+                        ConnectionError::new_err(format!("{msg}: {cause_msg}"))
                     },
-                    Error::ClientError(msg) => {
-                        // Check second error for more specific type
-                        match second.as_ref() {
-                            Error::ServerError(result_code, in_doubt, node) => {
-                                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, *result_code, *in_doubt)
-                            },
-                            Error::BadResponse(msg) => {
-                                BadResponse::new_err(msg.clone())
-                            },
-                            _ => AerospikeError::new_err(format!("Client error: {}", msg))
-                        }
+                    Error::InvalidNode(msg) => {
+                        InvalidNodeError::new_err(format!("{msg}: {cause_msg}"))
                     },
-                    _ => {
-                        // Check second error
-                        match second.as_ref() {
-                            Error::ServerError(result_code, in_doubt, node) => {
-                                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                                create_server_error(message, *result_code, *in_doubt)
-                            },
-                            Error::BadResponse(msg) => {
-                                BadResponse::new_err(msg.clone())
-                            },
-                            Error::ClientError(msg) => {
-                                AerospikeError::new_err(format!("Client error: {}", msg))
-                            },
-                            _ => AerospikeError::new_err("Chain error with no recognized sub-errors")
-                        }
+                    Error::InvalidNamespace(msg) => {
+                        InvalidNamespaceError::new_err(format!("{msg}: {cause_msg}"))
+                    },
+                    other => {
+                        let outer_err: PyErr = RustClientError(other).into();
+                        let msg = format!("{}: {}", outer_err, cause_msg);
+                        AerospikeError::new_err(msg)
                     }
                 }
             },
             Error::ClientError(msg) => ClientError::new_err(msg),
+            Error::CommitFailed { error_type, in_doubt, .. } => {
+                CommitFailedError::new_err(format!("{error_type} (in_doubt={in_doubt})"))
+            },
+            #[allow(unreachable_patterns)]
             other => AerospikeError::new_err(format!("Unknown error: {:?}", other)),
         }
     }

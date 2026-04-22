@@ -2747,4 +2747,141 @@ use crate::record::PythonValue;
                 _as: hll::may_contain(list._as, bin._as),
             }
         }
+
+        ////////////////////////////////////////////////////////////////////////////////////////
+        //  Loop variable expressions (path expressions, server >= 8.1.1)
+        ////////////////////////////////////////////////////////////////////////////////////////
+
+        #[staticmethod]
+        /// Create a boolean loop variable expression for use in path expressions.
+        ///
+        /// Args:
+        ///     part: Which element of the loop variable to access (``LoopVarPart``).
+        ///
+        /// Returns:
+        ///     A ``FilterExpression`` representing the boolean loop variable.
+        pub fn bool_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_bool_loop_var(part.into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an integer loop variable expression for use in path expressions.
+        ///
+        /// Args:
+        ///     part: Which element of the loop variable to access (``LoopVarPart``).
+        ///
+        /// Returns:
+        ///     A ``FilterExpression`` representing the integer loop variable.
+        pub fn int_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_int_loop_var(part.into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a float loop variable expression for use in path expressions.
+        ///
+        /// Args:
+        ///     part: Which element of the loop variable to access (``LoopVarPart``).
+        ///
+        /// Returns:
+        ///     A ``FilterExpression`` representing the float loop variable.
+        pub fn float_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_float_loop_var(part.into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a string loop variable expression for use in path expressions.
+        ///
+        /// Args:
+        ///     part: Which element of the loop variable to access (``LoopVarPart``).
+        ///
+        /// Returns:
+        ///     A ``FilterExpression`` representing the string loop variable.
+        pub fn string_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_string_loop_var(part.into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a list loop variable expression for use in path expressions.
+        ///
+        /// Args:
+        ///     part: Which element of the loop variable to access (``LoopVarPart``).
+        ///
+        /// Returns:
+        ///     A ``FilterExpression`` representing the list loop variable.
+        pub fn list_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_list_loop_var(part.into()),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a map loop variable expression for use in path expressions.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        pub fn map_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_map_loop_var(part.into()),
+            }
+        }
+
+        /// Retrieve the blob part of the current loop variable.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn blob_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_blob_loop_var(part.into()),
+            }
+        }
+
+        /// Retrieve the HLL part of the current loop variable.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn hll_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_hll_loop_var(part.into()),
+            }
+        }
+
+        /// Retrieve the nil part of the current loop variable.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn nil_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_nil_loop_var(part.into()),
+            }
+        }
+
+        /// Retrieve the GeoJSON part of the current loop variable.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn geo_json_loop_var(part: &crate::enums::LoopVarPart) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_geo_json_loop_var(part.into()),
+            }
+        }
+
+        /// Signal that the current loop element should be removed from the result.
+        ///
+        /// Used as the modify expression in :meth:`CdtOperation.modify_by_path` to
+        /// delete matched elements rather than replace them.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn remove_result() -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_remove_result(),
+            }
+        }
     }

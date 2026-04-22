@@ -29,7 +29,7 @@ from aerospike_async import (
     Key,
     WritePolicy,
 )
-from aerospike_async.exceptions import InvalidNodeError
+from aerospike_async.exceptions import InvalidNamespaceError
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
@@ -77,21 +77,17 @@ class TestQuery(TestFixtureInsertRecord):
             records = await client.query(QueryPolicy(), "invalid_filter", Statement("test", "test", ["bin1"]))
 
     async def test_invalid_node_error(self, client):
-        """Test query operation with invalid namespace raises InvalidNodeError during iteration."""
+        """Test query operation with invalid namespace raises InvalidNamespaceError during iteration."""
         stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
-        
-        # Wait for the recordset to become inactive (query finished processing)
-        # This ensures the error is properly raised during iteration
-        max_wait = 10  # Maximum 1 second wait
+
+        max_wait = 10
         for _ in range(max_wait):
             if not records.active:
                 break
             await asyncio.sleep(0.1)
-        
-        # The error occurs during iteration, not during the query call
-        with pytest.raises(InvalidNodeError):
-            # Force iteration to trigger the error
+
+        with pytest.raises(InvalidNamespaceError):
             async for _ in records:
                 pass
 

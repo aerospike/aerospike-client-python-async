@@ -276,6 +276,10 @@ use crate::record::PythonValue;
         ExpRead(String, FilterExpression, i64),
         /// Expression write operation - evaluates expression and writes result to bin.
         ExpWrite(String, FilterExpression, i64),
+        /// CDT path select operation — reads nested CDT data by path expression.
+        CdtSelectByPath(String, i64, Vec<CTX>),
+        /// CDT path modify operation — writes nested CDT data by path expression.
+        CdtModifyByPath(String, i64, FilterExpression, Vec<CTX>),
     }
 
     /// Python wrapper for Operation enum.
@@ -1174,6 +1178,7 @@ use crate::record::PythonValue;
 
         /// Create a Bit or operation (performs bitwise OR, requires BitPolicy).
         #[staticmethod]
+        #[pyo3(name = "or_")]
         pub fn or(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
             BitOperation {
                 op: OperationType::BitOr(bin_name, bit_offset, bit_size, value, policy),
@@ -1190,6 +1195,7 @@ use crate::record::PythonValue;
 
         /// Create a Bit and operation (performs bitwise AND, requires BitPolicy).
         #[staticmethod]
+        #[pyo3(name = "and_")]
         pub fn and(bin_name: String, bit_offset: i64, bit_size: i64, value: PythonValue, policy: BitPolicy) -> Self {
             BitOperation {
                 op: OperationType::BitAnd(bin_name, bit_offset, bit_size, value, policy),
@@ -1198,6 +1204,7 @@ use crate::record::PythonValue;
 
         /// Create a Bit not operation (performs bitwise NOT, requires BitPolicy).
         #[staticmethod]
+        #[pyo3(name = "not_")]
         pub fn not(bin_name: String, bit_offset: i64, bit_size: i64, policy: BitPolicy) -> Self {
             BitOperation {
                 op: OperationType::BitNot(bin_name, bit_offset, bit_size, policy),
@@ -1472,6 +1479,95 @@ use crate::record::PythonValue;
             }
         }
     }
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  CdtOperation
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// CDT path expression operations for reading and writing nested CDT data.
+    ///
+    /// Requires Aerospike Server version >= 8.1.1.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000, module = "_aerospike_async_native")]
+    #[derive(Clone, Debug)]
+    pub struct CdtOperation {
+        pub(crate) op: OperationType,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl CdtOperation {
+        /// Create a CDT path select operation.
+        ///
+        /// Reads nested CDT data identified by the given path context, returning
+        /// result elements controlled by ``flag``.
+        ///
+        /// Args:
+        ///     bin_name: Name of the bin containing the top-level CDT.
+        ///     flag: Controls what is returned (``SelectFlag``).
+        ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
+        ///
+        /// Returns:
+        ///     A ``CdtOperation`` to pass to ``client.operate()``.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import CdtOperation, CTX, SelectFlag
+        ///     op = CdtOperation.select_by_path(
+        ///         "inventory",
+        ///         SelectFlag.VALUE,
+        ///         [CTX.map_key("books"), CTX.list_index(0)],
+        ///     )
+        #[staticmethod]
+        pub fn select_by_path(
+            bin_name: String,
+            flag: &crate::enums::SelectFlag,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            CdtOperation {
+                op: OperationType::CdtSelectByPath(bin_name, flag.0, ctx),
+            }
+        }
+
+        /// Create a CDT path modify operation.
+        ///
+        /// Writes to nested CDT data identified by the given path context, using
+        /// ``exp`` to compute the new value.
+        ///
+        /// Args:
+        ///     bin_name: Name of the bin containing the top-level CDT.
+        ///     flag: Controls error-handling behavior (``ModifyFlag``).
+        ///     exp: Expression that produces the value to write.
+        ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
+        ///
+        /// Returns:
+        ///     A ``CdtOperation`` to pass to ``client.operate()``.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import CdtOperation, CTX, ModifyFlag, FilterExpression
+        ///     price_path = [CTX.map_key("books"), CTX.list_rank(0), CTX.map_key("price")]
+        ///     new_price = FilterExpression.float_val(9.99)
+        ///     op = CdtOperation.modify_by_path(
+        ///         "inventory",
+        ///         ModifyFlag.DEFAULT,
+        ///         new_price,
+        ///         price_path,
+        ///     )
+        #[staticmethod]
+        pub fn modify_by_path(
+            bin_name: String,
+            flag: &crate::enums::ModifyFlag,
+            exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            CdtOperation {
+                op: OperationType::CdtModifyByPath(bin_name, flag.0, exp, ctx),
+            }
+        }
+    }
+
 pub(crate) fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     match bins {
         None => aerospike_core::Bins::All,
@@ -1501,9 +1597,11 @@ pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<V
             rust_ops.push(py_op.op.clone());
         } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
             rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<CdtOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
         } else {
             return Err(PyTypeError::new_err(
-                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation, or CdtOperation"
             ));
         }
     }
@@ -1639,9 +1737,14 @@ pub(crate) fn extract_py_ops_with_ctx(py: Python<'_>, py_ops: &[Py<PyAny>]) -> P
                 op: py_op.op.clone(),
                 ctx: None,
             });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<CdtOperation>>(py) {
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx: None,
+            });
         } else {
             return Err(PyTypeError::new_err(
-                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, or ExpOperation"
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation, or CdtOperation"
             ));
         }
     }
@@ -1693,7 +1796,8 @@ pub(crate) fn record_batch_ops_have_write(rust_ops: &[OpWithCtx]) -> bool {
             OperationType::BitSetInt(_, _, _, _, _) |
             OperationType::ExpWrite(_, _, _) |
             OperationType::HllInit(_, _, _, _) | OperationType::HllAdd(_, _, _, _, _) |
-            OperationType::HllFold(_, _) | OperationType::HllSetUnion(_, _, _) => {
+            OperationType::HllFold(_, _) | OperationType::HllSetUnion(_, _, _) |
+            OperationType::CdtModifyByPath(_, _, _, _) => {
                 return true;
             }
             _ => {}
@@ -1939,8 +2043,10 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 let core_values: Vec<aerospike_core::Value> = hll_list.iter().map(|v| v.clone().into()).collect();
                 hll_value_storage.push(core_values);
             }
-            // Expression operations don't need storage - Expression is cloned directly
-            OperationType::ExpRead(_, _, _) | OperationType::ExpWrite(_, _, _) => {}
+            // Expression and CDT path operations clone directly - no pre-storage needed
+            OperationType::ExpRead(_, _, _) | OperationType::ExpWrite(_, _, _)
+            | OperationType::CdtSelectByPath(_, _, _)
+            | OperationType::CdtModifyByPath(_, _, _, _) => {}
         }
     }
 
@@ -2771,6 +2877,16 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 } else {
                     exp::write_exp(bin_name, exp._as.clone(), core_flags)
                 }
+            }
+            OperationType::CdtSelectByPath(bin_name, flag, ctx) => {
+                use aerospike_core::operations::path::{select_by_path, SelectFlag};
+                let core_ctx = crate::cdt::ctx_to_vec(ctx);
+                select_by_path(bin_name, SelectFlag(*flag), &core_ctx)
+            }
+            OperationType::CdtModifyByPath(bin_name, flag, exp, ctx) => {
+                use aerospike_core::operations::path::{modify_by_path, ModifyFlag};
+                let core_ctx = crate::cdt::ctx_to_vec(ctx);
+                modify_by_path(bin_name, ModifyFlag(*flag), exp._as.clone(), &core_ctx)
             }
         };
 

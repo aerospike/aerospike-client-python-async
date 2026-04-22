@@ -306,12 +306,14 @@ use crate::policies::AdminPolicy;
      *
      **********************************************************************************/
 
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct User {
         pub(crate) _as: aerospike_core::User,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl User {
         #[getter]
@@ -367,12 +369,14 @@ use crate::policies::AdminPolicy;
      *
      **********************************************************************************/
 
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct Role {
         pub(crate) _as: aerospike_core::Role,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl Role {
         #[getter]

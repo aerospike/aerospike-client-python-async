@@ -290,17 +290,15 @@ class TestBitOperation:
         assert isinstance(op, BitOperation)
 
     def test_keyword_methods(self):
-        """Test methods named with Python reserved words via getattr."""
+        """Bitwise operators use trailing-underscore names (or_/and_/not_) to avoid Python keyword collisions."""
         bp = BitPolicy(None)
-        for name in ("or", "xor", "and"):
-            fn = getattr(BitOperation, name)
+        for fn in (BitOperation.or_, BitOperation.xor, BitOperation.and_):
             op = fn("bitbin", 0, 8, b"\xff", bp)
             assert isinstance(op, BitOperation)
 
     def test_not(self):
         bp = BitPolicy(None)
-        fn = getattr(BitOperation, "not")
-        op = fn("bitbin", 0, 8, bp)
+        op = BitOperation.not_("bitbin", 0, 8, bp)
         assert isinstance(op, BitOperation)
 
     def test_lshift(self):
