@@ -36,7 +36,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000, module = "_aerospike_async_native")]
     pub struct Record {
         pub(crate) _as: aerospike_core::Record,
         /// Lazily-cached Python dict for the ``bins`` property.
@@ -135,7 +135,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(subclass, freelist = 1000, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct Key {
         pub(crate) _as: aerospike_core::Key,

@@ -486,18 +486,15 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             bins: Option<Vec<String>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
             let client = self._as.clone();
 
             completion::batched_future_into_py(py, async move {
@@ -527,7 +524,7 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             write_policy: Option<&BatchWritePolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             bins_list: Vec<Py<PyAny>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
@@ -539,12 +536,11 @@ use crate::operations::{
             let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            let mut bins_vecs = Vec::with_capacity(keys.len());
-            for (key_obj, bins_obj) in keys.iter().zip(bins_list.iter()) {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
+            let mut bins_vecs = Vec::with_capacity(bins_list.len());
+            for bins_obj in &bins_list {
                 let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
                 let mut bin_vec = Vec::new();
                 for (py_key, py_val) in bins_dict.iter() {
@@ -590,7 +586,7 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             write_policy: Option<&BatchWritePolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             operations_list: Vec<Vec<Py<PyAny>>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
@@ -602,11 +598,8 @@ use crate::operations::{
             let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
             let mut rust_ops_list = Vec::with_capacity(operations_list.len());
             for operations in operations_list {
@@ -647,18 +640,15 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             delete_policy: Option<&BatchDeletePolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
             let delete_policy = delete_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
             completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
@@ -686,18 +676,15 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
             completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
@@ -726,18 +713,15 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
             let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
             completion::batched_future_into_py(py, async move {
                 use aerospike_core::BatchOperation;
@@ -766,7 +750,7 @@ use crate::operations::{
             &self,
             batch_policy: Option<&BatchPolicy>,
             udf_policy: Option<&BatchUDFPolicy>,
-            keys: Vec<Py<PyAny>>,
+            keys: Vec<PyRef<Key>>,
             udf_name: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
@@ -776,11 +760,8 @@ use crate::operations::{
             let udf_policy = udf_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
 
-            let mut rust_keys = Vec::with_capacity(keys.len());
-            for key_obj in &keys {
-                let key = key_obj.extract::<PyRef<Key>>(py)?;
-                rust_keys.push(key._as.clone());
-            }
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
 
             let rust_args = args.map(|args| {
                 args.into_iter()

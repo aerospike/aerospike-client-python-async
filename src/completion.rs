@@ -68,22 +68,18 @@ fn drain(py: Python<'_>) {
     let pending: Vec<PendingResult> = std::mem::take(&mut *QUEUE.lock().unwrap());
     for pr in pending {
         let future = pr.future.bind(py);
-        let cancelled = future
-            .getattr(pyo3::intern!(py, "cancelled"))
-            .and_then(|m| m.call0())
-            .and_then(|r| r.is_truthy())
-            .unwrap_or(false);
-        if cancelled {
-            continue;
-        }
+        // Skip the cancelled() check: set_result/set_exception on a cancelled
+        // future raises InvalidStateError, which the `let _` already discards.
+        // Avoiding the check saves 3 Python dispatches per completion on the
+        // hot path (getattr + call0 + is_truthy), which at 25k TPS is
+        // ~75k redundant Python calls/sec eliminated.
         match pr.result {
             Ok(converter) => match converter(py) {
                 Ok(val) => {
                     let _ = future.call_method1(pyo3::intern!(py, "set_result"), (val,));
                 }
                 Err(e) => {
-                    let _ =
-                        future.call_method1(pyo3::intern!(py, "set_exception"), (e,));
+                    let _ = future.call_method1(pyo3::intern!(py, "set_exception"), (e,));
                 }
             },
             Err(e) => {

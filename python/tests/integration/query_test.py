@@ -140,7 +140,7 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
         except Exception:
             pass
 
-    async def test_query_equal_by_index_returns_record(self, client):
+    async def test_query_equal_by_index_returns_record(self, client, wait_for_index):
         await self.cleanup_index(client)
         await client.create_index(
             "test",
@@ -150,10 +150,11 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
             IndexType.NUMERIC,
             cit=CollectionIndexType.DEFAULT,
         )
-        await asyncio.sleep(1.0)
+        flt = Filter.equal_by_index(self.idx, 1964)
+        await wait_for_index(client, "test", "test", flt, bins=["year"])
 
         stmt = Statement("test", "test", ["year"])
-        stmt.filters = [Filter.equal_by_index(self.idx, 1964)]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         found = False
@@ -184,7 +185,7 @@ class TestQueryFilterContext(TestFixtureConnection):
         except Exception:
             pass
 
-    async def test_query_list_element_context_filter(self, client):
+    async def test_query_list_element_context_filter(self, client, wait_for_index):
         await self.cleanup(client)
         wp = WritePolicy()
         for i in range(5):
@@ -200,12 +201,12 @@ class TestQueryFilterContext(TestFixtureConnection):
             cit=CollectionIndexType.DEFAULT,
             ctx=[CTX.list_index(0)],
         )
-        await asyncio.sleep(1.5)
+        flt = Filter.range(self.bin_name, 0, 4).context([CTX.list_index(0)])
+        await wait_for_index(
+            client, "test", self.set_name, flt, bins=[self.bin_name])
 
         stmt = Statement("test", self.set_name, [self.bin_name])
-        stmt.filters = [
-            Filter.range(self.bin_name, 0, 4).context([CTX.list_index(0)])
-        ]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         count = 0
@@ -228,7 +229,7 @@ class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
         except Exception:
             pass
 
-    async def test_query_range_with_expression_on_filter(self, client):
+    async def test_query_range_with_expression_on_filter(self, client, wait_for_index):
         await self.cleanup_index(client)
         expr = FilterExpression.int_bin("year")
         task = await client.create_index_using_expression(
@@ -239,9 +240,11 @@ class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
             expression=expr,
         )
         assert await task.wait_till_complete()
+        flt = Filter.range("year", 1960, 1970).expression(expr)
+        await wait_for_index(client, "test", "test", flt, bins=["year"])
 
         stmt = Statement("test", "test", ["year"])
-        stmt.filters = [Filter.range("year", 1960, 1970).expression(expr)]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         found = False
