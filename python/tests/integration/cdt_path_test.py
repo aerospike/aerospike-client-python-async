@@ -590,14 +590,16 @@ class TestModifyByPath:
 
 class TestUseCompressionIntegration:
 
-    async def test_put_get_with_compression(self, aerospike_host, use_services_alternate):
+    async def test_put_get_with_compression(self, aerospike_host, use_services_alternate, enterprise):
         """Put and get a large byte bin through a compression-enabled policy."""
+        if not enterprise:
+            pytest.skip("use_compression requires Aerospike Enterprise Edition")
+
         cp = ClientPolicy()
         cp.use_services_alternate = use_services_alternate
         client = await new_client(cp, aerospike_host)
 
         try:
-            # Enterprise-only check: attempt the operation and accept a graceful skip if it fails.
             key = Key("test", "test", "compress_test_key")
             wp = WritePolicy()
             wp.use_compression = True

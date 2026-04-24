@@ -19,6 +19,7 @@ Pytest configuration to automatically load environment variables from aerospike.
 import logging
 import os
 import pytest
+import pytest_asyncio
 from pathlib import Path
 
 
@@ -103,3 +104,23 @@ def aerospike_host_tls():
 def aerospike_host_sec():
     """Fixture providing the security-enabled Aerospike host for tests"""
     return os.environ.get('AEROSPIKE_HOST_SEC')
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def enterprise(aerospike_host, use_services_alternate):
+    """True when the test cluster is Enterprise Edition (queried via info).
+
+    Tests that exercise Enterprise-only features should accept this fixture
+    and ``pytest.skip`` when it's ``False``, rather than relying on a
+    ``ServerError(EnterpriseOnly)`` to bubble up.
+    """
+    from aerospike_async import ClientPolicy, new_client
+
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    client = await new_client(cp, aerospike_host)
+    try:
+        result = await client.info("edition")
+        return any("Enterprise" in v for v in result.values())
+    finally:
+        await client.close()
