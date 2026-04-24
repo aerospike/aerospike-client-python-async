@@ -36,7 +36,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(subclass, freelist = 1000, module = "_aerospike_async_native")]
     pub struct Record {
         pub(crate) _as: aerospike_core::Record,
         /// Lazily-cached Python dict for the ``bins`` property.
@@ -55,6 +55,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         }
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl Record {
         pub fn bin(&self, name: &str) -> Option<Py<PyAny>> {
@@ -134,7 +135,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(subclass, freelist = 1000, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct Key {
         pub(crate) _as: aerospike_core::Key,
@@ -244,7 +245,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, sequence)]
+    #[pyclass(subclass, freelist = 1, sequence, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
     pub struct Blob {
         v: Vec<u8>,
@@ -431,7 +432,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, sequence)]
+    #[pyclass(subclass, freelist = 1, sequence, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
     pub struct Map {
         v: HashMap<PythonValue, PythonValue>,
@@ -585,7 +586,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, sequence)]
+    #[pyclass(subclass, freelist = 1, sequence, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
     pub struct List {
         v: Vec<PythonValue>,
@@ -751,7 +752,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
     pub struct GeoJSON {
         v: String,
@@ -856,7 +857,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, sequence)]
+    #[pyclass(subclass, freelist = 1, sequence, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
     pub struct HLL {
         v: Vec<u8>,

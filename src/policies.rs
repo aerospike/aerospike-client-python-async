@@ -26,6 +26,7 @@ use crate::enums::*;
 use crate::expressions::FilterExpression;
 use crate::operations::{extract_py_ops_with_ctx, OpWithCtx};
 use crate::record::{Key, Record};
+use crate::Txn;
 #[cfg(feature = "tls")]
 use crate::TlsConfig;
 
@@ -66,20 +67,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -133,6 +137,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -223,6 +247,55 @@ use crate::TlsConfig;
             PyClassInitializer::from(base_policy).add_subclass(read_policy)
         }
 
+        /// Build a ``ReadPolicy`` in a single call, setting only the provided fields.
+        ///
+        /// Equivalent to constructing ``ReadPolicy()`` and assigning each attribute,
+        /// but crosses the Rust boundary once instead of once per attribute.  All
+        /// arguments are keyword-only; any unspecified field keeps its default.
+        #[staticmethod]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None))]
+        pub fn from_fields(
+            py: Python,
+            total_timeout: Option<u64>,
+            socket_timeout: Option<u32>,
+            max_retries: Option<usize>,
+            sleep_between_retries: Option<u64>,
+            replica: Option<Replica>,
+            read_mode_ap: Option<ReadModeAP>,
+            read_mode_sc: Option<ReadModeSC>,
+            read_touch_ttl: Option<i32>,
+            use_compression: Option<bool>,
+        ) -> PyResult<Py<ReadPolicy>> {
+            let mut rp = aerospike_core::ReadPolicy::default();
+            if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
+            if let Some(v) = socket_timeout { rp.base_policy.socket_timeout = v; }
+            if let Some(v) = max_retries { rp.base_policy.max_retries = v; }
+            if let Some(v) = sleep_between_retries {
+                rp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
+            }
+            if let Some(v) = replica { rp.replica = (&v).into(); }
+            if let Some(v) = read_mode_ap { rp.base_policy.read_mode_ap = (&v).into(); }
+            if let Some(v) = read_mode_sc { rp.base_policy.read_mode_sc = (&v).into(); }
+            if let Some(v) = read_touch_ttl {
+                rp.base_policy.read_touch_ttl = match v {
+                    -1 => aerospike_core::ReadTouchTTL::DontReset,
+                    0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                    pct if (1..=100).contains(&pct) => {
+                        aerospike_core::ReadTouchTTL::Percent(pct as u8)
+                    }
+                    _ => return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "read_touch_ttl must be -1, 0, or 1-100, got {v}"
+                    ))),
+                };
+            }
+            if let Some(v) = use_compression { rp.base_policy.use_compression = v; }
+            Py::new(
+                py,
+                PyClassInitializer::from(BasePolicy::new())
+                    .add_subclass(ReadPolicy { _as: rp }),
+            )
+        }
+
         #[getter]
         pub fn get_replica(&self) -> Replica {
             (&self._as.replica).into()
@@ -278,20 +351,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -302,6 +378,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         // Override filter expression methods to sync with internal base_policy
@@ -367,6 +463,66 @@ use crate::TlsConfig;
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(write_policy)
+        }
+
+        /// Build a ``WritePolicy`` in a single call, setting only the provided fields.
+        ///
+        /// Equivalent to constructing ``WritePolicy()`` and assigning each attribute,
+        /// but crosses the Rust boundary once instead of once per attribute.  All
+        /// arguments are keyword-only; any unspecified field keeps its default.
+        #[staticmethod]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None))]
+        pub fn from_fields(
+            py: Python,
+            total_timeout: Option<u64>,
+            socket_timeout: Option<u32>,
+            max_retries: Option<usize>,
+            sleep_between_retries: Option<u64>,
+            record_exists_action: Option<RecordExistsAction>,
+            generation_policy: Option<GenerationPolicy>,
+            commit_level: Option<CommitLevel>,
+            generation: Option<u32>,
+            expiration: Option<Expiration>,
+            send_key: Option<bool>,
+            respond_per_each_op: Option<bool>,
+            durable_delete: Option<bool>,
+            use_compression: Option<bool>,
+        ) -> PyResult<Py<WritePolicy>> {
+            let mut wp = aerospike_core::WritePolicy::default();
+            if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
+            if let Some(v) = socket_timeout { wp.base_policy.socket_timeout = v; }
+            if let Some(v) = max_retries { wp.base_policy.max_retries = v; }
+            if let Some(v) = sleep_between_retries {
+                wp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
+            }
+            if let Some(v) = record_exists_action {
+                wp.record_exists_action = match v {
+                    RecordExistsAction::Update => aerospike_core::RecordExistsAction::Update,
+                    RecordExistsAction::UpdateOnly => aerospike_core::RecordExistsAction::UpdateOnly,
+                    RecordExistsAction::Replace => aerospike_core::RecordExistsAction::Replace,
+                    RecordExistsAction::ReplaceOnly => aerospike_core::RecordExistsAction::ReplaceOnly,
+                    RecordExistsAction::CreateOnly => aerospike_core::RecordExistsAction::CreateOnly,
+                };
+            }
+            if let Some(v) = generation_policy {
+                wp.generation_policy = match v {
+                    GenerationPolicy::None => aerospike_core::GenerationPolicy::None,
+                    GenerationPolicy::ExpectGenEqual => aerospike_core::GenerationPolicy::ExpectGenEqual,
+                    GenerationPolicy::ExpectGenGreater => aerospike_core::GenerationPolicy::ExpectGenGreater,
+                };
+            }
+            if let Some(v) = commit_level { wp.commit_level = (&v).into(); }
+            if let Some(v) = generation { wp.generation = v; }
+            if let Some(v) = expiration { wp.expiration = (&v).into(); }
+            if let Some(v) = send_key { wp.send_key = v; }
+            if let Some(v) = respond_per_each_op { wp.respond_per_each_op = v; }
+            if let Some(v) = durable_delete { wp.durable_delete = v; }
+            if let Some(v) = use_compression { wp.base_policy.use_compression = v; }
+            Py::new(
+                py,
+                PyClassInitializer::from(BasePolicy::new())
+                    .add_subclass(WritePolicy { _as: wp }),
+            )
         }
 
         #[getter(record_exists_action)]
@@ -508,20 +664,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -532,6 +691,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -647,20 +826,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -671,6 +853,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]
@@ -853,6 +1055,44 @@ use crate::TlsConfig;
             PyClassInitializer::from(base_policy).add_subclass(batch_policy)
         }
 
+        /// Build a ``BatchPolicy`` in a single call, setting only the provided fields.
+        ///
+        /// Equivalent to constructing ``BatchPolicy()`` and assigning each attribute,
+        /// but crosses the Rust boundary once instead of once per attribute.  All
+        /// arguments are keyword-only; any unspecified field keeps its default.
+        #[staticmethod]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None))]
+        pub fn from_fields(
+            py: Python,
+            total_timeout: Option<u64>,
+            socket_timeout: Option<u32>,
+            max_retries: Option<usize>,
+            sleep_between_retries: Option<u64>,
+            allow_inline: Option<bool>,
+            allow_inline_ssd: Option<bool>,
+            respond_all_keys: Option<bool>,
+            replica: Option<Replica>,
+            use_compression: Option<bool>,
+        ) -> PyResult<Py<BatchPolicy>> {
+            let mut bp = aerospike_core::BatchPolicy::default();
+            if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
+            if let Some(v) = socket_timeout { bp.base_policy.socket_timeout = v; }
+            if let Some(v) = max_retries { bp.base_policy.max_retries = v; }
+            if let Some(v) = sleep_between_retries {
+                bp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
+            }
+            if let Some(v) = allow_inline { bp.allow_inline = v; }
+            if let Some(v) = allow_inline_ssd { bp.allow_inline_ssd = v; }
+            if let Some(v) = respond_all_keys { bp.respond_all_keys = v; }
+            if let Some(v) = replica { bp.replica = (&v).into(); }
+            if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
+            Py::new(
+                py,
+                PyClassInitializer::from(BasePolicy::new())
+                    .add_subclass(BatchPolicy { _as: bp }),
+            )
+        }
+
         #[getter]
         pub fn get_base_policy(&self) -> BasePolicy {
             BasePolicy {
@@ -898,20 +1138,23 @@ use crate::TlsConfig;
         }
 
         #[getter]
-        pub fn get_consistency_level(&self) -> ConsistencyLevel {
-            (&self._as.base_policy.consistency_level).into()
+        pub fn get_read_mode_ap(&self) -> ReadModeAP {
+            (&self._as.base_policy.read_mode_ap).into()
         }
 
         #[setter]
-        pub fn set_consistency_level(&mut self, consistency_level: ConsistencyLevel) {
-            self._as.base_policy.consistency_level = match consistency_level {
-                ConsistencyLevel::ConsistencyOne => {
-                    aerospike_core::ConsistencyLevel::ConsistencyOne
-                }
-                ConsistencyLevel::ConsistencyAll => {
-                    aerospike_core::ConsistencyLevel::ConsistencyAll
-                }
-            };
+        pub fn set_read_mode_ap(&mut self, mode: ReadModeAP) {
+            self._as.base_policy.read_mode_ap = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.base_policy.read_mode_sc = (&mode).into();
         }
 
         #[getter]
@@ -922,6 +1165,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_use_compression(&self) -> bool {
+            self._as.base_policy.use_compression
+        }
+
+        #[setter]
+        pub fn set_use_compression(&mut self, use_compression: bool) {
+            self._as.base_policy.use_compression = use_compression;
+        }
+
+        #[getter]
+        pub fn get_txn(&self) -> Option<Txn> {
+            self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
+        }
+
+        #[setter]
+        pub fn set_txn(&mut self, txn: Option<Txn>) {
+            self._as.base_policy.txn = txn.map(|t| t._as);
         }
 
         #[getter]

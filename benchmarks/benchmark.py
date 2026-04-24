@@ -35,6 +35,9 @@ if str(_ROOT) not in sys.path:
 import benchmarks._env  # noqa: E402, F401
 
 from aerospike_async import (  # noqa: E402
+    BatchPolicy,
+    BatchReadPolicy,
+    BatchWritePolicy,
     ClientPolicy,
     Key,
     Operation,
@@ -175,6 +178,19 @@ def _random_bins(fields: list[tuple[str, str, int]]) -> list:
     return ops
 
 
+def _random_bins_dict(fields: list[tuple[str, str, int]]) -> dict:
+    """Like ``_random_bins`` but as a ``{name: value}`` dict for ``batch_write``."""
+    out: dict = {}
+    for name, kind, size in fields:
+        if kind == "int":
+            out[name] = _rng.randrange(1 << 30)
+        elif kind == "str":
+            out[name] = _rng.randbytes(max(1, (size + 1) // 2)).hex()[:size]
+        else:
+            out[name] = _rng.randbytes(size)
+    return out
+
+
 def _parse_bin_spec(spec: str) -> list[tuple[str, str, int]]:
     """Parse ``I1,S128,B1024`` into ``[(name, kind, size), ...]``."""
     import re
@@ -210,19 +226,39 @@ async def _worker(
     key_count = cfg.keys
     read_pct = cfg.read_pct
     has_limit = cfg.max_ops is not None
+    bsz = max(1, int(getattr(cfg, "batch_size", 0) or 0))
 
     while not stop.is_set():
         if has_limit and stats.total_ops() >= cfg.max_ops:
             return
-
-        kid = rng.randint(1, key_count)
-        key = Key(ns, sn, kid)
 
         if cfg.workload == "I":
             is_read = False
         else:
             is_read = rng.randint(1, 100) <= read_pct
 
+        if bsz > 1:
+            keys = [Key(ns, sn, rng.randint(1, key_count)) for _ in range(bsz)]
+            t0 = time.perf_counter()
+            try:
+                if is_read:
+                    await client.batch_read(None, None, keys, None)
+                else:
+                    bins_list = [_random_bins_dict(fields) for _ in range(bsz)]
+                    await client.batch_write(None, None, keys, bins_list)
+            except Exception:
+                dt = (time.perf_counter() - t0) * 1000.0
+                # Count one op per batch call to match PSDK's accounting
+                # (each _one_op_async call is one stats.record, regardless of
+                # batch size).  Per-key throughput = TPS * batch_size.
+                stats.record(is_read, dt, True)
+            else:
+                dt = (time.perf_counter() - t0) * 1000.0
+                stats.record(is_read, dt, False)
+            continue
+
+        kid = rng.randint(1, key_count)
+        key = Key(ns, sn, kid)
         t0 = time.perf_counter()
         try:
             if is_read:
@@ -257,9 +293,24 @@ async def async_main() -> int:
     p.add_argument("-z", "--concurrency", type=int, default=32, help="Async tasks.")
     p.add_argument("-d", "--duration", type=float, default=10.0, help="Seconds.")
     p.add_argument("-c", "--max-ops", type=int, default=None, help="Stop after N ops.")
+    p.add_argument(
+        "--batch-size",
+        dest="batch_size",
+        type=int,
+        default=0,
+        help="If >1, each operation issues one batch_read/batch_write for N keys.",
+    )
     p.add_argument("--warmup", type=int, default=4, help="Warmup intervals.")
     p.add_argument("--cooldown", type=int, default=4, help="Cooldown intervals.")
     p.add_argument("--seed", type=int, default=0, help="RNG seed; 0 = random.")
+    p.add_argument(
+        "--tracemalloc",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable tracemalloc (default: off; hooks every alloc/free and "
+             "walks the Python frame stack, historically ~40%% of GIL-thread "
+             "CPU on RU,50). On only for memory investigations.",
+    )
 
     args = p.parse_args()
 
@@ -286,7 +337,8 @@ async def async_main() -> int:
     stats.set_planned(n_iv)
     stop = asyncio.Event()
 
-    tracemalloc.start()
+    if args.tracemalloc:
+        tracemalloc.start()
 
     # Connect
     policy = default_client_policy()

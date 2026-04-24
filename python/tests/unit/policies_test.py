@@ -16,7 +16,7 @@
 import pytest
 from aerospike_async import (
     BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy, BatchPolicy,
-    ConsistencyLevel, RecordExistsAction, GenerationPolicy,
+    ReadModeAP, ReadModeSC, RecordExistsAction, GenerationPolicy,
     CommitLevel, Expiration, FilterExpression as fe
 )
 
@@ -27,7 +27,7 @@ class TestBasePolicy:
     def test_set_and_get_fields(self):
         """Test setting and getting BasePolicy fields."""
         bp = BasePolicy()
-        bp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        bp.read_mode_ap = ReadModeAP.ALL
         bp.total_timeout = 20000
         bp.max_retries = 4
         bp.sleep_between_retries = 1000
@@ -35,7 +35,7 @@ class TestBasePolicy:
         filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
         bp.filter_expression = filter_exp
 
-        assert bp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert bp.read_mode_ap == ReadModeAP.ALL
         assert bp.total_timeout == 20000
         assert bp.max_retries == 4
         assert bp.sleep_between_retries == 1000
@@ -98,7 +98,7 @@ class TestWritePolicy:
     def test_base_policy_inheritance(self):
         """Test that WritePolicy inherits BasePolicy fields."""
         wp = WritePolicy()
-        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        wp.read_mode_ap = ReadModeAP.ALL
         wp.total_timeout = 15000
         wp.max_retries = 3
         wp.sleep_between_retries = 500
@@ -106,7 +106,7 @@ class TestWritePolicy:
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         wp.filter_expression = filter_exp
 
-        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert wp.read_mode_ap == ReadModeAP.ALL
         assert wp.total_timeout == 15000
         assert wp.max_retries == 3
         assert wp.sleep_between_retries == 500
@@ -129,7 +129,7 @@ class TestWritePolicy:
         """Test that WritePolicy can use both BasePolicy and WritePolicy fields together."""
         wp = WritePolicy()
         # Set BasePolicy fields
-        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        wp.read_mode_ap = ReadModeAP.ONE
         wp.total_timeout = 10000
         wp.max_retries = 2
         # Set WritePolicy-specific fields
@@ -142,7 +142,7 @@ class TestWritePolicy:
         wp.durable_delete = True
 
         # Verify BasePolicy fields
-        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert wp.read_mode_ap == ReadModeAP.ONE
         assert wp.total_timeout == 10000
         assert wp.max_retries == 2
         # Verify WritePolicy fields
@@ -292,14 +292,14 @@ class TestReadPolicy:
     def test_set_and_get_fields(self):
         """Test setting and getting ReadPolicy fields."""
         rp = ReadPolicy()
-        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        rp.read_mode_ap = ReadModeAP.ALL
         rp.total_timeout = 20000
         rp.max_retries = 4
         rp.sleep_between_retries = 1000
         filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
         rp.filter_expression = filter_exp
 
-        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert rp.read_mode_ap == ReadModeAP.ALL
         assert rp.total_timeout == 20000
         assert rp.max_retries == 4
         assert rp.sleep_between_retries == 1000
@@ -308,7 +308,7 @@ class TestReadPolicy:
     def test_base_policy_inheritance(self):
         """Test that ReadPolicy inherits BasePolicy fields."""
         rp = ReadPolicy()
-        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        rp.read_mode_ap = ReadModeAP.ALL
         rp.total_timeout = 15000
         rp.max_retries = 3
         rp.sleep_between_retries = 500
@@ -316,7 +316,7 @@ class TestReadPolicy:
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         rp.filter_expression = filter_exp
 
-        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert rp.read_mode_ap == ReadModeAP.ALL
         assert rp.total_timeout == 15000
         assert rp.max_retries == 3
         assert rp.sleep_between_retries == 500
@@ -455,7 +455,7 @@ class TestQueryPolicy:
     def test_base_policy_inheritance(self):
         """Test that QueryPolicy inherits BasePolicy fields."""
         qp = QueryPolicy()
-        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        qp.read_mode_ap = ReadModeAP.ALL
         qp.total_timeout = 15000
         qp.max_retries = 3
         qp.sleep_between_retries = 500
@@ -463,7 +463,7 @@ class TestQueryPolicy:
         filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
         qp.filter_expression = filter_exp
 
-        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert qp.read_mode_ap == ReadModeAP.ALL
         assert qp.total_timeout == 15000
         assert qp.max_retries == 3
         assert qp.sleep_between_retries == 500
@@ -474,7 +474,7 @@ class TestQueryPolicy:
         """Test that QueryPolicy can use both BasePolicy and QueryPolicy fields together."""
         qp = QueryPolicy()
         # Set BasePolicy fields
-        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        qp.read_mode_ap = ReadModeAP.ONE
         qp.total_timeout = 10000
         qp.max_retries = 2
         # Set QueryPolicy-specific fields
@@ -486,7 +486,7 @@ class TestQueryPolicy:
         qp.replica = Replica.PREFER_RACK
 
         # Verify BasePolicy fields
-        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert qp.read_mode_ap == ReadModeAP.ONE
         assert qp.total_timeout == 10000
         assert qp.max_retries == 2
         # Verify QueryPolicy fields
@@ -559,7 +559,7 @@ class TestBasePolicySync:
         rp.total_timeout = 999
         rp.max_retries = 5
         rp.sleep_between_retries = 100
-        rp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        rp.read_mode_ap = ReadModeAP.ALL
         rp.socket_timeout = 2000
 
         # Verify they're synced with base_policy
@@ -569,8 +569,8 @@ class TestBasePolicySync:
         assert rp.base_policy.max_retries == 5
         assert rp.sleep_between_retries == 100
         assert rp.base_policy.sleep_between_retries == 100
-        assert rp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert rp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert rp.read_mode_ap == ReadModeAP.ALL
+        assert rp.base_policy.read_mode_ap == ReadModeAP.ALL
         assert rp.socket_timeout == 2000
         assert rp.base_policy.socket_timeout == 2000
 
@@ -582,7 +582,7 @@ class TestBasePolicySync:
         wp.total_timeout = 888
         wp.max_retries = 3
         wp.sleep_between_retries = 200
-        wp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        wp.read_mode_ap = ReadModeAP.ONE
         wp.socket_timeout = 3000
 
         # Verify they're synced with base_policy
@@ -592,8 +592,8 @@ class TestBasePolicySync:
         assert wp.base_policy.max_retries == 3
         assert wp.sleep_between_retries == 200
         assert wp.base_policy.sleep_between_retries == 200
-        assert wp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert wp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert wp.read_mode_ap == ReadModeAP.ONE
+        assert wp.base_policy.read_mode_ap == ReadModeAP.ONE
         assert wp.socket_timeout == 3000
         assert wp.base_policy.socket_timeout == 3000
 
@@ -605,7 +605,7 @@ class TestBasePolicySync:
         qp.total_timeout = 777
         qp.max_retries = 4
         qp.sleep_between_retries = 300
-        qp.consistency_level = ConsistencyLevel.CONSISTENCY_ALL
+        qp.read_mode_ap = ReadModeAP.ALL
         qp.socket_timeout = 4000
 
         # Verify they're synced with base_policy
@@ -615,8 +615,8 @@ class TestBasePolicySync:
         assert qp.base_policy.max_retries == 4
         assert qp.sleep_between_retries == 300
         assert qp.base_policy.sleep_between_retries == 300
-        assert qp.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
-        assert qp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ALL
+        assert qp.read_mode_ap == ReadModeAP.ALL
+        assert qp.base_policy.read_mode_ap == ReadModeAP.ALL
         assert qp.socket_timeout == 4000
         assert qp.base_policy.socket_timeout == 4000
 
@@ -628,7 +628,7 @@ class TestBasePolicySync:
         bp.total_timeout = 666
         bp.max_retries = 2
         bp.sleep_between_retries = 400
-        bp.consistency_level = ConsistencyLevel.CONSISTENCY_ONE
+        bp.read_mode_ap = ReadModeAP.ONE
         bp.socket_timeout = 5000
 
         # Verify they're synced with base_policy
@@ -638,8 +638,8 @@ class TestBasePolicySync:
         assert bp.base_policy.max_retries == 2
         assert bp.sleep_between_retries == 400
         assert bp.base_policy.sleep_between_retries == 400
-        assert bp.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
-        assert bp.base_policy.consistency_level == ConsistencyLevel.CONSISTENCY_ONE
+        assert bp.read_mode_ap == ReadModeAP.ONE
+        assert bp.base_policy.read_mode_ap == ReadModeAP.ONE
         assert bp.socket_timeout == 5000
         assert bp.base_policy.socket_timeout == 5000
 
@@ -714,3 +714,47 @@ class TestBasePolicySync:
         bp.filter_expression = filter_exp
         assert bp.filter_expression == filter_exp
         assert bp.base_policy.filter_expression == filter_exp
+
+
+class TestUseCompression:
+
+    def test_base_policy_default_false(self):
+        bp = BasePolicy()
+        assert bp.use_compression is False
+
+    def test_base_policy_set_true(self):
+        bp = BasePolicy()
+        bp.use_compression = True
+        assert bp.use_compression is True
+
+    def test_base_policy_toggle(self):
+        bp = BasePolicy()
+        bp.use_compression = True
+        bp.use_compression = False
+        assert bp.use_compression is False
+
+    def test_read_policy_use_compression(self):
+        rp = ReadPolicy()
+        assert rp.use_compression is False
+        rp.use_compression = True
+        assert rp.use_compression is True
+        assert rp.base_policy.use_compression is True
+
+    def test_write_policy_use_compression(self):
+        wp = WritePolicy()
+        assert wp.use_compression is False
+        wp.use_compression = True
+        assert wp.use_compression is True
+        assert wp.base_policy.use_compression is True
+
+    def test_query_policy_use_compression(self):
+        qp = QueryPolicy()
+        qp.use_compression = True
+        assert qp.use_compression is True
+        assert qp.base_policy.use_compression is True
+
+    def test_batch_policy_use_compression(self):
+        bp = BatchPolicy()
+        bp.use_compression = True
+        assert bp.use_compression is True
+        assert bp.base_policy.use_compression is True

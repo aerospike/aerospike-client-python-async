@@ -293,11 +293,11 @@ async def test_operate_bit_or(client_and_key):
         wp,
         key,
         [
-            getattr(BitOperation, "or")("bitbin", 0, 5, bits1, put_mode),
-            getattr(BitOperation, "or")("bitbin", 9, 7, bits1, put_mode),
-            getattr(BitOperation, "or")("bitbin", 23, 6, bits1, put_mode),
-            getattr(BitOperation, "or")("bitbin", 32, 8, bits1, put_mode),
-            getattr(BitOperation, "or")("bitbin", 40, 24, bits1, put_mode),
+            BitOperation.or_("bitbin", 0, 5, bits1, put_mode),
+            BitOperation.or_("bitbin", 9, 7, bits1, put_mode),
+            BitOperation.or_("bitbin", 23, 6, bits1, put_mode),
+            BitOperation.or_("bitbin", 32, 8, bits1, put_mode),
+            BitOperation.or_("bitbin", 40, 24, bits1, put_mode),
         ]
     )
 
@@ -365,11 +365,11 @@ async def test_operate_bit_and(client_and_key):
         wp,
         key,
         [
-            getattr(BitOperation, "and")("bitbin", 0, 5, bits1, put_mode),
-            getattr(BitOperation, "and")("bitbin", 9, 7, bits1, put_mode),
-            getattr(BitOperation, "and")("bitbin", 23, 6, bits1, put_mode),
-            getattr(BitOperation, "and")("bitbin", 32, 8, bits1, put_mode),
-            getattr(BitOperation, "and")("bitbin", 40, 24, bits1, put_mode),
+            BitOperation.and_("bitbin", 0, 5, bits1, put_mode),
+            BitOperation.and_("bitbin", 9, 7, bits1, put_mode),
+            BitOperation.and_("bitbin", 23, 6, bits1, put_mode),
+            BitOperation.and_("bitbin", 32, 8, bits1, put_mode),
+            BitOperation.and_("bitbin", 40, 24, bits1, put_mode),
         ]
     )
 
@@ -400,11 +400,11 @@ async def test_operate_bit_not(client_and_key):
         wp,
         key,
         [
-            getattr(BitOperation, "not")("bitbin", 0, 5, put_mode),
-            getattr(BitOperation, "not")("bitbin", 9, 7, put_mode),
-            getattr(BitOperation, "not")("bitbin", 23, 6, put_mode),
-            getattr(BitOperation, "not")("bitbin", 32, 8, put_mode),
-            getattr(BitOperation, "not")("bitbin", 40, 24, put_mode),
+            BitOperation.not_("bitbin", 0, 5, put_mode),
+            BitOperation.not_("bitbin", 9, 7, put_mode),
+            BitOperation.not_("bitbin", 23, 6, put_mode),
+            BitOperation.not_("bitbin", 32, 8, put_mode),
+            BitOperation.not_("bitbin", 40, 24, put_mode),
         ]
     )
 
@@ -904,7 +904,7 @@ async def test_operate_bit_null_blob(client_and_key):
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [getattr(BitOperation, "or")("bitbin", 0, 1, buf, policy)])
+        await client.operate(wp, key, [BitOperation.or_("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
@@ -912,11 +912,11 @@ async def test_operate_bit_null_blob(client_and_key):
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [getattr(BitOperation, "and")("bitbin", 0, 1, buf, policy)])
+        await client.operate(wp, key, [BitOperation.and_("bitbin", 0, 1, buf, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [getattr(BitOperation, "not")("bitbin", 0, 1, policy)])
+        await client.operate(wp, key, [BitOperation.not_("bitbin", 0, 1, policy)])
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
@@ -1085,7 +1085,7 @@ async def test_operate_bit_and_exhaustive(client_and_key):
             
             # AND operation
             await client.operate(wp, key, [
-                getattr(BitOperation, "and")("bitbin", offset, set_sz, set_data, policy),
+                BitOperation.and_("bitbin", offset, set_sz, set_data, policy),
             ])
             
             rp = ReadPolicy()
@@ -1112,7 +1112,7 @@ async def test_operate_bit_not_exhaustive(client_and_key):
             
             # NOT operation
             await client.operate(wp, key, [
-                getattr(BitOperation, "not")("bitbin", offset, set_sz, policy),
+                BitOperation.not_("bitbin", offset, set_sz, policy),
             ])
             
             rp = ReadPolicy()

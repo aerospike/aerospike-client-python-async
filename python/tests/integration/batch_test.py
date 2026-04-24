@@ -28,7 +28,7 @@ from aerospike_async import (
     RecordExistsAction,
     MapOperation, MapPolicy, MapReturnType, CTX,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError, RecordNotFound
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError, InvalidNamespaceError, RecordNotFound
 
 @pytest_asyncio.fixture
 async def client_and_keys():
@@ -602,25 +602,23 @@ async def test_batch_operate_complex(client_and_keys):
 async def test_batch_invalid_namespace(client_and_keys):
     """Test batch operations with invalid namespace.
 
-    Note: The Rust core raises InvalidNodeError before the batch operation executes
-    (client-side validation). This test verifies that invalid namespace is properly detected.
+    The Rust core raises InvalidNamespaceError before the batch operation
+    executes (client-side partition map lookup).
     """
 
     client, keys, _, _ = client_and_keys
 
-    # Create key with invalid namespace
     invalid_key = Key("invalid", "test", "batchkey1")
 
-    # Rust core raises InvalidNodeError for invalid namespace (client-side validation)
-    with pytest.raises(InvalidNodeError):
+    with pytest.raises(InvalidNamespaceError):
         await client.batch_read(None, None, [invalid_key], ["bbin"])
 
     bwp = BatchWritePolicy()
-    with pytest.raises(InvalidNodeError):
+    with pytest.raises(InvalidNamespaceError):
         await client.batch_write(None, bwp, [invalid_key], [{"bbin": 100}])
 
     operations = [Operation.put("bbin", 100)]
-    with pytest.raises(InvalidNodeError):
+    with pytest.raises(InvalidNamespaceError):
         await client.batch_operate(None, bwp, [invalid_key], [operations])
 
 async def test_batch_exists(client_and_keys):
@@ -869,14 +867,14 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
     good_op = BatchWriteOp(k_good, [Operation.put(bin_name, "updated")])
     bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
 
-    with pytest.raises(InvalidNodeError):
+    with pytest.raises(InvalidNamespaceError):
         await client.batch(None, [good_op, bad_op])
 
 
 @pytest.mark.xfail(
     reason="Rust core rejects entire batch when any key targets an unknown namespace; "
            "per-key INVALID_NAMESPACE not yet supported",
-    raises=InvalidNodeError,
+    raises=InvalidNamespaceError,
     strict=True,
 )
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):

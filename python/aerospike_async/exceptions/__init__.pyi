@@ -73,12 +73,20 @@ class InvalidNodeError(AerospikeError):
     """Exception raised when an invalid node is encountered."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class InvalidNamespaceError(AerospikeError):
+    """Exception raised when an invalid namespace is encountered."""
+    def __init__(self, message: builtins.str) -> None: ...
+
 class NoMoreConnections(AerospikeError):
     """Exception raised when no more connections are available."""
     def __init__(self, message: builtins.str) -> None: ...
 
 class ClientError(AerospikeError):
     """Exception raised for client-side errors."""
+    def __init__(self, message: builtins.str) -> None: ...
+
+class CommitFailedError(AerospikeError):
+    """Exception raised when a multi-record transaction commit fails."""
     def __init__(self, message: builtins.str) -> None: ...
 
 
@@ -120,7 +128,9 @@ __all__ = [
     "BadResponse",
     "ConnectionError",
     "InvalidNodeError",
+    "InvalidNamespaceError",
     "NoMoreConnections",
+    "CommitFailedError",
     "RecvError",
     "Base64DecodeError",
     "InvalidUTF8",

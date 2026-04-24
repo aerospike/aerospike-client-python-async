@@ -215,9 +215,60 @@ policy.set_auth_mode(AuthMode.INTERNAL, user="admin", password="secret")
 policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
 ```
 
+## Multi-Record Transactions (MRT)
+
+Multi-record transactions require a strong-consistency namespace on the server
+(Aerospike 8.0+). Group operations into a single atomic transaction by
+attaching a `Txn` to each policy, then `commit` or `abort`:
+
+```python
+from aerospike_async import Txn, CommitStatus
+from aerospike_async.exceptions import CommitFailedError
+
+txn = Txn()
+
+write = WritePolicy()
+write.set_txn(txn)
+read = ReadPolicy()
+read.set_txn(txn)
+
+try:
+    await client.put(write, key_a, {"balance": 100})
+    await client.put(write, key_b, {"balance": 200})
+    status = await client.commit(txn)
+    assert status == CommitStatus.OK_VERIFIED
+except CommitFailedError:
+    await client.abort(txn)
+```
+
+MRT-specific failure result codes are exposed on `ResultCode`:
+`MRT_BLOCKED`, `MRT_VERSION_MISMATCH`, `MRT_EXPIRED`, `MRT_TOO_MANY_WRITES`,
+`MRT_COMMITTED`, `MRT_ABORTED`, `MRT_ALREADY_LOCKED`, `MRT_MONITOR_EXISTS`.
+
+## Strong Consistency Read Modes
+
+Every read-capable policy exposes `read_mode_ap` and `read_mode_sc` for tuning
+consistency on AP and SC namespaces respectively:
+
+```python
+from aerospike_async import ReadModeAP, ReadModeSC
+
+policy = ReadPolicy()
+policy.set_read_mode_ap(ReadModeAP.One)             # AP namespace
+policy.set_read_mode_sc(ReadModeSC.Linearize)       # SC namespace
+```
+
+## Wire-Protocol Compression
+
+Every policy exposes a `use_compression` flag (off by default) to enable
+compression of request/response payloads on the wire:
+
+```python
+policy = WritePolicy()
+policy.set_use_compression(True)
+```
+
 ### Known TODOs:
-*  Next APIs:
-   - Transactions
 *  Pipeline benchmarks: track performance between runs.
 *  Object serialization:
    - Test __getstate__ and __setstate__ and make sure they work. Otherwise implement them.
@@ -226,8 +277,6 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
    - Write from new, read from legacy
 *  Track known missing "Rust core" items:
    - Metrics
-   - Strong Consistency (SC)
-   - Transactions
    - Dynamic Config
 
 ## License

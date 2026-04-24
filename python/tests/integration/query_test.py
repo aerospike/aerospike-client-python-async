@@ -29,7 +29,7 @@ from aerospike_async import (
     Key,
     WritePolicy,
 )
-from aerospike_async.exceptions import InvalidNodeError
+from aerospike_async.exceptions import InvalidNamespaceError
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
@@ -77,21 +77,17 @@ class TestQuery(TestFixtureInsertRecord):
             records = await client.query(QueryPolicy(), "invalid_filter", Statement("test", "test", ["bin1"]))
 
     async def test_invalid_node_error(self, client):
-        """Test query operation with invalid namespace raises InvalidNodeError during iteration."""
+        """Test query operation with invalid namespace raises InvalidNamespaceError during iteration."""
         stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
-        
-        # Wait for the recordset to become inactive (query finished processing)
-        # This ensures the error is properly raised during iteration
-        max_wait = 10  # Maximum 1 second wait
+
+        max_wait = 10
         for _ in range(max_wait):
             if not records.active:
                 break
             await asyncio.sleep(0.1)
-        
-        # The error occurs during iteration, not during the query call
-        with pytest.raises(InvalidNodeError):
-            # Force iteration to trigger the error
+
+        with pytest.raises(InvalidNamespaceError):
             async for _ in records:
                 pass
 
@@ -144,7 +140,7 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
         except Exception:
             pass
 
-    async def test_query_equal_by_index_returns_record(self, client):
+    async def test_query_equal_by_index_returns_record(self, client, wait_for_index):
         await self.cleanup_index(client)
         await client.create_index(
             "test",
@@ -154,10 +150,11 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
             IndexType.NUMERIC,
             cit=CollectionIndexType.DEFAULT,
         )
-        await asyncio.sleep(1.0)
+        flt = Filter.equal_by_index(self.idx, 1964)
+        await wait_for_index(client, "test", "test", flt, bins=["year"])
 
         stmt = Statement("test", "test", ["year"])
-        stmt.filters = [Filter.equal_by_index(self.idx, 1964)]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         found = False
@@ -188,7 +185,7 @@ class TestQueryFilterContext(TestFixtureConnection):
         except Exception:
             pass
 
-    async def test_query_list_element_context_filter(self, client):
+    async def test_query_list_element_context_filter(self, client, wait_for_index):
         await self.cleanup(client)
         wp = WritePolicy()
         for i in range(5):
@@ -204,12 +201,12 @@ class TestQueryFilterContext(TestFixtureConnection):
             cit=CollectionIndexType.DEFAULT,
             ctx=[CTX.list_index(0)],
         )
-        await asyncio.sleep(1.5)
+        flt = Filter.range(self.bin_name, 0, 4).context([CTX.list_index(0)])
+        await wait_for_index(
+            client, "test", self.set_name, flt, bins=[self.bin_name])
 
         stmt = Statement("test", self.set_name, [self.bin_name])
-        stmt.filters = [
-            Filter.range(self.bin_name, 0, 4).context([CTX.list_index(0)])
-        ]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         count = 0
@@ -232,7 +229,7 @@ class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
         except Exception:
             pass
 
-    async def test_query_range_with_expression_on_filter(self, client):
+    async def test_query_range_with_expression_on_filter(self, client, wait_for_index):
         await self.cleanup_index(client)
         expr = FilterExpression.int_bin("year")
         task = await client.create_index_using_expression(
@@ -243,9 +240,11 @@ class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
             expression=expr,
         )
         assert await task.wait_till_complete()
+        flt = Filter.range("year", 1960, 1970).expression(expr)
+        await wait_for_index(client, "test", "test", flt, bins=["year"])
 
         stmt = Statement("test", "test", ["year"])
-        stmt.filters = [Filter.range("year", 1960, 1970).expression(expr)]
+        stmt.filters = [flt]
 
         records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
         found = False
