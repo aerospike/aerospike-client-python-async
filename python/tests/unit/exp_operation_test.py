@@ -23,19 +23,19 @@ class TestExpOperationFlags:
     """Test ExpOperation flags."""
 
     def test_exp_write_flags_values(self):
-        assert int(ExpWriteFlags.DEFAULT) == 0
-        assert int(ExpWriteFlags.CREATE_ONLY) == 1
-        assert int(ExpWriteFlags.UPDATE_ONLY) == 2
-        assert int(ExpWriteFlags.ALLOW_DELETE) == 4
-        assert int(ExpWriteFlags.POLICY_NO_FAIL) == 8
-        assert int(ExpWriteFlags.EVAL_NO_FAIL) == 16
+        assert ExpWriteFlags.DEFAULT == 0
+        assert ExpWriteFlags.CREATE_ONLY == 1
+        assert ExpWriteFlags.UPDATE_ONLY == 2
+        assert ExpWriteFlags.ALLOW_DELETE == 4
+        assert ExpWriteFlags.POLICY_NO_FAIL == 8
+        assert ExpWriteFlags.EVAL_NO_FAIL == 16
 
     def test_exp_read_flags_values(self):
-        assert int(ExpReadFlags.DEFAULT) == 0
-        assert int(ExpReadFlags.EVAL_NO_FAIL) == 16
+        assert ExpReadFlags.DEFAULT == 0
+        assert ExpReadFlags.EVAL_NO_FAIL == 16
 
     def test_combine_write_flags(self):
-        combined = int(ExpWriteFlags.CREATE_ONLY) | int(ExpWriteFlags.POLICY_NO_FAIL)
+        combined = ExpWriteFlags.CREATE_ONLY | ExpWriteFlags.POLICY_NO_FAIL
         assert combined == 9
 
 
@@ -50,7 +50,7 @@ class TestExpOperationCreate:
 
     def test_read_with_flags(self):
         expr = fe.int_bin("value")
-        op = ExpOperation.read("result", expr, int(ExpReadFlags.EVAL_NO_FAIL))
+        op = ExpOperation.read("result", expr, ExpReadFlags.EVAL_NO_FAIL)
         assert op is not None
 
     def test_write_creates_operation(self):
@@ -61,5 +61,5 @@ class TestExpOperationCreate:
 
     def test_write_with_flags(self):
         expr = fe.int_val(42)
-        op = ExpOperation.write("target", expr, int(ExpWriteFlags.CREATE_ONLY))
+        op = ExpOperation.write("target", expr, ExpWriteFlags.CREATE_ONLY)
         assert op is not None

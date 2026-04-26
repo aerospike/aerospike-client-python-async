@@ -106,7 +106,7 @@ class TestExpOperationRead(TestFixtureConnection):
             # Read with EVAL_NO_FAIL flag
             expr = fe.int_bin("value")
             result = await client.operate(wp, key, [
-                ExpOperation.read("result", expr, int(ExpReadFlags.EVAL_NO_FAIL))
+                ExpOperation.read("result", expr, ExpReadFlags.EVAL_NO_FAIL)
             ])
 
             assert "result" in result.bins
@@ -182,7 +182,7 @@ class TestExpOperationWrite(TestFixtureConnection):
             # This should fail because bin exists and CREATE_ONLY is set
             with pytest.raises(ServerError) as exc_info:
                 await client.operate(wp, key, [
-                    ExpOperation.write("existing", expr, int(ExpWriteFlags.CREATE_ONLY))
+                    ExpOperation.write("existing", expr, ExpWriteFlags.CREATE_ONLY)
                 ])
             assert exc_info.value.result_code == ResultCode.BIN_EXISTS_ERROR
         finally:
@@ -203,7 +203,7 @@ class TestExpOperationWrite(TestFixtureConnection):
             # This should fail because newbin doesn't exist and UPDATE_ONLY is set
             with pytest.raises(BinNotFound) as exc_info:
                 await client.operate(wp, key, [
-                    ExpOperation.write("newbin", expr, int(ExpWriteFlags.UPDATE_ONLY))
+                    ExpOperation.write("newbin", expr, ExpWriteFlags.UPDATE_ONLY)
                 ])
             assert exc_info.value.result_code == ResultCode.BIN_NOT_FOUND
         finally:

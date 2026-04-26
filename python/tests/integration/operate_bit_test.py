@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, BitOperation,
-                             BitPolicy, BitwiseWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions)
+                             BitPolicy, BitWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions)
 from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
 
@@ -101,8 +101,8 @@ async def test_operate_bit_bin(client_and_key):
 
     wp = WritePolicy()
     put_mode = BitPolicy(None)
-    update_mode = BitPolicy(BitwiseWriteFlags.UPDATE_ONLY)
-    add_mode = BitPolicy(BitwiseWriteFlags.CREATE_ONLY)
+    update_mode = BitPolicy(BitWriteFlags.UPDATE_ONLY)
+    add_mode = BitPolicy(BitWriteFlags.CREATE_ONLY)
 
     # Delete the record first
     await client.delete(wp, key)
@@ -846,7 +846,7 @@ async def test_operate_bit_resize(client_and_key):
 
     wp = WritePolicy()
     policy = BitPolicy(None)
-    no_fail = BitPolicy(BitwiseWriteFlags.NO_FAIL)
+    no_fail = BitPolicy(BitWriteFlags.NO_FAIL)
 
     # Delete the record first
     await client.delete(wp, key)

@@ -1549,7 +1549,7 @@ async def test_list_append_with_combined_write_flags(client_and_key):
     rp = ReadPolicy()
     await client.delete(wp, key)
 
-    combined = int(ListWriteFlags.ADD_UNIQUE) | int(ListWriteFlags.NO_FAIL)
+    combined = ListWriteFlags.ADD_UNIQUE | ListWriteFlags.NO_FAIL
     policy = ListPolicy(ListOrderType.UNORDERED, combined)
 
     await client.operate(wp, key, [

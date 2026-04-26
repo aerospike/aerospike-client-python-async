@@ -18,7 +18,7 @@
 import pytest
 from aerospike_async import (
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
-    BitPolicy, BitwiseResizeFlags, BitwiseOverflowActions, BitwiseWriteFlags,
+    BitPolicy, BitwiseResizeFlags, BitwiseOverflowActions, BitWriteFlags,
 )
 from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureConnection
@@ -158,7 +158,7 @@ class TestBitExpModify(TestFixtureConnection):
         rp = ReadPolicy()
         bin_a = "A"
         blob = bytes([0x01, 0x42, 0x03, 0x04, 0x05])
-        bp = BitPolicy(BitwiseWriteFlags.DEFAULT)
+        bp = BitPolicy(BitWriteFlags.DEFAULT)
 
         try:
             await client.put(wp, key, {bin_a: blob})

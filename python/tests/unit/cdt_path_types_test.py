@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Unit tests for CDT path expression types: LoopVarPart, SelectFlag, ModifyFlag, CdtOperation."""
+"""Unit tests for CDT path expression types: LoopVarPart, SelectFlags, ModifyFlags, CdtOperation."""
 
 import pytest
 from aerospike_async import (
@@ -21,8 +21,8 @@ from aerospike_async import (
     CdtOperation,
     FilterExpression as fe,
     LoopVarPart,
-    ModifyFlag,
-    SelectFlag,
+    ModifyFlags,
+    SelectFlags,
 )
 
 
@@ -53,95 +53,109 @@ class TestLoopVarPart:
             assert repr(part) != ""
 
 
-class TestSelectFlag:
+class TestSelectFlags:
 
     def test_all_flags_exist(self):
-        assert SelectFlag.VALUE is not None
-        assert SelectFlag.MAP_KEY is not None
-        assert SelectFlag.MATCHING_TREE is not None
-        assert SelectFlag.NO_FAIL is not None
+        assert SelectFlags.VALUE is not None
+        assert SelectFlags.MAP_KEY is not None
+        assert SelectFlags.MATCHING_TREE is not None
+        assert SelectFlags.NO_FAIL is not None
+
+    def test_flags_are_ints(self):
+        assert isinstance(SelectFlags.VALUE, int)
+        assert isinstance(SelectFlags.NO_FAIL, int)
+
+    def test_flag_values(self):
+        assert SelectFlags.MATCHING_TREE == 0
+        assert SelectFlags.VALUE == 1
+        assert SelectFlags.LIST_VALUE == 1
+        assert SelectFlags.MAP_VALUE == 1
+        assert SelectFlags.MAP_KEY == 2
+        assert SelectFlags.MAP_KEY_VALUE == 3
+        assert SelectFlags.NO_FAIL == 0x10
 
     def test_flags_distinct(self):
-        flags = [SelectFlag.VALUE, SelectFlag.MAP_KEY, SelectFlag.MATCHING_TREE, SelectFlag.NO_FAIL]
+        flags = [SelectFlags.VALUE, SelectFlags.MAP_KEY, SelectFlags.NO_FAIL]
         for i, a in enumerate(flags):
             for b in flags[i + 1:]:
                 assert a != b
 
-    def test_equality(self):
-        assert SelectFlag.VALUE == SelectFlag.VALUE
-        assert SelectFlag.NO_FAIL == SelectFlag.NO_FAIL
-
-    def test_hash(self):
-        s = {SelectFlag.VALUE, SelectFlag.MAP_KEY}
-        assert len(s) == 2
-
-    def test_repr(self):
-        for flag in (SelectFlag.VALUE, SelectFlag.MAP_KEY, SelectFlag.MATCHING_TREE, SelectFlag.NO_FAIL):
-            assert repr(flag) != ""
-
     def test_or_combines_flags(self):
-        combined = SelectFlag.VALUE | SelectFlag.NO_FAIL
-        assert combined is not None
-        assert combined != SelectFlag.VALUE
-        assert combined != SelectFlag.NO_FAIL
+        combined = SelectFlags.VALUE | SelectFlags.NO_FAIL
+        assert combined == 0x11
+        assert combined != SelectFlags.VALUE
+        assert combined != SelectFlags.NO_FAIL
 
 
-class TestModifyFlag:
+class TestModifyFlags:
 
     def test_all_flags_exist(self):
-        assert ModifyFlag.DEFAULT is not None
-        assert ModifyFlag.NO_FAIL is not None
+        assert ModifyFlags.DEFAULT is not None
+        assert ModifyFlags.NO_FAIL is not None
+
+    def test_flags_are_ints(self):
+        assert isinstance(ModifyFlags.DEFAULT, int)
+        assert isinstance(ModifyFlags.NO_FAIL, int)
+
+    def test_flag_values(self):
+        assert ModifyFlags.DEFAULT == 0
+        assert ModifyFlags.NO_FAIL == 0x10
 
     def test_flags_distinct(self):
-        assert ModifyFlag.DEFAULT != ModifyFlag.NO_FAIL
-
-    def test_equality(self):
-        assert ModifyFlag.DEFAULT == ModifyFlag.DEFAULT
-        assert ModifyFlag.NO_FAIL == ModifyFlag.NO_FAIL
-
-    def test_hash(self):
-        s = {ModifyFlag.DEFAULT, ModifyFlag.NO_FAIL}
-        assert len(s) == 2
-
-    def test_repr(self):
-        for flag in (ModifyFlag.DEFAULT, ModifyFlag.NO_FAIL):
-            assert repr(flag) != ""
+        assert ModifyFlags.DEFAULT != ModifyFlags.NO_FAIL
 
     def test_or_combines_flags(self):
-        combined = ModifyFlag.DEFAULT | ModifyFlag.NO_FAIL
-        assert combined is not None
+        combined = ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL
+        assert combined == 0x10
 
 
 class TestCdtOperation:
 
     def test_select_by_path_returns_cdt_operation(self):
         ctx = [CTX.map_key("items")]
-        op = CdtOperation.select_by_path("mybin", SelectFlag.VALUE, ctx)
+        op = CdtOperation.select_by_path("mybin", SelectFlags.VALUE, ctx)
         assert isinstance(op, CdtOperation)
 
     def test_select_by_path_empty_ctx(self):
-        op = CdtOperation.select_by_path("mybin", SelectFlag.VALUE, [])
+        op = CdtOperation.select_by_path("mybin", SelectFlags.VALUE, [])
         assert isinstance(op, CdtOperation)
 
     def test_select_by_path_map_key_flag(self):
         ctx = [CTX.map_key("items"), CTX.all_children()]
-        op = CdtOperation.select_by_path("mybin", SelectFlag.MAP_KEY, ctx)
+        op = CdtOperation.select_by_path("mybin", SelectFlags.MAP_KEY, ctx)
         assert isinstance(op, CdtOperation)
 
     def test_select_by_path_no_fail_flag(self):
         ctx = [CTX.map_key("items"), CTX.all_children()]
-        op = CdtOperation.select_by_path("mybin", SelectFlag.NO_FAIL, ctx)
+        op = CdtOperation.select_by_path("mybin", SelectFlags.NO_FAIL, ctx)
+        assert isinstance(op, CdtOperation)
+
+    def test_select_by_path_combined_flags(self):
+        """JSDK-style combined bitmask works: ``SelectFlags.VALUE | SelectFlags.NO_FAIL``."""
+        ctx = [CTX.map_key("items")]
+        op = CdtOperation.select_by_path("mybin", SelectFlags.VALUE | SelectFlags.NO_FAIL, ctx)
+        assert isinstance(op, CdtOperation)
+
+    def test_select_by_path_raw_int(self):
+        """JSDK-style raw int also accepted."""
+        op = CdtOperation.select_by_path("mybin", 0x11, [])
         assert isinstance(op, CdtOperation)
 
     def test_modify_by_path_returns_cdt_operation(self):
         exp = fe.num_mul([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(2)])
         ctx = [CTX.map_key("scores"), CTX.all_children()]
-        op = CdtOperation.modify_by_path("mybin", ModifyFlag.DEFAULT, exp, ctx)
+        op = CdtOperation.modify_by_path("mybin", ModifyFlags.DEFAULT, exp, ctx)
         assert isinstance(op, CdtOperation)
 
     def test_modify_by_path_empty_ctx(self):
         exp = fe.int_loop_var(LoopVarPart.VALUE)
-        op = CdtOperation.modify_by_path("mybin", ModifyFlag.DEFAULT, exp, [])
+        op = CdtOperation.modify_by_path("mybin", ModifyFlags.DEFAULT, exp, [])
+        assert isinstance(op, CdtOperation)
+
+    def test_modify_by_path_combined_flags(self):
+        """Combined bitmask works."""
+        exp = fe.int_loop_var(LoopVarPart.VALUE)
+        op = CdtOperation.modify_by_path("mybin", ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL, exp, [])
         assert isinstance(op, CdtOperation)
 
 

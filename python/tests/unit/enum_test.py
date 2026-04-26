@@ -18,7 +18,7 @@
 from aerospike_async import (
     BitwiseOverflowActions,
     BitwiseResizeFlags,
-    BitwiseWriteFlags,
+    BitWriteFlags,
     HLLWriteFlags,
     IndexType,
     ListOrderType,
@@ -65,22 +65,22 @@ class TestBitwiseResizeFlags:
                 assert a != b
 
 
-class TestBitwiseWriteFlags:
+class TestBitWriteFlags:
 
     def test_variants_exist(self):
-        assert BitwiseWriteFlags.DEFAULT is not None
-        assert BitwiseWriteFlags.CREATE_ONLY is not None
-        assert BitwiseWriteFlags.UPDATE_ONLY is not None
-        assert BitwiseWriteFlags.NO_FAIL is not None
-        assert BitwiseWriteFlags.PARTIAL is not None
+        assert BitWriteFlags.DEFAULT is not None
+        assert BitWriteFlags.CREATE_ONLY is not None
+        assert BitWriteFlags.UPDATE_ONLY is not None
+        assert BitWriteFlags.NO_FAIL is not None
+        assert BitWriteFlags.PARTIAL is not None
 
     def test_variants_distinct(self):
         flags = [
-            BitwiseWriteFlags.DEFAULT,
-            BitwiseWriteFlags.CREATE_ONLY,
-            BitwiseWriteFlags.UPDATE_ONLY,
-            BitwiseWriteFlags.NO_FAIL,
-            BitwiseWriteFlags.PARTIAL,
+            BitWriteFlags.DEFAULT,
+            BitWriteFlags.CREATE_ONLY,
+            BitWriteFlags.UPDATE_ONLY,
+            BitWriteFlags.NO_FAIL,
+            BitWriteFlags.PARTIAL,
         ]
         for i, a in enumerate(flags):
             for b in flags[i + 1:]:
