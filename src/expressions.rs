@@ -86,8 +86,9 @@ use crate::record::PythonValue;
 
     /// Expression write flags for expression operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ExpWriteFlags", module = "_aerospike_async_native", eq, eq_int)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[pyclass(name = "ExpWriteFlags", module = "_aerospike_async_native")]
+    #[repr(u8)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpWriteFlags {
         /// Default. Allow create or update.
         #[pyo3(name = "DEFAULT")]
@@ -111,6 +112,114 @@ use crate::record::PythonValue;
         EvalNoFail = 16,
     }
 
+    impl From<ExpWriteFlags> for u8 {
+        fn from(flags: ExpWriteFlags) -> Self {
+            flags as u8
+        }
+    }
+
+    /// Extract flags as i64 from ExpWriteFlags or int (bitmask).
+    /// Used by ExpOperation.write and ExpWriteFlags' own __or__ / __ror__ dunders.
+    pub(crate) fn exp_write_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<i64> {
+        if let Ok(f) = ob.extract::<ExpWriteFlags>() {
+            return Ok(u8::from(f) as i64);
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i);
+        }
+        Err(pyo3::exceptions::PyValueError::new_err(
+            "flags must be ExpWriteFlags or int",
+        ))
+    }
+
+    #[pymethods]
+    impl ExpWriteFlags {
+        /// Combine flags with bitwise OR. Returns the wire byte as int so combined
+        /// values can be passed wherever a single flag is accepted.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Right-hand bitwise OR (e.g. `int | ExpWriteFlags.X`).
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// Right-hand bitwise AND.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// Right-hand bitwise XOR.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_write_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width, returned as int).
+        fn __invert__(&self) -> i64 {
+            (!u8::from(*self)) as i64
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
+        /// Equality / ordering against another ``ExpWriteFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(
+            &self,
+            other: &Bound<'_, PyAny>,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match exp_write_flags_from_py(other) {
+                Ok(v) => v,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ExpReadFlags
@@ -119,8 +228,9 @@ use crate::record::PythonValue;
 
     /// Expression read flags for expression operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ExpReadFlags", module = "_aerospike_async_native", eq, eq_int)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[pyclass(name = "ExpReadFlags", module = "_aerospike_async_native")]
+    #[repr(u8)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpReadFlags {
         /// Default.
         #[pyo3(name = "DEFAULT")]
@@ -128,6 +238,160 @@ use crate::record::PythonValue;
         /// Ignore failures caused by the expression resolving to unknown or a non-bin type.
         #[pyo3(name = "EVAL_NO_FAIL")]
         EvalNoFail = 16,
+    }
+
+    impl From<ExpReadFlags> for u8 {
+        fn from(flags: ExpReadFlags) -> Self {
+            flags as u8
+        }
+    }
+
+    /// Extract flags as i64 from ExpReadFlags or int (bitmask).
+    /// Used by ExpOperation.read and ExpReadFlags' own __or__ / __ror__ dunders.
+    pub(crate) fn exp_read_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<i64> {
+        if let Ok(f) = ob.extract::<ExpReadFlags>() {
+            return Ok(u8::from(f) as i64);
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i);
+        }
+        Err(pyo3::exceptions::PyValueError::new_err(
+            "flags must be ExpReadFlags or int",
+        ))
+    }
+
+    #[pymethods]
+    impl ExpReadFlags {
+        /// Combine flags with bitwise OR. Returns the wire byte as int so combined
+        /// values can be passed wherever a single flag is accepted.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Right-hand bitwise OR (e.g. `int | ExpReadFlags.X`).
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// Right-hand bitwise AND.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// Right-hand bitwise XOR.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<i64> {
+            let a = u8::from(*self) as i64;
+            let b = exp_read_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width, returned as int).
+        fn __invert__(&self) -> i64 {
+            (!u8::from(*self)) as i64
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
+        /// Equality / ordering against another ``ExpReadFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(
+            &self,
+            other: &Bound<'_, PyAny>,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match exp_read_flags_from_py(other) {
+                Ok(v) => v,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RegexFlag
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// POSIX regex bit flags for ``FilterExpression.regex_compare``.
+    ///
+    /// Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
+    /// on glibc), which is the same shape JSDK and the legacy Python C-extension
+    /// client use:
+    ///
+    /// - ``NONE = 0`` — use regex defaults.
+    /// - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
+    /// - ``ICASE = 2`` — case-insensitive matching.
+    /// - ``NOSUB = 4`` — do not report position of matches.
+    /// - ``NEWLINE = 8`` — match-any-character operators don't match newline.
+    ///
+    /// Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    /// The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
+    /// ``RegexFlag`` constant (or combination), matching JSDK shape.
+    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
+    // Full stubs are added in postprocess_stubs.py.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "RegexFlag", module = "_aerospike_async_native")]
+    pub struct RegexFlag;
+
+    #[pymethods]
+    impl RegexFlag {
+        /// Use regex defaults.
+        #[classattr]
+        const NONE: i64 = 0;
+        /// Use POSIX Extended Regular Expression syntax when interpreting regex.
+        #[classattr]
+        const EXTENDED: i64 = 1;
+        /// Do not differentiate case.
+        #[classattr]
+        const ICASE: i64 = 2;
+        /// Do not report position of matches.
+        #[classattr]
+        const NOSUB: i64 = 4;
+        /// Match-any-character operators don't match a newline.
+        #[classattr]
+        const NEWLINE: i64 = 8;
     }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //

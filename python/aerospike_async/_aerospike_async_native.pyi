@@ -21,9 +21,9 @@ __all__ = [
     "BatchWritePolicy",
     "BitOperation",
     "BitPolicy",
+    "BitWriteFlags",
     "BitwiseOverflowActions",
     "BitwiseResizeFlags",
-    "BitwiseWriteFlags",
     "Blob",
     "CTX",
     "CdtOperation",
@@ -65,7 +65,7 @@ __all__ = [
     "MapReturnType",
     "MapWriteFlags",
     "MapWriteMode",
-    "ModifyFlag",
+    "ModifyFlags",
     "Node",
     "Operation",
     "PartitionFilter",
@@ -80,11 +80,12 @@ __all__ = [
     "Record",
     "RecordExistsAction",
     "Recordset",
+    "RegexFlag",
     "RegisterTask",
     "Replica",
     "ResultCode",
     "Role",
-    "SelectFlag",
+    "SelectFlags",
     "SpecialValue",
     "Statement",
     "TaskStatus",
@@ -290,18 +291,20 @@ class BatchWritePolicy:
     def __new__(cls) -> BatchWritePolicy: ...
 
 class BitPolicy:
-    def __new__(cls, write_flags:typing.Optional[BitwiseWriteFlags]) -> BitPolicy:
+    def __new__(cls, write_flags:typing.Optional[typing.Any]=None) -> BitPolicy:
         r"""
         Create a new BitPolicy with the specified write flags.
+        write_flags may be BitWriteFlags or int (bitmask), e.g. CREATE_ONLY | NO_FAIL.
         Default is default write flags.
         """
     def get_write_flags(self) -> builtins.int:
         r"""
         Get the write flags.
         """
-    def set_write_flags(self, flags:BitwiseWriteFlags) -> None:
+    def set_write_flags(self, flags:typing.Any) -> None:
         r"""
         Set the write flags.
+        flags may be BitWriteFlags or int (bitmask).
         """
 
 class Blob:
@@ -414,7 +417,7 @@ class CdtOperation:
     Requires Aerospike Server version >= 8.1.1.
     """
     @staticmethod
-    def select_by_path(bin_name:builtins.str, flag:SelectFlag, ctx:typing.Sequence[CTX]) -> CdtOperation:
+    def select_by_path(bin_name:builtins.str, flag:builtins.int, ctx:typing.Sequence[CTX]) -> CdtOperation:
         r"""
         Create a CDT path select operation.
 
@@ -423,7 +426,10 @@ class CdtOperation:
 
         Args:
             bin_name: Name of the bin containing the top-level CDT.
-            flag: Controls what is returned (``SelectFlag``).
+            flag: Controls what is returned. Pass any combination of
+                ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
+                SelectFlags.NO_FAIL``) — the resulting value is a plain
+                ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
         Returns:
@@ -431,15 +437,15 @@ class CdtOperation:
 
         Example::
 
-            from aerospike_async import CdtOperation, CTX, SelectFlag
+            from aerospike_async import CdtOperation, CTX, SelectFlags
             op = CdtOperation.select_by_path(
                 "inventory",
-                SelectFlag.VALUE,
+                SelectFlags.VALUE,
                 [CTX.map_key("books"), CTX.list_index(0)],
             )
         """
     @staticmethod
-    def modify_by_path(bin_name:builtins.str, flag:ModifyFlag, exp:FilterExpression, ctx:typing.Sequence[CTX]) -> CdtOperation:
+    def modify_by_path(bin_name:builtins.str, flag:builtins.int, exp:FilterExpression, ctx:typing.Sequence[CTX]) -> CdtOperation:
         r"""
         Create a CDT path modify operation.
 
@@ -448,7 +454,9 @@ class CdtOperation:
 
         Args:
             bin_name: Name of the bin containing the top-level CDT.
-            flag: Controls error-handling behavior (``ModifyFlag``).
+            flag: Controls error-handling behavior. Pass any combination of
+                ``ModifyFlags`` constants — the resulting value is a plain
+                ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
             exp: Expression that produces the value to write.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
@@ -457,12 +465,12 @@ class CdtOperation:
 
         Example::
 
-            from aerospike_async import CdtOperation, CTX, ModifyFlag, FilterExpression
+            from aerospike_async import CdtOperation, CTX, ModifyFlags, FilterExpression
             price_path = [CTX.map_key("books"), CTX.list_rank(0), CTX.map_key("price")]
             new_price = FilterExpression.float_val(9.99)
             op = CdtOperation.modify_by_path(
                 "inventory",
-                ModifyFlag.DEFAULT,
+                ModifyFlags.DEFAULT,
                 new_price,
                 price_path,
             )
@@ -1870,7 +1878,23 @@ class HLLPolicy:
     r"""
     HLL policy for HLL operations and expressions.
     """
-    def __new__(cls, write_flags:HLLWriteFlags=HLLWriteFlags.DEFAULT) -> HLLPolicy: ...
+    @property
+    def write_flags(self) -> builtins.int:
+        r"""
+        Get the write flags as an int bitmask.
+        """
+    @write_flags.setter
+    def write_flags(self, value: typing.Union[ListWriteFlags, int]) -> None:
+        r"""
+        Set the write flags.
+        flags may be HLLWriteFlags or int (bitmask).
+        """
+    def __new__(cls, write_flags:typing.Optional[typing.Any]=None) -> HLLPolicy:
+        r"""
+        Create a new HLLPolicy with the specified write flags.
+        write_flags may be HLLWriteFlags or int (bitmask), e.g. CREATE_ONLY | NO_FAIL.
+        Default is default write flags.
+        """
 
 class IndexTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
@@ -1931,7 +1955,7 @@ class ListPolicy:
     @property
     def write_flags(self) -> builtins.int: ...
     @write_flags.setter
-    def write_flags(self, value: typing.Union[ListWriteFlags, int]) -> None: ...
+    def write_flags(self, value: typing.Any) -> None: ...
     def __new__(cls, order: typing.Optional[ListOrderType] = None, write_flags: typing.Optional[typing.Union[ListWriteFlags, int]] = None) -> ListPolicy:
         r"""
         Create a new ListPolicy with the specified order and write flags.
@@ -2020,9 +2044,23 @@ class MapPolicy:
     @write_mode.setter
     def write_mode(self, value: MapWriteMode) -> None: ...
     @property
-    def flags(self) -> MapWriteFlags: ...
+    def flags(self) -> MapWriteFlags:
+        r"""
+        Get the write flags as a MapWriteFlags variant.
+
+        Note: this getter is lossy for combined bitmasks — if the underlying
+        raw byte is a composite (e.g. ``CREATE_ONLY | NO_FAIL == 5``), the
+        returned variant collapses to ``MapWriteFlags.DEFAULT``. Use
+        :py:attr:`raw_flags` for the lossless ``int`` value.
+        """
     @flags.setter
     def flags(self, value: typing.Any) -> None: ...
+    @property
+    def raw_flags(self) -> builtins.int:
+        r"""
+        Get the raw write-flags byte as ``int`` — lossless replacement for
+        :py:attr:`flags` when combined bitmasks are in use.
+        """
     @property
     def persist_index(self) -> builtins.bool: ...
     @persist_index.setter
@@ -2095,24 +2133,19 @@ class MapReturnType:
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
 
-class ModifyFlag:
+class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
+    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
+
     Requires Aerospike Server version >= 8.1.1.
     """
-    DEFAULT: ModifyFlag
+    DEFAULT: builtins.int
     """Default behavior — fails on type mismatches."""
-    NO_FAIL: ModifyFlag
+    NO_FAIL: builtins.int
     """Ignore type errors instead of failing."""
-
-    def __or__(self, other: ModifyFlag) -> ModifyFlag:
-        """Combine flags with bitwise OR."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...
 class PartitionFilter:
     @property
     def begin(self) -> builtins.int: ...
@@ -2264,6 +2297,25 @@ class Recordset:
     def __aiter__(self) -> Recordset: ...
     def __anext__(self) -> typing.Any: ...
 
+class RegexFlag:
+    r"""
+    POSIX regex bit flags for ``FilterExpression.regex_compare``.
+
+    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
+
+    Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    """
+    NONE: builtins.int
+    """Use regex defaults."""
+    EXTENDED: builtins.int
+    """Use POSIX Extended Regular Expression syntax when interpreting regex."""
+    ICASE: builtins.int
+    """Do not differentiate case."""
+    NOSUB: builtins.int
+    """Do not report position of matches."""
+    NEWLINE: builtins.int
+    """Match-any-character operators don't match a newline."""
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time:builtins.float=0.25, max_attempts:builtins.int=80) -> typing.Awaitable[bool]:
@@ -2371,36 +2423,30 @@ class Role:
         Maximum writes per second limit for the role.
         """
 
-class SelectFlag:
+class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    Flags may be combined with bitwise OR, e.g. ``SelectFlag.VALUE | SelectFlag.NO_FAIL``.
+    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
+    suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
     """
-    MATCHING_TREE: SelectFlag
+    MATCHING_TREE: builtins.int
     """Return the full matching subtree (root to leaf), keeping only matched nodes."""
-    VALUE: SelectFlag
+    VALUE: builtins.int
     """Return the values of the finally-selected nodes."""
-    LIST_VALUE: SelectFlag
+    LIST_VALUE: builtins.int
     """Synonym for ``VALUE`` — clarifies list element expectations."""
-    MAP_VALUE: SelectFlag
+    MAP_VALUE: builtins.int
     """Synonym for ``VALUE`` — clarifies map value expectations."""
-    MAP_KEY: SelectFlag
+    MAP_KEY: builtins.int
     """Return only the map keys of the finally-selected nodes."""
-    MAP_KEY_VALUE: SelectFlag
+    MAP_KEY_VALUE: builtins.int
     """Return map key-value pairs of the finally-selected nodes."""
-    NO_FAIL: SelectFlag
+    NO_FAIL: builtins.int
     """Ignore type mismatches instead of failing."""
-
-    def __or__(self, other: SelectFlag) -> SelectFlag:
-        """Combine flags with bitwise OR."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...
 class Statement:
     r"""
     Query statement parameters.
@@ -2628,6 +2674,13 @@ class AuthMode(Enum):
     Requires server version 5.7.0+
     """
 
+class BitWriteFlags(IntEnum):
+    DEFAULT: builtins.int
+    CREATE_ONLY: builtins.int
+    UPDATE_ONLY: builtins.int
+    NO_FAIL: builtins.int
+    PARTIAL: builtins.int
+
 class BitwiseOverflowActions(Enum):
     FAIL = ...
     SATURATE = ...
@@ -2638,13 +2691,6 @@ class BitwiseResizeFlags(Enum):
     FROM_FRONT = ...
     GROW_ONLY = ...
     SHRINK_ONLY = ...
-
-class BitwiseWriteFlags(Enum):
-    DEFAULT = ...
-    CREATE_ONLY = ...
-    UPDATE_ONLY = ...
-    NO_FAIL = ...
-    PARTIAL = ...
 
 class CollectionIndexType(Enum):
     r"""
@@ -2788,24 +2834,24 @@ class ListSortFlags(Enum):
     Drop duplicate values when sorting list.
     """
 
-class ListWriteFlags(Enum):
-    DEFAULT = ...
+class ListWriteFlags(IntEnum):
+    DEFAULT: builtins.int
     r"""
     Default is the default behavior. It means: Allow duplicate values and insertions at any index.
     """
-    ADD_UNIQUE = ...
+    ADD_UNIQUE: builtins.int
     r"""
     AddUnique means: Only add unique values.
     """
-    INSERT_BOUNDED = ...
+    INSERT_BOUNDED: builtins.int
     r"""
     InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
     """
-    NO_FAIL = ...
+    NO_FAIL: builtins.int
     r"""
     NoFail means: do not raise error if a list item fails due to write flag constraints.
     """
-    PARTIAL = ...
+    PARTIAL: builtins.int
     r"""
     Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
     """
@@ -3302,13 +3348,13 @@ class ExpOperation:
     Expression operations. Create expression operations used by the client's operate() method.
     """
     @staticmethod
-    def read(name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+    def read(name: builtins.str, exp: FilterExpression, flags: typing.Optional[typing.Union[ExpReadFlags, builtins.int]] = None) -> ExpOperation:
         r"""
         Evaluate the expression and return the result in the record bins with the specified name.
         """
         ...
     @staticmethod
-    def write(bin_name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+    def write(bin_name: builtins.str, exp: FilterExpression, flags: typing.Optional[typing.Union[ExpWriteFlags, builtins.int]] = None) -> ExpOperation:
         r"""
         Evaluate the expression and write the result to the specified bin.
         """
@@ -3414,9 +3460,9 @@ class HllOperation:
     HLL (HyperLogLog) operations. Create HLL operations used by the client's operate() method.
     """
     @staticmethod
-    def init(bin_name: builtins.str, index_bit_count: builtins.int, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    def init(bin_name: builtins.str, index_bit_count: builtins.int, min_hash_bit_count: builtins.int = -1, flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
     @staticmethod
-    def add(bin_name: builtins.str, values: typing.List[typing.Any], index_bit_count: builtins.int = -1, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    def add(bin_name: builtins.str, values: typing.List[typing.Any], index_bit_count: builtins.int = -1, min_hash_bit_count: builtins.int = -1, flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
     @staticmethod
     def get_count(bin_name: builtins.str) -> HllOperation: ...
     @staticmethod
@@ -3434,7 +3480,7 @@ class HllOperation:
     @staticmethod
     def get_similarity(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
     @staticmethod
-    def set_union(bin_name: builtins.str, hll_list: typing.List[typing.Any], flags: builtins.int = 0) -> HllOperation: ...
+    def set_union(bin_name: builtins.str, hll_list: typing.List[typing.Any], flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
 
 class Version:
     r"""

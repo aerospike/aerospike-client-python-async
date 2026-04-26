@@ -1311,24 +1311,51 @@ use crate::record::PythonValue;
         /// Create HLL init operation.
         /// Server creates a new HLL or resets an existing HLL.
         /// Server does not return a value.
+        ///
+        /// ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
+        /// (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         #[staticmethod]
-        #[pyo3(signature = (bin_name, index_bit_count, min_hash_bit_count = -1, flags = 0))]
-        pub fn init(bin_name: String, index_bit_count: i64, min_hash_bit_count: i64, flags: i64) -> Self {
-            HllOperation {
-                op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags),
-            }
+        #[pyo3(signature = (bin_name, index_bit_count, min_hash_bit_count = -1, flags = None))]
+        pub fn init(
+            py: Python<'_>,
+            bin_name: String,
+            index_bit_count: i64,
+            min_hash_bit_count: i64,
+            flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &flags {
+                None => 0i64,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(HllOperation {
+                op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, f),
+            })
         }
 
         /// Create HLL add operation.
         /// Server adds values to HLL set. If HLL bin does not exist and index_bit_count is set,
         /// a new HLL bin will be created.
         /// Server returns number of entries that caused HLL to update a register.
+        ///
+        /// ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
+        /// (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         #[staticmethod]
-        #[pyo3(signature = (bin_name, values, index_bit_count = -1, min_hash_bit_count = -1, flags = 0))]
-        pub fn add(bin_name: String, values: Vec<PythonValue>, index_bit_count: i64, min_hash_bit_count: i64, flags: i64) -> Self {
-            HllOperation {
-                op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, flags),
-            }
+        #[pyo3(signature = (bin_name, values, index_bit_count = -1, min_hash_bit_count = -1, flags = None))]
+        pub fn add(
+            py: Python<'_>,
+            bin_name: String,
+            values: Vec<PythonValue>,
+            index_bit_count: i64,
+            min_hash_bit_count: i64,
+            flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &flags {
+                None => 0i64,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(HllOperation {
+                op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, f),
+            })
         }
 
         /// Create HLL get_count operation.
@@ -1412,12 +1439,24 @@ use crate::record::PythonValue;
         /// Create HLL set_union operation.
         /// Server sets union of specified HLL objects with HLL bin.
         /// Server does not return a value.
+        ///
+        /// ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
+        /// (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         #[staticmethod]
-        #[pyo3(signature = (bin_name, hll_list, flags = 0))]
-        pub fn set_union(bin_name: String, hll_list: Vec<PythonValue>, flags: i64) -> Self {
-            HllOperation {
-                op: OperationType::HllSetUnion(bin_name, hll_list, flags),
-            }
+        #[pyo3(signature = (bin_name, hll_list, flags = None))]
+        pub fn set_union(
+            py: Python<'_>,
+            bin_name: String,
+            hll_list: Vec<PythonValue>,
+            flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &flags {
+                None => 0i64,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(HllOperation {
+                op: OperationType::HllSetUnion(bin_name, hll_list, f),
+            })
         }
     }
 
@@ -1448,16 +1487,27 @@ use crate::record::PythonValue;
         /// Args:
         ///     name: Name to assign to the expression result in the returned record.
         ///     exp: Expression to evaluate.
-        ///     flags: Expression read flags (default: ExpReadFlags.DEFAULT).
+        ///     flags: Expression read flags (default: ExpReadFlags.DEFAULT). May
+        ///         be an ``ExpReadFlags`` member, a combined bitmask
+        ///         (``ExpReadFlags.X | ExpReadFlags.Y``), or a raw ``int``.
         ///
         /// Returns:
         ///     An ExpOperation to use with client.operate().
         #[staticmethod]
-        #[pyo3(signature = (name, exp, flags = 0))]
-        pub fn read(name: String, exp: FilterExpression, flags: i64) -> Self {
-            ExpOperation {
-                op: OperationType::ExpRead(name, exp, flags),
-            }
+        #[pyo3(signature = (name, exp, flags = None))]
+        pub fn read(
+            py: Python<'_>,
+            name: String,
+            exp: FilterExpression,
+            flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &flags {
+                None => 0i64,
+                Some(obj) => crate::expressions::exp_read_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(ExpOperation {
+                op: OperationType::ExpRead(name, exp, f),
+            })
         }
 
         /// Create expression write operation.
@@ -1467,16 +1517,27 @@ use crate::record::PythonValue;
         /// Args:
         ///     bin_name: Name of bin to store expression result.
         ///     exp: Expression to evaluate.
-        ///     flags: Expression write flags (default: ExpWriteFlags.DEFAULT).
+        ///     flags: Expression write flags (default: ExpWriteFlags.DEFAULT). May
+        ///         be an ``ExpWriteFlags`` member, a combined bitmask
+        ///         (``ExpWriteFlags.X | ExpWriteFlags.Y``), or a raw ``int``.
         ///
         /// Returns:
         ///     An ExpOperation to use with client.operate().
         #[staticmethod]
-        #[pyo3(signature = (bin_name, exp, flags = 0))]
-        pub fn write(bin_name: String, exp: FilterExpression, flags: i64) -> Self {
-            ExpOperation {
-                op: OperationType::ExpWrite(bin_name, exp, flags),
-            }
+        #[pyo3(signature = (bin_name, exp, flags = None))]
+        pub fn write(
+            py: Python<'_>,
+            bin_name: String,
+            exp: FilterExpression,
+            flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &flags {
+                None => 0i64,
+                Some(obj) => crate::expressions::exp_write_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(ExpOperation {
+                op: OperationType::ExpWrite(bin_name, exp, f),
+            })
         }
     }
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1505,7 +1566,10 @@ use crate::record::PythonValue;
         ///
         /// Args:
         ///     bin_name: Name of the bin containing the top-level CDT.
-        ///     flag: Controls what is returned (``SelectFlag``).
+        ///     flag: Controls what is returned. Pass any combination of
+        ///         ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
+        ///         SelectFlags.NO_FAIL``) — the resulting value is a plain
+        ///         ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
         /// Returns:
@@ -1513,20 +1577,20 @@ use crate::record::PythonValue;
         ///
         /// Example::
         ///
-        ///     from aerospike_async import CdtOperation, CTX, SelectFlag
+        ///     from aerospike_async import CdtOperation, CTX, SelectFlags
         ///     op = CdtOperation.select_by_path(
         ///         "inventory",
-        ///         SelectFlag.VALUE,
+        ///         SelectFlags.VALUE,
         ///         [CTX.map_key("books"), CTX.list_index(0)],
         ///     )
         #[staticmethod]
         pub fn select_by_path(
             bin_name: String,
-            flag: &crate::enums::SelectFlag,
+            flag: i64,
             ctx: Vec<CTX>,
         ) -> Self {
             CdtOperation {
-                op: OperationType::CdtSelectByPath(bin_name, flag.0, ctx),
+                op: OperationType::CdtSelectByPath(bin_name, flag, ctx),
             }
         }
 
@@ -1537,7 +1601,9 @@ use crate::record::PythonValue;
         ///
         /// Args:
         ///     bin_name: Name of the bin containing the top-level CDT.
-        ///     flag: Controls error-handling behavior (``ModifyFlag``).
+        ///     flag: Controls error-handling behavior. Pass any combination of
+        ///         ``ModifyFlags`` constants — the resulting value is a plain
+        ///         ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
         ///     exp: Expression that produces the value to write.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
@@ -1546,24 +1612,24 @@ use crate::record::PythonValue;
         ///
         /// Example::
         ///
-        ///     from aerospike_async import CdtOperation, CTX, ModifyFlag, FilterExpression
+        ///     from aerospike_async import CdtOperation, CTX, ModifyFlags, FilterExpression
         ///     price_path = [CTX.map_key("books"), CTX.list_rank(0), CTX.map_key("price")]
         ///     new_price = FilterExpression.float_val(9.99)
         ///     op = CdtOperation.modify_by_path(
         ///         "inventory",
-        ///         ModifyFlag.DEFAULT,
+        ///         ModifyFlags.DEFAULT,
         ///         new_price,
         ///         price_path,
         ///     )
         #[staticmethod]
         pub fn modify_by_path(
             bin_name: String,
-            flag: &crate::enums::ModifyFlag,
+            flag: i64,
             exp: FilterExpression,
             ctx: Vec<CTX>,
         ) -> Self {
             CdtOperation {
-                op: OperationType::CdtModifyByPath(bin_name, flag.0, exp, ctx),
+                op: OperationType::CdtModifyByPath(bin_name, flag, exp, ctx),
             }
         }
     }

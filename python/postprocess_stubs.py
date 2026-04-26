@@ -318,6 +318,8 @@ def fix_map_write_flags_int_enum(content: str) -> str:
         "ExpReadFlags",
         "ExpWriteFlags",
         "HLLWriteFlags",
+        "BitWriteFlags",
+        "ListWriteFlags",
     ):
         content = re.sub(
             rf'^class {cls_name}\(Enum\):',
@@ -1067,13 +1069,13 @@ class ExpOperation:
     Expression operations. Create expression operations used by the client's operate() method.
     """
     @staticmethod
-    def read(name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+    def read(name: builtins.str, exp: FilterExpression, flags: typing.Optional[typing.Union[ExpReadFlags, builtins.int]] = None) -> ExpOperation:
         r"""
         Evaluate the expression and return the result in the record bins with the specified name.
         """
         ...
     @staticmethod
-    def write(bin_name: builtins.str, exp: FilterExpression, flags: builtins.int = 0) -> ExpOperation:
+    def write(bin_name: builtins.str, exp: FilterExpression, flags: typing.Optional[typing.Union[ExpWriteFlags, builtins.int]] = None) -> ExpOperation:
         r"""
         Evaluate the expression and write the result to the specified bin.
         """
@@ -1213,15 +1215,20 @@ class ExecuteTask:
 
 
 def add_hll_operation_stubs(content: str) -> str:
-    """Add HllOperation class stubs if missing (pyo3_stub_gen limitation)."""
+    """Add HllOperation class stubs if missing (pyo3_stub_gen limitation).
+
+    The ``flags`` parameters mirror the runtime widening in ``HllOperation::init``,
+    ``add``, and ``set_union``: the entry point accepts ``HLLWriteFlags``, an
+    ``int`` bitmask, or ``None`` (defaults to no flags).
+    """
     hll_operation_stub = '''class HllOperation:
     r"""
     HLL (HyperLogLog) operations. Create HLL operations used by the client's operate() method.
     """
     @staticmethod
-    def init(bin_name: builtins.str, index_bit_count: builtins.int, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    def init(bin_name: builtins.str, index_bit_count: builtins.int, min_hash_bit_count: builtins.int = -1, flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
     @staticmethod
-    def add(bin_name: builtins.str, values: typing.List[typing.Any], index_bit_count: builtins.int = -1, min_hash_bit_count: builtins.int = -1, flags: builtins.int = 0) -> HllOperation: ...
+    def add(bin_name: builtins.str, values: typing.List[typing.Any], index_bit_count: builtins.int = -1, min_hash_bit_count: builtins.int = -1, flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
     @staticmethod
     def get_count(bin_name: builtins.str) -> HllOperation: ...
     @staticmethod
@@ -1239,7 +1246,7 @@ def add_hll_operation_stubs(content: str) -> str:
     @staticmethod
     def get_similarity(bin_name: builtins.str, hll_list: typing.List[typing.Any]) -> HllOperation: ...
     @staticmethod
-    def set_union(bin_name: builtins.str, hll_list: typing.List[typing.Any], flags: builtins.int = 0) -> HllOperation: ...
+    def set_union(bin_name: builtins.str, hll_list: typing.List[typing.Any], flags: typing.Optional[typing.Union[HLLWriteFlags, builtins.int]] = None) -> HllOperation: ...
 '''
 
     if 'class HllOperation:' not in content:
@@ -1537,60 +1544,70 @@ def add_return_type_stubs(content: str) -> str:
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...'''
 
-    select_flag_stub = '''class SelectFlag:
+    select_flags_stub = '''class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    Flags may be combined with bitwise OR, e.g. ``SelectFlag.VALUE | SelectFlag.NO_FAIL``.
+    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
+    suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
     """
-    MATCHING_TREE: SelectFlag
+    MATCHING_TREE: builtins.int
     """Return the full matching subtree (root to leaf), keeping only matched nodes."""
-    VALUE: SelectFlag
+    VALUE: builtins.int
     """Return the values of the finally-selected nodes."""
-    LIST_VALUE: SelectFlag
+    LIST_VALUE: builtins.int
     """Synonym for ``VALUE`` — clarifies list element expectations."""
-    MAP_VALUE: SelectFlag
+    MAP_VALUE: builtins.int
     """Synonym for ``VALUE`` — clarifies map value expectations."""
-    MAP_KEY: SelectFlag
+    MAP_KEY: builtins.int
     """Return only the map keys of the finally-selected nodes."""
-    MAP_KEY_VALUE: SelectFlag
+    MAP_KEY_VALUE: builtins.int
     """Return map key-value pairs of the finally-selected nodes."""
-    NO_FAIL: SelectFlag
-    """Ignore type mismatches instead of failing."""
+    NO_FAIL: builtins.int
+    """Ignore type mismatches instead of failing."""'''
 
-    def __or__(self, other: SelectFlag) -> SelectFlag:
-        """Combine flags with bitwise OR."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...'''
-
-    modify_flag_stub = '''class ModifyFlag:
+    modify_flags_stub = '''class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
+    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
+
     Requires Aerospike Server version >= 8.1.1.
     """
-    DEFAULT: ModifyFlag
+    DEFAULT: builtins.int
     """Default behavior — fails on type mismatches."""
-    NO_FAIL: ModifyFlag
-    """Ignore type errors instead of failing."""
+    NO_FAIL: builtins.int
+    """Ignore type errors instead of failing."""'''
 
-    def __or__(self, other: ModifyFlag) -> ModifyFlag:
-        """Combine flags with bitwise OR."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...'''
+    regex_flag_stub = '''class RegexFlag:
+    r"""
+    POSIX regex bit flags for ``FilterExpression.regex_compare``.
+
+    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
+
+    Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    """
+    NONE: builtins.int
+    """Use regex defaults."""
+    EXTENDED: builtins.int
+    """Use POSIX Extended Regular Expression syntax when interpreting regex."""
+    ICASE: builtins.int
+    """Do not differentiate case."""
+    NOSUB: builtins.int
+    """Do not report position of matches."""
+    NEWLINE: builtins.int
+    """Match-any-character operators don't match a newline."""'''
 
     for cls_name, stub, name in [
         ("LoopVarPart", loop_var_part_stub, "LoopVarPart"),
-        ("SelectFlag", select_flag_stub, "SelectFlag"),
-        ("ModifyFlag", modify_flag_stub, "ModifyFlag"),
+        ("SelectFlags", select_flags_stub, "SelectFlags"),
+        ("ModifyFlags", modify_flags_stub, "ModifyFlags"),
+        ("RegexFlag", regex_flag_stub, "RegexFlag"),
     ]:
         # Match the full class block (from 'class X:' up to the next top-level class or EOF).
         # This is robust regardless of whether stub_gen emits '...' only or full methods.

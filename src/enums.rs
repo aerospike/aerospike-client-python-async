@@ -1085,131 +1085,73 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  SelectFlag
+    //  SelectFlags
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
     ///
-    /// Flags may be combined with bitwise OR, e.g. ``SelectFlag.VALUE | SelectFlag.NO_FAIL``.
+    /// JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    /// (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular
+    /// ``int`` and can be passed directly to ``CdtOperation.select_by_path(..., flag=...)``.
     ///
     /// Requires Aerospike Server version >= 8.1.1.
-    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
+    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
+    // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "SelectFlag", module = "_aerospike_async_native")]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct SelectFlag(pub i64);
+    #[pyclass(name = "SelectFlags", module = "_aerospike_async_native")]
+    pub struct SelectFlags;
 
-    #[gen_stub_pymethods]
     #[pymethods]
-    impl SelectFlag {
+    impl SelectFlags {
         /// Return the full matching subtree (root to leaf), keeping only matched nodes.
         #[classattr]
-        const MATCHING_TREE: SelectFlag = SelectFlag(0);
+        const MATCHING_TREE: i64 = 0;
         /// Return the values of the finally-selected nodes.
         #[classattr]
-        const VALUE: SelectFlag = SelectFlag(1);
+        const VALUE: i64 = 1;
         /// Synonym for ``VALUE`` — clarifies list element expectations.
         #[classattr]
-        const LIST_VALUE: SelectFlag = SelectFlag(1);
+        const LIST_VALUE: i64 = 1;
         /// Synonym for ``VALUE`` — clarifies map value expectations.
         #[classattr]
-        const MAP_VALUE: SelectFlag = SelectFlag(1);
+        const MAP_VALUE: i64 = 1;
         /// Return only the map keys of the finally-selected nodes.
         #[classattr]
-        const MAP_KEY: SelectFlag = SelectFlag(2);
+        const MAP_KEY: i64 = 2;
         /// Return map key-value pairs of the finally-selected nodes.
         #[classattr]
-        const MAP_KEY_VALUE: SelectFlag = SelectFlag(3);
+        const MAP_KEY_VALUE: i64 = 3;
         /// Ignore type mismatches instead of failing.
         #[classattr]
-        const NO_FAIL: SelectFlag = SelectFlag(0x10);
-
-        /// Combine flags with bitwise OR.
-        fn __or__(&self, other: &SelectFlag) -> SelectFlag {
-            SelectFlag(self.0 | other.0)
-        }
-
-        fn __richcmp__(&self, other: &SelectFlag, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
-            match op {
-                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
-                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
-                _ => Ok(false),
-            }
-        }
-
-        fn __hash__(&self) -> u64 {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            self.hash(&mut hasher);
-            hasher.finish()
-        }
-
-        fn __repr__(&self) -> String {
-            format!("SelectFlag({})", self.0)
-        }
-    }
-
-    impl From<&SelectFlag> for aerospike_core::operations::path::SelectFlag {
-        fn from(f: &SelectFlag) -> Self {
-            aerospike_core::operations::path::SelectFlag(f.0)
-        }
+        const NO_FAIL: i64 = 0x10;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  ModifyFlag
+    //  ModifyFlags
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
     ///
+    /// JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    /// (``ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL``) — the result is a regular
+    /// ``int`` and can be passed directly to ``CdtOperation.modify_by_path(..., flag=...)``.
+    ///
     /// Requires Aerospike Server version >= 8.1.1.
-    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
+    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
+    // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "ModifyFlag", module = "_aerospike_async_native")]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct ModifyFlag(pub i64);
+    #[pyclass(name = "ModifyFlags", module = "_aerospike_async_native")]
+    pub struct ModifyFlags;
 
-    #[gen_stub_pymethods]
     #[pymethods]
-    impl ModifyFlag {
+    impl ModifyFlags {
         /// Default behavior — fails on type mismatches.
         #[classattr]
-        const DEFAULT: ModifyFlag = ModifyFlag(0);
+        const DEFAULT: i64 = 0;
         /// Ignore type errors instead of failing.
         #[classattr]
-        const NO_FAIL: ModifyFlag = ModifyFlag(0x10);
-
-        /// Combine flags with bitwise OR.
-        fn __or__(&self, other: &ModifyFlag) -> ModifyFlag {
-            ModifyFlag(self.0 | other.0)
-        }
-
-        fn __richcmp__(&self, other: &ModifyFlag, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
-            match op {
-                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
-                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
-                _ => Ok(false),
-            }
-        }
-
-        fn __hash__(&self) -> u64 {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            self.hash(&mut hasher);
-            hasher.finish()
-        }
-
-        fn __repr__(&self) -> String {
-            format!("ModifyFlag({})", self.0)
-        }
-    }
-
-    impl From<&ModifyFlag> for aerospike_core::operations::path::ModifyFlag {
-        fn from(f: &ModifyFlag) -> Self {
-            aerospike_core::operations::path::ModifyFlag(f.0)
-        }
+        const NO_FAIL: i64 = 0x10;
     }

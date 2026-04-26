@@ -1946,11 +1946,10 @@ async def test_operate_map_put_items_partial(client_and_key):
 
     # sourceMap: key 3 is new, key 5 already exists. CREATE_ONLY | PARTIAL | NO_FAIL adds 3 only.
     # CREATE_ONLY | NO_FAIL (no PARTIAL) on bin2: denied items are skipped, no partial add.
-    # Stub uses IntEnum so int() is valid; runtime enum is from Rust so int() required for |.
     flags_partial = (
-        int(MapWriteFlags.CREATE_ONLY) | int(MapWriteFlags.PARTIAL) | int(MapWriteFlags.NO_FAIL)
+        MapWriteFlags.CREATE_ONLY | MapWriteFlags.PARTIAL | MapWriteFlags.NO_FAIL
     )
-    flags_no_fail = int(MapWriteFlags.CREATE_ONLY) | int(MapWriteFlags.NO_FAIL)
+    flags_no_fail = MapWriteFlags.CREATE_ONLY | MapWriteFlags.NO_FAIL
     policy_partial = MapPolicy(MapOrder.UNORDERED, None, flags_partial, None)
     policy_no_fail = MapPolicy(MapOrder.UNORDERED, None, flags_no_fail, None)
     source_items = [(3, 3), (5, 15)]

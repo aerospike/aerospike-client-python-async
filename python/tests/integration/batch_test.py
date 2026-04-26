@@ -813,7 +813,7 @@ async def test_batch_operate_exp_read_eval_no_fail(exp_client_and_keys):
     client, keys = exp_client_and_keys
 
     expr = FilterExpression.int_bin("nonexistent")
-    ops = [ExpOperation.read("result", expr, int(ExpReadFlags.EVAL_NO_FAIL))]
+    ops = [ExpOperation.read("result", expr, ExpReadFlags.EVAL_NO_FAIL)]
 
     results = await client.batch_operate(None, None, keys, [ops] * len(keys))
 

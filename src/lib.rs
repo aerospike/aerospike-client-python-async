@@ -2025,8 +2025,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<CommitStatus>()?;
     m.add_class::<AbortStatus>()?;
     m.add_class::<LoopVarPart>()?;
-    m.add_class::<SelectFlag>()?;
-    m.add_class::<ModifyFlag>()?;
+    m.add_class::<SelectFlags>()?;
+    m.add_class::<ModifyFlags>()?;
     m.add_class::<Txn>()?;
     m.add_class::<ReadModeAP>()?;
     m.add_class::<ReadModeSC>()?;
@@ -2065,6 +2065,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ExpOperation>()?;
     m.add_class::<ExpWriteFlags>()?;
     m.add_class::<ExpReadFlags>()?;
+    m.add_class::<RegexFlag>()?;
     m.add_class::<CdtOperation>()?;
 
     m.add_class::<BasePolicy>()?;
@@ -2097,7 +2098,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<SpecialValue>()?;
     m.add_class::<MapPolicy>()?;
     m.add_class::<BitwiseResizeFlags>()?;
-    m.add_class::<BitwiseWriteFlags>()?;
+    m.add_class::<BitWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
     m.add_class::<PartitionStatus>()?;

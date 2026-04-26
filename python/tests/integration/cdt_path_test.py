@@ -31,10 +31,10 @@ from aerospike_async import (
     Key,
     LoopVarPart,
     MapReturnType,
-    ModifyFlag,
+    ModifyFlags,
     new_client,
     ReadPolicy,
-    SelectFlag,
+    SelectFlags,
     WritePolicy,
 )
 from aerospike_async.exceptions import ServerError
@@ -101,7 +101,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [CTX.map_key("score")],
         )
         record = await client.operate(wp, key, [op])
@@ -119,7 +119,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [CTX.map_key("matrix"), CTX.all_children()],
         )
         record = await client.operate(wp, key, [op])
@@ -138,7 +138,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("numbers"),
                 CTX.all_children_with_filter(
@@ -162,7 +162,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("nums"),
                 CTX.all_children_with_filter(
@@ -187,7 +187,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("products"),
                 CTX.all_children_with_filter(
@@ -226,7 +226,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("book"),
                 CTX.all_children_with_filter(
@@ -245,14 +245,14 @@ class TestSelectByPath:
         assert set(result) == {"Sayings of the Century", "Moby Dick"}
 
     async def test_select_no_fail_on_empty_list(self, cdt_client_and_key):
-        """SelectFlag.NO_FAIL succeeds even when the path has an empty collection."""
+        """SelectFlags.NO_FAIL succeeds even when the path has an empty collection."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
         await client.put(wp, key, {"data": {"emptyList": [], "items": [1, 2, 3]}})
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.NO_FAIL,
+            SelectFlags.NO_FAIL,
             [CTX.map_key("emptyList"), CTX.all_children()],
         )
         record = await client.operate(wp, key, [op])
@@ -260,28 +260,28 @@ class TestSelectByPath:
         assert record is not None
 
     async def test_select_no_fail_on_empty_map(self, cdt_client_and_key):
-        """SelectFlag.NO_FAIL succeeds when the path leads to an empty map."""
+        """SelectFlags.NO_FAIL succeeds when the path leads to an empty map."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
         await client.put(wp, key, {"data": {"emptyMap": {}, "items": {"a": 1}}})
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.NO_FAIL,
+            SelectFlags.NO_FAIL,
             [CTX.map_key("emptyMap"), CTX.all_children()],
         )
         record = await client.operate(wp, key, [op])
         assert record is not None
 
     async def test_select_map_key_flag(self, cdt_client_and_key):
-        """SelectFlag.MAP_KEY returns only map keys, not values."""
+        """SelectFlags.MAP_KEY returns only map keys, not values."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
         await client.put(wp, key, {"data": {"items": {"item1": 100, "item2": 200, "item3": 50}}})
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.MAP_KEY,
+            SelectFlags.MAP_KEY,
             [
                 CTX.map_key("items"),
                 CTX.all_children_with_filter(
@@ -296,7 +296,7 @@ class TestSelectByPath:
         assert result is not None
 
     async def test_select_matching_tree_flag(self, cdt_client_and_key):
-        """SelectFlag.MATCHING_TREE returns the matched sub-tree structure."""
+        """SelectFlags.MATCHING_TREE returns the matched sub-tree structure."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
         books = [
@@ -316,7 +316,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.MATCHING_TREE,
+            SelectFlags.MATCHING_TREE,
             [
                 CTX.map_key("book"),
                 CTX.all_children_with_filter(
@@ -342,7 +342,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("items"),
                 CTX.list_index(1),  # second item
@@ -378,7 +378,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("book"),
                 CTX.all_children_with_filter(
@@ -418,7 +418,7 @@ class TestSelectByPath:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("users"),
                 CTX.all_children_with_filter(fe.eq(active_exp, fe.bool_val(True))),
@@ -457,7 +457,7 @@ class TestModifyByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             modify_exp,
             [
                 CTX.map_key("book"),
@@ -487,7 +487,7 @@ class TestModifyByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             modify_exp,
             [
                 CTX.map_key("scores"),
@@ -513,7 +513,7 @@ class TestModifyByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             modify_exp,
             [
                 CTX.map_key("balances"),
@@ -543,7 +543,7 @@ class TestModifyByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             modify_exp,
             [
                 CTX.map_key("metrics"),
@@ -564,7 +564,7 @@ class TestModifyByPath:
         assert final_metrics[1]["value"] == 120
 
     async def test_modify_no_fail_flag(self, cdt_client_and_key):
-        """ModifyFlag.NO_FAIL does not raise when the path leads to no items."""
+        """ModifyFlags.NO_FAIL does not raise when the path leads to no items."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
         await client.put(wp, key, {"data": {"scores": []}})
@@ -573,7 +573,7 @@ class TestModifyByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.NO_FAIL,
+            ModifyFlags.NO_FAIL,
             modify_exp,
             [
                 CTX.map_key("scores"),
@@ -642,7 +642,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("items"),
@@ -665,7 +665,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("numbers"),
@@ -691,7 +691,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("config"),
@@ -715,7 +715,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("scores"),
@@ -745,7 +745,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("inventory"),
@@ -772,7 +772,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("values"),
@@ -814,7 +814,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("books"),
@@ -851,7 +851,7 @@ class TestRemoveByPath:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.remove_result(),
             [
                 CTX.map_key("departments"),
@@ -900,7 +900,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("products"),
                 CTX.all_children_with_filter(
@@ -932,7 +932,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             fe.num_div([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(10)]),
             [
                 CTX.map_key("values"),
@@ -956,7 +956,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("matrix"),
                 CTX.all_children_with_filter(
@@ -986,7 +986,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.modify_by_path(
             "data",
-            ModifyFlag.DEFAULT,
+            ModifyFlags.DEFAULT,
             modify_exp,
             [
                 CTX.map_key("values"),
@@ -1013,7 +1013,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("blobs"),
                 CTX.all_children_with_filter(
@@ -1046,7 +1046,7 @@ class TestSelectModifyAdditional:
 
         op = CdtOperation.select_by_path(
             "data",
-            SelectFlag.VALUE,
+            SelectFlags.VALUE,
             [
                 CTX.map_key("locations"),
                 CTX.all_children_with_filter(

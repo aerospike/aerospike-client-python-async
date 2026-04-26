@@ -16,7 +16,7 @@
 import pytest
 from aerospike_async import (
     BitPolicy,
-    BitwiseWriteFlags,
+    BitWriteFlags,
     ListPolicy,
     ListOrderType,
     ListWriteFlags,
@@ -34,24 +34,24 @@ class TestBitPolicy:
         assert bp is not None
 
     def test_construction_with_flags(self):
-        bp = BitPolicy(BitwiseWriteFlags.CREATE_ONLY)
-        assert bp.get_write_flags() == int(BitwiseWriteFlags.CREATE_ONLY)
+        bp = BitPolicy(BitWriteFlags.CREATE_ONLY)
+        assert bp.get_write_flags() == BitWriteFlags.CREATE_ONLY
 
     def test_set_write_flags(self):
         bp = BitPolicy(None)
-        bp.set_write_flags(BitwiseWriteFlags.UPDATE_ONLY)
-        assert bp.get_write_flags() == int(BitwiseWriteFlags.UPDATE_ONLY)
+        bp.set_write_flags(BitWriteFlags.UPDATE_ONLY)
+        assert bp.get_write_flags() == BitWriteFlags.UPDATE_ONLY
 
     def test_all_write_flag_values(self):
         for flag in [
-            BitwiseWriteFlags.DEFAULT,
-            BitwiseWriteFlags.CREATE_ONLY,
-            BitwiseWriteFlags.UPDATE_ONLY,
-            BitwiseWriteFlags.NO_FAIL,
-            BitwiseWriteFlags.PARTIAL,
+            BitWriteFlags.DEFAULT,
+            BitWriteFlags.CREATE_ONLY,
+            BitWriteFlags.UPDATE_ONLY,
+            BitWriteFlags.NO_FAIL,
+            BitWriteFlags.PARTIAL,
         ]:
             bp = BitPolicy(flag)
-            assert bp.get_write_flags() == int(flag)
+            assert bp.get_write_flags() == flag
 
 
 class TestListPolicy:
@@ -66,12 +66,12 @@ class TestListPolicy:
 
     def test_construction_with_write_flags(self):
         lp = ListPolicy(None, ListWriteFlags.ADD_UNIQUE)
-        assert lp.write_flags == int(ListWriteFlags.ADD_UNIQUE)
+        assert lp.write_flags == ListWriteFlags.ADD_UNIQUE
 
     def test_construction_with_both(self):
         lp = ListPolicy(ListOrderType.ORDERED, ListWriteFlags.INSERT_BOUNDED)
         assert lp.order == ListOrderType.ORDERED
-        assert lp.write_flags == int(ListWriteFlags.INSERT_BOUNDED)
+        assert lp.write_flags == ListWriteFlags.INSERT_BOUNDED
 
     def test_order_setter(self):
         lp = ListPolicy(None, None)
@@ -90,11 +90,11 @@ class TestListPolicy:
             ListWriteFlags.PARTIAL,
         ]:
             lp.write_flags = flag
-            assert lp.write_flags == int(flag)
+            assert lp.write_flags == flag
 
     def test_construction_with_combined_flags_via_or(self):
         """OR'd enums produce an int; ListPolicy should accept it."""
-        combined = int(ListWriteFlags.ADD_UNIQUE) | int(ListWriteFlags.NO_FAIL)
+        combined = ListWriteFlags.ADD_UNIQUE | ListWriteFlags.NO_FAIL
         lp = ListPolicy(ListOrderType.ORDERED, combined)
         assert lp.order == ListOrderType.ORDERED
         assert lp.write_flags == combined
@@ -116,12 +116,12 @@ class TestListPolicy:
     def test_setter_with_single_enum_still_works(self):
         lp = ListPolicy(None, None)
         lp.write_flags = ListWriteFlags.ADD_UNIQUE
-        assert lp.write_flags == int(ListWriteFlags.ADD_UNIQUE)
+        assert lp.write_flags == ListWriteFlags.ADD_UNIQUE
 
     def test_no_args_defaults(self):
         lp = ListPolicy()
         assert lp.order == ListOrderType.UNORDERED
-        assert lp.write_flags == int(ListWriteFlags.DEFAULT)
+        assert lp.write_flags == ListWriteFlags.DEFAULT
 
     def test_invalid_write_flags_type_raises(self):
         with pytest.raises(Exception):
@@ -161,7 +161,7 @@ class TestMapPolicy:
 
     def test_construction_with_flags(self):
         mp = MapPolicy(None, None, MapWriteFlags.CREATE_ONLY, None)
-        assert int(mp.flags) == int(MapWriteFlags.CREATE_ONLY)
+        assert mp.flags == MapWriteFlags.CREATE_ONLY
 
     def test_construction_with_persist_index(self):
         mp = MapPolicy(None, None, None, True)
@@ -177,7 +177,7 @@ class TestMapPolicy:
             MapWriteFlags.PARTIAL,
         ]:
             mp.flags = flag
-            assert int(mp.flags) == int(flag)
+            assert mp.flags == flag
 
     def test_persist_index_setter(self):
         mp = MapPolicy(None, None)
@@ -189,7 +189,7 @@ class TestMapPolicy:
     def test_new_with_flags(self):
         mp = MapPolicy.new_with_flags(MapOrder.KEY_ORDERED, MapWriteFlags.UPDATE_ONLY)
         assert mp.order == MapOrder.KEY_ORDERED
-        assert int(mp.flags) == int(MapWriteFlags.UPDATE_ONLY)
+        assert mp.flags == MapWriteFlags.UPDATE_ONLY
         assert mp.persist_index is False
 
     def test_new_with_flags_and_persisted_index(self):
@@ -197,7 +197,7 @@ class TestMapPolicy:
             MapOrder.KEY_ORDERED, MapWriteFlags.DEFAULT
         )
         assert mp.order == MapOrder.KEY_ORDERED
-        assert int(mp.flags) == int(MapWriteFlags.DEFAULT)
+        assert mp.flags == MapWriteFlags.DEFAULT
         assert mp.persist_index is True
 
 

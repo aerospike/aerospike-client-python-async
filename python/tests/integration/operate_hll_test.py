@@ -274,13 +274,13 @@ class TestHllFlags(TestFixtureConnection):
 
         # First init succeeds
         await client.operate(WritePolicy(), key, [
-            HllOperation.init("hll", 8, flags=int(HLLWriteFlags.CREATE_ONLY))
+            HllOperation.init("hll", 8, flags=HLLWriteFlags.CREATE_ONLY)
         ])
 
         # Second init fails with CREATE_ONLY
         with pytest.raises(ServerError) as exc_info:
             await client.operate(WritePolicy(), key, [
-                HllOperation.init("hll", 8, flags=int(HLLWriteFlags.CREATE_ONLY))
+                HllOperation.init("hll", 8, flags=HLLWriteFlags.CREATE_ONLY)
             ])
         assert exc_info.value.result_code == ResultCode.BIN_EXISTS_ERROR
 
@@ -292,7 +292,7 @@ class TestHllFlags(TestFixtureConnection):
         # Init fails on non-existent bin with UPDATE_ONLY
         with pytest.raises(BinNotFound) as exc_info:
             await client.operate(WritePolicy(), key, [
-                HllOperation.init("hll", 8, flags=int(HLLWriteFlags.UPDATE_ONLY))
+                HllOperation.init("hll", 8, flags=HLLWriteFlags.UPDATE_ONLY)
             ])
         assert exc_info.value.result_code == ResultCode.BIN_NOT_FOUND
 
@@ -303,7 +303,7 @@ class TestHllFlags(TestFixtureConnection):
 
         # Now UPDATE_ONLY succeeds
         await client.operate(WritePolicy(), key, [
-            HllOperation.init("hll", 8, flags=int(HLLWriteFlags.UPDATE_ONLY))
+            HllOperation.init("hll", 8, flags=HLLWriteFlags.UPDATE_ONLY)
         ])
 
     async def test_no_fail_flag(self, client):
@@ -317,7 +317,7 @@ class TestHllFlags(TestFixtureConnection):
         ])
 
         # CREATE_ONLY | NO_FAIL should not raise on existing bin
-        flags = int(HLLWriteFlags.CREATE_ONLY) | int(HLLWriteFlags.NO_FAIL)
+        flags = HLLWriteFlags.CREATE_ONLY | HLLWriteFlags.NO_FAIL
         result = await client.operate(WritePolicy(), key, [
             HllOperation.init("hll", 8, flags=flags),
             HllOperation.describe("hll")

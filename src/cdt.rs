@@ -114,17 +114,63 @@ use crate::record::PythonValue;
             Ok(b | a)
         }
 
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// ``int & ListWriteFlags`` support.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// ``int ^ ListWriteFlags`` support.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = list_policy_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width).
+        fn __invert__(&self) -> u8 {
+            !u8::from(*self)
+        }
+
         /// Raw flag bitmask as ``int``.
         fn __int__(&self) -> u8 {
             u8::from(*self)
         }
 
-        fn __richcmp__(&self, other: &ListWriteFlags, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
-            match op {
-                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
-                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
-                _ => Ok(false),
-            }
+        /// Equality / ordering against another ``ListWriteFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match list_policy_flags_from_py(other) {
+                Ok(v) => v as i64,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
         }
 
         fn __hash__(&self) -> u64 {
@@ -463,7 +509,8 @@ use crate::record::PythonValue;
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(name = "MapWriteFlags", module = "_aerospike_async_native")]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(u8)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapWriteFlags {
         /// Default. Allow create or update.
         #[pyo3(name = "DEFAULT")]
@@ -490,6 +537,90 @@ use crate::record::PythonValue;
 
     #[pymethods]
     impl MapWriteFlags {
+        /// Combine flags with bitwise OR. Returns the wire byte as int so combined
+        /// values can be passed wherever a single flag is accepted.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Right-hand bitwise OR (e.g. `int | MapWriteFlags.X`).
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// Right-hand bitwise AND.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// Right-hand bitwise XOR.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = map_policy_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width).
+        fn __invert__(&self) -> u8 {
+            !u8::from(*self)
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
+        /// Equality / ordering against another ``MapWriteFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(
+            &self,
+            other: &Bound<'_, PyAny>,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match map_policy_flags_from_py(other) {
+                Ok(v) => v as i64,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -854,9 +985,10 @@ use crate::record::PythonValue;
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "BitwiseWriteFlags", module = "_aerospike_async_native")]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum BitwiseWriteFlags {
+    #[pyclass(name = "BitWriteFlags", module = "_aerospike_async_native")]
+    #[repr(u8)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum BitWriteFlags {
         #[pyo3(name = "DEFAULT")]
         Default = 0,
         #[pyo3(name = "CREATE_ONLY")]
@@ -869,14 +1001,98 @@ use crate::record::PythonValue;
         Partial = 8,
     }
 
-    impl From<BitwiseWriteFlags> for u8 {
-        fn from(flags: BitwiseWriteFlags) -> Self {
+    impl From<BitWriteFlags> for u8 {
+        fn from(flags: BitWriteFlags) -> Self {
             flags as u8
         }
     }
 
     #[pymethods]
-    impl BitwiseWriteFlags {
+    impl BitWriteFlags {
+        /// Combine flags with bitwise OR. Returns the wire byte as int so combined
+        /// values can be passed wherever a single flag is accepted.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Right-hand bitwise OR (e.g. `int | BitWriteFlags.X`).
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// Right-hand bitwise AND.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// Right-hand bitwise XOR.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = bit_policy_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width).
+        fn __invert__(&self) -> u8 {
+            !u8::from(*self)
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
+        /// Equality / ordering against another ``BitWriteFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(
+            &self,
+            other: &Bound<'_, PyAny>,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match bit_policy_flags_from_py(other) {
+                Ok(v) => v as i64,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
@@ -933,7 +1149,9 @@ use crate::record::PythonValue;
 
     impl Default for BitPolicy {
         fn default() -> Self {
-            Self::new(None)
+            BitPolicy {
+                _as: aerospike_core::operations::bitwise::BitPolicy::new(0u8),
+            }
         }
     }
 
@@ -941,13 +1159,21 @@ use crate::record::PythonValue;
     #[pymethods]
     impl BitPolicy {
         #[new]
+        #[pyo3(signature = (write_flags=None))]
         /// Create a new BitPolicy with the specified write flags.
+        /// write_flags may be BitWriteFlags or int (bitmask), e.g. CREATE_ONLY | NO_FAIL.
         /// Default is default write flags.
-        pub fn new(write_flags: Option<BitwiseWriteFlags>) -> Self {
-            let write_flags = write_flags.unwrap_or(BitwiseWriteFlags::Default);
-            BitPolicy {
-                _as: aerospike_core::operations::bitwise::BitPolicy::new(write_flags.into()),
-            }
+        pub fn new(
+            py: Python<'_>,
+            write_flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f = match &write_flags {
+                None => 0u8,
+                Some(obj) => bit_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(BitPolicy {
+                _as: aerospike_core::operations::bitwise::BitPolicy::new(f),
+            })
         }
 
         /// Get the write flags.
@@ -956,8 +1182,10 @@ use crate::record::PythonValue;
         }
 
         /// Set the write flags.
-        pub fn set_write_flags(&mut self, flags: BitwiseWriteFlags) {
-            self._as.flags = flags.into();
+        /// flags may be BitWriteFlags or int (bitmask).
+        pub fn set_write_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
+            self._as.flags = bit_policy_flags_from_py(flags)?;
+            Ok(())
         }
     }
 
@@ -1057,8 +1285,9 @@ use crate::record::PythonValue;
 
     /// HLL write flags for HLL operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "HLLWriteFlags", module = "_aerospike_async_native", eq, eq_int)]
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[pyclass(name = "HLLWriteFlags", module = "_aerospike_async_native")]
+    #[repr(u8)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum HLLWriteFlags {
         /// Default. Allow create or update.
         #[pyo3(name = "DEFAULT")]
@@ -1077,6 +1306,100 @@ use crate::record::PythonValue;
         /// Allow the resulting set to be the minimum of provided index bits.
         #[pyo3(name = "ALLOW_FOLD")]
         AllowFold = 8,
+    }
+
+    impl From<HLLWriteFlags> for u8 {
+        fn from(flags: HLLWriteFlags) -> Self {
+            flags as u8
+        }
+    }
+
+    #[pymethods]
+    impl HLLWriteFlags {
+        /// Combine flags with bitwise OR. Returns the wire byte as int so combined
+        /// values can be passed wherever a single flag is accepted.
+        fn __or__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Right-hand bitwise OR (e.g. `int | HLLWriteFlags.X`).
+        fn __ror__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(a | b)
+        }
+
+        /// Bitwise AND.
+        fn __and__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(a & b)
+        }
+
+        /// Right-hand bitwise AND.
+        fn __rand__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(b & a)
+        }
+
+        /// Bitwise XOR.
+        fn __xor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(a ^ b)
+        }
+
+        /// Right-hand bitwise XOR.
+        fn __rxor__(&self, other: &Bound<'_, PyAny>) -> PyResult<u8> {
+            let a = u8::from(*self);
+            let b = hll_write_flags_from_py(other)?;
+            Ok(b ^ a)
+        }
+
+        /// Bitwise NOT (masked to u8 flag width).
+        fn __invert__(&self) -> u8 {
+            !u8::from(*self)
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(*self)
+        }
+
+        /// Equality / ordering against another ``HLLWriteFlags`` *or* an
+        /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
+        /// promised by the generated stubs.
+        fn __richcmp__(
+            &self,
+            other: &Bound<'_, PyAny>,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            let a = u8::from(*self) as i64;
+            let b = match hll_write_flags_from_py(other) {
+                Ok(v) => v as i64,
+                Err(_) => {
+                    return Ok(matches!(op, pyo3::class::basic::CompareOp::Ne));
+                }
+            };
+            Ok(match op {
+                pyo3::class::basic::CompareOp::Eq => a == b,
+                pyo3::class::basic::CompareOp::Ne => a != b,
+                pyo3::class::basic::CompareOp::Lt => a < b,
+                pyo3::class::basic::CompareOp::Le => a <= b,
+                pyo3::class::basic::CompareOp::Gt => a > b,
+                pyo3::class::basic::CompareOp::Ge => a >= b,
+            })
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1102,13 +1425,35 @@ use crate::record::PythonValue;
     #[pymethods]
     impl HLLPolicy {
         #[new]
-        #[pyo3(signature = (write_flags=HLLWriteFlags::Default))]
-        pub fn new(write_flags: HLLWriteFlags) -> Self {
-            HLLPolicy {
-                _as: aerospike_core::operations::hll::HLLPolicy {
-                    flags: write_flags as i64,
-                },
-            }
+        #[pyo3(signature = (write_flags=None))]
+        /// Create a new HLLPolicy with the specified write flags.
+        /// write_flags may be HLLWriteFlags or int (bitmask), e.g. CREATE_ONLY | NO_FAIL.
+        /// Default is default write flags.
+        pub fn new(
+            py: Python<'_>,
+            write_flags: Option<Py<PyAny>>,
+        ) -> PyResult<Self> {
+            let f: i64 = match &write_flags {
+                None => 0,
+                Some(obj) => hll_policy_flags_from_py(&obj.bind(py))?,
+            };
+            Ok(HLLPolicy {
+                _as: aerospike_core::operations::hll::HLLPolicy { flags: f },
+            })
+        }
+
+        /// Get the write flags as an int bitmask.
+        #[getter]
+        pub fn get_write_flags(&self) -> i64 {
+            self._as.flags
+        }
+
+        /// Set the write flags.
+        /// flags may be HLLWriteFlags or int (bitmask).
+        #[setter]
+        pub fn set_write_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
+            self._as.flags = hll_policy_flags_from_py(flags)?;
+            Ok(())
         }
     }
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1164,7 +1509,7 @@ use crate::record::PythonValue;
     }
 
     /// Extract flags as u8 from ListWriteFlags or int (bitmask). Used for ListPolicy.
-    fn list_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+    pub(crate) fn list_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
         if let Ok(f) = ob.extract::<ListWriteFlags>() {
             return Ok(u8::from(f));
         }
@@ -1175,7 +1520,7 @@ use crate::record::PythonValue;
     }
 
     /// Extract flags as u8 from MapWriteFlags or int (bitmask). Used for MapPolicy.
-    fn map_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+    pub(crate) fn map_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
         if let Ok(m) = ob.extract::<MapWriteFlags>() {
             return Ok(u8::from(m));
         }
@@ -1183,6 +1528,41 @@ use crate::record::PythonValue;
             return Ok(i as u8);
         }
         Err(PyValueError::new_err("flags must be MapWriteFlags or int"))
+    }
+
+    /// Extract flags as u8 from BitWriteFlags or int (bitmask). Used for BitPolicy.
+    pub(crate) fn bit_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+        if let Ok(f) = ob.extract::<BitWriteFlags>() {
+            return Ok(u8::from(f));
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i as u8);
+        }
+        Err(PyValueError::new_err("write_flags must be BitWriteFlags or int"))
+    }
+
+    /// Extract flags as u8 from HLLWriteFlags or int (bitmask).
+    /// Used by HLLWriteFlags' own __or__ / __ror__ dunders.
+    pub(crate) fn hll_write_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
+        if let Ok(f) = ob.extract::<HLLWriteFlags>() {
+            return Ok(u8::from(f));
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i as u8);
+        }
+        Err(PyValueError::new_err("write_flags must be HLLWriteFlags or int"))
+    }
+
+    /// Extract flags as i64 from HLLWriteFlags or int (bitmask). Used for HLLPolicy
+    /// (the underlying core HLLPolicy stores flags as i64).
+    pub(crate) fn hll_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<i64> {
+        if let Ok(f) = ob.extract::<HLLWriteFlags>() {
+            return Ok(u8::from(f) as i64);
+        }
+        if let Ok(i) = ob.extract::<i64>() {
+            return Ok(i);
+        }
+        Err(PyValueError::new_err("write_flags must be HLLWriteFlags or int"))
     }
 
     #[gen_stub_pymethods]
@@ -1289,9 +1669,22 @@ use crate::record::PythonValue;
             self._as.write_mode = (&write_mode).into();
         }
 
+        /// Get the write flags as a MapWriteFlags variant.
+        ///
+        /// Note: this getter is lossy for combined bitmasks — if the underlying
+        /// raw byte is a composite (e.g. ``CREATE_ONLY | NO_FAIL == 5``), the
+        /// returned variant collapses to ``MapWriteFlags.DEFAULT``. Use
+        /// :py:attr:`raw_flags` for the lossless ``int`` value.
         #[getter]
         pub fn get_flags(&self) -> MapWriteFlags {
             flags_u8_to_map_write_flags(self._as.flags)
+        }
+
+        /// Get the raw write-flags byte as ``int`` — lossless replacement for
+        /// :py:attr:`flags` when combined bitmasks are in use.
+        #[getter(raw_flags)]
+        pub fn get_raw_flags(&self) -> u8 {
+            self._as.flags
         }
 
         #[setter]
