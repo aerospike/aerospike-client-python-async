@@ -34,6 +34,9 @@ var/
 include/
 man/
 venv/
+# Project-owned helper scripts under bin/ (override the venv-style bin/ rule above).
+!bin/
+!bin/*
 *.egg-info/
 .installed.cfg
 *.egg

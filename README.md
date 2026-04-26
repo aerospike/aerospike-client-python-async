@@ -230,6 +230,53 @@ policy.set_auth_mode(AuthMode.PKI)  # No user/password needed
    - Transactions
    - Dynamic Config
 
+## Versioning
+
+PAC follows [SemVer](https://semver.org/) for releases. Pre-releases use the
+`MAJOR.MINOR.PATCH-{alpha,beta,rc}.N` form (e.g. `0.3.0-alpha.16`). PyPI
+normalizes these on upload to the equivalent PEP 440 spelling (`0.3.0a16`).
+
+### Single source of truth
+
+`Cargo.toml` is the only place where the version lives:
+
+```toml
+[package]
+name = "aerospike_async"
+version = "0.3.0-alpha.16"
+```
+
+`pyproject.toml` does **not** duplicate the version. maturin reads it from
+`Cargo.toml` when it builds the wheel, so the two are guaranteed to match.
+
+### Bumping the version
+
+Bumps are manual and happen in PRs against `dev`. Promotion workflows
+(`dev → stage → main`) do not mutate the version.
+
+```bash
+# 1. Edit Cargo.toml [package] version field, then refresh Cargo.lock:
+#    e.g. 0.3.0-alpha.16  →  0.3.0-alpha.17
+cargo check    # or: cargo update -p aerospike_async --precise 0.3.0-alpha.17
+
+# 2. Confirm:
+bin/get-version    # prints 0.3.0-alpha.17
+
+# 3. Open a PR against dev with just this change.
+```
+
+### Reading the version programmatically
+
+Anywhere a build script, CI step, or release tool needs the version:
+
+```bash
+bin/get-version    # → 0.3.0-alpha.16
+```
+
+The script parses the first `version` field inside the `[package]` table of
+`Cargo.toml`. It has no Python or cargo runtime dependencies — usable from
+any shell, container, or CI environment.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
