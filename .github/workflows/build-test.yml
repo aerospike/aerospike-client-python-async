@@ -1,12 +1,12 @@
 name: CI Build & Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    branches:
+      - dev
+      - stage
+      - main
   workflow_dispatch:
-  # For publish workflow
   workflow_call:
 
 permissions:
