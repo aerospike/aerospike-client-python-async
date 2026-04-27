@@ -139,7 +139,7 @@ jobs:
 
       - name: Install wheel (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
+        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_async
       - name: Install pytest (non-x86 wheels)
         if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
         run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
@@ -440,7 +440,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install wheel
-        run: ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_client_python_async
+        run: ${{ matrix.python }} -m pip install --find-links=aerospike_async/ aerospike_async
       - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
       - name: Debug module contents (macOS)
