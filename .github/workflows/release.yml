@@ -159,6 +159,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ inputs.publish_pypi == 'pypi.org' && secrets.PYPI_API_TOKEN || secrets.TEST_PYPI_API_TOKEN }}
+          MATURIN_REPOSITORY_URL: ${{ inputs.publish_pypi == 'pypi.org' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
         with:
           command: upload
           args: --non-interactive --skip-existing dist/*
