@@ -4,6 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "aerospike_async"
+description = "Aerospike Python Async Client — async I/O over the Aerospike Rust client core (PyO3)"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["uvloop>=0.17; sys_platform != 'win32'"]
 python-packages = ["aerospike_async"]
