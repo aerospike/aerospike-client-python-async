@@ -52,10 +52,83 @@ from benchmarks._env import default_client_policy, default_host  # noqa: E402
 # Lightweight stats (self-contained, no PSDK dependency)
 # ---------------------------------------------------------------------------
 
+def _fmt_us(us: float) -> str:
+    """Format a latency value in microseconds or milliseconds."""
+    if us < 1000.0:
+        return f"{int(us)}us"
+    return f"{us / 1000.0:.2f}ms"
+
+
+class _YcsbTracker:
+    """Per-op-type YCSB latency tracker (100 µs bucket granularity)."""
+
+    _BUCKETS = 1000
+    _US_PER_BUCKET = 100
+
+    __slots__ = (
+        "_hist", "_overflow", "_ops", "_total_us",
+        "_win_ops", "_win_total_us", "_min_us", "_max_us",
+    )
+
+    def __init__(self) -> None:
+        self._hist = [0] * self._BUCKETS
+        self._overflow = 0
+        self._ops = 0
+        self._total_us = 0
+        self._win_ops = 0
+        self._win_total_us = 0
+        self._min_us = -1
+        self._max_us = -1
+
+    def add(self, latency_us: int) -> None:
+        bucket = latency_us // self._US_PER_BUCKET
+        if bucket >= self._BUCKETS:
+            self._overflow += 1
+        else:
+            self._hist[bucket] += 1
+        self._ops += 1
+        self._total_us += latency_us
+        self._win_ops += 1
+        self._win_total_us += latency_us
+        if self._min_us < 0 or latency_us < self._min_us:
+            self._min_us = latency_us
+        if latency_us > self._max_us:
+            self._max_us = latency_us
+
+    def _percentile_us(self, p: float) -> float:
+        if self._ops == 0:
+            return 0.0
+        cum = 0
+        for i, count in enumerate(self._hist):
+            cum += count
+            if cum / self._ops >= p:
+                return float(i * self._US_PER_BUCKET)
+        return float(self._BUCKETS * self._US_PER_BUCKET)
+
+    def format_period_total(self, name: str) -> str:
+        win_avg = self._win_total_us / self._win_ops if self._win_ops else 0
+        tot_avg = self._total_us / self._ops if self._ops else 0
+        p95 = _fmt_us(self._percentile_us(0.95))
+        p99 = _fmt_us(self._percentile_us(0.99))
+        return (
+            f"{name}: Period[Ops:{self._win_ops}"
+            f" Avg Latency:{_fmt_us(win_avg)}]"
+            f" Total[Ops:{self._ops}"
+            f" Latency:(avg:{_fmt_us(tot_avg)}"
+            f" Min:{_fmt_us(max(0, self._min_us))}"
+            f" Max:{_fmt_us(max(0, self._max_us))})"
+            f" 95th%:{p95} 99th%:{p99}]"
+        )
+
+    def reset_window(self) -> None:
+        self._win_ops = 0
+        self._win_total_us = 0
+
+
 class _Stats:
     """Minimal per-interval stats collector."""
 
-    def __init__(self, warmup: int, cooldown: int) -> None:
+    def __init__(self, warmup: int, cooldown: int, latency_style: str = "columns") -> None:
         self._lock = __import__("threading").Lock()
         self._reads = 0
         self._writes = 0
@@ -68,6 +141,9 @@ class _Stats:
         self._current = 0
         self._latencies: list[float] = []
         self._intervals: list[tuple[int, int]] = []
+        self._latency_style = latency_style
+        self._ycsb_read = _YcsbTracker()
+        self._ycsb_write = _YcsbTracker()
 
     def set_planned(self, n: int) -> None:
         self._planned = n
@@ -95,6 +171,9 @@ class _Stats:
                 self._errors += 1
             if include and not is_error:
                 self._latencies.append(latency_ms)
+            if not is_error:
+                tracker = self._ycsb_read if is_read else self._ycsb_write
+                tracker.add(int(latency_ms * 1000.0))
 
     def end_interval(self) -> tuple[int, int, int]:
         with self._lock:
@@ -104,6 +183,19 @@ class _Stats:
             self._prev_writes = self._writes
             self._intervals.append((dr, dw))
             return dr, dw, self._errors
+
+    def format_ticker(self, dr: int, dw: int, errs: int, stamp: str) -> str:
+        """Return one ticker line (or YCSB block) for a completed interval."""
+        total = dr + dw
+        tps_line = f"{stamp} write(tps={dw}) read(tps={dr}) total(tps={total} errors={errs})"
+        if self._latency_style != "ycsb":
+            return tps_line
+        with self._lock:
+            read_line = self._ycsb_read.format_period_total("read")
+            write_line = self._ycsb_write.format_period_total("write")
+            self._ycsb_read.reset_window()
+            self._ycsb_write.reset_window()
+        return f"{tps_line}\n{write_line}\n{read_line}"
 
     def summary(self) -> list[str]:
         ivs = self._intervals
@@ -132,17 +224,18 @@ class _Stats:
             f"  Total TPS: avg={avg(t):.0f}  median={median(t):.0f}",
         ]
 
-        lat = sorted(self._latencies)
-        if lat:
-            def pct(p: float) -> float:
-                k = max(1, int(math.ceil(p / 100.0 * len(lat))))
-                return lat[k - 1]
+        if self._latency_style != "ycsb":
+            lat = sorted(self._latencies)
+            if lat:
+                def pct(p: float) -> float:
+                    k = max(1, int(math.ceil(p / 100.0 * len(lat))))
+                    return lat[k - 1]
 
-            lines.append(
-                f"  Latency p50={pct(50):.1f}ms  p90={pct(90):.1f}ms  "
-                f"p99={pct(99):.1f}ms  p99.9={pct(99.9):.1f}ms  "
-                f"max={lat[-1]:.1f}ms"
-            )
+                lines.append(
+                    f"  Latency p50={pct(50):.1f}ms  p90={pct(90):.1f}ms  "
+                    f"p99={pct(99):.1f}ms  p99.9={pct(99.9):.1f}ms  "
+                    f"max={lat[-1]:.1f}ms"
+                )
 
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if sys.platform == "darwin":
@@ -304,6 +397,14 @@ async def async_main() -> int:
     p.add_argument("--cooldown", type=int, default=4, help="Cooldown intervals.")
     p.add_argument("--seed", type=int, default=0, help="RNG seed; 0 = random.")
     p.add_argument(
+        "--latency-style",
+        choices=("columns", "ycsb"),
+        default="columns",
+        help="Latency output style: 'columns' (summary percentiles) or "
+             "'ycsb' (per-interval avg/min/max/percentile per op type, "
+             "mirroring YCSB output format) (default: %(default)s).",
+    )
+    p.add_argument(
         "--tracemalloc",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -333,7 +434,7 @@ async def async_main() -> int:
     fields = _parse_bin_spec(args.bins)
     n_iv = max(1, math.ceil(args.duration))
 
-    stats = _Stats(args.warmup, args.cooldown)
+    stats = _Stats(args.warmup, args.cooldown, latency_style=args.latency_style)
     stats.set_planned(n_iv)
     stop = asyncio.Event()
 
@@ -363,9 +464,8 @@ async def async_main() -> int:
             break
         stats.set_current(iv + 1)
         dr, dw, errs = stats.end_interval()
-        total = dr + dw
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"{stamp} write(tps={dw}) read(tps={dr}) total(tps={total} errors={errs})")
+        print(stats.format_ticker(dr, dw, errs, stamp))
 
     stop.set()
     for t in tasks:
