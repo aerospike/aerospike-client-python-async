@@ -1,4 +1,17 @@
-# Aerospike Async Python Client
+# Aerospike Async Python Client — `core-v2-maintenance`
+
+> **You are looking at the `core-v2-maintenance` branch.** This branch tracks the
+> released **Aerospike Rust client v2** line (`aerospike-core` `branch = "v2"`)
+> and exists to give QA a stable PAC build for testing rust-core v2 in the
+> field. Mainline development (`main` / `dev`) targets rust-core v3 and
+> includes features (MRTs, path expressions, compression, strong-consistency
+> read modes) that are **not** present on this branch.
+>
+> Forward-port policy: only PAC-internal fixes that are independent of v3
+> rust-core APIs are eligible for backport here.
+>
+> Distributed on PyPI as `aerospike-async-core-v2` (separate from the v3
+> `aerospike-async` distribution).
 
 ## Installation
 
