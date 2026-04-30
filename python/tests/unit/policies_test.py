@@ -237,8 +237,12 @@ class TestWritePolicy:
     def test_max_retries_default(self):
         """Test max_retries default value (int, not nullable)."""
         wp = WritePolicy()
-        # Default should be 2 (per Rust core default)
-        assert wp.max_retries == 2
+        # On rust-core v2 (CLIENT-4405), WritePolicy::default() explicitly
+        # overrides max_retries to 0 — writes do not retry by default.
+        # ReadPolicy/BatchPolicy/QueryPolicy still default to 2 from
+        # BasePolicy::default(). On rust-core v3 the WritePolicy override
+        # was not applied, and its default remains 2.
+        assert wp.max_retries == 0
 
         wp.max_retries = 5
         assert wp.max_retries == 5

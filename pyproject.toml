@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "aerospike-async-core-v2"
 description = "Aerospike Python Async Client (v2 core maintenance line) — async I/O over the released Aerospike Rust client core v2 (PyO3). For QA testing of rust-core v2; for v3 features install `aerospike-async`."
 readme = "README.md"
+dynamic = ["version"]
 requires-python = ">=3.10"
 dependencies = ["uvloop>=0.17; sys_platform != 'win32'"]
 python-packages = ["aerospike_async"]
