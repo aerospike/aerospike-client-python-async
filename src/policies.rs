@@ -149,6 +149,19 @@ use crate::TlsConfig;
             self._as.use_compression = use_compression;
         }
 
+        /// Minimum command-buffer size (bytes) at which compression actually
+        /// fires. Buffers `<=` this value are sent uncompressed even when
+        /// ``use_compression`` is ``True``. Default: ``128``.
+        #[getter]
+        pub fn get_compression_threshold(&self) -> usize {
+            self._as.compression_threshold
+        }
+
+        #[setter]
+        pub fn set_compression_threshold(&mut self, compression_threshold: usize) {
+            self._as.compression_threshold = compression_threshold;
+        }
+
         #[getter]
         pub fn get_txn(&self) -> Option<Txn> {
             self._as.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
@@ -253,7 +266,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None, compression_threshold=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -265,6 +278,7 @@ use crate::TlsConfig;
             read_mode_sc: Option<ReadModeSC>,
             read_touch_ttl: Option<i32>,
             use_compression: Option<bool>,
+            compression_threshold: Option<usize>,
         ) -> PyResult<Py<ReadPolicy>> {
             let mut rp = aerospike_core::ReadPolicy::default();
             if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
@@ -289,6 +303,7 @@ use crate::TlsConfig;
                 };
             }
             if let Some(v) = use_compression { rp.base_policy.use_compression = v; }
+            if let Some(v) = compression_threshold { rp.base_policy.compression_threshold = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -390,6 +405,19 @@ use crate::TlsConfig;
             self._as.base_policy.use_compression = use_compression;
         }
 
+        /// Minimum command-buffer size (bytes) at which compression actually
+        /// fires. Buffers `<=` this value are sent uncompressed even when
+        /// ``use_compression`` is ``True``. Default: ``128``.
+        #[getter]
+        pub fn get_compression_threshold(&self) -> usize {
+            self._as.base_policy.compression_threshold
+        }
+
+        #[setter]
+        pub fn set_compression_threshold(&mut self, compression_threshold: usize) {
+            self._as.base_policy.compression_threshold = compression_threshold;
+        }
+
         #[getter]
         pub fn get_txn(&self) -> Option<Txn> {
             self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
@@ -471,7 +499,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -487,6 +515,7 @@ use crate::TlsConfig;
             respond_per_each_op: Option<bool>,
             durable_delete: Option<bool>,
             use_compression: Option<bool>,
+            compression_threshold: Option<usize>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
             if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
@@ -518,6 +547,7 @@ use crate::TlsConfig;
             if let Some(v) = respond_per_each_op { wp.respond_per_each_op = v; }
             if let Some(v) = durable_delete { wp.durable_delete = v; }
             if let Some(v) = use_compression { wp.base_policy.use_compression = v; }
+            if let Some(v) = compression_threshold { wp.base_policy.compression_threshold = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -703,6 +733,19 @@ use crate::TlsConfig;
             self._as.base_policy.use_compression = use_compression;
         }
 
+        /// Minimum command-buffer size (bytes) at which compression actually
+        /// fires. Buffers `<=` this value are sent uncompressed even when
+        /// ``use_compression`` is ``True``. Default: ``128``.
+        #[getter]
+        pub fn get_compression_threshold(&self) -> usize {
+            self._as.base_policy.compression_threshold
+        }
+
+        #[setter]
+        pub fn set_compression_threshold(&mut self, compression_threshold: usize) {
+            self._as.base_policy.compression_threshold = compression_threshold;
+        }
+
         #[getter]
         pub fn get_txn(&self) -> Option<Txn> {
             self._as.base_policy.txn.as_ref().map(|arc| Txn { _as: arc.clone() })
@@ -863,6 +906,19 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_use_compression(&mut self, use_compression: bool) {
             self._as.base_policy.use_compression = use_compression;
+        }
+
+        /// Minimum command-buffer size (bytes) at which compression actually
+        /// fires. Buffers `<=` this value are sent uncompressed even when
+        /// ``use_compression`` is ``True``. Default: ``128``.
+        #[getter]
+        pub fn get_compression_threshold(&self) -> usize {
+            self._as.base_policy.compression_threshold
+        }
+
+        #[setter]
+        pub fn set_compression_threshold(&mut self, compression_threshold: usize) {
+            self._as.base_policy.compression_threshold = compression_threshold;
         }
 
         #[getter]
@@ -1061,7 +1117,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -1073,6 +1129,7 @@ use crate::TlsConfig;
             respond_all_keys: Option<bool>,
             replica: Option<Replica>,
             use_compression: Option<bool>,
+            compression_threshold: Option<usize>,
         ) -> PyResult<Py<BatchPolicy>> {
             let mut bp = aerospike_core::BatchPolicy::default();
             if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
@@ -1086,6 +1143,7 @@ use crate::TlsConfig;
             if let Some(v) = respond_all_keys { bp.respond_all_keys = v; }
             if let Some(v) = replica { bp.replica = (&v).into(); }
             if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
+            if let Some(v) = compression_threshold { bp.base_policy.compression_threshold = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -1175,6 +1233,19 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_use_compression(&mut self, use_compression: bool) {
             self._as.base_policy.use_compression = use_compression;
+        }
+
+        /// Minimum command-buffer size (bytes) at which compression actually
+        /// fires. Buffers `<=` this value are sent uncompressed even when
+        /// ``use_compression`` is ``True``. Default: ``128``.
+        #[getter]
+        pub fn get_compression_threshold(&self) -> usize {
+            self._as.base_policy.compression_threshold
+        }
+
+        #[setter]
+        pub fn set_compression_threshold(&mut self, compression_threshold: usize) {
+            self._as.base_policy.compression_threshold = compression_threshold;
         }
 
         #[getter]
@@ -1924,6 +1995,35 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_buffer_reclaim_threshold(&mut self, value: usize) {
             self._as.buffer_reclaim_threshold = value;
+        }
+
+        /// Maximum number of errors (network errors plus server-side ``TIMEOUT``,
+        /// ``DEVICE_OVERLOAD``, ``KEY_BUSY``) tolerated against a single node within
+        /// one ``error_rate_window``. Once exceeded, the client trips a per-node
+        /// circuit breaker and rejects further commands targeted at that node with
+        /// a ``MaxErrorRate`` exception until the next window resets. Set to ``0``
+        /// to disable. Default: ``100``.
+        #[getter]
+        pub fn get_max_error_rate(&self) -> usize {
+            self._as.max_error_rate
+        }
+
+        #[setter]
+        pub fn set_max_error_rate(&mut self, value: usize) {
+            self._as.max_error_rate = value;
+        }
+
+        /// Number of cluster tend iterations after which each node's error counter
+        /// is reset. Smaller values make the circuit breaker more aggressive,
+        /// larger values more lenient. Default: ``1``.
+        #[getter]
+        pub fn get_error_rate_window(&self) -> usize {
+            self._as.error_rate_window
+        }
+
+        #[setter]
+        pub fn set_error_rate_window(&mut self, value: usize) {
+            self._as.error_rate_window = value;
         }
 
         /// TendInterval determines interval for checking for cluster state changes.

@@ -441,6 +441,22 @@ use crate::record::{Key, PythonValue, Record};
                 args.as_deref(),
             );
         }
+
+        /// Attach an ops projection. The server returns the result of these
+        /// operations for each matching record instead of the bin set
+        /// configured via ``bins``. Mutually exclusive with ``bins`` (the
+        /// server uses ``operations`` if both are set).
+        ///
+        /// Foreground queries accept only read ops. Server versions before
+        /// 8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
+        /// CDT, expression, bit, and HLL reads.
+        pub fn set_operations(&mut self, py: Python<'_>, ops: Vec<Py<PyAny>>) -> PyResult<()> {
+            let py_ops_with_ctx = crate::operations::extract_py_ops_with_ctx(py, &ops)?;
+            let (core_ops, _has_write) =
+                crate::operations::convert_ops_with_ctx_to_core(&py_ops_with_ctx, false)?;
+            self._as.set_operations(core_ops);
+            Ok(())
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////

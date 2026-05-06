@@ -105,6 +105,12 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
 create_exception!(aerospike_async.exceptions, CommitFailedError, AerospikeError);
 
+// Per-node circuit breaker tripped (client-side, not sent to server). Carries
+// the offending node identifier in the exception message. Raised when a node
+// exceeds the policy's `max_error_rate` over `error_rate_window` ticks, so the
+// client backs off rather than forwarding more commands to that node.
+create_exception!(aerospike_async.exceptions, MaxErrorRate, AerospikeError);
+
 
 // Must define a wrapper type because of the orphan rule
 pub struct RustClientError(pub(crate) Error);
@@ -134,46 +140,70 @@ impl From<RustClientError> for PyErr {
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string) => TimeoutError::new_err(string),
             Error::Chain(first, second) => {
-                // v3 wraps errors as Chain(outer, cause). Promote the most
-                // specific error: if either side is a ServerError, use that;
-                // otherwise convert the outer and append the cause message.
-                fn find_server_error(e: &Error) -> Option<(CoreResultCode, bool, &str)> {
-                    match e {
-                        Error::ServerError(rc, id, node) => Some((*rc, *id, node.as_str())),
-                        _ => None,
+                // v3's `Error::with_retry_context` wraps retried errors as
+                // `Chain(ClientError("iterations=…"), <inner>)`, where
+                // `<inner>` may itself be another Chain holding the prior
+                // sub-errors. The outer-first slot is therefore no longer
+                // reliably the "interesting" variant — we have to walk the
+                // whole chain and promote the most specific reachable
+                // typed leaf so callers can still `except TimeoutError` /
+                // `except ConnectionError` against retried failures.
+                fn flatten<'a>(e: &'a Error, out: &mut Vec<&'a Error>) {
+                    if let Error::Chain(a, b) = e {
+                        flatten(a, out);
+                        flatten(b, out);
+                    } else {
+                        out.push(e);
                     }
                 }
+                let mut leaves: Vec<&Error> = Vec::with_capacity(4);
+                flatten(&first, &mut leaves);
+                flatten(&second, &mut leaves);
 
-                if let Some((rc, id, node)) = find_server_error(&first).or_else(|| find_server_error(&second)) {
+                // Combined Display string preserves the iteration / last-node /
+                // sub-error context that `with_retry_context` attaches at the
+                // front of the chain — matches `Display for Error::Chain`.
+                let combined_msg = format!("{}\n\t{}", first, second);
+
+                // ServerError carries result code + in_doubt + node, so it
+                // wins over transport-level promotions when both are present.
+                if let Some((rc, id, node)) = leaves.iter().find_map(|n| match n {
+                    Error::ServerError(rc, id, node) => Some((*rc, *id, node.as_str())),
+                    _ => None,
+                }) {
                     let message = format!("Code: {:?}, In Doubt: {}, Node: {}", rc, id, node);
                     return create_server_error(message, rc, id);
                 }
 
-                let cause_msg = format!("{}", second);
-                match *first {
-                    Error::Timeout(msg) => {
-                        TimeoutError::new_err(format!("{msg}: {cause_msg}"))
-                    },
-                    Error::Connection(msg) => {
-                        ConnectionError::new_err(format!("{msg}: {cause_msg}"))
-                    },
-                    Error::InvalidNode(msg) => {
-                        InvalidNodeError::new_err(format!("{msg}: {cause_msg}"))
-                    },
-                    Error::InvalidNamespace(msg) => {
-                        InvalidNamespaceError::new_err(format!("{msg}: {cause_msg}"))
-                    },
-                    other => {
-                        let outer_err: PyErr = RustClientError(other).into();
-                        let msg = format!("{}: {}", outer_err, cause_msg);
-                        AerospikeError::new_err(msg)
-                    }
+                // Transport-level promotions, in priority order. Timeout and
+                // Connection are the common retried cases; InvalidNode /
+                // InvalidNamespace can show up in handshake retries.
+                if leaves.iter().any(|n| matches!(n, Error::Timeout(_))) {
+                    return TimeoutError::new_err(combined_msg);
                 }
+                if leaves.iter().any(|n| matches!(n, Error::Connection(_))) {
+                    return ConnectionError::new_err(combined_msg);
+                }
+                if leaves.iter().any(|n| matches!(n, Error::InvalidNode(_))) {
+                    return InvalidNodeError::new_err(combined_msg);
+                }
+                if leaves.iter().any(|n| matches!(n, Error::InvalidNamespace(_))) {
+                    return InvalidNamespaceError::new_err(combined_msg);
+                }
+
+                // Nothing typed reachable — surface the joined chain text on
+                // the generic AerospikeError. Avoids the recursive-conversion
+                // path of the previous implementation (which could swallow
+                // the cause when the outer-first was itself a Chain).
+                AerospikeError::new_err(combined_msg)
             },
             Error::ClientError(msg) => ClientError::new_err(msg),
             Error::CommitFailed { error_type, in_doubt, .. } => {
                 CommitFailedError::new_err(format!("{error_type} (in_doubt={in_doubt})"))
             },
+            Error::MaxErrorRate(node) => MaxErrorRate::new_err(format!(
+                "Max error rate exceeded for node {node}; backing off"
+            )),
             #[allow(unreachable_patterns)]
             other => AerospikeError::new_err(format!("Unknown error: {:?}", other)),
         }

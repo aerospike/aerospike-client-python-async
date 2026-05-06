@@ -145,6 +145,33 @@ use crate::policies::AdminPolicy;
             self._as.supports_app_id()
         }
 
+        /// Returns true if server supports CDT path expression operations
+        /// (``select_by_path`` / ``modify_by_path``). Requires server >= 8.1.1.
+        pub fn supports_cdt_path_expressions(&self) -> bool {
+            self._as.supports_cdt_path_expressions()
+        }
+
+        /// Returns true if server supports the enhanced expression API:
+        /// ``in_list``, ``map_keys``, ``map_values``, ``ctx_map_keys_in``,
+        /// ``ctx_and_filter``. Requires server >= 8.1.2.
+        pub fn supports_enhanced_expression_api(&self) -> bool {
+            self._as.supports_enhanced_expression_api()
+        }
+
+        /// Returns true if server supports extended read ops (CDT,
+        /// expression, bit, HLL reads) in foreground query ops projection.
+        /// Earlier servers only accept basic ``Read`` ops attached to a
+        /// query statement. Requires server >= 8.1.2.
+        pub fn supports_query_ops_projection_ext(&self) -> bool {
+            self._as.supports_query_ops_projection_ext()
+        }
+
+        /// Returns true if server supports Multi-Record Transactions
+        /// (MRT). Requires server >= 8.0.0.
+        pub fn supports_mrt(&self) -> bool {
+            self._as.supports_mrt()
+        }
+
         pub fn __str__(&self) -> String {
             format!("{}.{}.{}.{}", self._as.major, self._as.minor, self._as.patch, self._as.build)
         }

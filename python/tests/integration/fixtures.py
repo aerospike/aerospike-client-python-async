@@ -62,8 +62,15 @@ class TestFixtureCleanDB(TestFixtureConnection):
 
     @pytest.fixture
     def key_invalid_namespace(self):
-        """Create a key with invalid namespace."""
-        return Key("test1", "test", 1)
+        """Create a key whose namespace does not exist on the cluster.
+
+        Used by negative tests that verify the client surfaces a typed
+        ``InvalidNamespaceError`` (and only that) when the requested
+        namespace is missing from the partition map. The literal name
+        ``nonexistent_ns`` is chosen so the resulting "Namespace not
+        found" warnings in test output read as obviously intentional.
+        """
+        return Key("nonexistent_ns", "test", 1)
 
 
 class TestFixtureInsertRecord(TestFixtureCleanDB):

@@ -13,748 +13,86 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+"""Unit tests for top-level policy classes (compression_threshold, circuit breaker)."""
+
 import pytest
+
 from aerospike_async import (
-    BasePolicy, QueryDuration, ReadPolicy, Replica, WritePolicy, QueryPolicy, BatchPolicy,
-    ReadModeAP, ReadModeSC, RecordExistsAction, GenerationPolicy,
-    CommitLevel, Expiration, FilterExpression as fe
+    BasePolicy,
+    BatchPolicy,
+    ClientPolicy,
+    QueryPolicy,
+    ReadPolicy,
+    WritePolicy,
 )
 
 
-class TestBasePolicy:
-    """Test BasePolicy functionality."""
+class TestCompressionThresholdDefault:
+    """Default ``compression_threshold`` is 128 bytes on every BasePolicy variant."""
 
-    def test_set_and_get_fields(self):
-        """Test setting and getting BasePolicy fields."""
-        bp = BasePolicy()
-        bp.read_mode_ap = ReadModeAP.ALL
-        bp.total_timeout = 20000
-        bp.max_retries = 4
-        bp.sleep_between_retries = 1000
-        bp.socket_timeout = 5000
-        filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
-        bp.filter_expression = filter_exp
+    @pytest.mark.parametrize("policy_cls", [BasePolicy, ReadPolicy, WritePolicy, QueryPolicy, BatchPolicy])
+    def test_default_is_128(self, policy_cls):
+        p = policy_cls()
+        assert p.compression_threshold == 128
 
-        assert bp.read_mode_ap == ReadModeAP.ALL
-        assert bp.total_timeout == 20000
-        assert bp.max_retries == 4
-        assert bp.sleep_between_retries == 1000
-        assert bp.socket_timeout == 5000
-        assert bp.filter_expression == filter_exp
 
-    def test_socket_timeout(self):
-        """Test socket_timeout on BasePolicy."""
-        bp = BasePolicy()
-        bp.socket_timeout = 3000
-        assert bp.socket_timeout == 3000
+class TestCompressionThresholdRoundTrip:
+    """Setting ``compression_threshold`` round-trips through the getter."""
 
-    def test_read_touch_ttl_default(self):
-        bp = BasePolicy()
-        assert bp.read_touch_ttl == 0
+    @pytest.mark.parametrize("policy_cls", [BasePolicy, ReadPolicy, WritePolicy, QueryPolicy, BatchPolicy])
+    def test_roundtrip(self, policy_cls):
+        p = policy_cls()
+        p.compression_threshold = 4096
+        assert p.compression_threshold == 4096
+        # Zero disables the threshold (every command goes through zlib).
+        p.compression_threshold = 0
+        assert p.compression_threshold == 0
 
-    def test_read_touch_ttl_valid_values(self):
-        bp = BasePolicy()
-        bp.read_touch_ttl = -1
-        assert bp.read_touch_ttl == -1
-        bp.read_touch_ttl = 0
-        assert bp.read_touch_ttl == 0
-        bp.read_touch_ttl = 50
-        assert bp.read_touch_ttl == 50
-        bp.read_touch_ttl = 100
-        assert bp.read_touch_ttl == 100
 
-    def test_read_touch_ttl_invalid_raises(self):
-        bp = BasePolicy()
-        with pytest.raises(ValueError):
-            bp.read_touch_ttl = -2
-        with pytest.raises(ValueError):
-            bp.read_touch_ttl = 101
+class TestCompressionThresholdFromFields:
+    """``from_fields`` builders accept ``compression_threshold`` keyword."""
 
-
-class TestWritePolicy:
-    """Test WritePolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting WritePolicy fields."""
-        wp = WritePolicy()
-        wp.record_exists_action = RecordExistsAction.UPDATE_ONLY
-        wp.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
-        wp.commit_level = CommitLevel.COMMIT_MASTER
-        wp.generation = 4
-        wp.expiration = Expiration.NEVER_EXPIRE
-        wp.send_key = True
-        wp.respond_per_each_op = True
-        wp.durable_delete = True
-
-        assert wp.record_exists_action == RecordExistsAction.UPDATE_ONLY
-        assert wp.generation_policy == GenerationPolicy.EXPECT_GEN_EQUAL
-        assert wp.commit_level == CommitLevel.COMMIT_MASTER
-        assert wp.generation == 4
-        assert wp.expiration == Expiration.NEVER_EXPIRE
-        assert wp.send_key is True
-        assert wp.respond_per_each_op is True
-        assert wp.durable_delete is True
-
-    def test_base_policy_inheritance(self):
-        """Test that WritePolicy inherits BasePolicy fields."""
-        wp = WritePolicy()
-        wp.read_mode_ap = ReadModeAP.ALL
-        wp.total_timeout = 15000
-        wp.max_retries = 3
-        wp.sleep_between_retries = 500
-        wp.socket_timeout = 3000
-        filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
-        wp.filter_expression = filter_exp
-
-        assert wp.read_mode_ap == ReadModeAP.ALL
-        assert wp.total_timeout == 15000
-        assert wp.max_retries == 3
-        assert wp.sleep_between_retries == 500
-        assert wp.socket_timeout == 3000
-        assert wp.filter_expression == filter_exp
-
-    def test_socket_timeout(self):
-        """Test socket_timeout on WritePolicy."""
-        wp = WritePolicy()
-        wp.socket_timeout = 4000
-        assert wp.socket_timeout == 4000
-
-    def test_read_touch_ttl(self):
-        wp = WritePolicy()
-        assert wp.read_touch_ttl == 0
-        wp.read_touch_ttl = 50
-        assert wp.read_touch_ttl == 50
-
-    def test_combined_base_and_write_policy_fields(self):
-        """Test that WritePolicy can use both BasePolicy and WritePolicy fields together."""
-        wp = WritePolicy()
-        # Set BasePolicy fields
-        wp.read_mode_ap = ReadModeAP.ONE
-        wp.total_timeout = 10000
-        wp.max_retries = 2
-        # Set WritePolicy-specific fields
-        wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
-        wp.generation_policy = GenerationPolicy.EXPECT_GEN_GREATER
-        wp.commit_level = CommitLevel.COMMIT_ALL
-        wp.generation = 5
-        wp.expiration = Expiration.NEVER_EXPIRE
-        wp.send_key = False
-        wp.durable_delete = True
-
-        # Verify BasePolicy fields
-        assert wp.read_mode_ap == ReadModeAP.ONE
-        assert wp.total_timeout == 10000
-        assert wp.max_retries == 2
-        # Verify WritePolicy fields
-        assert wp.record_exists_action == RecordExistsAction.REPLACE_ONLY
-        assert wp.generation_policy == GenerationPolicy.EXPECT_GEN_GREATER
-        assert wp.commit_level == CommitLevel.COMMIT_ALL
-        assert wp.generation == 5
-        assert wp.expiration == Expiration.NEVER_EXPIRE
-        assert wp.send_key is False
-        assert wp.durable_delete is True
-
-    def test_isinstance_base_policy(self):
-        """Test that WritePolicy is an instance of BasePolicy."""
-        wp = WritePolicy()
-        assert isinstance(wp, BasePolicy)
-
-    def test_filter_expression_clear(self):
-        """Test clearing filter_expression on WritePolicy."""
-        wp = WritePolicy()
-        filter_exp = fe.eq(fe.string_bin("name"), fe.string_val("test"))
-        wp.filter_expression = filter_exp
-        assert wp.filter_expression == filter_exp
-
-        # Clear the filter expression
-        wp.filter_expression = None
-        assert wp.filter_expression is None
-
-    def test_all_record_exists_action_values(self):
-        """Test all possible RecordExistsAction enum values."""
-        wp = WritePolicy()
-
-        actions = [
-            RecordExistsAction.UPDATE,
-            RecordExistsAction.UPDATE_ONLY,
-            RecordExistsAction.REPLACE,
-            RecordExistsAction.REPLACE_ONLY,
-            RecordExistsAction.CREATE_ONLY,
-        ]
-
-        for action in actions:
-            wp.record_exists_action = action
-            assert wp.record_exists_action == action
-
-    def test_all_generation_policy_values(self):
-        """Test all possible GenerationPolicy enum values."""
-        wp = WritePolicy()
-
-        policies = [
-            GenerationPolicy.NONE,
-            GenerationPolicy.EXPECT_GEN_EQUAL,
-            GenerationPolicy.EXPECT_GEN_GREATER,
-        ]
-
-        for policy in policies:
-            wp.generation_policy = policy
-            assert wp.generation_policy == policy
-
-    def test_all_commit_level_values(self):
-        """Test all possible CommitLevel enum values."""
-        wp = WritePolicy()
-
-        commit_levels = [
-            CommitLevel.COMMIT_ALL,
-            CommitLevel.COMMIT_MASTER,
-        ]
-
-        for level in commit_levels:
-            wp.commit_level = level
-            assert wp.commit_level == level
-
-    def test_expiration_values(self):
-        """Test different Expiration values."""
-        wp = WritePolicy()
-
-        # Test NEVER_EXPIRE
-        wp.expiration = Expiration.NEVER_EXPIRE
-        assert wp.expiration == Expiration.NEVER_EXPIRE
-
-        # Test NAMESPACE_DEFAULT
-        wp.expiration = Expiration.NAMESPACE_DEFAULT
-        assert wp.expiration == Expiration.NAMESPACE_DEFAULT
-
-        # Test DONT_UPDATE
-        wp.expiration = Expiration.DONT_UPDATE
-        assert wp.expiration == Expiration.DONT_UPDATE
-
-        # Test seconds
-        exp_seconds = Expiration.seconds(3600)
-        wp.expiration = exp_seconds
-        assert wp.expiration == exp_seconds
-
-    def test_max_retries_default(self):
-        """Test max_retries default value (int, not nullable)."""
-        wp = WritePolicy()
-        # Default should be 2 (per Rust core default)
-        assert wp.max_retries == 2
-
-        wp.max_retries = 5
-        assert wp.max_retries == 5
-
-        # Setting to 0 is valid (no retries)
-        wp.max_retries = 0
-        assert wp.max_retries == 0
-
-    def test_generation_edge_cases(self):
-        """Test generation field with various values."""
-        wp = WritePolicy()
-
-        # Test zero
-        wp.generation = 0
-        assert wp.generation == 0
-
-        # Test large value
-        wp.generation = 4294967295  # max u32
-        assert wp.generation == 4294967295
-
-        # Test typical value
-        wp.generation = 100
-        assert wp.generation == 100
-
-    def test_boolean_fields_all_combinations(self):
-        """Test all combinations of boolean fields."""
-        wp = WritePolicy()
-
-        # Test send_key
-        wp.send_key = True
-        assert wp.send_key is True
-        wp.send_key = False
-        assert wp.send_key is False
-
-        # Test respond_per_each_op
-        wp.respond_per_each_op = True
-        assert wp.respond_per_each_op is True
-        wp.respond_per_each_op = False
-        assert wp.respond_per_each_op is False
-
-        # Test durable_delete
-        wp.durable_delete = True
-        assert wp.durable_delete is True
-        wp.durable_delete = False
-        assert wp.durable_delete is False
-
-
-class TestReadPolicy:
-    """Test ReadPolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting ReadPolicy fields."""
-        rp = ReadPolicy()
-        rp.read_mode_ap = ReadModeAP.ALL
-        rp.total_timeout = 20000
-        rp.max_retries = 4
-        rp.sleep_between_retries = 1000
-        filter_exp = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
-        rp.filter_expression = filter_exp
-
-        assert rp.read_mode_ap == ReadModeAP.ALL
-        assert rp.total_timeout == 20000
-        assert rp.max_retries == 4
-        assert rp.sleep_between_retries == 1000
-        assert rp.filter_expression == filter_exp
-
-    def test_base_policy_inheritance(self):
-        """Test that ReadPolicy inherits BasePolicy fields."""
-        rp = ReadPolicy()
-        rp.read_mode_ap = ReadModeAP.ALL
-        rp.total_timeout = 15000
-        rp.max_retries = 3
-        rp.sleep_between_retries = 500
-        rp.socket_timeout = 3000
-        filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
-        rp.filter_expression = filter_exp
-
-        assert rp.read_mode_ap == ReadModeAP.ALL
-        assert rp.total_timeout == 15000
-        assert rp.max_retries == 3
-        assert rp.sleep_between_retries == 500
-        assert rp.socket_timeout == 3000
-        assert rp.filter_expression == filter_exp
-
-    def test_isinstance_base_policy(self):
-        """Test that ReadPolicy is an instance of BasePolicy."""
-        rp = ReadPolicy()
-        assert isinstance(rp, BasePolicy)
-
-    def test_socket_timeout(self):
-        """Test socket_timeout on ReadPolicy."""
-        rp = ReadPolicy()
-        rp.socket_timeout = 3000
-        assert rp.socket_timeout == 3000
-
-    def test_read_touch_ttl(self):
-        rp = ReadPolicy()
-        assert rp.read_touch_ttl == 0
-        rp.read_touch_ttl = 80
-        assert rp.read_touch_ttl == 80
-        rp.read_touch_ttl = -1
-        assert rp.read_touch_ttl == -1
-
-    def test_read_touch_ttl_invalid_raises(self):
-        rp = ReadPolicy()
-        with pytest.raises(ValueError):
-            rp.read_touch_ttl = 101
-
-
-class TestQueryPolicy:
-    """Test QueryPolicy functionality."""
-
-    def test_set_and_get_fields(self):
-        """Test setting and getting QueryPolicy fields."""
-        qp = QueryPolicy()
-        qp.max_concurrent_nodes = 1
-        qp.record_queue_size = 1023
-        # Note: fail_on_cluster_change field doesn't exist in TLS branch
-        # qp.fail_on_cluster_change = False
-
-        assert qp.max_concurrent_nodes == 1
-        assert qp.record_queue_size == 1023
-        # Note: fail_on_cluster_change field doesn't exist in TLS branch
-        # assert qp.fail_on_cluster_change is False
-
-    def test_socket_timeout(self):
-        """Test socket_timeout on QueryPolicy."""
-        qp = QueryPolicy()
-        qp.socket_timeout = 6000
-        assert qp.socket_timeout == 6000
-
-    def test_records_per_second(self):
-        """Test records_per_second field."""
-        qp = QueryPolicy()
-
-        # Test default value
-        assert qp.records_per_second == 0
-
-        # Test setting values
-        qp.records_per_second = 1000
-        assert qp.records_per_second == 1000
-
-        qp.records_per_second = 5000
-        assert qp.records_per_second == 5000
-
-        # Test zero (no limit)
-        qp.records_per_second = 0
-        assert qp.records_per_second == 0
-
-    def test_max_records(self):
-        """Test max_records field."""
-        qp = QueryPolicy()
-
-        # Test default value
-        assert qp.max_records == 0
-
-        # Test setting values
-        qp.max_records = 10000
-        assert qp.max_records == 10000
-
-        qp.max_records = 50000
-        assert qp.max_records == 50000
-
-        # Test zero (no limit)
-        qp.max_records = 0
-        assert qp.max_records == 0
-
-        # Test large value
-        qp.max_records = 18446744073709551615  # max u64
-        assert qp.max_records == 18446744073709551615
-
-    def test_expected_duration(self):
-        """Test expected_duration field with QueryDuration enum."""
-        qp = QueryPolicy()
-
-        # Test default value
-        assert qp.expected_duration == QueryDuration.LONG
-
-        # Test all enum values
-        qp.expected_duration = QueryDuration.LONG
-        assert qp.expected_duration == QueryDuration.LONG
-
-        qp.expected_duration = QueryDuration.SHORT
-        assert qp.expected_duration == QueryDuration.SHORT
-
-        qp.expected_duration = QueryDuration.LONG_RELAX_AP
-        assert qp.expected_duration == QueryDuration.LONG_RELAX_AP
-
-        # Test inequality
-        assert qp.expected_duration != QueryDuration.LONG
-        assert qp.expected_duration != QueryDuration.SHORT
-
-    def test_replica(self):
-        """Test replica field with Replica enum."""
-        qp = QueryPolicy()
-
-        # Test default value
-        assert qp.replica == Replica.SEQUENCE
-
-        # Test all enum values
-        qp.replica = Replica.MASTER
-        assert qp.replica == Replica.MASTER
-
-        qp.replica = Replica.SEQUENCE
-        assert qp.replica == Replica.SEQUENCE
-
-        qp.replica = Replica.PREFER_RACK
-        assert qp.replica == Replica.PREFER_RACK
-
-        # Test inequality
-        assert qp.replica != Replica.MASTER
-        assert qp.replica != Replica.SEQUENCE
-
-    def test_base_policy_inheritance(self):
-        """Test that QueryPolicy inherits BasePolicy fields."""
-        qp = QueryPolicy()
-        qp.read_mode_ap = ReadModeAP.ALL
-        qp.total_timeout = 15000
-        qp.max_retries = 3
-        qp.sleep_between_retries = 500
-        qp.socket_timeout = 3000
-        filter_exp = fe.eq(fe.string_bin("status"), fe.string_val("active"))
-        qp.filter_expression = filter_exp
-
-        assert qp.read_mode_ap == ReadModeAP.ALL
-        assert qp.total_timeout == 15000
-        assert qp.max_retries == 3
-        assert qp.sleep_between_retries == 500
-        assert qp.socket_timeout == 3000
-        assert qp.filter_expression == filter_exp
-
-    def test_combined_base_and_query_policy_fields(self):
-        """Test that QueryPolicy can use both BasePolicy and QueryPolicy fields together."""
-        qp = QueryPolicy()
-        # Set BasePolicy fields
-        qp.read_mode_ap = ReadModeAP.ONE
-        qp.total_timeout = 10000
-        qp.max_retries = 2
-        # Set QueryPolicy-specific fields
-        qp.max_concurrent_nodes = 4
-        qp.record_queue_size = 2048
-        qp.records_per_second = 2000
-        qp.max_records = 50000
-        qp.expected_duration = QueryDuration.SHORT
-        qp.replica = Replica.PREFER_RACK
-
-        # Verify BasePolicy fields
-        assert qp.read_mode_ap == ReadModeAP.ONE
-        assert qp.total_timeout == 10000
-        assert qp.max_retries == 2
-        # Verify QueryPolicy fields
-        assert qp.max_concurrent_nodes == 4
-        assert qp.record_queue_size == 2048
-        assert qp.records_per_second == 2000
-        assert qp.max_records == 50000
-        assert qp.expected_duration == QueryDuration.SHORT
-        assert qp.replica == Replica.PREFER_RACK
-
-    def test_isinstance_base_policy(self):
-        """Test that QueryPolicy is an instance of BasePolicy."""
-        qp = QueryPolicy()
-        assert isinstance(qp, BasePolicy)
-
-    def test_base_policy(self):
-        """Test base_policy field."""
-        qp = QueryPolicy()
-
-        # Test default base_policy exists
-        assert qp.base_policy is not None
-        assert isinstance(qp.base_policy, BasePolicy)
-
-        # Test setting a new base_policy
-        new_base = BasePolicy()
-        new_base.total_timeout = 5000
-        new_base.max_retries = 3
-
-        qp.base_policy = new_base
-        assert qp.base_policy is not None
-        assert qp.base_policy.total_timeout == 5000
-        assert qp.base_policy.max_retries == 3
-
-    def test_all_fields_together(self):
-        """Test setting all QueryPolicy fields together."""
-        qp = QueryPolicy()
-
-        # Set all fields
-        qp.max_concurrent_nodes = 4
-        qp.record_queue_size = 2048
-        qp.records_per_second = 2000
-        qp.max_records = 50000
-        qp.expected_duration = QueryDuration.SHORT
-        qp.replica = Replica.PREFER_RACK
-
-        base = BasePolicy()
-        base.total_timeout = 10000
-        base.max_retries = 5
-        qp.base_policy = base
-
-        # Verify all fields
-        assert qp.max_concurrent_nodes == 4
-        assert qp.record_queue_size == 2048
-        assert qp.records_per_second == 2000
-        assert qp.max_records == 50000
-        assert qp.expected_duration == QueryDuration.SHORT
-        assert qp.replica == Replica.PREFER_RACK
-        assert qp.base_policy.total_timeout == 10000
-        assert qp.base_policy.max_retries == 5
-
-
-class TestBasePolicySync:
-    """Test that BasePolicy properties are synced between direct access and base_policy."""
-
-    def test_read_policy_base_policy_sync(self):
-        """Test that ReadPolicy direct property access syncs with base_policy."""
-        rp = ReadPolicy()
-
-        # Set properties directly on ReadPolicy
-        rp.total_timeout = 999
-        rp.max_retries = 5
-        rp.sleep_between_retries = 100
-        rp.read_mode_ap = ReadModeAP.ALL
-        rp.socket_timeout = 2000
-
-        # Verify they're synced with base_policy
-        assert rp.total_timeout == 999
-        assert rp.base_policy.total_timeout == 999
-        assert rp.max_retries == 5
-        assert rp.base_policy.max_retries == 5
-        assert rp.sleep_between_retries == 100
-        assert rp.base_policy.sleep_between_retries == 100
-        assert rp.read_mode_ap == ReadModeAP.ALL
-        assert rp.base_policy.read_mode_ap == ReadModeAP.ALL
-        assert rp.socket_timeout == 2000
-        assert rp.base_policy.socket_timeout == 2000
-
-    def test_write_policy_base_policy_sync(self):
-        """Test that WritePolicy direct property access syncs with base_policy."""
-        wp = WritePolicy()
-
-        # Set properties directly on WritePolicy
-        wp.total_timeout = 888
-        wp.max_retries = 3
-        wp.sleep_between_retries = 200
-        wp.read_mode_ap = ReadModeAP.ONE
-        wp.socket_timeout = 3000
-
-        # Verify they're synced with base_policy
-        assert wp.total_timeout == 888
-        assert wp.base_policy.total_timeout == 888
-        assert wp.max_retries == 3
-        assert wp.base_policy.max_retries == 3
-        assert wp.sleep_between_retries == 200
-        assert wp.base_policy.sleep_between_retries == 200
-        assert wp.read_mode_ap == ReadModeAP.ONE
-        assert wp.base_policy.read_mode_ap == ReadModeAP.ONE
-        assert wp.socket_timeout == 3000
-        assert wp.base_policy.socket_timeout == 3000
-
-    def test_query_policy_base_policy_sync(self):
-        """Test that QueryPolicy direct property access syncs with base_policy."""
-        qp = QueryPolicy()
-
-        # Set properties directly on QueryPolicy
-        qp.total_timeout = 777
-        qp.max_retries = 4
-        qp.sleep_between_retries = 300
-        qp.read_mode_ap = ReadModeAP.ALL
-        qp.socket_timeout = 4000
-
-        # Verify they're synced with base_policy
-        assert qp.total_timeout == 777
-        assert qp.base_policy.total_timeout == 777
-        assert qp.max_retries == 4
-        assert qp.base_policy.max_retries == 4
-        assert qp.sleep_between_retries == 300
-        assert qp.base_policy.sleep_between_retries == 300
-        assert qp.read_mode_ap == ReadModeAP.ALL
-        assert qp.base_policy.read_mode_ap == ReadModeAP.ALL
-        assert qp.socket_timeout == 4000
-        assert qp.base_policy.socket_timeout == 4000
-
-    def test_batch_policy_base_policy_sync(self):
-        """Test that BatchPolicy direct property access syncs with base_policy."""
-        bp = BatchPolicy()
-
-        # Set properties directly on BatchPolicy
-        bp.total_timeout = 666
-        bp.max_retries = 2
-        bp.sleep_between_retries = 400
-        bp.read_mode_ap = ReadModeAP.ONE
-        bp.socket_timeout = 5000
-
-        # Verify they're synced with base_policy
-        assert bp.total_timeout == 666
-        assert bp.base_policy.total_timeout == 666
-        assert bp.max_retries == 2
-        assert bp.base_policy.max_retries == 2
-        assert bp.sleep_between_retries == 400
-        assert bp.base_policy.sleep_between_retries == 400
-        assert bp.read_mode_ap == ReadModeAP.ONE
-        assert bp.base_policy.read_mode_ap == ReadModeAP.ONE
-        assert bp.socket_timeout == 5000
-        assert bp.base_policy.socket_timeout == 5000
-
-    def test_read_policy_read_touch_ttl_sync(self):
-        rp = ReadPolicy()
-        rp.read_touch_ttl = 80
-        assert rp.read_touch_ttl == 80
-        assert rp.base_policy.read_touch_ttl == 80
-
-    def test_write_policy_read_touch_ttl_sync(self):
-        wp = WritePolicy()
-        wp.read_touch_ttl = 50
-        assert wp.read_touch_ttl == 50
-        assert wp.base_policy.read_touch_ttl == 50
-
-    def test_base_policy_clone_reflects_current_state(self):
-        """Test that base_policy getter returns a clone that reflects current state."""
-        bp = BatchPolicy()
-        bp.total_timeout = 999
-
-        # Get base_policy (returns a clone)
-        base = bp.base_policy
-        assert base.total_timeout == 999
-
-        # Modify the policy directly
-        bp.total_timeout = 123
-
-        # The original clone should still have old value (it's a clone)
-        assert base.total_timeout == 999
-
-        # But getting base_policy again should have new value
-        assert bp.base_policy.total_timeout == 123
-
-    def test_base_policy_reassignment_syncs(self):
-        """Test that reassigning base_policy syncs with direct property access."""
-        bp = BatchPolicy()
-        bp.total_timeout = 999
-
-        # Get base_policy, modify it, and reassign
-        base = bp.base_policy
-        base.total_timeout = 123
-        bp.base_policy = base
-
-        # Both should now be synced
-        assert bp.total_timeout == 123
-        assert bp.base_policy.total_timeout == 123
-
-    def test_filter_expression_sync(self):
-        """Test that filter_expression syncs correctly across all policy types."""
-        filter_exp = fe.eq(fe.string_bin("test"), fe.string_val("value"))
-
-        # Test ReadPolicy
-        rp = ReadPolicy()
-        rp.filter_expression = filter_exp
-        assert rp.filter_expression == filter_exp
-        assert rp.base_policy.filter_expression == filter_exp
-
-        # Test WritePolicy
-        wp = WritePolicy()
-        wp.filter_expression = filter_exp
-        assert wp.filter_expression == filter_exp
-        assert wp.base_policy.filter_expression == filter_exp
-
-        # Test QueryPolicy
-        qp = QueryPolicy()
-        qp.filter_expression = filter_exp
-        assert qp.filter_expression == filter_exp
-        assert qp.base_policy.filter_expression == filter_exp
-
-        # Test BatchPolicy
-        bp = BatchPolicy()
-        bp.filter_expression = filter_exp
-        assert bp.filter_expression == filter_exp
-        assert bp.base_policy.filter_expression == filter_exp
-
-
-class TestUseCompression:
-
-    def test_base_policy_default_false(self):
-        bp = BasePolicy()
-        assert bp.use_compression is False
-
-    def test_base_policy_set_true(self):
-        bp = BasePolicy()
-        bp.use_compression = True
-        assert bp.use_compression is True
-
-    def test_base_policy_toggle(self):
-        bp = BasePolicy()
-        bp.use_compression = True
-        bp.use_compression = False
-        assert bp.use_compression is False
-
-    def test_read_policy_use_compression(self):
-        rp = ReadPolicy()
-        assert rp.use_compression is False
-        rp.use_compression = True
+    def test_read_policy_from_fields(self):
+        rp = ReadPolicy.from_fields(use_compression=True, compression_threshold=1024)
         assert rp.use_compression is True
-        assert rp.base_policy.use_compression is True
+        assert rp.compression_threshold == 1024
 
-    def test_write_policy_use_compression(self):
-        wp = WritePolicy()
-        assert wp.use_compression is False
-        wp.use_compression = True
+    def test_write_policy_from_fields(self):
+        wp = WritePolicy.from_fields(use_compression=True, compression_threshold=2048)
         assert wp.use_compression is True
-        assert wp.base_policy.use_compression is True
+        assert wp.compression_threshold == 2048
 
-    def test_query_policy_use_compression(self):
-        qp = QueryPolicy()
-        qp.use_compression = True
-        assert qp.use_compression is True
-        assert qp.base_policy.use_compression is True
-
-    def test_batch_policy_use_compression(self):
-        bp = BatchPolicy()
-        bp.use_compression = True
+    def test_batch_policy_from_fields(self):
+        bp = BatchPolicy.from_fields(use_compression=True, compression_threshold=512)
         assert bp.use_compression is True
-        assert bp.base_policy.use_compression is True
+        assert bp.compression_threshold == 512
+
+
+class TestCircuitBreaker:
+    """Circuit-breaker fields on ClientPolicy: defaults, round-trips, and exception class."""
+
+    def test_default_construction(self):
+        cp = ClientPolicy()
+        # Defaults: max_error_rate=100 errors per error_rate_window=1 tick.
+        assert cp.max_error_rate == 100
+        assert cp.error_rate_window == 1
+
+    def test_max_error_rate_roundtrip(self):
+        cp = ClientPolicy()
+        cp.max_error_rate = 250
+        assert cp.max_error_rate == 250
+        # Zero disables the breaker entirely.
+        cp.max_error_rate = 0
+        assert cp.max_error_rate == 0
+
+    def test_error_rate_window_roundtrip(self):
+        cp = ClientPolicy()
+        cp.error_rate_window = 4
+        assert cp.error_rate_window == 4
+
+    def test_max_error_rate_exception_class(self):
+        from aerospike_async.exceptions import AerospikeError, MaxErrorRate
+
+        # MaxErrorRate is exposed and is a subclass of AerospikeError so users
+        # can catch the broader category if they want.
+        assert issubclass(MaxErrorRate, AerospikeError)
