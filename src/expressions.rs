@@ -3148,4 +3148,242 @@ use crate::record::PythonValue;
                 _as: aerospike_core::expressions::exp_remove_result(),
             }
         }
+
+        // ===== Native ExpOps from server 8.1.2 (CLIENT-4437) =====
+        //
+        // These are wire-level opcodes — single ExpOp invocations rather than
+        // compositions of existing list/map ops. Cheaper to pack and evaluate
+        // than the prior compositional shims.
+
+        /// ``value`` exists in ``list``. Native ExpOp on server 8.1.2+ —
+        /// returns a boolean expression equivalent to ``value IN list``.
+        ///
+        /// Requires Aerospike Server version >= 8.1.2.
+        #[staticmethod]
+        pub fn in_list(value: FilterExpression, list: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::in_list(value._as, list._as),
+            }
+        }
+
+        /// All keys of a map expression as a list expression. Native ExpOp on
+        /// server 8.1.2+ (cheaper than ``map_get_by_index_range(KEY, 0, ...)``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.2.
+        #[staticmethod]
+        pub fn map_keys(map: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_keys(map._as),
+            }
+        }
+
+        /// All values of a map expression as a list expression. Native ExpOp
+        /// on server 8.1.2+ (cheaper than ``map_get_by_index_range(VALUE, 0, ...)``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.2.
+        #[staticmethod]
+        pub fn map_values(map: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::map_values(map._as),
+            }
+        }
+
+        // ===== Path-based expression operators (CLIENT-4437) =====
+        //
+        // Read or write nested CDT data at a path context, evaluating to an
+        // expression result. Mirrors :meth:`CdtOperation.select_by_path` /
+        // :meth:`CdtOperation.modify_by_path` but produces an
+        // ``Expression`` (not an ``Operation``) usable inside other
+        // expressions.
+
+        /// Select from a CDT bin expression using a path context. The
+        /// ``flag`` is a bitwise combination of ``SelectFlags`` constants.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_select_by_path(
+            return_type: ExpType,
+            flag: i64,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_select_by_path(
+                    (&return_type).into(),
+                    aerospike_core::operations::path::SelectFlag(flag),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Modify a CDT bin expression using a path context. The ``flag`` is
+        /// a bitwise combination of ``ModifyFlags`` constants.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_modify_by_path(
+            return_type: ExpType,
+            flag: i64,
+            bin_exp: FilterExpression,
+            modify_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_modify_by_path(
+                    (&return_type).into(),
+                    aerospike_core::operations::path::ModifyFlag(flag),
+                    bin_exp._as,
+                    modify_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: select the *values* at every path-resolved
+        /// location (``SelectFlags.VALUE``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_select_values(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_select_values(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: select map *keys* at every path-resolved
+        /// location (``SelectFlags.MAP_KEY``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_select_map_keys(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_select_map_keys(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: select map *key/value pairs*
+        /// (``SelectFlags.MAP_KEY_VALUE``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_select_map_entries(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_select_map_entries(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: select the *original tree shape* preserving
+        /// only matching nodes (``SelectFlags.MATCHING_TREE``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_select_matching_tree(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_select_matching_tree(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: modify with default flags, failing on type
+        /// mismatches (``ModifyFlags.DEFAULT``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_modify(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            modify_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_modify(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    modify_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: modify with ``ModifyFlags.NO_FAIL`` so
+        /// type-mismatched leaves are silently skipped instead of aborting
+        /// the whole expression.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_modify_no_fail(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            modify_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_modify_no_fail(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    modify_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
+
+        /// Convenience wrapper: remove the leaves resolved by a path.
+        /// Equivalent to ``exp_modify_by_path(t, ModifyFlags.DEFAULT, bin, FilterExpression.remove_result(), ctx)``.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn exp_remove(
+            return_type: ExpType,
+            bin_exp: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            let core_ctx = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: aerospike_core::expressions::exp_remove(
+                    (&return_type).into(),
+                    bin_exp._as,
+                    &core_ctx,
+                ),
+            }
+        }
     }

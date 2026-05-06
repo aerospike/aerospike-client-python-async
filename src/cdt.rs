@@ -861,11 +861,9 @@ use crate::record::PythonValue;
         /// Lookup map by index offset.
         /// If the index is negative, the resolved index starts backwards from end of list.
         #[staticmethod]
-        pub fn map_index(key: PythonValue) -> Self {
+        pub fn map_index(index: i64) -> Self {
             CTX {
-                ctx: aerospike_core::operations::cdt_context::ctx_map_index(
-                    aerospike_core::Value::from(key),
-                ),
+                ctx: aerospike_core::operations::cdt_context::ctx_map_index(index),
             }
         }
 
@@ -947,6 +945,62 @@ use crate::record::PythonValue;
                     exp._as,
                 ),
             }
+        }
+
+        /// Select map entries whose keys are in ``keys``.
+        ///
+        /// Requires Aerospike Server version >= 8.1.2.
+        #[staticmethod]
+        pub fn map_keys_in(keys: Vec<PythonValue>) -> Self {
+            let core_keys: Vec<aerospike_core::Value> =
+                keys.into_iter().map(aerospike_core::Value::from).collect();
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_map_keys_in(core_keys),
+            }
+        }
+
+        /// AND-combine the previous filter context with ``exp``. Used to
+        /// stack additional predicates onto an ``all_children_with_filter``
+        /// step.
+        ///
+        /// Requires Aerospike Server version >= 8.1.2.
+        #[staticmethod]
+        pub fn and_filter(exp: crate::expressions::FilterExpression) -> Self {
+            CTX {
+                ctx: aerospike_core::operations::cdt_context::ctx_and_filter(exp._as),
+            }
+        }
+
+        /// Encode a context array to base64 — pairs with :meth:`from_base64`.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn to_base64(ctx: Vec<CTX>) -> PyResult<String> {
+            let core_ctx = ctx_to_vec(&ctx);
+            aerospike_core::operations::cdt_context::to_base64(&core_ctx)
+                .map_err(|e| crate::errors::RustClientError(e).into())
+        }
+
+        /// Restore a context array from the base64-encoded form produced by
+        /// the matching :meth:`to_base64` helper.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn from_base64(b64: &str) -> PyResult<Vec<CTX>> {
+            let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_base64(b64)
+                .map_err(|e| crate::errors::RustClientError(e))?;
+            Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
+        }
+
+        /// Restore a context array from the raw byte stream that base64
+        /// encodes.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn from_bytes(bytes: Vec<u8>) -> PyResult<Vec<CTX>> {
+            let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_bytes(&bytes)
+                .map_err(|e| crate::errors::RustClientError(e))?;
+            Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
     }
 

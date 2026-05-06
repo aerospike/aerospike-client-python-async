@@ -89,6 +89,10 @@ class CommitFailedError(AerospikeError):
     """Exception raised when a multi-record transaction commit fails."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class MaxErrorRate(AerospikeError):
+    """Per-node circuit breaker tripped (client-side, not sent to server)."""
+    def __init__(self, message: builtins.str) -> None: ...
+
 
 class RecordError(ServerError):
     """Record-level server errors."""
@@ -141,6 +145,7 @@ __all__ = [
     "PasswordHashError",
     "InvalidRustClientArgs",
     "ClientError",
+    "MaxErrorRate",
     "ResultCode",
     "RecordError",
     "IndexError",

@@ -143,6 +143,15 @@ class BasePolicy:
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
     @property
+    def compression_threshold(self) -> builtins.int:
+        r"""
+        Minimum command-buffer size (bytes) at which compression actually
+        fires. Buffers `<=` this value are sent uncompressed even when
+        ``use_compression`` is ``True``. Default: ``128``.
+        """
+    @compression_threshold.setter
+    def compression_threshold(self, value: builtins.int) -> None: ...
+    @property
     def txn(self) -> typing.Optional[Txn]: ...
     @txn.setter
     def txn(self, value: typing.Optional[Txn]) -> None: ...
@@ -361,7 +370,7 @@ class CTX:
         Lookup list by value.
         """
     @staticmethod
-    def map_index(key:typing.Any) -> CTX:
+    def map_index(index:builtins.int) -> CTX:
         r"""
         Lookup map by index offset.
         If the index is negative, the resolved index starts backwards from end of list.
@@ -408,6 +417,45 @@ class CTX:
         ``FilterExpression.map_loop_var``,
         ``FilterExpression.bool_loop_var``) inside ``exp`` to reference the
         current element.  Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def map_keys_in(keys:typing.Sequence[typing.Any]) -> CTX:
+        r"""
+        Select map entries whose keys are in ``keys``.
+
+        Requires Aerospike Server version >= 8.1.2.
+        """
+    @staticmethod
+    def and_filter(exp:FilterExpression) -> CTX:
+        r"""
+        AND-combine the previous filter context with ``exp``. Used to
+        stack additional predicates onto an ``all_children_with_filter``
+        step.
+
+        Requires Aerospike Server version >= 8.1.2.
+        """
+    @staticmethod
+    def to_base64(ctx:typing.Sequence[CTX]) -> builtins.str:
+        r"""
+        Encode a context array to base64 — pairs with :meth:`from_base64`.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def from_base64(b64:builtins.str) -> builtins.list[CTX]:
+        r"""
+        Restore a context array from the base64-encoded form produced by
+        the matching :meth:`to_base64` helper.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def from_bytes(bytes:typing.Sequence[builtins.int]) -> builtins.list[CTX]:
+        r"""
+        Restore a context array from the raw byte stream that base64
+        encodes.
+
+        Requires Aerospike Server version >= 8.1.1.
         """
 
 class CdtOperation:
@@ -474,6 +522,61 @@ class CdtOperation:
                 new_price,
                 price_path,
             )
+        """
+    @staticmethod
+    def select_values(bin_name:builtins.str, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Select the *values* at every path-resolved location
+        (``SelectFlags.VALUE``). Equivalent to
+        ``CdtOperation.select_by_path(bin, SelectFlags.VALUE, ctx)``.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def select_map_keys(bin_name:builtins.str, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Select the matching *map keys* (``SelectFlags.MAP_KEY``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def select_map_entries(bin_name:builtins.str, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Select map *key/value pairs* (``SelectFlags.MAP_KEY_VALUE``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def select_matching_tree(bin_name:builtins.str, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Select the *original tree shape* preserving only matching nodes
+        (``SelectFlags.MATCHING_TREE``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def modify(bin_name:builtins.str, exp:FilterExpression, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Modify with default flags, failing on type mismatches
+        (``ModifyFlags.DEFAULT``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def modify_no_fail(bin_name:builtins.str, exp:FilterExpression, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Modify with ``ModifyFlags.NO_FAIL`` so type-mismatched leaves are
+        silently skipped instead of aborting the whole operation.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def remove(bin_name:builtins.str, ctx:typing.Sequence[CTX]) -> CdtOperation:
+        r"""
+        Remove the leaves resolved by a path. Equivalent to
+        ``CdtOperation.modify_by_path(bin, ModifyFlags.DEFAULT, FilterExpression.remove_result(), ctx)``.
+
+        Requires Aerospike Server version >= 8.1.1.
         """
 
 class ClientPolicy:
@@ -565,6 +668,27 @@ class ClientPolicy:
         """
     @buffer_reclaim_threshold.setter
     def buffer_reclaim_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def max_error_rate(self) -> builtins.int:
+        r"""
+        Maximum number of errors (network errors plus server-side ``TIMEOUT``,
+        ``DEVICE_OVERLOAD``, ``KEY_BUSY``) tolerated against a single node within
+        one ``error_rate_window``. Once exceeded, the client trips a per-node
+        circuit breaker and rejects further commands targeted at that node with
+        a ``MaxErrorRate`` exception until the next window resets. Set to ``0``
+        to disable. Default: ``100``.
+        """
+    @max_error_rate.setter
+    def max_error_rate(self, value: builtins.int) -> None: ...
+    @property
+    def error_rate_window(self) -> builtins.int:
+        r"""
+        Number of cluster tend iterations after which each node's error counter
+        is reset. Smaller values make the circuit breaker more aggressive,
+        larger values more lenient. Default: ``1``.
+        """
+    @error_rate_window.setter
+    def error_rate_window(self, value: builtins.int) -> None: ...
     @property
     def tend_interval(self) -> builtins.int:
         r"""
@@ -1847,6 +1971,103 @@ class FilterExpression:
 
         Requires Aerospike Server version >= 8.1.1.
         """
+    @staticmethod
+    def in_list(value:FilterExpression, list:FilterExpression) -> FilterExpression:
+        r"""
+        ``value`` exists in ``list``. Native ExpOp on server 8.1.2+ —
+        returns a boolean expression equivalent to ``value IN list``.
+
+        Requires Aerospike Server version >= 8.1.2.
+        """
+    @staticmethod
+    def map_keys(map:FilterExpression) -> FilterExpression:
+        r"""
+        All keys of a map expression as a list expression. Native ExpOp on
+        server 8.1.2+ (cheaper than ``map_get_by_index_range(KEY, 0, ...)``).
+
+        Requires Aerospike Server version >= 8.1.2.
+        """
+    @staticmethod
+    def map_values(map:FilterExpression) -> FilterExpression:
+        r"""
+        All values of a map expression as a list expression. Native ExpOp
+        on server 8.1.2+ (cheaper than ``map_get_by_index_range(VALUE, 0, ...)``).
+
+        Requires Aerospike Server version >= 8.1.2.
+        """
+    @staticmethod
+    def exp_select_by_path(return_type:ExpType, flag:builtins.int, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Select from a CDT bin expression using a path context. The
+        ``flag`` is a bitwise combination of ``SelectFlags`` constants.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_modify_by_path(return_type:ExpType, flag:builtins.int, bin_exp:FilterExpression, modify_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Modify a CDT bin expression using a path context. The ``flag`` is
+        a bitwise combination of ``ModifyFlags`` constants.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_select_values(return_type:ExpType, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: select the *values* at every path-resolved
+        location (``SelectFlags.VALUE``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_select_map_keys(return_type:ExpType, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: select map *keys* at every path-resolved
+        location (``SelectFlags.MAP_KEY``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_select_map_entries(return_type:ExpType, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: select map *key/value pairs*
+        (``SelectFlags.MAP_KEY_VALUE``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_select_matching_tree(return_type:ExpType, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: select the *original tree shape* preserving
+        only matching nodes (``SelectFlags.MATCHING_TREE``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_modify(return_type:ExpType, bin_exp:FilterExpression, modify_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: modify with default flags, failing on type
+        mismatches (``ModifyFlags.DEFAULT``).
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_modify_no_fail(return_type:ExpType, bin_exp:FilterExpression, modify_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: modify with ``ModifyFlags.NO_FAIL`` so
+        type-mismatched leaves are silently skipped instead of aborting
+        the whole expression.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
+    def exp_remove(return_type:ExpType, bin_exp:FilterExpression, ctx:typing.Sequence[CTX]) -> FilterExpression:
+        r"""
+        Convenience wrapper: remove the leaves resolved by a path.
+        Equivalent to ``exp_modify_by_path(t, ModifyFlags.DEFAULT, bin, FilterExpression.remove_result(), ctx)``.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
 
 class GeoJSON:
     @property
@@ -2468,6 +2689,17 @@ class Statement:
             package_name: Name of the Lua package/module containing the aggregation function.
             function_name: Name of the Lua aggregation function.
             function_args: Optional list of arguments to pass to the function.
+        """
+    def set_operations(self, ops:typing.Sequence[typing.Any]) -> None:
+        r"""
+        Attach an ops projection. The server returns the result of these
+        operations for each matching record instead of the bin set
+        configured via ``bins``. Mutually exclusive with ``bins`` (the
+        server uses ``operations`` if both are set).
+
+        Foreground queries accept only read ops. Server versions before
+        8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
+        CDT, expression, bit, and HLL reads.
         """
 
 class TlsConfig:

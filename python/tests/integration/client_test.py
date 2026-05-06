@@ -39,7 +39,13 @@ async def test_failed_connect():
     with pytest.raises(ConnectionError) as exc_info:
         client = await new_client(cp, "nonexistent-host:9999")
     assert client is None
-    assert exc_info.value.args[0] == "Failed to connect to host(s). The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux."
+    # The Rust core's seed-failure formatter has two shapes: a generic
+    # "may have timed out, or the cluster may be in a state of flux"
+    # line when no per-seed errors were recorded, and (in v3) a multi-line
+    # "Failed to connect to [N] host(s):\n  <host> <err>\n…" breakdown when
+    # at least one seed validator failed (DNS, refused, etc.). Either
+    # shape satisfies the contract — assert on the stable prefix only.
+    assert exc_info.value.args[0].startswith("Failed to connect to")
 
 async def test_close():
     """Test client connection and proper closing."""

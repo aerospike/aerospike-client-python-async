@@ -1632,6 +1632,121 @@ use crate::record::PythonValue;
                 op: OperationType::CdtModifyByPath(bin_name, flag, exp, ctx),
             }
         }
+
+        // ===== Convenience builders on top of select_by_path / modify_by_path =====
+        //
+        // Each preset corresponds to a common (flag, op-kind) pairing so callers
+        // don't have to remember the SelectFlags / ModifyFlags constants for the
+        // most frequent shapes of path query.
+
+        /// Select the *values* at every path-resolved location
+        /// (``SelectFlags.VALUE``). Equivalent to
+        /// ``CdtOperation.select_by_path(bin, SelectFlags.VALUE, ctx)``.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn select_values(bin_name: String, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtSelectByPath(
+                    bin_name,
+                    aerospike_core::operations::path::SelectFlag::VALUE.0,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Select the matching *map keys* (``SelectFlags.MAP_KEY``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn select_map_keys(bin_name: String, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtSelectByPath(
+                    bin_name,
+                    aerospike_core::operations::path::SelectFlag::MAP_KEY.0,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Select map *key/value pairs* (``SelectFlags.MAP_KEY_VALUE``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn select_map_entries(bin_name: String, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtSelectByPath(
+                    bin_name,
+                    aerospike_core::operations::path::SelectFlag::MAP_KEY_VALUE.0,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Select the *original tree shape* preserving only matching nodes
+        /// (``SelectFlags.MATCHING_TREE``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn select_matching_tree(bin_name: String, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtSelectByPath(
+                    bin_name,
+                    aerospike_core::operations::path::SelectFlag::MATCHING_TREE.0,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Modify with default flags, failing on type mismatches
+        /// (``ModifyFlags.DEFAULT``).
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn modify(bin_name: String, exp: FilterExpression, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtModifyByPath(
+                    bin_name,
+                    aerospike_core::operations::path::ModifyFlag::DEFAULT.0,
+                    exp,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Modify with ``ModifyFlags.NO_FAIL`` so type-mismatched leaves are
+        /// silently skipped instead of aborting the whole operation.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn modify_no_fail(bin_name: String, exp: FilterExpression, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtModifyByPath(
+                    bin_name,
+                    aerospike_core::operations::path::ModifyFlag::NO_FAIL.0,
+                    exp,
+                    ctx,
+                ),
+            }
+        }
+
+        /// Remove the leaves resolved by a path. Equivalent to
+        /// ``CdtOperation.modify_by_path(bin, ModifyFlags.DEFAULT, FilterExpression.remove_result(), ctx)``.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn remove(bin_name: String, ctx: Vec<CTX>) -> Self {
+            CdtOperation {
+                op: OperationType::CdtModifyByPath(
+                    bin_name,
+                    aerospike_core::operations::path::ModifyFlag::DEFAULT.0,
+                    FilterExpression {
+                        _as: aerospike_core::expressions::exp_remove_result(),
+                    },
+                    ctx,
+                ),
+            }
+        }
     }
 
 pub(crate) fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
