@@ -15,6 +15,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
+[project.urls]
+Repository = "https://github.com/aerospike/aerospike-client-python-async"
+Issues = "https://github.com/aerospike/aerospike-client-python-async/issues"
+Changelog = "https://github.com/aerospike/aerospike-client-python-async/releases"
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "aerospike_async._aerospike_async_native"
