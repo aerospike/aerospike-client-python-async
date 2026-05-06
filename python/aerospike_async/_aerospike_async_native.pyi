@@ -423,7 +423,7 @@ class CTX:
         r"""
         Select map entries whose keys are in ``keys``.
 
-        Requires Aerospike Server version >= 8.1.1.
+        Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
     def and_filter(exp:FilterExpression) -> CTX:
@@ -432,7 +432,7 @@ class CTX:
         stack additional predicates onto an ``all_children_with_filter``
         step.
 
-        Requires Aerospike Server version >= 8.1.1.
+        Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
     def to_base64(ctx:typing.Sequence[CTX]) -> builtins.str:

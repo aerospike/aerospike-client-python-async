@@ -949,7 +949,7 @@ use crate::record::PythonValue;
 
         /// Select map entries whose keys are in ``keys``.
         ///
-        /// Requires Aerospike Server version >= 8.1.1.
+        /// Requires Aerospike Server version >= 8.1.2.
         #[staticmethod]
         pub fn map_keys_in(keys: Vec<PythonValue>) -> Self {
             let core_keys: Vec<aerospike_core::Value> =
@@ -963,7 +963,7 @@ use crate::record::PythonValue;
         /// stack additional predicates onto an ``all_children_with_filter``
         /// step.
         ///
-        /// Requires Aerospike Server version >= 8.1.1.
+        /// Requires Aerospike Server version >= 8.1.2.
         #[staticmethod]
         pub fn and_filter(exp: crate::expressions::FilterExpression) -> Self {
             CTX {
