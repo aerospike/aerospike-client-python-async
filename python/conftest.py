@@ -225,12 +225,27 @@ async def supports_query_ops_projection_ext(server_version):
 async def supports_enhanced_expression_api(server_version):
     """``True`` when the cluster supports the 8.1.2 enhanced expression API.
 
-    Covers native ``in_list`` / ``map_keys`` / ``map_values`` ExpOps,
-    ``CTX.map_keys_in`` / ``and_filter`` context helpers, and path-form
-    expression operators (``exp_select_*`` / ``exp_modify_*`` /
-    ``exp_remove``). Server >= 8.1.2.
+    Covers native ``in_list`` / ``map_keys`` / ``map_values`` ExpOps and
+    the ``CTX.map_keys_in`` / ``and_filter`` context helpers. Server
+    >= 8.1.2. Path-form expression operators (``exp_select_*`` /
+    ``exp_modify_*``) are 8.1.1 — gate those on
+    ``supports_cdt_path_expressions``.
     """
     return server_version is not None and server_version >= (8, 1, 2, 0)
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_cdt_path_expressions(server_version):
+    """``True`` when the cluster supports CDT path expression operations.
+
+    Covers ``select_by_path`` / ``modify_by_path`` ops and their
+    expression-form siblings (``exp_select_by_path`` /
+    ``exp_modify_by_path``). Mirrors the per-node feature exposed by the
+    Rust core's ``Version::supports_cdt_path_expressions`` (server
+    >= 8.1.1). Tests that exercise path expressions should
+    ``pytest.skip`` when this is ``False``.
+    """
+    return server_version is not None and server_version >= (8, 1, 1, 0)
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")

@@ -190,15 +190,11 @@ _BOOK_DATA = {
 class TestPathFormExpressions:
 
     async def test_select_by_path_pulls_all_prices(
-        self, cdt_client, supports_cdt_path_expressions=None
+        self, cdt_client, supports_cdt_path_expressions
     ):
         """``exp_select_by_path`` flattens ``$.book[*].price`` into a list."""
-        # The ``supports_cdt_path_expressions`` fixture isn't defined yet at the
-        # repo conftest level — fall back to the ext fixture which is a
-        # superset (8.1.2 implies 8.1.1).
-        # If you add a dedicated fixture later, switch the parameter name.
-        if False:
-            pass
+        if not supports_cdt_path_expressions:
+            pytest.skip("Path-form expression operators require server >= 8.1.1")
 
         key = Key(_NAMESPACE, _SET, "path_select")
         await _safe_delete(cdt_client, key)
