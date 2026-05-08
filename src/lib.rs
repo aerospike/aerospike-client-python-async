@@ -166,6 +166,26 @@ use crate::operations::{
             self._as.timeout().as_secs() as u32
         }
 
+        /// Set the transaction timeout in seconds.
+        ///
+        /// Must be set before the transaction is shared with a policy or
+        /// operation. After the underlying ``Arc<Txn>`` has been cloned into
+        /// a policy / builder the timeout is frozen and this raises
+        /// :class:`ValueError`. In a transactional session, set the timeout
+        /// immediately after entering the ``async with`` block (before the
+        /// first ``execute()``).
+        #[setter]
+        pub fn set_timeout(&mut self, timeout: u32) -> PyResult<()> {
+            Arc::get_mut(&mut self._as)
+                .ok_or_else(|| PyValueError::new_err(
+                    "Cannot mutate Txn.timeout after the transaction has been \
+                     shared with a policy or operation; set the timeout before \
+                     the first operation in the transactional session."
+                ))?
+                .set_timeout(std::time::Duration::from_secs(timeout as u64));
+            Ok(())
+        }
+
         /// Namespace in use by this transaction, if one has been set.
         #[getter]
         pub fn namespace(&self) -> Option<String> {

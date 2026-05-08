@@ -71,14 +71,30 @@ class TestTxn:
             txn.state = target
             assert txn.state == target
 
-    def test_txn_timeout_is_read_only(self):
-        """``Txn.timeout`` stays read-only until core gains atomic storage
-        for the timeout field. This guard pairs with the matching skip in
-        the SDK's MRT parity suite — when the guard fails, the parity
-        test can be filled in."""
+    def test_txn_timeout_is_writable_before_sharing(self):
+        """``Txn.timeout`` is writable while the underlying ``Arc<Txn>`` is
+        uniquely held — i.e. before the txn has been handed to a policy or
+        operation builder. This is the path the SDK's
+        ``txnMrtExpiredAfterDeadline`` parity test depends on."""
         txn = Txn()
-        with pytest.raises((AttributeError, TypeError)):
-            txn.timeout = 2  # type: ignore[misc]
+        assert txn.timeout == 0
+        txn.timeout = 2
+        assert txn.timeout == 2
+        txn.timeout = 0  # zero means "use server default"
+        assert txn.timeout == 0
+
+    def test_txn_timeout_setter_rejects_after_sharing(self):
+        """Mutating ``Txn.timeout`` after the txn has been cloned into a
+        policy raises ``ValueError``. This pins the set-before-use semantic
+        documented on the setter."""
+        from aerospike_async import WritePolicy
+
+        txn = Txn()
+        policy = WritePolicy()
+        policy.txn = txn  # clones the underlying Arc, refcount > 1
+
+        with pytest.raises(ValueError, match="shared with a policy"):
+            txn.timeout = 5
 
 
 class TestTxnState:

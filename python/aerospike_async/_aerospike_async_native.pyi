@@ -2767,6 +2767,18 @@ class Txn:
         r"""
         Transaction timeout in seconds. Zero means use the server default.
         """
+    @timeout.setter
+    def timeout(self, value: builtins.int) -> None:
+        r"""
+        Set the transaction timeout in seconds.
+
+        Must be set before the transaction is shared with a policy or
+        operation. After the underlying ``Arc<Txn>`` has been cloned into
+        a policy / builder the timeout is frozen and this raises
+        :class:`ValueError`. In a transactional session, set the timeout
+        immediately after entering the ``async with`` block (before the
+        first ``execute()``).
+        """
     @property
     def namespace(self) -> typing.Optional[builtins.str]:
         r"""

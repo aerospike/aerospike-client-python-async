@@ -22,6 +22,7 @@ from aerospike_async import (
     ListOperation, ListPolicy, ListReturnType,
     SpecialValue,
 )
+from aerospike_async.exceptions import ResultCode, ServerError
 
 
 @pytest_asyncio.fixture
@@ -181,52 +182,28 @@ async def test_null_equivalent_to_none(client_and_key):
 # 2. SpecialValue round-trip fidelity
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    reason="Server rejects SpecialValue sentinels as stored data values "
-           "(ParameterError); sentinels are wire-protocol markers for CDT "
-           "range queries only",
-    raises=Exception,
-    strict=True,
-)
-async def test_infinity_survives_list_round_trip(client_and_key):
-    """INFINITY stored inside a CDT list should read back as SpecialValue.INFINITY."""
+async def test_infinity_cannot_be_stored_in_list(client_and_key):
+    """INFINITY is a CDT range marker, not a storable list value."""
     client, key, wp = client_and_key
-    rp = ReadPolicy()
     lp = ListPolicy(None, None)
 
-    await client.operate(wp, key, [
-        ListOperation.append("lst", 1, lp),
-        ListOperation.append("lst", SpecialValue.INFINITY, lp),
-        ListOperation.append("lst", "x", lp),
-    ])
-
-    record = await client.get(rp, key, ["lst"])
-    lst = record.bins["lst"]
-    assert lst[1] is SpecialValue.INFINITY
+    with pytest.raises(ServerError) as exc_info:
+        await client.operate(wp, key, [
+            ListOperation.append("lst", SpecialValue.INFINITY, lp),
+        ])
+    assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
 
-@pytest.mark.xfail(
-    reason="Server rejects SpecialValue sentinels as stored data values "
-           "(ParameterError); sentinels are wire-protocol markers for CDT "
-           "range queries only",
-    raises=Exception,
-    strict=True,
-)
-async def test_wildcard_survives_list_round_trip(client_and_key):
-    """WILDCARD stored inside a CDT list should read back as SpecialValue.WILDCARD."""
+async def test_wildcard_cannot_be_stored_in_list(client_and_key):
+    """WILDCARD is a CDT value-match marker, not a storable list value."""
     client, key, wp = client_and_key
-    rp = ReadPolicy()
     lp = ListPolicy(None, None)
 
-    await client.operate(wp, key, [
-        ListOperation.append("lst", 1, lp),
-        ListOperation.append("lst", SpecialValue.WILDCARD, lp),
-        ListOperation.append("lst", "x", lp),
-    ])
-
-    record = await client.get(rp, key, ["lst"])
-    lst = record.bins["lst"]
-    assert lst[1] is SpecialValue.WILDCARD
+    with pytest.raises(ServerError) as exc_info:
+        await client.operate(wp, key, [
+            ListOperation.append("lst", SpecialValue.WILDCARD, lp),
+        ])
+    assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
 
 # ---------------------------------------------------------------------------

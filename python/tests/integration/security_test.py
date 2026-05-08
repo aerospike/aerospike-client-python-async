@@ -19,8 +19,10 @@ Security Tests - Tests for user management, role management, and authentication 
 These tests require a server with security enabled and proper authentication.
 """
 import asyncio
+import contextlib
 import pytest
 import os
+import uuid
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
@@ -385,7 +387,7 @@ class TestSecurityFeatures:
     @pytest.mark.asyncio
     async def test_create_role_duplicate(self, client):
         """Test creating duplicate role fails."""
-        role_name = "test_role_1"
+        role_name = f"dup_role_{uuid.uuid4().hex[:12]}"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
         read_quota = 1000
@@ -393,13 +395,18 @@ class TestSecurityFeatures:
 
         try:
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+            await wait_for_role(client, role_name)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        with pytest.raises(Exception):
-            await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+        try:
+            with pytest.raises(ServerError, match="RoleAlreadyExists"):
+                await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+        finally:
+            with contextlib.suppress(Exception):
+                await client.drop_role(role_name)
 
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
