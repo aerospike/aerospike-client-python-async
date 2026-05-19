@@ -380,12 +380,9 @@ use crate::operations::{
         }
 
         // ===================================================================
-        // Blocking variants (Day 6 P2.a spike): put, get, delete, close,
-        // commit, abort, is_connected.  Each releases the GIL during the
-        // Tokio block_on and raises PyRuntimeError if called from within a
-        // running asyncio event loop.  When the macro lands these will be
-        // codegen'd from the async siblings; for the spike they are hand
-        // written to validate the pattern end-to-end.
+        // Blocking variants: each releases the GIL during the Tokio block_on
+        // and raises PyRuntimeError if called from within a running asyncio
+        // event loop.
         // ===================================================================
 
         /// Synchronously close the connection to the Aerospike cluster.
@@ -505,7 +502,6 @@ use crate::operations::{
             Ok(AbortStatus::from(status))
         }
 
-        // -- Remaining blocking variants (P2.a Day 7) --
 
         /// Synchronously add integer bin values.
         pub fn add_blocking(

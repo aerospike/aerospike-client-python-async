@@ -1,10 +1,19 @@
 # Copyright 2026 Aerospike, Inc.
 #
+# Portions may be licensed to Aerospike, Inc. under one or more contributor
+# license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+#
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
 # use this file except in compliance with the License. You may obtain a copy of
 # the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
 
-"""Day 6 P2.a spike — `_blocking` entry points in PAC.
+"""Integration tests for `_blocking` entry points in PAC.
 
 These tests are intentionally synchronous (`def`, not `async def`).
 `new_client_blocking()` does not require a running asyncio event loop, and
@@ -53,7 +62,7 @@ def test_blocking_round_trip(aerospike_host, use_services_alternate):
     try:
         assert client.is_connected_blocking() is True
 
-        key = Key("test", "blocking_spike", "rt-1")
+        key = Key("test", "blocking", "rt-1")
 
         client.put_blocking(WritePolicy(), key, {"name": "alice", "age": 30})
 
@@ -75,7 +84,7 @@ def test_blocking_async_context_guard(aerospike_host, use_services_alternate):
     """Calling a `_blocking` method from inside `asyncio.run()` raises."""
     client = _connect_blocking(aerospike_host, use_services_alternate)
     try:
-        key = Key("test", "blocking_spike", "guard-1")
+        key = Key("test", "blocking", "guard-1")
 
         async def misuse():
             # We're inside a running asyncio loop now — every `_blocking`
@@ -102,7 +111,7 @@ def test_blocking_client_rejects_async_methods(aerospike_host, use_services_alte
     panicking or hanging."""
     client = _connect_blocking(aerospike_host, use_services_alternate)
     try:
-        key = Key("test", "blocking_spike", "bridge-1")
+        key = Key("test", "blocking", "bridge-1")
 
         async def use_async():
             # `client.put(...)` returns an awaitable — but the bridge guard
@@ -134,7 +143,7 @@ def test_async_client_supports_blocking_methods(aerospike_host, use_services_alt
 
     client = asyncio.run(_build())
     try:
-        key = Key("test", "blocking_spike", "mixed-1")
+        key = Key("test", "blocking", "mixed-1")
         client.put_blocking(WritePolicy(), key, {"v": 42})
         rec = client.get_blocking(ReadPolicy(), key)
         assert rec.bins["v"] == 42
@@ -144,7 +153,7 @@ def test_async_client_supports_blocking_methods(aerospike_host, use_services_alt
 
 
 def test_blocking_extended_ops(aerospike_host, use_services_alternate):
-    """Sweep across the rest of the blocking surface added in P2.a Day 7.
+    """Sweep across the rest of the blocking surface.
 
     Touches: add, append, prepend, touch, exists, batch_read, batch_write,
     batch_delete, batch_exists, batch_get_header, query (iter), info,
@@ -166,7 +175,7 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
         assert info  # any non-empty response is fine
 
         # add / append / prepend / touch / exists
-        k = Key("test", "blocking_spike", "ext-1")
+        k = Key("test", "blocking", "ext-1")
         client.put_blocking(wp, k, {"counter": 1, "label": "alpha"})
         client.add_blocking(wp, k, {"counter": 10})
         client.append_blocking(wp, k, {"label": "-end"})
@@ -178,7 +187,7 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
         assert client.exists_blocking(rp, k) is True
 
         # batch read/write/delete/exists/get_header
-        keys = [Key("test", "blocking_spike", f"batch-{i}") for i in range(4)]
+        keys = [Key("test", "blocking", f"batch-{i}") for i in range(4)]
         bins_list = [{"i": i} for i in range(4)]
         bp = BatchPolicy()
         client.batch_write_blocking(bp, None, [pytest_pyref(k) for k in keys], bins_list)
@@ -197,9 +206,9 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
 
         # query (iter) — primary-key scan with no filter, just sanity-check
         # that __iter__/__next__ work and yield records we wrote.
-        client.put_blocking(wp, Key("test", "blocking_spike", "scan-1"), {"x": 1})
-        client.put_blocking(wp, Key("test", "blocking_spike", "scan-2"), {"x": 2})
-        stmt = Statement("test", "blocking_spike", ["x"])
+        client.put_blocking(wp, Key("test", "blocking", "scan-1"), {"x": 1})
+        client.put_blocking(wp, Key("test", "blocking", "scan-2"), {"x": 2})
+        stmt = Statement("test", "blocking", ["x"])
         recordset = client.query_blocking(QueryPolicy(), PartitionFilter.all(), stmt)
         seen = 0
         for _record in recordset:
@@ -212,8 +221,8 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
         client.delete_blocking(wp, k)
         for kk in keys:
             client.delete_blocking(wp, kk)
-        client.delete_blocking(wp, Key("test", "blocking_spike", "scan-1"))
-        client.delete_blocking(wp, Key("test", "blocking_spike", "scan-2"))
+        client.delete_blocking(wp, Key("test", "blocking", "scan-1"))
+        client.delete_blocking(wp, Key("test", "blocking", "scan-2"))
     finally:
         client.close_blocking()
 
@@ -233,14 +242,13 @@ def test_blocking_latency_smoke(aerospike_host, use_services_alternate):
     """10K sequential put+get measuring per-op latency.
 
     Gated by env var because it depends on cluster reachability and the
-    timing target is informational, not pass/fail. Day 6 target: < 1 ms
-    median per put or get.
+    timing target is informational, not pass/fail.
     """
     client = _connect_blocking(aerospike_host, use_services_alternate)
     try:
         wp = WritePolicy()
         rp = ReadPolicy()
-        key = Key("test", "blocking_spike", "perf-1")
+        key = Key("test", "blocking", "perf-1")
 
         # Warmup
         for _ in range(100):
