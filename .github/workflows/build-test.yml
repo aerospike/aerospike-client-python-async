@@ -557,9 +557,14 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out aerospike_async
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
-          manylinux: auto
+          # Build against the host Python installed by setup-python above.
+          # The default manylinux Docker container does not include
+          # free-threaded CPython builds (3.13t / 3.14t), so spinning one
+          # up causes maturin to fail with "Couldn't find any python
+          # interpreters".
+          manylinux: off
         env:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
