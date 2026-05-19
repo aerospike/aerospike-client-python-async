@@ -29,11 +29,11 @@ fn main() -> Result<()> {
     };
 
     // Generate stubs with the output directory
-    let modules = stub.modules.clone();
-    let custom_stub = pyo3_stub_gen::StubInfo {
-        modules,
-        python_root: output_path.clone(),
-    };
+    // Clone the gathered `StubInfo` and override `python_root`.  Cloning
+    // is forward-compatible across pyo3-stub-gen version bumps that add new
+    // fields to `StubInfo` (vs. struct-literal init which breaks every bump).
+    let mut custom_stub = stub.clone();
+    custom_stub.python_root = output_path.clone();
     custom_stub.generate()?;
 
     // Move _aerospike_async_native.pyi from python/ to python/aerospike_async/

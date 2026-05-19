@@ -32,6 +32,12 @@ seed) so they continue to pass on a pre-8.1.2 cluster running 8.1.1+.
 
 import pytest
 import pytest_asyncio
+
+# Fixtures here are session-loop-scoped (clients live longer than one test);
+# tests must run on the same session loop or the per-Client owning-loop guard
+# in PAC's completion bridge fires.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 from aerospike_async import (
     CTX,
     ClientPolicy,

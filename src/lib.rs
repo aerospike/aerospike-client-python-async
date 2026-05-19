@@ -16,6 +16,9 @@
 #![deny(warnings)]
 extern crate pyo3;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -38,6 +41,7 @@ use aerospike_core::errors::Error;
 mod completion;
 mod enums;
 mod errors;
+mod runtime;
 mod tasks;
 mod tls;
 mod record;
@@ -68,6 +72,37 @@ use crate::operations::{
     extract_py_ops_with_ctx,
 };
 
+    fn check_not_in_async_context(py: Python<'_>) -> PyResult<()> {
+        let asyncio = py.import("asyncio")?;
+        if asyncio.call_method0("get_running_loop").is_ok() {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "Cannot call a blocking method from within an async context \
+                 (a running asyncio event loop was detected). Use the async \
+                 method and `await` it instead.",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Run a `Send` future to completion on the global Tokio runtime while
+    /// the GIL is released.  The future is moved in, polled by `block_on`
+    /// on the calling thread; aerospike-core dispatches I/O to its workers
+    /// internally.  The caller wraps any pyclass returns post-detach (the
+    /// GIL is reacquired automatically on return).
+    ///
+    /// Async-context misuse (running this from inside `asyncio.run`) is
+    /// rejected up front so we never end up calling `block_on` from a
+    /// thread that already owns an asyncio loop.
+    fn run_blocking<Fut, T>(py: Python<'_>, fut: Fut) -> PyResult<T>
+    where
+        Fut: std::future::Future<Output = PyResult<T>> + Send,
+        T: Send,
+    {
+        check_not_in_async_context(py)?;
+        let rt = pyo3_async_runtimes::tokio::get_runtime();
+        py.detach(move || rt.block_on(fut))
+    }
+
     /**********************************************************************************
      *
      * Client
@@ -79,6 +114,11 @@ use crate::operations::{
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
         let as_policy = policy._as.clone();
         let as_seeds = seeds.clone();
+        // Capture the loop the caller is awaiting on; this becomes the bridge's
+        // owning loop and every subsequent op on this Client must run on it.
+        let locals = pyo3_asyncio::get_current_locals(py)?;
+        let owning_loop: Py<PyAny> = locals.event_loop(py).clone().unbind();
+        let bridge = completion::CompletionBridge::new(py, owning_loop)?;
 
         Ok(pyo3_asyncio::future_into_py(py, async move {
             log::debug!(target: "aerospike_async", "connecting to {}", as_seeds);
@@ -90,11 +130,48 @@ use crate::operations::{
             let res = Client {
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
+                bridge: Some(bridge),
             };
 
             Ok(res)
         })?
         .into())
+    }
+
+    /// Synchronously create and connect a Client.
+    ///
+    /// Unlike :func:`new_client`, this function does not require a running
+    /// asyncio event loop. The returned Client can only be used with the
+    /// `_blocking` method variants — calling an async method on a client built
+    /// this way raises ``RuntimeError`` because the completion bridge (which
+    /// captures an asyncio loop at construction time) is not initialized.
+    #[gen_stub_pyfunction(module = "_aerospike_async_native")]
+    #[pyfunction]
+    pub fn new_client_blocking(
+        py: Python<'_>,
+        policy: ClientPolicy,
+        seeds: String,
+    ) -> PyResult<Client> {
+        check_not_in_async_context(py)?;
+        let as_policy = policy._as.clone();
+        let as_seeds = seeds.clone();
+        let rt = pyo3_async_runtimes::tokio::get_runtime();
+
+        let raw = py.detach(|| {
+            rt.block_on(async move {
+                log::debug!(target: "aerospike_async", "connecting (blocking) to {}", as_seeds);
+                aerospike_core::Client::new(&as_policy, &as_seeds)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        })?;
+
+        log::debug!(target: "aerospike_async", "connected (blocking) to {}", seeds);
+        Ok(Client {
+            _as: Arc::new(raw),
+            seeds,
+            bridge: None,
+        })
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +192,7 @@ use crate::operations::{
     ///     # use txn in put/get policy.txn field
     ///     status = await client.commit(txn)
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct Txn {
         pub(crate) _as: Arc<aerospike_core::Txn>,
@@ -197,12 +274,50 @@ use crate::operations::{
         }
     }
 
+    // Deferred-conversion carrier for `Client.exists_legacy`.  Returned from
+    // the spawned Tokio task and converted to a `(Key, meta_dict | None)`
+    // Python tuple inside pyo3-async-runtimes' single delivery-time
+    // `Python::attach`.  This pattern avoids the redundant `Python::attach`
+    // that would otherwise run on the Tokio worker thread.
+    struct PendingExistsLegacy {
+        key: aerospike_core::Key,
+        meta_record: Option<aerospike_core::Record>,
+    }
+
+    impl<'py> IntoPyObject<'py> for PendingExistsLegacy {
+        type Target = PyAny;
+        type Output = Bound<'py, PyAny>;
+        type Error = PyErr;
+
+        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+            let key_obj = Py::new(py, Key { _as: self.key })?;
+            let meta: Py<PyAny> = if let Some(record) = self.meta_record {
+                let meta_dict = pyo3::types::PyDict::new(py);
+                meta_dict.set_item("gen", record.generation)?;
+                if let Some(ttl) = record.time_to_live() {
+                    meta_dict.set_item("ttl", ttl.as_secs() as u32)?;
+                } else {
+                    meta_dict.set_item("ttl", py.None())?;
+                }
+                meta_dict.into()
+            } else {
+                py.None()
+            };
+            let tuple = pyo3::types::PyTuple::new(py, [key_obj.into_any(), meta])?;
+            Ok(tuple.into_any())
+        }
+    }
+
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass, freelist = 1)]
     #[derive(Clone)]
     pub struct Client {
         _as: Arc<aerospike_core::Client>,
         seeds: String,
+        // None for clients created via `new_client_blocking` — async methods
+        // require this to be Some; `require_bridge()` enforces it with a clear
+        // PyRuntimeError instead of panicking.
+        bridge: Option<completion::CompletionBridge>,
     }
 
     // Helper function to check if a key exists (internal use, shared by exists() and exists_legacy())
@@ -213,6 +328,16 @@ use crate::operations::{
             key: aerospike_core::Key,
         ) -> Result<bool, Error> {
             client.exists(&policy, &key).await
+        }
+
+        fn require_bridge(&self) -> PyResult<&completion::CompletionBridge> {
+            self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "This client was created with new_client_blocking() and cannot \
+                     be used for async operations. Create an async client with \
+                     new_client() instead.",
+                )
+            })
         }
     }
 
@@ -254,6 +379,1185 @@ use crate::operations::{
             })
         }
 
+        // ===================================================================
+        // Blocking variants (Day 6 P2.a spike): put, get, delete, close,
+        // commit, abort, is_connected.  Each releases the GIL during the
+        // Tokio block_on and raises PyRuntimeError if called from within a
+        // running asyncio event loop.  When the macro lands these will be
+        // codegen'd from the async siblings; for the spike they are hand
+        // written to validate the pattern end-to-end.
+        // ===================================================================
+
+        /// Synchronously close the connection to the Aerospike cluster.
+        pub fn close_blocking(&self, py: Python<'_>) -> PyResult<()> {
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                client.close().await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously check whether the client is connected to any cluster nodes.
+        ///
+        /// The underlying check is non-blocking, so this returns immediately
+        /// without invoking the Tokio runtime.
+        pub fn is_connected_blocking(&self) -> bool {
+            self._as.is_connected()
+        }
+
+        /// Synchronously write record bin(s).
+        pub fn put_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            bins: &Bound<'_, PyDict>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+
+            // Same bin extraction as `put` — must run with the GIL.
+            let mut bin_vec = Vec::new();
+            for (py_key, py_val) in bins.iter() {
+                let name = py_key.extract::<String>().map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                        "A bin name must be a string or unicode string",
+                    )
+                })?;
+                let val: PythonValue = py_val.extract()?;
+                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+            }
+
+            run_blocking(py, async move {
+                client.put(&policy, &key, &bin_vec).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously read a record for the specified key.
+        #[pyo3(signature = (policy, key, bins = None))]
+        pub fn get_blocking(
+            &self,
+            policy: &ReadPolicy,
+            key: &Key,
+            bins: Option<Vec<String>>,
+            py: Python<'_>,
+        ) -> PyResult<Record> {
+            let has_filter_expression = policy._as.base_policy.filter_expression.is_some();
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+
+            let raw = run_blocking(py, async move {
+                client.get(&policy, &key, bins_flag(bins)).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+
+            // Filter expression mismatch returns an empty record — mirror the
+            // async path's behavior so callers see one consistent error.
+            if raw.bins.is_empty() && has_filter_expression {
+                return Err(PyException::new_err(
+                    "Filter expression did not match any records",
+                ));
+            }
+            Ok(Record { _as: raw, cached_bins: None })
+        }
+
+        /// Synchronously delete a record for the specified key.
+        ///
+        /// Returns ``True`` if the record existed on the server before the
+        /// delete, ``False`` otherwise.
+        pub fn delete_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                client.delete(&policy, &key).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously commit a multi-record transaction.
+        pub fn commit_blocking(&self, txn: &Txn, py: Python<'_>) -> PyResult<CommitStatus> {
+            let client = self._as.clone();
+            let txn_arc = txn._as.clone();
+            let status = run_blocking(py, async move {
+                client.commit(&txn_arc).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(CommitStatus::from(status))
+        }
+
+        /// Synchronously abort a multi-record transaction.
+        pub fn abort_blocking(&self, txn: &Txn, py: Python<'_>) -> PyResult<AbortStatus> {
+            let client = self._as.clone();
+            let txn_arc = txn._as.clone();
+            let status = run_blocking(py, async move {
+                client.abort(&txn_arc).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(AbortStatus::from(status))
+        }
+
+        // -- Remaining blocking variants (P2.a Day 7) --
+
+        /// Synchronously add integer bin values.
+        pub fn add_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            bins: HashMap<String, PythonValue>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            let bins: Vec<aerospike_core::Bin> = bins.into_iter()
+                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
+                .collect();
+            run_blocking(py, async move {
+                client.add(&policy, &key, &bins).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously append string bin values.
+        pub fn append_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            bins: HashMap<String, PythonValue>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            let bins: Vec<aerospike_core::Bin> = bins.into_iter()
+                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
+                .collect();
+            run_blocking(py, async move {
+                client.append(&policy, &key, &bins).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously prepend string bin values.
+        pub fn prepend_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            bins: HashMap<String, PythonValue>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            let bins: Vec<aerospike_core::Bin> = bins.into_iter()
+                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
+                .collect();
+            run_blocking(py, async move {
+                client.prepend(&policy, &key, &bins).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously reset record TTL.
+        pub fn touch_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                client.touch(&policy, &key).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously check whether a record exists.
+        pub fn exists_blocking(
+            &self,
+            policy: &ReadPolicy,
+            key: &Key,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                Self::exists_internal(client, policy, key).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously execute multiple operations atomically on a single record.
+        pub fn operate_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            operations: Vec<Py<PyAny>>,
+            py: Python<'_>,
+        ) -> PyResult<Record> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
+            let raw = run_blocking(py, async move {
+                let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
+                client.operate(&policy, &key, &core_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(Record { _as: raw, cached_bins: None })
+        }
+
+        /// Synchronously execute a registered UDF on a single record.
+        #[pyo3(signature = (policy, key, server_path, function_name, args = None))]
+        pub fn execute_udf_blocking(
+            &self,
+            policy: &WritePolicy,
+            key: &Key,
+            server_path: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'_>,
+        ) -> PyResult<Option<PythonValue>> {
+            let policy = policy._as.clone();
+            let key = key._as.clone();
+            let client = self._as.clone();
+            let core_args: Option<Vec<aerospike_core::Value>> =
+                args.map(|v| v.into_iter().map(|pv| pv.into()).collect());
+            let raw = run_blocking(py, async move {
+                let core_args_ref = core_args.as_deref();
+                client.execute_udf(&policy, &key, &server_path, &function_name, core_args_ref).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.map(PythonValue::from))
+        }
+
+        /// Synchronously execute a query and return a Recordset that supports
+        /// `for record in recordset:` iteration via `__iter__`/`__next__`.
+        pub fn query_blocking(
+            &self,
+            policy: &QueryPolicy,
+            partition_filter: PartitionFilter,
+            statement: &Statement,
+            py: Python<'_>,
+        ) -> PyResult<Recordset> {
+            let policy = policy._as.clone();
+            let client = self._as.clone();
+            let stmt = statement.clone()._as;
+            let raw = run_blocking(py, async move {
+                client.query(&policy, partition_filter._as, stmt).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(Recordset { _as: raw, _stream: Arc::new(Mutex::new(None)) })
+        }
+
+        /// Synchronously execute a background query that performs ops on each matching record.
+        pub fn query_operate_blocking(
+            &self,
+            write_policy: &WritePolicy,
+            statement: &Statement,
+            operations: Vec<Py<PyAny>>,
+            py: Python<'_>,
+        ) -> PyResult<ExecuteTask> {
+            let policy = write_policy._as.clone();
+            let client = self._as.clone();
+            let core_statement = statement._as.clone();
+            let rust_ops = extract_py_ops(py, &operations)?;
+            let (core_ops, _) = convert_scalar_ops_to_core(&rust_ops).map_err(|e| {
+                PyValueError::new_err(format!(
+                    "query_operate supports scalar and expression operations only. {}",
+                    e
+                ))
+            })?;
+            let raw = run_blocking(py, async move {
+                client.query_operate(&policy, core_statement, &core_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(ExecuteTask { _as: raw })
+        }
+
+        /// Synchronously apply a UDF to records matching the statement (background).
+        #[pyo3(signature = (write_policy, statement, package_name, function_name, args = None))]
+        pub fn query_execute_udf_blocking(
+            &self,
+            write_policy: &WritePolicy,
+            statement: &Statement,
+            package_name: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'_>,
+        ) -> PyResult<ExecuteTask> {
+            let policy = write_policy._as.clone();
+            let client = self._as.clone();
+            let mut core_statement = statement._as.clone();
+            let rust_args = args.map(|a| a.into_iter().map(|v| v.into())
+                .collect::<Vec<aerospike_core::Value>>());
+            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref());
+            let raw = run_blocking(py, async move {
+                let args_ref = rust_args.as_deref();
+                client.query_execute_udf(&policy, core_statement, &package_name, &function_name, args_ref).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(ExecuteTask { _as: raw })
+        }
+
+        /// Synchronously register a UDF module from in-memory bytes.
+        #[pyo3(signature = (udf_body, server_path, language, *, policy = None))]
+        pub fn register_udf_blocking(
+            &self,
+            udf_body: Vec<u8>,
+            server_path: String,
+            language: UDFLang,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<RegisterTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let lang: aerospike_core::UDFLang = language.into();
+            let raw = run_blocking(py, async move {
+                client.register_udf(&admin_policy, &udf_body, &server_path, lang).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(RegisterTask { _as: raw })
+        }
+
+        /// Synchronously register a UDF module from a local file path.
+        #[pyo3(signature = (client_path, server_path, language, *, policy = None))]
+        pub fn register_udf_from_file_blocking(
+            &self,
+            client_path: String,
+            server_path: String,
+            language: UDFLang,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<RegisterTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let lang: aerospike_core::UDFLang = language.into();
+            let raw = run_blocking(py, async move {
+                client.register_udf_from_file(&admin_policy, &client_path, &server_path, lang).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(RegisterTask { _as: raw })
+        }
+
+        /// Synchronously remove a registered UDF module.
+        #[pyo3(signature = (server_path, *, policy = None))]
+        pub fn remove_udf_blocking(
+            &self,
+            server_path: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<UdfRemoveTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let raw = run_blocking(py, async move {
+                client.remove_udf(&admin_policy, &server_path).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(UdfRemoveTask { _as: raw })
+        }
+
+        /// Synchronously truncate records in a namespace/set.
+        #[pyo3(signature = (namespace, set_name, before_nanos = None, *, policy = None))]
+        pub fn truncate_blocking(
+            &self,
+            namespace: String,
+            set_name: String,
+            before_nanos: Option<i64>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let before_nanos = before_nanos.unwrap_or_default();
+            run_blocking(py, async move {
+                client.truncate(&admin_policy, &namespace, &set_name, before_nanos).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously create a secondary index on a bin.
+        #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, ctx = None, *, policy = None))]
+        pub fn create_index_blocking(
+            &self,
+            namespace: String,
+            set_name: String,
+            bin_name: String,
+            index_name: String,
+            index_type: IndexType,
+            cit: Option<CollectionIndexType>,
+            ctx: Option<Vec<CTX>>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&index_type).into();
+            let ctx_core = ctx.map(|c| ctx_to_vec(&c));
+            run_blocking(py, async move {
+                client.create_index_on_bin(
+                    &admin_policy, &namespace, &set_name, &bin_name,
+                    &index_name, index_type, cit, ctx_core.as_deref(),
+                ).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(())
+            })
+        }
+
+        /// Synchronously drop a secondary index.
+        #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
+        pub fn drop_index_blocking(
+            &self,
+            namespace: String,
+            set_name: String,
+            index_name: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<DropIndexTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let raw = run_blocking(py, async move {
+                client.drop_index(&admin_policy, &namespace, &set_name, &index_name).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(DropIndexTask { _as: raw })
+        }
+
+        /// Synchronously execute an info command on a random cluster node.
+        pub fn info_blocking(
+            &self,
+            command: String,
+            py: Python<'_>,
+        ) -> PyResult<HashMap<String, String>> {
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                let node = client.cluster.get_random_node()
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                let policy = aerospike_core::AdminPolicy::default();
+                node.info(&policy, &[&command]).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously execute an info command on all cluster nodes.
+        pub fn info_on_all_nodes_blocking(
+            &self,
+            command: String,
+            py: Python<'_>,
+        ) -> PyResult<HashMap<String, HashMap<String, String>>> {
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                let nodes = client.nodes();
+                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let policy = aerospike_core::AdminPolicy::default();
+                for node in nodes {
+                    let response = node.info(&policy, &[&command]).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    results.insert(node.name().to_string(), response);
+                }
+                Ok(results)
+            })
+        }
+
+        /// Synchronously list cluster node names.
+        pub fn node_names_blocking(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+            let client = self._as.clone();
+            run_blocking(py, async move {
+                Ok(client.nodes().iter().map(|n| n.name().to_string()).collect())
+            })
+        }
+
+        // -- Security / admin (Group 5) --
+
+        /// Synchronously create a new user.
+        #[pyo3(signature = (user, password, roles, *, policy = None))]
+        pub fn create_user_blocking(
+            &self,
+            user: String,
+            password: String,
+            roles: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
+                client.create_user(&admin_policy, &user, &password, &roles).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously create a PKI user (TLS-cert auth).
+        #[pyo3(signature = (user, roles, *, policy = None))]
+        pub fn create_pki_user_blocking(
+            &self,
+            user: String,
+            roles: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
+                client.create_pki_user(&admin_policy, &user, &roles).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously remove a user.
+        #[pyo3(signature = (user, *, policy = None))]
+        pub fn drop_user_blocking(
+            &self,
+            user: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                client.drop_user(&admin_policy, &user).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously change a user's password.
+        #[pyo3(signature = (user, password, *, policy = None))]
+        pub fn change_password_blocking(
+            &self,
+            user: String,
+            password: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                client.change_password(&admin_policy, &user, &password).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously grant roles to a user.
+        #[pyo3(signature = (user, roles, *, policy = None))]
+        pub fn grant_roles_blocking(
+            &self,
+            user: String,
+            roles: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
+                client.grant_roles(&admin_policy, &user, &roles).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously revoke roles from a user.
+        #[pyo3(signature = (user, roles, *, policy = None))]
+        pub fn revoke_roles_blocking(
+            &self,
+            user: String,
+            roles: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
+                client.revoke_roles(&admin_policy, &user, &roles).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously query users and their roles.
+        #[pyo3(signature = (user = None, *, policy = None))]
+        pub fn query_users_blocking(
+            &self,
+            user: Option<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<User>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let raw = run_blocking(py, async move {
+                let user_ref = user.as_deref();
+                client.query_users(&admin_policy, user_ref).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|u| User { _as: u }).collect())
+        }
+
+        /// Synchronously query roles and their privileges.
+        #[pyo3(signature = (role = None, *, policy = None))]
+        pub fn query_roles_blocking(
+            &self,
+            role: Option<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<Role>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let raw = run_blocking(py, async move {
+                let role_ref = role.as_deref();
+                client.query_roles(&admin_policy, role_ref).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|r| Role { _as: r }).collect())
+        }
+
+        /// Synchronously create a user-defined role.
+        #[pyo3(signature = (role_name, privileges, allowlist, read_quota, write_quota, *, policy = None))]
+        pub fn create_role_blocking(
+            &self,
+            role_name: String,
+            privileges: Vec<Privilege>,
+            allowlist: Vec<String>,
+            read_quota: u32,
+            write_quota: u32,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let core_privileges: Vec<aerospike_core::Privilege> =
+                privileges.iter().map(|r| r._as.clone()).collect();
+            run_blocking(py, async move {
+                let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
+                client.create_role(
+                    &admin_policy, &role_name, &core_privileges, &allowlist,
+                    read_quota, write_quota,
+                ).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously remove a user-defined role.
+        #[pyo3(signature = (role_name, *, policy = None))]
+        pub fn drop_role_blocking(
+            &self,
+            role_name: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                client.drop_role(&admin_policy, &role_name).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously grant privileges to a role.
+        #[pyo3(signature = (role_name, privileges, *, policy = None))]
+        pub fn grant_privileges_blocking(
+            &self,
+            role_name: String,
+            privileges: Vec<Privilege>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let core_privileges: Vec<aerospike_core::Privilege> =
+                privileges.iter().map(|p| p._as.clone()).collect();
+            run_blocking(py, async move {
+                client.grant_privileges(&admin_policy, &role_name, &core_privileges).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously revoke privileges from a role.
+        #[pyo3(signature = (role_name, privileges, *, policy = None))]
+        pub fn revoke_privileges_blocking(
+            &self,
+            role_name: String,
+            privileges: Vec<Privilege>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let core_privileges: Vec<aerospike_core::Privilege> =
+                privileges.iter().map(|p| p._as.clone()).collect();
+            run_blocking(py, async move {
+                client.revoke_privileges(&admin_policy, &role_name, &core_privileges).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously set IP allowlist for a role.
+        #[pyo3(signature = (role_name, allowlist, *, policy = None))]
+        pub fn set_allowlist_blocking(
+            &self,
+            role_name: String,
+            allowlist: Vec<String>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
+                client.set_allowlist(&admin_policy, &role_name, &allowlist).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously set per-second quotas for a role.
+        #[pyo3(signature = (role_name, read_quota, write_quota, *, policy = None))]
+        pub fn set_quotas_blocking(
+            &self,
+            role_name: String,
+            read_quota: u32,
+            write_quota: u32,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            run_blocking(py, async move {
+                client.set_quotas(&admin_policy, &role_name, read_quota, write_quota).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously create a secondary index using an expression.
+        #[pyo3(signature = (namespace, set_name, index_name, index_type, expression, cit = None, *, policy = None))]
+        pub fn create_index_using_expression_blocking(
+            &self,
+            namespace: String,
+            set_name: String,
+            index_name: String,
+            index_type: IndexType,
+            expression: &FilterExpression,
+            cit: Option<CollectionIndexType>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<IndexTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let expr = expression._as.clone();
+            let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
+            let index_type = (&index_type).into();
+            let raw = run_blocking(py, async move {
+                client.create_index_using_expression(
+                    &admin_policy, &namespace, &set_name,
+                    &index_name, index_type, cit, &expr,
+                ).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(IndexTask { _as: raw })
+        }
+
+        /// Synchronously set the XDR filter for a datacenter / namespace.
+        #[pyo3(signature = (datacenter, namespace, filter_expression = None, *, policy = None))]
+        pub fn set_xdr_filter_blocking(
+            &self,
+            datacenter: String,
+            namespace: String,
+            filter_expression: Option<FilterExpression>,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as)
+                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let expr = filter_expression.clone();
+            run_blocking(py, async move {
+                client.set_xdr_filter(
+                    &admin_policy, &datacenter, &namespace,
+                    expr.as_ref().map(|e| &e._as),
+                ).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
+        /// Synchronously look up a single cluster node by name.
+        pub fn get_node_blocking(&self, name: String, py: Python<'_>) -> PyResult<Node> {
+            let client = self._as.clone();
+            let raw = run_blocking(py, async move {
+                client.get_node(&name)
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(Node { _as: raw })
+        }
+
+        /// Synchronously list all active cluster nodes.
+        pub fn nodes_blocking(&self, py: Python<'_>) -> PyResult<Vec<Node>> {
+            let client = self._as.clone();
+            let raw = run_blocking(py, async move {
+                Ok(client.nodes())
+            })?;
+            Ok(raw.into_iter().map(|n| Node { _as: n }).collect())
+        }
+
+        // -- Batch blocking variants (Group 2) --
+
+        /// Synchronously read multiple records by key in one batch.
+        pub fn batch_read_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<PyRef<Key>>,
+            bins: Option<Vec<String>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                let bf = bins_flag(bins);
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, bf.clone()));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
+        /// Synchronously write multiple records by key in one batch.
+        pub fn batch_write_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
+            keys: Vec<PyRef<Key>>,
+            bins_list: Vec<Py<PyAny>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            if keys.len() != bins_list.len() {
+                return Err(PyValueError::new_err(
+                    "keys and bins_list must have the same length",
+                ));
+            }
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let mut bins_vecs = Vec::with_capacity(bins_list.len());
+            for bins_obj in &bins_list {
+                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
+                let mut bin_vec = Vec::new();
+                for (py_key, py_val) in bins_dict.iter() {
+                    let name = py_key.extract::<String>().map_err(|_| {
+                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                            "A bin name must be a string or unicode string",
+                        )
+                    })?;
+                    let val: PythonValue = py_val.extract()?;
+                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+                }
+                bins_vecs.push(bin_vec);
+            }
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::operations;
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for (key, bins) in rust_keys.into_iter().zip(bins_vecs.iter()) {
+                    let ops: Vec<aerospike_core::operations::Operation> = bins
+                        .iter()
+                        .map(|bin| operations::put(bin))
+                        .collect();
+                    batch_ops.push(BatchOperation::write(&write_policy, key, ops));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
+        /// Synchronously perform per-key ops on multiple records in one batch.
+        pub fn batch_operate_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
+            keys: Vec<PyRef<Key>>,
+            operations_list: Vec<Vec<Py<PyAny>>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            if keys.len() != operations_list.len() {
+                return Err(PyValueError::new_err(
+                    "keys and operations_list must have the same length",
+                ));
+            }
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let write_policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let mut rust_ops_list = Vec::with_capacity(operations_list.len());
+            for operations in operations_list {
+                rust_ops_list.push(extract_py_ops_with_ctx(py, &operations)?);
+            }
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                let read_policy = aerospike_core::BatchReadPolicy::default();
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list.into_iter()) {
+                    let (core_ops, has_write_op) = convert_ops_with_ctx_to_core(&ops, true)?;
+                    let batch_op = if has_write_op {
+                        BatchOperation::write(&write_policy, key, core_ops)
+                    } else {
+                        BatchOperation::read_ops(&read_policy, key, core_ops)
+                    };
+                    batch_ops.push(batch_op);
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
+        /// Synchronously delete multiple records by key in one batch.
+        pub fn batch_delete_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            delete_policy: Option<&BatchDeletePolicy>,
+            keys: Vec<PyRef<Key>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let delete_policy = delete_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::delete(&delete_policy, key));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
+        /// Synchronously check existence of multiple keys in one batch.
+        pub fn batch_exists_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<PyRef<Key>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<bool>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::Bins;
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| br.record.is_some()).collect())
+        }
+
+        /// Synchronously read multiple record headers (metadata only) in one batch.
+        pub fn batch_get_header_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
+            keys: Vec<PyRef<Key>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<Option<Record>>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let read_policy = read_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                use aerospike_core::Bins;
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter()
+                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                .collect())
+        }
+
+        /// Synchronously apply a UDF to multiple keys in one batch.
+        pub fn batch_apply_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            udf_policy: Option<&BatchUDFPolicy>,
+            keys: Vec<PyRef<Key>>,
+            udf_name: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let udf_policy = udf_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let rust_keys: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let rust_args = args.map(|a| a.into_iter().map(|v| v.into())
+                .collect::<Vec<aerospike_core::Value>>());
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                let mut batch_ops = Vec::with_capacity(rust_keys.len());
+                for key in rust_keys {
+                    let rust_args_owned = rust_args.as_ref().map(|a| a.to_vec());
+                    batch_ops.push(BatchOperation::udf(
+                        &udf_policy, key, &udf_name, &function_name, rust_args_owned,
+                    ));
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
+        /// Synchronously execute a mixed batch of read/write/delete ops.
+        pub fn batch_blocking(
+            &self,
+            batch_policy: Option<&BatchPolicy>,
+            ops: Vec<Py<PyAny>>,
+            py: Python<'_>,
+        ) -> PyResult<Vec<BatchRecord>> {
+            let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+
+            // Use the same ExtractedOp shape as the async `batch` — kept local
+            // so the two implementations stay in sync without exposing the type.
+            #[derive(Clone)]
+            enum ExtractedOp {
+                Read {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchReadPolicy,
+                    bins: Option<Vec<String>>,
+                    ops: Vec<OpWithCtx>,
+                },
+                Write {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchWritePolicy,
+                    ops: Vec<OpWithCtx>,
+                },
+                Delete {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchDeletePolicy,
+                },
+            }
+
+            let mut extracted: Vec<ExtractedOp> = Vec::with_capacity(ops.len());
+            for op_obj in &ops {
+                if let Ok(read_op) = op_obj.extract::<PyRef<BatchReadOp>>(py) {
+                    extracted.push(ExtractedOp::Read {
+                        key: read_op.key.clone(),
+                        policy: read_op.policy.clone(),
+                        bins: read_op.bins.clone(),
+                        ops: read_op.ops.clone(),
+                    });
+                } else if let Ok(write_op) = op_obj.extract::<PyRef<BatchWriteOp>>(py) {
+                    extracted.push(ExtractedOp::Write {
+                        key: write_op.key.clone(),
+                        policy: write_op.policy.clone(),
+                        ops: write_op.ops.clone(),
+                    });
+                } else if let Ok(delete_op) = op_obj.extract::<PyRef<BatchDeleteOp>>(py) {
+                    extracted.push(ExtractedOp::Delete {
+                        key: delete_op.key.clone(),
+                        policy: delete_op.policy.clone(),
+                    });
+                } else {
+                    return Err(PyTypeError::new_err(
+                        "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp",
+                    ));
+                }
+            }
+
+            let raw = run_blocking(py, async move {
+                use aerospike_core::BatchOperation;
+                let mut batch_ops = Vec::with_capacity(extracted.len());
+                for ext in &extracted {
+                    match ext {
+                        ExtractedOp::Read { key, policy, bins, ops } if ops.is_empty() => {
+                            batch_ops.push(
+                                BatchOperation::read(policy, key.clone(), bins_flag(bins.clone()))
+                            );
+                        }
+                        ExtractedOp::Read { key, policy, bins: _, ops } => {
+                            let (core_ops, _has_write) = convert_ops_with_ctx_to_core(ops, false)?;
+                            batch_ops.push(
+                                BatchOperation::read_ops(policy, key.clone(), core_ops)
+                            );
+                        }
+                        ExtractedOp::Write { key, policy, ops } => {
+                            let (core_ops, _) = convert_ops_with_ctx_to_core(ops, false)?;
+                            batch_ops.push(
+                                BatchOperation::write(policy, key.clone(), core_ops)
+                            );
+                        }
+                        ExtractedOp::Delete { key, policy } => {
+                            batch_ops.push(
+                                BatchOperation::delete(policy, key.clone())
+                            );
+                        }
+                    }
+                }
+                client.batch(&batch_policy, &batch_ops).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+        }
+
         /// Write record bin(s). The policy specifies the transaction timeout, record expiration and
         /// how the transaction is handled when the record already exists.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
@@ -282,7 +1586,7 @@ use crate::operations::{
                 bin_vec.push(aerospike_core::Bin::new(name, val.into()));
             }
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .put(&policy, &key, &bin_vec)
                     .await
@@ -309,7 +1613,7 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let res = client
                     .get(&policy, &key, bins_flag(bins))
                     .await
@@ -351,7 +1655,7 @@ use crate::operations::{
 
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
                 let res = client
                     .operate(&policy, &key, &core_ops)
@@ -383,7 +1687,7 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .add(&policy, &key, &bins)
                     .await
@@ -413,7 +1717,7 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .append(&policy, &key, &bins)
                     .await
@@ -443,7 +1747,7 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .prepend(&policy, &key, &bins)
                     .await
@@ -466,7 +1770,7 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let res = client
                     .delete(&policy, &key)
                     .await
@@ -489,7 +1793,7 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .touch(&policy, &key)
                     .await
@@ -517,7 +1821,7 @@ use crate::operations::{
                 keys.iter().map(|k| k._as.clone()).collect();
             let client = self._as.clone();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
 
                 let bf = bins_flag(bins);
@@ -575,7 +1879,7 @@ use crate::operations::{
                 bins_vecs.push(bin_vec);
             }
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::operations;
 
@@ -626,7 +1930,7 @@ use crate::operations::{
                 rust_ops_list.push(extract_py_ops_with_ctx(py, &operations)?);
             }
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
 
                 let read_policy = aerospike_core::BatchReadPolicy::default();
@@ -670,7 +1974,7 @@ use crate::operations::{
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
 
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
@@ -706,7 +2010,7 @@ use crate::operations::{
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::Bins;
 
@@ -743,7 +2047,7 @@ use crate::operations::{
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::Bins;
 
@@ -789,7 +2093,7 @@ use crate::operations::{
                     .collect::<Vec<aerospike_core::Value>>()
             });
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
 
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
@@ -878,7 +2182,7 @@ use crate::operations::{
                 }
             }
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
 
                 let mut batch_ops = Vec::with_capacity(extracted.len());
@@ -959,16 +2263,12 @@ use crate::operations::{
                     .execute_udf(&policy, &key, &server_path, &function_name, rust_args_ref)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-
-                Python::attach(|_py| {
-                    match result {
-                        Some(value) => {
-                            let pv: PythonValue = value.into();
-                            Ok(Some(pv.into_pyobject(_py)?.unbind()))
-                        }
-                        None => Ok(None),
-                    }
-                })
+                // Return `Option<PythonValue>` directly — pyo3-async-runtimes
+                // performs a single `Python::attach` at future-delivery time and
+                // invokes `IntoPyObject` then.  Avoids the redundant
+                // `Python::attach` inside the Tokio worker that this method
+                // previously did purely to wrap the result.
+                Ok(result.map(PythonValue::from))
             })
         }
 
@@ -1080,10 +2380,7 @@ use crate::operations::{
                     .register_udf(&admin_policy, &udf_body, &server_path, lang)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-
-                Python::attach(|_py| {
-                    Ok(RegisterTask { _as: task })
-                })
+                Ok(RegisterTask { _as: task })
             })
         }
 
@@ -1115,10 +2412,7 @@ use crate::operations::{
                     .register_udf_from_file(&admin_policy, &client_path, &server_path, lang)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-
-                Python::attach(|_py| {
-                    Ok(RegisterTask { _as: task })
-                })
+                Ok(RegisterTask { _as: task })
             })
         }
 
@@ -1145,10 +2439,7 @@ use crate::operations::{
                     .remove_udf(&admin_policy, &server_path)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-
-                Python::attach(|_py| {
-                    Ok(UdfRemoveTask { _as: task })
-                })
+                Ok(UdfRemoveTask { _as: task })
             })
         }
 
@@ -1164,7 +2455,7 @@ use crate::operations::{
             let key = key._as.clone();
             let client = self._as.clone();
 
-            completion::batched_future_into_py(py, async move {
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let res = Self::exists_internal(client, policy, key)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -1187,43 +2478,25 @@ use crate::operations::{
             let client = self._as.clone();
 
             pyo3_asyncio::future_into_py(py, async move {
-                // Reuse the same logic as exists() but return (key, meta) tuple
                 let exists = Self::exists_internal(client.clone(), policy.clone(), key.clone())
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                // Return (key, meta) tuple where meta=None if record doesn't exist
-                // If record exists, get metadata (generation, ttl)
+                // If the record exists, fetch metadata via a header-only get
+                // (Bins::None).  Otherwise meta is None.
                 let meta_record = if exists {
-                    // Get metadata by calling get() with empty bins
                     let read_policy = aerospike_core::ReadPolicy::default();
-                    Some(client
-                        .get(&read_policy, &key, aerospike_core::Bins::None)
-                        .await
-                        .map_err(|e| PyErr::from(RustClientError(e)))?)
+                    Some(
+                        client
+                            .get(&read_policy, &key, aerospike_core::Bins::None)
+                            .await
+                            .map_err(|e| PyErr::from(RustClientError(e)))?,
+                    )
                 } else {
                     None
                 };
 
-                // This matches the legacy Python client contract
-                Python::attach(|py| {
-                    let key_obj = Py::new(py, Key { _as: key })?;
-                    let meta = if let Some(record) = meta_record {
-                        // Create a dict with generation and ttl metadata
-                        let meta_dict = pyo3::types::PyDict::new(py);
-                        meta_dict.set_item("gen", record.generation)?;
-                        if let Some(ttl) = record.time_to_live() {
-                            meta_dict.set_item("ttl", ttl.as_secs() as u32)?;
-                        } else {
-                            meta_dict.set_item("ttl", py.None())?;
-                        }
-                        meta_dict.into()
-                    } else {
-                        py.None()
-                    };
-                    let tuple = pyo3::types::PyTuple::new(py, [key_obj.into(), meta])?;
-                    Ok(tuple.unbind())
-                })
+                Ok(PendingExistsLegacy { key, meta_record })
             })
         }
 
@@ -2023,8 +3296,41 @@ impl log::Log for ResilientPyLogger {
     }
 }
 
-#[pymodule]
+#[pymodule(gil_used = false)]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Filter the noisy default panic-hook output for a specific class of
+    // shutdown-race panic: Tokio worker threads call `Python::attach` while
+    // the interpreter is finalizing (typically because a user-code exception
+    // escaped `asyncio.run()` while in-flight async ops were still spawned).
+    // pyo3 asserts on `Py_IsInitialized() != 0` and panics; the panic
+    // unwinds harmlessly (Tokio doesn't abort the process on worker
+    // panics) and our completion bridge's `catch_unwind` swallows the
+    // unwind, but the default hook prints the assertion to stderr *before*
+    // unwind starts.  That stderr noise looks like a crash but isn't.
+    // Filter it; leave every other panic alone.
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = info.payload();
+        let msg_str = payload
+            .downcast_ref::<String>()
+            .map(|s| s.as_str())
+            .or_else(|| payload.downcast_ref::<&'static str>().copied());
+        if let Some(s) = msg_str {
+            if s.contains("Python interpreter is not initialized") {
+                return;
+            }
+        }
+        prev_hook(info);
+    }));
+
+    // Configure the pyo3-async-runtimes Tokio runtime.  Must precede any
+    // future_into_py / batched_future_into_py call — pyo3-async-runtimes
+    // builds the runtime lazily on first get_runtime(), so as long as we
+    // install our builder before user code runs, the override applies.
+    // Reads AEROSPIKE_PAC_RUNTIME_WORKERS for an optional worker-count
+    // override; defaults to Tokio's available_parallelism otherwise.
+    runtime::init();
+
     // Bridge Rust `log` records to Python's `logging` module.
     // Rust module paths become Python logger names, e.g.
     //   aerospike_core::cluster -> logging.getLogger("aerospike_core.cluster")
@@ -2136,8 +3442,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TlsConfig>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
+    m.add_function(wrap_pyfunction!(new_client_blocking, m)?)?;
     m.add_class::<completion::CompletionDrainer>()?;
-    completion::init(py)?;
 
     // Create and register the exceptions submodule
     // Exceptions are only available via aerospike_async.exceptions submodule

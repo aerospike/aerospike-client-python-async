@@ -31,7 +31,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ListOrderType", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ListOrderType", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListOrderType {
         /// List is not ordered. This is the default.
@@ -77,7 +77,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ListWriteFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ListWriteFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListWriteFlags {
@@ -213,7 +213,7 @@ use crate::record::PythonValue;
     // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
     // Full stubs are added in postprocess_stubs.py
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "ListReturnType", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ListReturnType", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ListReturnType(u32);
 
@@ -355,7 +355,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ListSortFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ListSortFlags", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ListSortFlags {
         /// Default. Preserve duplicate values when sorting list.
@@ -405,7 +405,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "MapOrder", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "MapOrder", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapOrder {
         /// Map is not ordered. This is the default.
@@ -455,7 +455,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "MapWriteMode", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "MapWriteMode", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapWriteMode {
         /// If the key already exists, the item will be overwritten.
@@ -508,7 +508,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "MapWriteFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "MapWriteFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum MapWriteFlags {
@@ -636,7 +636,7 @@ use crate::record::PythonValue;
     // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
     // Full stubs are added in postprocess_stubs.py
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "MapReturnType", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "MapReturnType", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct MapReturnType(u32);
 
@@ -801,7 +801,7 @@ use crate::record::PythonValue;
     /// Context for nested CDT (Complex Data Type) operations.
     /// Used to specify the location of nested lists/maps within a record.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "CTX", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "CTX", module = "_aerospike_async_native")]
     #[derive(Clone, Debug, PartialEq)]
     pub struct CTX {
         pub(crate) ctx: aerospike_core::operations::cdt_context::CdtContext,
@@ -1010,7 +1010,7 @@ use crate::record::PythonValue;
         }
     }
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "BitwiseResizeFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "BitwiseResizeFlags", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BitwiseResizeFlags {
         #[pyo3(name = "DEFAULT")]
@@ -1039,7 +1039,7 @@ use crate::record::PythonValue;
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "BitWriteFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "BitWriteFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum BitWriteFlags {
@@ -1150,7 +1150,7 @@ use crate::record::PythonValue;
     }
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "BitwiseOverflowActions", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "BitwiseOverflowActions", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BitwiseOverflowActions {
         #[pyo3(name = "FAIL")]
@@ -1182,7 +1182,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BitPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1250,7 +1250,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "ListPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1339,7 +1339,7 @@ use crate::record::PythonValue;
 
     /// HLL write flags for HLL operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "HLLWriteFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "HLLWriteFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum HLLWriteFlags {
@@ -1464,7 +1464,7 @@ use crate::record::PythonValue;
 
     /// HLL policy for HLL operations and expressions.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "HLLPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1517,7 +1517,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "MapPolicy",
         module = "_aerospike_async_native",
         subclass,

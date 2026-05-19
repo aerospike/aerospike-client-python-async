@@ -37,7 +37,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BasePolicy",
         subclass,
         freelist = 1000,
@@ -196,7 +196,7 @@ use crate::TlsConfig;
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "AdminPolicy",
         freelist = 1000,
         module = "_aerospike_async_native",
@@ -235,7 +235,7 @@ use crate::TlsConfig;
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "ReadPolicy",
         freelist = 1000,
         module = "_aerospike_async_native",
@@ -466,7 +466,7 @@ use crate::TlsConfig;
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "WritePolicy",
         module = "_aerospike_async_native",
         extends = BasePolicy,
@@ -799,7 +799,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "QueryPolicy",
         module = "_aerospike_async_native",
         extends = BasePolicy,
@@ -1023,7 +1023,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchRecord",
         module = "_aerospike_async_native",
         subclass,
@@ -1087,7 +1087,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchPolicy",
         module = "_aerospike_async_native",
         extends = BasePolicy,
@@ -1320,7 +1320,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchReadPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1384,7 +1384,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchWritePolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1486,7 +1486,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchDeletePolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1558,7 +1558,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchUDFPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1621,7 +1621,7 @@ use crate::TlsConfig;
 
     /// A single read operation for use with :meth:`Client.batch`.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchReadOp",
         module = "_aerospike_async_native",
         freelist = 1000
@@ -1661,7 +1661,7 @@ use crate::TlsConfig;
 
     /// A single write operation for use with :meth:`Client.batch`.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchWriteOp",
         module = "_aerospike_async_native",
         freelist = 1000
@@ -1695,7 +1695,7 @@ use crate::TlsConfig;
 
     /// A single delete operation for use with :meth:`Client.batch`.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "BatchDeleteOp",
         module = "_aerospike_async_native",
         freelist = 1000
@@ -1729,7 +1729,7 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "ClientPolicy",
         module = "_aerospike_async_native",
         subclass,

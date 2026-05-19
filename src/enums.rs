@@ -27,7 +27,7 @@ use aerospike_core::ResultCode as CoreResultCode;
     /// Expected query duration. The server treats the query in different ways depending on the expected duration.
     /// This enum is ignored for aggregation queries, background queries and server versions < 6.0.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum QueryDuration {
         /// Long specifies that the query is expected to return more than 100 records per node.
@@ -88,7 +88,7 @@ use aerospike_core::ResultCode as CoreResultCode;
 
 /// Priority of operations on database server.
 #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-#[pyclass(module = "_aerospike_async_native")]
+#[pyclass(from_py_object, module = "_aerospike_async_native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Replica {
     #[pyo3(name = "MASTER")]
@@ -156,7 +156,7 @@ pub enum Replica {
     /// Indicates how duplicates should be consulted in a read operation.
     /// Only makes a difference during migrations and only applicable in AP mode.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ReadModeAP {
         /// A single node should be involved in the read operation.
@@ -213,7 +213,7 @@ pub enum Replica {
     /// Read policy for SC (strong consistency) namespaces.
     /// Determines SC read consistency options.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ReadModeSC {
         /// Ensures this client will only see an increasing sequence of record versions.
@@ -283,7 +283,7 @@ pub enum Replica {
 
     /// `RecordExistsAction` determines how to handle record writes based on record generation.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum RecordExistsAction {
         #[pyo3(name = "UPDATE")]
@@ -360,7 +360,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum GenerationPolicy {
         #[pyo3(name = "NONE")]
@@ -425,7 +425,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum CommitLevel {
         #[pyo3(name = "COMMIT_ALL")]
@@ -478,7 +478,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "Expiration",
         module = "_aerospike_async_native",
         subclass,
@@ -577,7 +577,7 @@ pub enum Replica {
 
     /// Underlying data type of secondary index.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum IndexType {
         #[pyo3(name = "NUMERIC")]
@@ -611,7 +611,7 @@ pub enum Replica {
 
     /// Secondary index collection type.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum CollectionIndexType {
         #[pyo3(name = "DEFAULT")]
@@ -643,7 +643,7 @@ pub enum Replica {
     }
     /// User-defined function (UDF) language.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum UDFLang {
         /// Lua embedded programming language.
@@ -668,7 +668,7 @@ pub enum Replica {
     }
     /// Authentication mode for client connections.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum AuthMode {
         /// No authentication will be performed.
@@ -716,7 +716,7 @@ pub enum Replica {
     // PyO3's #[pyclass] can't be used on external types, so we create a simple class with constants
     // ResultCode wrapper to expose enum values to Python
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "ResultCode", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ResultCode", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub struct ResultCode(pub(crate) CoreResultCode);
 
@@ -876,7 +876,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum TxnState {
         #[pyo3(name = "OPEN")]
@@ -926,7 +926,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum CommitStatus {
         #[pyo3(name = "OK")]
@@ -976,7 +976,7 @@ pub enum Replica {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum AbortStatus {
         #[pyo3(name = "OK")]
@@ -1033,7 +1033,7 @@ pub enum Replica {
     /// Requires Aerospike Server version >= 8.1.1.
     // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "LoopVarPart", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "LoopVarPart", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct LoopVarPart(pub i64);
 

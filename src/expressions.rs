@@ -33,7 +33,7 @@ use crate::record::PythonValue;
 
     /// Expression Data Types for usage in some `FilterExpressions`
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
         #[pyo3(name = "NIL")]
@@ -86,7 +86,7 @@ use crate::record::PythonValue;
 
     /// Expression write flags for expression operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ExpWriteFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ExpWriteFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpWriteFlags {
@@ -228,7 +228,7 @@ use crate::record::PythonValue;
 
     /// Expression read flags for expression operations.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(name = "ExpReadFlags", module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, name = "ExpReadFlags", module = "_aerospike_async_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpReadFlags {
@@ -402,7 +402,7 @@ use crate::record::PythonValue;
     /// Filter expression, which can be applied to most commands, to control which records are
     /// affected by the command.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "FilterExpression",
         module = "_aerospike_async_native",
         subclass,

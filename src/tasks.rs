@@ -29,7 +29,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum TaskStatus {
         #[pyo3(name = "NOT_FOUND")]
@@ -103,7 +103,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct RegisterTask {
         pub(crate) _as: aerospike_core::RegisterTask,
@@ -152,7 +152,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct UdfRemoveTask {
         pub(crate) _as: aerospike_core::UdfRemoveTask,
@@ -201,7 +201,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct IndexTask {
         pub(crate) _as: aerospike_core::IndexTask,
@@ -243,7 +243,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct DropIndexTask {
         pub(crate) _as: aerospike_core::DropIndexTask,
@@ -285,7 +285,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct ExecuteTask {
         pub(crate) _as: aerospike_core::ExecuteTask,

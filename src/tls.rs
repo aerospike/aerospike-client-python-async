@@ -26,7 +26,7 @@ use crate::IoError;
 
     #[cfg(feature = "tls")]
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "TlsConfig",
         module = "_aerospike_async_native",
         subclass,
