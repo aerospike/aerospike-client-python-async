@@ -33,7 +33,7 @@ async def client_and_key(aerospike_host):
 
     # Delete the record first to ensure clean state
     wp = WritePolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     return client, key
 
@@ -43,14 +43,14 @@ async def test_list_append_on_integer_bin_raises_bin_type_error(client_and_key):
     client, key = client_and_key
 
     wp = WritePolicy()
-    await client.delete(wp, key)
-    await client.put(wp, key, {"mybin": 42})
+    await client.delete(key, policy=wp)
+    await client.put(key, {"mybin": 42}, policy=wp)
     list_policy = ListPolicy(None, None)
     with pytest.raises(BinTypeError) as exc_info:
         await client.operate(
-            wp,
             key,
             [ListOperation.append("mybin", 1, list_policy)],
+            policy=wp,
         )
     assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR
 
@@ -66,21 +66,25 @@ async def test_operate_list_size_and_pop(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list using put
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": [55, 77]
-    })
+    },
+        policy=wp,
+    )
 
     # Pop the last element (-1 index) and get size
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.pop("oplistbin", -1),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -98,7 +102,7 @@ async def test_operate_list_size_and_pop(client_and_key):
     assert result_list[1] == 1   # Size after pop
 
     # Verify the list now has only one element
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     assert rec.bins.get("oplistbin") == [55]
 
 
@@ -109,20 +113,24 @@ async def test_operate_list_get(client_and_key):
     wp = WritePolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [10, 20, 30, 40]
-    })
+    },
+        policy=wp,
+    )
 
     # Get element at index 1
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get("listbin", 1)
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result - list_get returns the value directly, not wrapped in a list
@@ -133,11 +141,11 @@ async def test_operate_list_get(client_and_key):
 
     # Get element at index -1 (last element)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get("listbin", -1)
-        ]
+        ],
+        policy=wp,
     )
 
     result = record.bins.get("listbin")
@@ -152,21 +160,25 @@ async def test_operate_list_clear(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [1, 2, 3, 4, 5]
-    })
+    },
+        policy=wp,
+    )
 
     # Clear the list and get size
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.clear("listbin"),
             ListOperation.size("listbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the list was cleared
@@ -179,7 +191,7 @@ async def test_operate_list_clear(client_and_key):
     assert result == 0
 
     # Verify the list is actually empty
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == []
 
 
@@ -190,20 +202,24 @@ async def test_operate_list_get_range(client_and_key):
     wp = WritePolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": [12, -8734, "my string"]
-    })
+    },
+        policy=wp,
+    )
 
     # Get range from index 0 with count 4
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get_range("oplistbin", 0, 4)
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -218,11 +234,11 @@ async def test_operate_list_get_range(client_and_key):
 
     # Get range from index 3 (should get empty list or last element)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get_range("oplistbin", 3, 10)
-        ]
+        ],
+        policy=wp,
     )
 
     result = record.bins.get("oplistbin")
@@ -239,36 +255,40 @@ async def test_operate_list_set(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [10, 20, 30, 40]
-    })
+    },
+        policy=wp,
+    )
 
     # Set element at index 1
     await client.operate(
-        wp,
         key,
         [
             ListOperation.set("listbin", 1, 99)
         ],
+        policy=wp,
     )
 
     # Verify the element was set
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 99, 30, 40]
 
     # Set element at index -1 (last element)
     await client.operate(
-        wp,
         key,
         [
             ListOperation.set("listbin", -1, 999)
-        ]
+        ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 99, 30, 999]
 
 
@@ -280,36 +300,40 @@ async def test_operate_list_remove(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [10, 20, 30, 40, 50]
-    })
+    },
+        policy=wp,
+    )
 
     # Remove element at index 1
     await client.operate(
-        wp,
         key,
         [
             ListOperation.remove("listbin", 1)
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the element was removed
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 30, 40, 50]
 
     # Remove element at index -1 (last element)
     await client.operate(
-        wp,
         key,
         [
             ListOperation.remove("listbin", -1)
-        ]
+        ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 30, 40]
 
 
@@ -321,24 +345,28 @@ async def test_operate_list_remove_range(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [10, 20, 30, 40, 50, 60]
-    })
+    },
+        policy=wp,
+    )
 
     # Remove range starting at index 1, count 3
     await client.operate(
-        wp,
         key,
         [
             ListOperation.remove_range("listbin", 1, 3)
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the range was removed
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 50, 60]
 
 
@@ -349,20 +377,24 @@ async def test_operate_list_get_range_from(client_and_key):
     wp = WritePolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "listbin": [10, 20, 30, 40, 50]
-    })
+    },
+        policy=wp,
+    )
 
     # Get range from index 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get_range_from("listbin", 2)
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -374,11 +406,11 @@ async def test_operate_list_get_range_from(client_and_key):
 
     # Get range from index -2 to end (last 2 elements)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.get_range_from("listbin", -2)
-        ]
+        ],
+        policy=wp,
     )
 
     result = record.bins.get("listbin")
@@ -395,21 +427,25 @@ async def test_operate_list_pop_range(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list with multiple elements
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": [True, 55, "string value", [12, -8734.81, "my string"], b"string bytes", 99.99, {"key": "value"}]
-    })
+    },
+        policy=wp,
+    )
 
     # Pop range: pop 1 element starting at index -2
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.pop_range("oplistbin", -2, 1),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -425,7 +461,7 @@ async def test_operate_list_pop_range(client_and_key):
     assert result_list[1] == 6
 
     # Verify the list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 6
 
@@ -438,21 +474,25 @@ async def test_operate_list_pop_range_from(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": [10, 20, 30, 40, 50]
-    })
+    },
+        policy=wp,
+    )
 
     # Pop range from index -1 (last element) to end
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.pop_range_from("oplistbin", -1),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -468,7 +508,7 @@ async def test_operate_list_pop_range_from(client_and_key):
     assert result_list[1] == 4
 
     # Verify the list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert current_list == [10, 20, 30, 40]
 
@@ -484,21 +524,25 @@ async def test_operate_list_remove_range_from(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": [10, 20, 30, 40, 50]
-    })
+    },
+        policy=wp,
+    )
 
     # Remove range from index 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.remove_range_from("oplistbin", 2),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -513,7 +557,7 @@ async def test_operate_list_remove_range_from(client_and_key):
     assert result_list[1] == 2
 
     # Verify the list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert current_list == [10, 20]
 
@@ -535,23 +579,27 @@ async def test_operate_list_trim(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list with 5 elements
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "oplistbin": ["s11", "s22222", "s3333333", "s4444444444", "s5555555555555555"]
-    })
+    },
+        policy=wp,
+    )
 
     # Execute all trim operations in sequence
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.trim("oplistbin", -5, 5),
             ListOperation.trim("oplistbin", 1, -5),
             ListOperation.trim("oplistbin", 1, 2),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -574,7 +622,7 @@ async def test_operate_list_trim(client_and_key):
     assert result_list[3] == 2
 
     # Verify the final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 2
     # After trim(1, 2) on a list that had 1 element, we get 2 elements
@@ -595,21 +643,21 @@ async def test_operate_list_append(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a default ListPolicy
     list_policy = ListPolicy(None, None)
 
     # Append multiple values, then pop, then check size
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append("oplistbin", 55, list_policy),
             ListOperation.append("oplistbin", 77, list_policy),
             ListOperation.pop("oplistbin", -1),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -628,7 +676,7 @@ async def test_operate_list_append(client_and_key):
     assert result_list[3] == 1
 
     # Verify the final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 1
     assert current_list == [55]
@@ -644,19 +692,19 @@ async def test_operate_list_append_items(client_and_key):
     wp = WritePolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a default ListPolicy
     list_policy = ListPolicy(None, None)
 
     # Append items with mixed types (int, negative int, string)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", [12, -8734, "my string"], list_policy),
             Operation.put("otherbin", "hello")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -664,7 +712,6 @@ async def test_operate_list_append_items(client_and_key):
 
     # Now test insert and getRange operations
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.insert("oplistbin", -1, 8, list_policy),  # Insert at end (negative index)
@@ -672,7 +719,8 @@ async def test_operate_list_append_items(client_and_key):
             Operation.get_bin("otherbin"),
             ListOperation.get_range("oplistbin", 0, 4),
             ListOperation.get_range_from("oplistbin", 3)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -714,22 +762,22 @@ async def test_operate_list_insert(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list with one element
-    await client.put(wp, key, {"oplistbin": ["value1"]})
+    await client.put(key, {"oplistbin": ["value1"]}, policy=wp)
 
     # Create a default ListPolicy
     list_policy = ListPolicy(None, None)
 
     # Test 1: Insert at beginning (index 0)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.insert("oplistbin", 0, "inserted_at_start", list_policy),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -741,7 +789,7 @@ async def test_operate_list_insert(client_and_key):
     assert result_list[1] == 2
 
     # Verify the final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 2
     assert current_list == ["inserted_at_start", "value1"]
@@ -749,12 +797,12 @@ async def test_operate_list_insert(client_and_key):
     # Test 2: Insert using negative index (-1)
     # Note: insert at -1 inserts BEFORE the last element, not at the end
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.insert("oplistbin", -1, "inserted_before_last", list_policy),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -766,7 +814,7 @@ async def test_operate_list_insert(client_and_key):
     assert result_list[1] == 3
 
     # Verify the final list state - inserted before last element
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 3
     # Insert at -1 inserts before the last element
@@ -781,22 +829,22 @@ async def test_operate_list_insert_items(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list with one element
-    await client.put(wp, key, {"oplistbin": ["value1"]})
+    await client.put(key, {"oplistbin": ["value1"]}, policy=wp)
 
     # Create a default ListPolicy
     list_policy = ListPolicy(None, None)
 
     # Insert multiple values at index 0
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.insert_items("oplistbin", 0, ["a", "b"], list_policy),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -808,7 +856,7 @@ async def test_operate_list_insert_items(client_and_key):
     assert result_list[1] == 3
 
     # Verify the final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 3
     assert current_list == ["a", "b", "value1"]
@@ -825,14 +873,13 @@ async def test_operate_list_increment(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a default ListPolicy
     list_policy = ListPolicy(None, None)
 
     # Create a list with numeric values [1, 2, 3]
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", [1, 2, 3], list_policy),
@@ -845,7 +892,8 @@ async def test_operate_list_increment(client_and_key):
             # Test increment at index 1 by 7 again
             ListOperation.increment("oplistbin", 1, 7, list_policy),
             ListOperation.get("oplistbin", 0)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -868,7 +916,7 @@ async def test_operate_list_increment(client_and_key):
     assert result_list[5] == 1
 
     # Verify the final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 3
     assert current_list[0] == 1
@@ -888,13 +936,13 @@ async def test_operate_list_sort(client_and_key):
     item_list = [-44, 33, -1, 33, -2]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
             ListOperation.sort("oplistbin", ListSortFlags.DROP_DUPLICATES),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -910,7 +958,7 @@ async def test_operate_list_sort(client_and_key):
     assert results[1] == 4
     
     # Verify the list was sorted and duplicates removed
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     current_list = rec.bins.get("oplistbin")
     assert len(current_list) == 4
     # Should be sorted: [-44, -2, -1, 33] (duplicate 33 removed)
@@ -929,12 +977,12 @@ async def test_operate_list_set_order(client_and_key):
     item_list = [4, 3, 1, 5, 2]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
             ListOperation.get_by_index("oplistbin", 3, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -946,7 +994,6 @@ async def test_operate_list_set_order(client_and_key):
     value_list = [4, 2]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.set_order("oplistbin", ListOrderType.ORDERED),
@@ -958,7 +1005,8 @@ async def test_operate_list_set_order(client_and_key):
             ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.VALUE),
             ListOperation.get_by_rank("oplistbin", 0, ListReturnType.VALUE),
             ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -980,7 +1028,7 @@ async def test_operate_list_set_order(client_and_key):
     assert 1 in result_values  # Value at rank 0 (smallest)
     
     # Verify the list is now ordered
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     final_list = rec.bins.get("oplistbin")
     assert final_list == [1, 2, 3, 4, 5]  # Should be sorted
 
@@ -998,7 +1046,6 @@ async def test_operate_list_remove_by_return_type(client_and_key):
     value_list = [-45, 14]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
@@ -1009,7 +1056,8 @@ async def test_operate_list_remove_by_return_type(client_and_key):
             ListOperation.remove_by_index_range("oplistbin", 100, None, ListReturnType.VALUE),
             ListOperation.remove_by_rank("oplistbin", 0, ListReturnType.VALUE),
             ListOperation.remove_by_rank_range("oplistbin", 3, None, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1029,7 +1077,7 @@ async def test_operate_list_remove_by_return_type(client_and_key):
     # removeByRankRange(3, None) returns values [22] (one value at rank 3+)
     
     # Verify some key removals happened
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     final_list = rec.bins.get("oplistbin")
     assert 0 not in final_list  # Should be removed
     assert 14 not in final_list  # Should be removed
@@ -1051,7 +1099,6 @@ async def test_operate_list_get_by_value_relative_rank_range(client_and_key):
     item_list = [0, 4, 5, 9, 11, 15]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
@@ -1067,7 +1114,8 @@ async def test_operate_list_get_by_value_relative_rank_range(client_and_key):
             ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 0, 1, ListReturnType.VALUE),
             ListOperation.get_by_value_relative_rank_range("oplistbin", 3, 3, 7, ListReturnType.VALUE),
             ListOperation.get_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1105,7 +1153,6 @@ async def test_operate_list_remove_by_value_relative_rank_range(client_and_key):
     item_list = [0, 4, 5, 9, 11, 15]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
@@ -1115,7 +1162,8 @@ async def test_operate_list_remove_by_value_relative_rank_range(client_and_key):
             ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 1, ListReturnType.VALUE),
             ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 2, ListReturnType.VALUE),
             ListOperation.remove_by_value_relative_rank_range("oplistbin", 3, -3, 3, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1129,7 +1177,7 @@ async def test_operate_list_remove_by_value_relative_rank_range(client_and_key):
     assert len(results) > 1
     
     # Verify final list state
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     final_list = rec.bins.get("oplistbin")
     # After multiple removals, list should be smaller
     assert len(final_list) < 6
@@ -1148,20 +1196,20 @@ async def test_operate_list_create(client_and_key):
     list_policy = ListPolicy(None, None)
 
     # Delete the record first to ensure clean state
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a list first (using append_items to create the list)
     # Then set its order - this mimics what create() does for top-level lists
     l1 = [3, 2, 1]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.set_order("oplistbin", ListOrderType.ORDERED),
             ListOperation.append_items("oplistbin", l1, list_policy),
             ListOperation.size("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1179,7 +1227,7 @@ async def test_operate_list_create(client_and_key):
         assert results == 3
     
     # Verify list was created and ordered
-    rec = await client.get(rp, key, ["oplistbin"])
+    rec = await client.get(key, ["oplistbin"], policy=rp)
     assert "oplistbin" in rec.bins
     final_list = rec.bins.get("oplistbin")
     assert isinstance(final_list, list)
@@ -1198,7 +1246,6 @@ async def test_operate_list_inverted(client_and_key):
     value_list = [4, 2]
     
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", item_list, list_policy),
@@ -1211,7 +1258,8 @@ async def test_operate_list_inverted(client_and_key):
             ListOperation.get_by_value_list("oplistbin", value_list, ListReturnType.RANK),
             ListOperation.get_by_index_range("oplistbin", -2, None, ListReturnType.VALUE),
             ListOperation.get_by_rank_range("oplistbin", 2, None, ListReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1231,7 +1279,7 @@ async def test_operate_list_nested(client_and_key):
     list_policy = ListPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create nested lists: [[7, 9, 5], [1, 2, 3], [6, 5, 4, 1]]
     l1 = [7, 9, 5]
@@ -1240,16 +1288,16 @@ async def test_operate_list_nested(client_and_key):
     input_list = [l1, l2, l3]
 
     # Create list
-    await client.put(wp, key, {"oplistbin": input_list})
+    await client.put(key, {"oplistbin": input_list}, policy=wp)
 
     # Append value 11 to last nested list (index -1) and retrieve all lists
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append("oplistbin", 11, list_policy).set_context([CTX.list_index(-1)]),
             Operation.get_bin("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1288,7 +1336,7 @@ async def test_operate_nested_list_map(client_and_key):
     list_policy = ListPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create nested structure: map with lists
     # key1 -> [[7, 9, 5], [13]]
@@ -1308,11 +1356,10 @@ async def test_operate_nested_list_map(client_and_key):
     }
 
     # Create map
-    await client.put(wp, key, {"oplistbin": input_map})
+    await client.put(key, {"oplistbin": input_map}, policy=wp)
 
     # Append value 11 to list at rank 0 inside map key "key2" and retrieve map
     record = await client.operate(
-        wp,
         key,
         [
                 ListOperation.append("oplistbin", 11, list_policy).set_context([
@@ -1320,7 +1367,8 @@ async def test_operate_nested_list_map(client_and_key):
                     CTX.list_rank(0)
                 ]),
                 Operation.get_bin("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1361,7 +1409,7 @@ async def test_operate_list_create_context(client_and_key):
     list_policy = ListPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create initial nested lists
     l1 = [7, 9, 5]
@@ -1371,12 +1419,12 @@ async def test_operate_list_create_context(client_and_key):
 
     # Create list
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append_items("oplistbin", input_list, list_policy),
             Operation.get_bin("oplistbin"),
         ],
+        policy=wp,
     )
     created = record.bins.get("oplistbin")
     # append_items returns count, get_bin returns the list - extract the list
@@ -1388,14 +1436,14 @@ async def test_operate_list_create_context(client_and_key):
 
     # Append value 2 to new list created at index 3 (after the original 3 lists)
     record = await client.operate(
-        wp,
         key,
         [
             ListOperation.append("oplistbin", 2, list_policy).set_context([
                 CTX.list_index_create(3, ListOrderType.ORDERED, False)
             ]),
             Operation.get_bin("oplistbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1427,21 +1475,21 @@ async def test_operate_list_set_with_policy(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     list_policy = ListPolicy(None, None)
-    await client.put(wp, key, {"listbin": [10, 20, 30]})
+    await client.put(key, {"listbin": [10, 20, 30]}, policy=wp)
 
     await client.operate(
-        wp,
         key,
         [
             ListOperation.set_with_policy("listbin", list_policy, 1, 99),
             Operation.get_bin("listbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [10, 99, 30]
 
 
@@ -1451,20 +1499,20 @@ async def test_operate_list_increment_by_one(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
-    await client.put(wp, key, {"listbin": [1, 2, 3]})
+    await client.put(key, {"listbin": [1, 2, 3]}, policy=wp)
 
     await client.operate(
-        wp,
         key,
         [
             ListOperation.increment_by_one("listbin", 1),
             Operation.get_bin("listbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [1, 3, 3]
 
 
@@ -1474,21 +1522,21 @@ async def test_operate_list_increment_by_one_with_policy(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     list_policy = ListPolicy(None, None)
-    await client.put(wp, key, {"listbin": [5, 10, 15]})
+    await client.put(key, {"listbin": [5, 10, 15]}, policy=wp)
 
     await client.operate(
-        wp,
         key,
         [
             ListOperation.increment_by_one_with_policy("listbin", list_policy, 2),
             Operation.get_bin("listbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [5, 10, 16]
 
 
@@ -1498,11 +1546,10 @@ async def test_operate_list_create_with_index(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     list_policy = ListPolicy(None, None)
     await client.operate(
-        wp,
         key,
         [
             ListOperation.create_with_index("listbin", ListOrderType.ORDERED),
@@ -1510,9 +1557,10 @@ async def test_operate_list_create_with_index(client_and_key):
             ListOperation.append("listbin", 2, list_policy),
             Operation.get_bin("listbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [1, 2]
 
 
@@ -1522,11 +1570,10 @@ async def test_operate_list_set_order_with_index(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     list_policy = ListPolicy(None, None)
     await client.operate(
-        wp,
         key,
         [
             ListOperation.append("listbin", 1, list_policy),
@@ -1535,9 +1582,10 @@ async def test_operate_list_set_order_with_index(client_and_key):
             ListOperation.size("listbin"),
             Operation.get_bin("listbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert rec.bins.get("listbin") == [1, 2]
 
 
@@ -1547,20 +1595,28 @@ async def test_list_append_with_combined_write_flags(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     combined = ListWriteFlags.ADD_UNIQUE | ListWriteFlags.NO_FAIL
     policy = ListPolicy(ListOrderType.UNORDERED, combined)
 
-    await client.operate(wp, key, [
+    await client.operate(
+        key,
+        [
         ListOperation.append("listbin", 1, policy),
         ListOperation.append("listbin", 2, policy),
-    ])
+    ],
+        policy=wp,
+    )
     # Duplicate: should be silently skipped (NO_FAIL prevents error)
-    await client.operate(wp, key, [
+    await client.operate(
+        key,
+        [
         ListOperation.append("listbin", 1, policy),
-    ])
+    ],
+        policy=wp,
+    )
 
-    rec = await client.get(rp, key, ["listbin"])
+    rec = await client.get(key, ["listbin"], policy=rp)
     assert sorted(rec.bins["listbin"]) == [1, 2]
 

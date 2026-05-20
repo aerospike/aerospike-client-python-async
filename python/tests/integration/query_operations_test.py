@@ -31,6 +31,12 @@ exercises every branch in a single ``pytest`` invocation.
 
 import pytest
 import pytest_asyncio
+
+# Fixtures here are session-loop-scoped (clients live longer than one test);
+# tests must run on the same session loop or the per-Client owning-loop guard
+# in PAC's completion bridge fires.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 from aerospike_async import (
     ClientPolicy,
     CollectionIndexType,
@@ -93,7 +99,6 @@ async def _seed_query_dataset(client):
     for i in range(1, _SIZE + 1):
         key = Key(_NAMESPACE, _SET, f"{_KEY_PREFIX}{i}")
         await client.put(
-            wp,
             key,
             {
                 _BIN1: i,
@@ -101,6 +106,7 @@ async def _seed_query_dataset(client):
                 _BIN3: i * 100,
                 _MAP_BIN: {"a": i, "b": i * 10},
             },
+            policy=wp,
         )
 
 
@@ -186,7 +192,7 @@ class TestQueryOpsBackwardCompat:
         stmt = _stmt(with_filter=flt)
         stmt.set_operations([Operation.get_bin(_BIN1)])
 
-        rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -206,7 +212,7 @@ class TestQueryOpsBackwardCompat:
         stmt.filters = [flt]
         stmt.set_operations([Operation.get_bin(_BIN1)])
 
-        rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -232,7 +238,7 @@ class TestQueryOpsExt812:
             MapOperation.get_by_key(_MAP_BIN, "a", MapReturnType.VALUE),
         ])
 
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) >= _SIZE
         for r in records:
@@ -251,7 +257,7 @@ class TestQueryOpsExt812:
             ExpOperation.read("result2", Exp.int_bin(_BIN2), ExpReadFlags.DEFAULT),
             ExpOperation.read("result3", Exp.int_bin(_BIN3), ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) >= _SIZE
         for r in records:
@@ -272,7 +278,7 @@ class TestQueryOpsExt812:
             ExpOperation.read("result2", Exp.int_bin(_BIN2), ExpReadFlags.DEFAULT),
             ExpOperation.read("result3", Exp.int_bin(_BIN3), ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -294,7 +300,7 @@ class TestQueryOpsExt812:
             Operation.get_bin(_BIN1),
             ExpOperation.read("sum", sum_exp, ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -317,7 +323,7 @@ class TestQueryOpsExt812:
             Operation.get_bin(_BIN1),
             ExpOperation.read("computed", exp, ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -339,7 +345,7 @@ class TestQueryOpsExt812:
             ExpOperation.read("sum", sum_exp, ExpReadFlags.DEFAULT),
             ExpOperation.read("diff", diff_exp, ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -365,7 +371,7 @@ class TestQueryOpsExt812:
         qp = QueryPolicy()
         qp.filter_expression = Exp.lt(Exp.int_bin(_BIN1), Exp.int_val(6))
 
-        rs = await tqo_client_812.query(qp, PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=qp)
         records = await _drain(rs)
         assert len(records) == 5
         for r in records:
@@ -380,7 +386,7 @@ class TestQueryOpsExt812:
         stmt.set_operations([
             ExpOperation.read("offset", offset_exp, ExpReadFlags.DEFAULT),
         ])
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) >= _SIZE
         for r in records:
@@ -405,7 +411,7 @@ class TestQueryOpsExt812:
             ExpOperation.read("category", cond_exp, ExpReadFlags.DEFAULT),
         ])
 
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         high = sum(1 for r in records if r.bins["category"] == "high")
         low = sum(1 for r in records if r.bins["category"] == "low")
@@ -432,7 +438,7 @@ class TestQueryOpsExt812:
             ExpOperation.read("result", nonexistent_exp, ExpReadFlags.EVAL_NO_FAIL),
         ])
 
-        rs = await tqo_client_812.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
         assert len(records) == end - begin + 1
         for r in records:
@@ -454,7 +460,7 @@ class TestQueryOpsRejects:
         stmt.set_operations([Operation.put("foo", "bar")])
 
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         # Server returns PARAMETER_ERROR with a "read-only" hint.
         assert "read-only" in str(excinfo.value).lower() or "parameter" in str(excinfo.value).lower()
@@ -470,7 +476,7 @@ class TestQueryOpsRejects:
             ExpOperation.write("foo", Exp.string_val("bar"), ExpWriteFlags.DEFAULT),
         ])
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         msg = str(excinfo.value).lower()
         assert "read-only" in msg or "parameter" in msg
@@ -492,7 +498,7 @@ class TestQueryOpsRejects:
             ExpOperation.write("foo", Exp.string_val("updated"), ExpWriteFlags.DEFAULT),
         ])
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         msg = str(excinfo.value).lower()
         if server_version is not None and server_version >= (8, 1, 2, 0):
@@ -507,7 +513,7 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         stmt.set_operations([Operation.touch()])
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         msg = str(excinfo.value).lower()
         assert "read-only" in msg or "parameter" in msg
@@ -519,7 +525,7 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         stmt.set_operations([Operation.delete()])
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         msg = str(excinfo.value).lower()
         assert "read-only" in msg or "parameter" in msg
@@ -533,13 +539,13 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         with pytest.raises(Exception) as excinfo:
             task = await tqo_client.query_operate(
-                WritePolicy(),
                 stmt,
                 [
                     ExpOperation.read(
                         "computed", Exp.int_bin(_BIN1), ExpReadFlags.DEFAULT
                     )
                 ],
+                write_policy=WritePolicy(),
             )
             # If the client returns a task instead of raising, await its
             # completion to surface the server-side error.
@@ -555,7 +561,9 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         with pytest.raises(Exception) as excinfo:
             task = await tqo_client.query_operate(
-                WritePolicy(), stmt, [Operation.get_bin(_BIN1)]
+                stmt,
+                [Operation.get_bin(_BIN1)],
+                write_policy=WritePolicy(),
             )
             if task is not None:
                 await task.wait_till_complete()
@@ -571,7 +579,6 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         with pytest.raises(Exception) as excinfo:
             task = await tqo_client.query_operate(
-                WritePolicy(),
                 stmt,
                 [
                     ExpOperation.read(
@@ -581,6 +588,7 @@ class TestQueryOpsRejects:
                         "tag", Exp.string_val("mixed"), ExpWriteFlags.DEFAULT
                     ),
                 ],
+                write_policy=WritePolicy(),
             )
             if task is not None:
                 await task.wait_till_complete()
@@ -597,13 +605,13 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
 
         task = await tqo_client.query_operate(
-            WritePolicy(),
             stmt,
             [
                 ExpOperation.write(
                     "marker", Exp.string_val("executed"), ExpWriteFlags.DEFAULT
                 )
             ],
+            write_policy=WritePolicy(),
         )
         await task.wait_till_complete()
 
@@ -612,14 +620,14 @@ class TestQueryOpsRejects:
         rp = ReadPolicy()
         for i in range(begin, end + 1):
             key = Key(_NAMESPACE, _SET, f"{_KEY_PREFIX}{i}")
-            rec = await tqo_client.get(rp, key)
+            rec = await tqo_client.get(key, policy=rp)
             assert rec.bins.get("marker") == "executed"
 
         # Cleanup: remove the marker so subsequent tests/runs see clean data.
         wp = WritePolicy()
         for i in range(begin, end + 1):
             key = Key(_NAMESPACE, _SET, f"{_KEY_PREFIX}{i}")
-            await tqo_client.put(wp, key, {"marker": None})
+            await tqo_client.put(key, {"marker": None}, policy=wp)
 
 
 # =====================================================================
@@ -651,7 +659,7 @@ class TestQueryOpsPre812Gate:
             ExpOperation.read("computed", Exp.int_bin(_BIN1), ExpReadFlags.DEFAULT),
         ])
         with pytest.raises(Exception) as excinfo:
-            rs = await tqo_client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+            rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
         msg = str(excinfo.value)
         assert "basic read operations" in msg.lower()

@@ -51,7 +51,7 @@ class TestQueryAggregate(TestFixtureConnection):
             udf_path = os.path.join(os.path.dirname(__file__), "udf", "sum_example.lua")
 
             try:
-                task = await client.register_udf_from_file(None, udf_path, "sum_example.lua", UDFLang.LUA)
+                task = await client.register_udf_from_file(udf_path, "sum_example.lua", UDFLang.LUA)
                 await task.wait_till_complete()
             except ServerError:
                 pass
@@ -69,7 +69,7 @@ class TestQueryAggregate(TestFixtureConnection):
             wp = WritePolicy()
             for i in range(1, self.SIZE + 1):
                 key = Key("test", self.SET_NAME, f"agg_key_{i}")
-                await client.put(wp, key, {self.BIN_NAME: i})
+                await client.put(key, {self.BIN_NAME: i}, policy=wp)
 
             TestQueryAggregate._setup_done = True
 
@@ -91,7 +91,7 @@ class TestQueryAggregate(TestFixtureConnection):
         stmt.set_aggregate_function("sum_example", "sum_single_bin", [self.BIN_NAME])
 
         qp = QueryPolicy()
-        recordset = await client.query(qp, PartitionFilter.all(), stmt)
+        recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
 
         # Collect streamed results and perform client-side reduction
         results = []
@@ -119,7 +119,7 @@ class TestQueryAggregate(TestFixtureConnection):
         stmt.set_aggregate_function("sum_example", "sum_single_bin", [self.BIN_NAME])
 
         qp = QueryPolicy()
-        recordset = await client.query(qp, PartitionFilter.all(), stmt)
+        recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
 
         found_success_bin = False
         async for record in recordset:
@@ -136,7 +136,7 @@ class TestQueryAggregate(TestFixtureConnection):
         stmt.set_aggregate_function("sum_example", "sum_single_bin", [self.BIN_NAME])
 
         qp = QueryPolicy()
-        recordset = await client.query(qp, PartitionFilter.all(), stmt)
+        recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
 
         results = []
         async for record in recordset:
@@ -155,7 +155,7 @@ class TestQueryAggregate(TestFixtureConnection):
         stmt.set_aggregate_function("sum_example", "sum_single_bin", [self.BIN_NAME])
 
         qp = QueryPolicy()
-        recordset = await client.query(qp, PartitionFilter.all(), stmt)
+        recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
 
         results = []
         async for record in recordset:
@@ -181,7 +181,7 @@ class TestQueryAggregate(TestFixtureConnection):
         stmt.set_aggregate_function("sum_example", "count_records")
 
         qp = QueryPolicy()
-        recordset = await client.query(qp, PartitionFilter.all(), stmt)
+        recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
 
         results = []
         async for record in recordset:

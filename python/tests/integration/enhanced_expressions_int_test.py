@@ -32,6 +32,12 @@ seed) so they continue to pass on a pre-8.1.2 cluster running 8.1.1+.
 
 import pytest
 import pytest_asyncio
+
+# Fixtures here are session-loop-scoped (clients live longer than one test);
+# tests must run on the same session loop or the per-Client owning-loop guard
+# in PAC's completion bridge fires.
+pytestmark = pytest.mark.asyncio(loop_scope="session")
+
 from aerospike_async import (
     CTX,
     ClientPolicy,
@@ -90,7 +96,7 @@ def _safe_delete(client, key):
     """Best-effort delete; swallow not-found / permission errors."""
     async def _go():
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
     return _go()
@@ -107,15 +113,16 @@ class TestInListExpOp:
         """``in_list("blue", ["red","blue","green"])`` returns true."""
         key = Key(_NAMESPACE, _SET, "in_list_pos")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {"color": "blue"})
+        await cdt_client_812.put(key, {"color": "blue"}, policy=WritePolicy())
 
         exp = Exp.in_list(
             Exp.string_bin("color"),
             Exp.list_val(["red", "blue", "green"]),
         )
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("inList", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         assert rec.bins["inList"] is True
 
@@ -123,15 +130,16 @@ class TestInListExpOp:
         """``in_list("blue", ["red","yellow","green"])`` returns false."""
         key = Key(_NAMESPACE, _SET, "in_list_neg")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {"color": "blue"})
+        await cdt_client_812.put(key, {"color": "blue"}, policy=WritePolicy())
 
         exp = Exp.in_list(
             Exp.string_bin("color"),
             Exp.list_val(["red", "yellow", "green"]),
         )
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("notInList", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         assert rec.bins["notInList"] is False
 
@@ -142,12 +150,13 @@ class TestMapKeysExpOp:
         """``map_keys`` projects every key of a map bin into a list."""
         key = Key(_NAMESPACE, _SET, "map_keys")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {"myMap": {"x": 1, "y": 2, "z": 3}})
+        await cdt_client_812.put(key, {"myMap": {"x": 1, "y": 2, "z": 3}}, policy=WritePolicy())
 
         exp = Exp.map_keys(Exp.map_bin("myMap"))
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("keys", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         keys = rec.bins["keys"]
         assert isinstance(keys, list)
@@ -160,12 +169,13 @@ class TestMapValuesExpOp:
         """``map_values`` projects every value of a map bin into a list."""
         key = Key(_NAMESPACE, _SET, "map_values")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {"myMap": {"a": 100, "b": 200, "c": 300}})
+        await cdt_client_812.put(key, {"myMap": {"a": 100, "b": 200, "c": 300}}, policy=WritePolicy())
 
         exp = Exp.map_values(Exp.map_bin("myMap"))
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("values", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         vals = rec.bins["values"]
         assert isinstance(vals, list)
@@ -198,7 +208,7 @@ class TestPathFormExpressions:
 
         key = Key(_NAMESPACE, _SET, "path_select")
         await _safe_delete(cdt_client, key)
-        await cdt_client.put(WritePolicy(), key, {"res1": _BOOK_DATA})
+        await cdt_client.put(key, {"res1": _BOOK_DATA}, policy=WritePolicy())
 
         path = [
             CTX.map_key("book"),
@@ -212,8 +222,9 @@ class TestPathFormExpressions:
             path,
         )
         rec = await cdt_client.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("prices", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         prices = rec.bins["prices"]
         assert isinstance(prices, list)
@@ -229,7 +240,7 @@ class TestPathFormExpressions:
         """
         key = Key(_NAMESPACE, _SET, "path_modify")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {"res1": _BOOK_DATA})
+        await cdt_client_812.put(key, {"res1": _BOOK_DATA}, policy=WritePolicy())
 
         path = [
             CTX.map_key("book"),
@@ -250,12 +261,13 @@ class TestPathFormExpressions:
 
         wp = WritePolicy()
         await cdt_client_812.operate(
-            wp, key,
+            key,
             [ExpOperation.write("res1", apply_exp, ExpWriteFlags.UPDATE_ONLY)],
+            policy=wp,
         )
 
         from aerospike_async import ReadPolicy
-        rec = await cdt_client_812.get(ReadPolicy(), key)
+        rec = await cdt_client_812.get(key, policy=ReadPolicy())
         root = rec.bins["res1"]
         prices = [b["price"] for b in root["book"]]
         # First book was 10.45, now ~15.675; the actual delta is what matters.
@@ -269,7 +281,9 @@ class TestAllChildrenWithFilter:
         """``CTX.all_children_with_filter`` keeps only matching subtrees."""
         key = Key(_NAMESPACE, _SET, "filter_titles")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {
+        await cdt_client_812.put(
+            key,
+            {
             "res1": {
                 "book": [
                     {"title": "Cheap Book", "price": 5.99},
@@ -277,7 +291,9 @@ class TestAllChildrenWithFilter:
                     {"title": "Expensive Book", "price": 25.99},
                 ],
             },
-        })
+        },
+            policy=WritePolicy(),
+        )
 
         # Filter by price <= 10 over each book entry, then pick the title key
         # within the remaining subtree.
@@ -302,8 +318,9 @@ class TestAllChildrenWithFilter:
             ctx,
         )
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("titles", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         titles = rec.bins["titles"]
         assert titles == ["Cheap Book"]
@@ -320,9 +337,13 @@ class TestCtxMapKeysIn:
         """``CTX.map_keys_in([key1, key2])`` selects only those keys' subtrees."""
         key = Key(_NAMESPACE, _SET, "map_keys_in")
         await _safe_delete(cdt_client_812, key)
-        await cdt_client_812.put(WritePolicy(), key, {
+        await cdt_client_812.put(
+            key,
+            {
             "res1": {"x": 100, "y": 200, "z": 300, "w": 400},
-        })
+        },
+            policy=WritePolicy(),
+        )
 
         path = [CTX.map_keys_in(["x", "z"])]
         exp = Exp.exp_select_by_path(
@@ -332,8 +353,9 @@ class TestCtxMapKeysIn:
             path,
         )
         rec = await cdt_client_812.operate(
-            WritePolicy(), key,
+            key,
             [ExpOperation.read("subset", exp, ExpReadFlags.DEFAULT)],
+            policy=WritePolicy(),
         )
         subset = rec.bins["subset"]
         assert isinstance(subset, list)

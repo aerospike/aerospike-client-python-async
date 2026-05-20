@@ -18,8 +18,7 @@ use pyo3::prelude::*;
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
-
-
+use crate::blocking::run_blocking;
 use crate::errors::RustClientError;
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +28,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum TaskStatus {
         #[pyo3(name = "NOT_FOUND")]
@@ -103,7 +102,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct RegisterTask {
         pub(crate) _as: aerospike_core::RegisterTask,
@@ -143,6 +142,44 @@ use crate::errors::RustClientError;
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
+
+        /// Blocking sibling of :meth:`query_status` — returns the current
+        /// status without spinning up an asyncio loop. Rejects calls made
+        /// from inside a running asyncio loop.
+        pub fn query_status_blocking(&self, py: Python<'_>) -> PyResult<TaskStatus> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task
+                    .query_status()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Blocking sibling of :meth:`wait_till_complete` — polls status
+        /// until COMPLETE or NOT_FOUND without needing an asyncio loop.
+        /// Rejects calls made from inside a running asyncio loop.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete_blocking(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +189,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct UdfRemoveTask {
         pub(crate) _as: aerospike_core::UdfRemoveTask,
@@ -192,6 +229,44 @@ use crate::errors::RustClientError;
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
+
+        /// Blocking sibling of :meth:`query_status` — returns the current
+        /// status without spinning up an asyncio loop. Rejects calls made
+        /// from inside a running asyncio loop.
+        pub fn query_status_blocking(&self, py: Python<'_>) -> PyResult<TaskStatus> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task
+                    .query_status()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Blocking sibling of :meth:`wait_till_complete` — polls status
+        /// until COMPLETE or NOT_FOUND without needing an asyncio loop.
+        /// Rejects calls made from inside a running asyncio loop.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete_blocking(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +276,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct IndexTask {
         pub(crate) _as: aerospike_core::IndexTask,
@@ -234,6 +309,44 @@ use crate::errors::RustClientError;
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
+
+        /// Blocking sibling of :meth:`query_status` — returns the current
+        /// status without spinning up an asyncio loop. Rejects calls made
+        /// from inside a running asyncio loop.
+        pub fn query_status_blocking(&self, py: Python<'_>) -> PyResult<TaskStatus> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task
+                    .query_status()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Blocking sibling of :meth:`wait_till_complete` — polls status
+        /// until COMPLETE or NOT_FOUND without needing an asyncio loop.
+        /// Rejects calls made from inside a running asyncio loop.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete_blocking(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -243,7 +356,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct DropIndexTask {
         pub(crate) _as: aerospike_core::DropIndexTask,
@@ -276,6 +389,44 @@ use crate::errors::RustClientError;
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
+
+        /// Blocking sibling of :meth:`query_status` — returns the current
+        /// status without spinning up an asyncio loop. Rejects calls made
+        /// from inside a running asyncio loop.
+        pub fn query_status_blocking(&self, py: Python<'_>) -> PyResult<TaskStatus> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task
+                    .query_status()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Blocking sibling of :meth:`wait_till_complete` — polls status
+        /// until COMPLETE or NOT_FOUND without needing an asyncio loop.
+        /// Rejects calls made from inside a running asyncio loop.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete_blocking(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -285,7 +436,7 @@ use crate::errors::RustClientError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct ExecuteTask {
         pub(crate) _as: aerospike_core::ExecuteTask,
@@ -315,6 +466,44 @@ use crate::errors::RustClientError;
         ) -> PyResult<Bound<'a, PyAny>> {
             let task = self._as.clone();
             pyo3_asyncio::future_into_py(py, async move {
+                wait_till_complete_impl(task, sleep_time, max_attempts).await
+            })
+        }
+
+        /// Blocking sibling of :meth:`query_status` — returns the current
+        /// status without spinning up an asyncio loop. Rejects calls made
+        /// from inside a running asyncio loop.
+        pub fn query_status_blocking(&self, py: Python<'_>) -> PyResult<TaskStatus> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
+                use aerospike_core::task::Task;
+                let status: aerospike_core::task::Status = task
+                    .query_status()
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(TaskStatus::from(status))
+            })
+        }
+
+        /// Blocking sibling of :meth:`wait_till_complete` — polls status
+        /// until COMPLETE or NOT_FOUND without needing an asyncio loop.
+        /// Rejects calls made from inside a running asyncio loop.
+        ///
+        /// Args:
+        ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
+        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///
+        /// Returns:
+        ///     True if task completed, False if max attempts reached
+        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        pub fn wait_till_complete_blocking(
+            &self,
+            sleep_time: f64,
+            max_attempts: u32,
+            py: Python<'_>,
+        ) -> PyResult<bool> {
+            let task = self._as.clone();
+            run_blocking(py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }

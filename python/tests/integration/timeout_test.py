@@ -46,7 +46,7 @@ class TestSocketTimeout:
             stmt = Statement("test", "test", None)
 
             try:
-                recordset = await client.query(qp, PartitionFilter.all(), stmt)
+                recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
                 async for _ in recordset:
                     pass
                 recordset.close()
@@ -72,13 +72,13 @@ class TestSocketTimeout:
 
             key = Key("test", "test", "socket_timeout_fast_test")
 
-            await client.put(wp, key, {"test": "value"})
+            await client.put(key, {"test": "value"}, policy=wp)
 
-            record = await client.get(rp, key, None)
+            record = await client.get(key, None, policy=rp)
             assert record is not None
             assert record.bins["test"] == "value"
 
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
 
         finally:
             await client.close()
@@ -101,7 +101,7 @@ class TestTotalTimeout:
             stmt = Statement("test", "test", None)
 
             try:
-                recordset = await client.query(qp, PartitionFilter.all(), stmt)
+                recordset = await client.query(stmt, PartitionFilter.all(), policy=qp)
                 async for _ in recordset:
                     pass
                 recordset.close()

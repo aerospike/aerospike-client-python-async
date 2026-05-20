@@ -30,10 +30,10 @@ class TestRemoveUDF(TestFixtureConnection):
         server_path = "test_remove_basic.lua"
 
         try:
-            register_task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+            register_task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
             await register_task.wait_till_complete()
 
-            task = await client.remove_udf(None, server_path)
+            task = await client.remove_udf(server_path)
             assert task is not None
 
             status = await task.wait_till_complete()
@@ -43,7 +43,7 @@ class TestRemoveUDF(TestFixtureConnection):
             assert final_status == TaskStatus.COMPLETE
         finally:
             try:
-                remove_task = await client.remove_udf(None, server_path)
+                remove_task = await client.remove_udf(server_path)
                 await remove_task.wait_till_complete()
             except Exception:
                 pass
@@ -54,27 +54,27 @@ class TestRemoveUDF(TestFixtureConnection):
         server_path = "test_remove_policy.lua"
 
         try:
-            register_task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+            register_task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
             await register_task.wait_till_complete()
 
             policy = AdminPolicy()
             policy.timeout = 30000
 
-            task = await client.remove_udf(policy, server_path)
+            task = await client.remove_udf(server_path, policy=policy)
             assert task is not None
 
             status = await task.wait_till_complete()
             assert status is True
         finally:
             try:
-                remove_task = await client.remove_udf(None, server_path)
+                remove_task = await client.remove_udf(server_path)
                 await remove_task.wait_till_complete()
             except Exception:
                 pass
 
     async def test_remove_udf_nonexistent(self, client):
         """Test removing a non-existent UDF."""
-        task = await client.remove_udf(None, "nonexistent_udf.lua")
+        task = await client.remove_udf("nonexistent_udf.lua")
         assert task is not None
 
         status = await task.wait_till_complete()
@@ -89,13 +89,13 @@ class TestRemoveUDF(TestFixtureConnection):
         server_path = "test_remove_twice.lua"
 
         try:
-            register_task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+            register_task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
             await register_task.wait_till_complete()
 
-            task1 = await client.remove_udf(None, server_path)
+            task1 = await client.remove_udf(server_path)
             await task1.wait_till_complete()
 
-            task2 = await client.remove_udf(None, server_path)
+            task2 = await client.remove_udf(server_path)
             await task2.wait_till_complete()
 
             status1 = await task1.query_status()
@@ -104,7 +104,7 @@ class TestRemoveUDF(TestFixtureConnection):
             assert status2 in (TaskStatus.COMPLETE, TaskStatus.NOT_FOUND)
         finally:
             try:
-                remove_task = await client.remove_udf(None, server_path)
+                remove_task = await client.remove_udf(server_path)
                 await remove_task.wait_till_complete()
             except Exception:
                 pass

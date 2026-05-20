@@ -183,7 +183,7 @@ use crate::record::{Key, PythonValue, Record};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "PartitionFilter",
         module = "_aerospike_async_native",
         freelist = 1000
@@ -361,7 +361,7 @@ use crate::record::{Key, PythonValue, Record};
 
     /// Query statement parameters.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "Statement",
         module = "_aerospike_async_native",
         subclass,
@@ -476,7 +476,7 @@ use crate::record::{Key, PythonValue, Record};
     /// Use instance methods `context` and `expression` to attach a CDT path or expression-based index
     /// to a filter (for example `Filter.equal("bin", 1).context([CTX.list_index(0)])`).
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "Filter",
         module = "_aerospike_async_native",
         subclass,
@@ -808,7 +808,7 @@ use crate::record::{Key, PythonValue, Record};
     /// internal queue managed by the recordset. The single user thread consumes these records from the
     /// queue.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "Recordset",
         module = "_aerospike_async_native",
         subclass,
@@ -889,5 +889,55 @@ use crate::record::{Key, PythonValue, Record};
                 }
             })
             .map(|bound| bound.unbind())
+        }
+
+        // Blocking iteration — returned by `Client.query_blocking()`.  Same
+        // shape as the async path: drive the underlying stream, but block
+        // the Python thread (releasing the GIL via py.detach) instead of
+        // returning an awaitable each step.  Raising the standard
+        // `StopIteration` ends the loop the Pythonic way.
+        fn __iter__(&self) -> Self {
+            self.clone()
+        }
+
+        fn __next__(&mut self, py: Python<'_>) -> PyResult<Record> {
+            // The async-context guard is checked here too, not just in
+            // `query_blocking`: a user could legally create the Recordset
+            // before entering an async context and then iterate it from
+            // inside one.  That guard lives in lib.rs as
+            // `check_not_in_async_context`; here we duplicate the same
+            // behavior via the canonical asyncio probe.
+            let asyncio = py.import("asyncio")?;
+            if asyncio.call_method0("get_running_loop").is_ok() {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot iterate a blocking Recordset from within an async \
+                     context.  Use `async for record in recordset:` instead.",
+                ));
+            }
+
+            let recordset = self._as.clone();
+            let stream_mutex = self._stream.clone();
+            let rt = pyo3_async_runtimes::tokio::get_runtime();
+
+            let result = py.detach(|| {
+                rt.block_on(async move {
+                    let mut stream_opt = stream_mutex.lock().await;
+                    if stream_opt.is_none() {
+                        *stream_opt = Some(Box::pin(recordset.clone().into_stream()));
+                    }
+                    let stream = stream_opt.as_mut().unwrap();
+                    use futures::StreamExt;
+                    match stream.as_mut().next().await {
+                        Some(Ok(rec)) => Ok(Some(rec)),
+                        Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
+                        None => Ok(None),
+                    }
+                })
+            })?;
+
+            match result {
+                Some(rec) => Ok(Record { _as: rec, cached_bins: None }),
+                None => Err(pyo3::exceptions::PyStopIteration::new_err(())),
+            }
         }
     }

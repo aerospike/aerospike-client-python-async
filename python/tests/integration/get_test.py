@@ -34,10 +34,9 @@ async def client_and_key():
     key = Key("test", "python_test", 1)
     wp = WritePolicy()
 
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     await client.put(
-        wp,
         key,
         {
             "brand": "Ford",
@@ -45,6 +44,7 @@ async def client_and_key():
             "year": 1964,
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         },
+        policy=wp,
     )
 
     return client, rp, key
@@ -53,7 +53,7 @@ async def test_all_bins(client_and_key):
     """Test getting all bins from a record."""
 
     client, rp, key = client_and_key
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.generation == 1
     # assert rec.ttl is not None
@@ -62,7 +62,7 @@ async def test_some_bins(client_and_key):
     """Test getting specific bins from a record."""
 
     client, rp, key = client_and_key
-    rec = await client.get(rp, key, ["brand", "year"])
+    rec = await client.get(key, ["brand", "year"], policy=rp)
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
 
@@ -73,7 +73,7 @@ async def test_matching_filter_exp(client_and_key):
 
     rp = ReadPolicy()
     rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
-    rec = await client.get(rp, key, ["brand", "year"])
+    rec = await client.get(key, ["brand", "year"], policy=rp)
     assert rec is not None
     assert rec.bins == {"brand": "Ford", "year": 1964}
 
@@ -86,4 +86,4 @@ async def test_non_matching_filter_exp(client_and_key):
     rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
     with pytest.raises(Exception):
-        await client.get(rp, key, ["brand", "year"])
+        await client.get(key, ["brand", "year"], policy=rp)

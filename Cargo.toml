@@ -9,13 +9,13 @@ name = "_aerospike_async_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.27", default-features = false }
-pyo3-async-runtimes = { version = "0.27", features = ["tokio-runtime"] }
+pyo3 = { version = "0.28", default-features = false }
+pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
 tokio = "1.40"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v3", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
-pyo3-stub-gen = "0.14.1"
+pyo3-stub-gen = "0.22"
 log = "0.4"
 pyo3-log = "0.13"
 futures = "0.3"
@@ -25,6 +25,7 @@ rustls-pemfile = { version = "2", optional = true }
 webpki-roots = { version = "1.0", optional = true }
 aws-lc-sys = "0.37.0"
 aws-lc-rs = "1.15.4"
+mimalloc = "0.1"
 
 [features]
 default = ["extension-module", "tls"]

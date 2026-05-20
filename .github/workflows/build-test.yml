@@ -528,3 +528,92 @@ jobs:
         with:
           name: wheels
           path: aerospike_async
+
+  # Free-threaded (PEP 703) Python builds.  Catches no-GIL regressions that
+  # would otherwise land silently: anything that relies on the GIL for
+  # de-facto serialization (module-level singletons, dict mutation races,
+  # cross-loop asyncio primitives) fails here before it reaches users.
+  linux-freethreaded:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python: ['3.13t', '3.14t']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        # `actions-rs/toolchain` is archived; use the maintained replacement
+        # for new jobs.  Existing jobs in this file still use the old action
+        # and should be migrated in a separate cleanup pass.
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+          components: rustfmt, clippy
+      - name: Setup free-threaded Python ${{ matrix.python }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build wheel (cp3Nt ABI auto-detected)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          sccache: 'true'
+          # Build against the host Python installed by setup-python above.
+          # The default manylinux Docker container does not include
+          # free-threaded CPython builds (3.13t / 3.14t), so spinning one
+          # up causes maturin to fail with "Couldn't find any python
+          # interpreters".
+          manylinux: off
+        env:
+          AWS_LC_SYS_CMAKE_BUILDER: "0"
+          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
+          AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
+      - name: Run Aerospike server
+        run: |
+          docker run -d -p 3000:3000 --name aerospike-server aerospike/aerospike-server:8.1.2.1
+          for i in {1..10}; do
+            if docker exec aerospike-server asinfo -v "statistics" > /dev/null 2>&1; then
+              echo "Aerospike server is ready after $i seconds"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "Aerospike server failed to start after 10 seconds"
+              docker logs aerospike-server
+              exit 1
+            fi
+            echo "Waiting for Aerospike server... ($i/10)"
+            sleep 1
+          done
+          echo "Configuring namespace for TTL support..."
+          docker exec aerospike-server asinfo -v "set-config:context=namespace;id=test;nsup-period=120"
+          docker exec aerospike-server asinfo -v "set-config:context=namespace;id=test;default-ttl=2592000"
+          echo "=== Namespace Configuration ==="
+          docker exec aerospike-server asinfo -v "get-config:context=namespace;id=test" | tr ';' '\n' | grep -E "nsup-period|default-ttl|allow-ttl"
+          echo "=== Server Build ==="
+          docker exec aerospike-server asinfo -v "build"
+      - name: Install wheel
+        run: python -m pip install --find-links=aerospike_async/ aerospike_async
+      - name: Install pytest
+        run: python -m pip install pytest pytest-asyncio
+      - name: Verify GIL stays disabled after import
+        run: |
+          python -c "import sys; before = sys._is_gil_enabled(); import aerospike_async; after = sys._is_gil_enabled(); print(f'GIL before={before} after={after}'); assert before is False and after is False, 'gil_used = false flag is not being honored'"
+      - name: Run tests
+        env:
+          AEROSPIKE_HOST: localhost:3000
+          AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
+        run: |
+          rm -f python/aerospike_async/__init__.py
+          rm -f aerospike.env
+          python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker logs --tail 100 aerospike-server
+            exit 1
+          fi
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.python }}-x86_64
+          path: aerospike_async

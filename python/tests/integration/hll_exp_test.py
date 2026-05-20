@@ -37,17 +37,21 @@ class TestHLLExp(TestFixtureConnection):
         list2 = ["Bkey1", "Bkey2", "Bkey3"]
         list3 = ["Akey1", "Akey2", "Bkey1", "Bkey2", "Ckey1", "Ckey2"]
 
-        result = await client.operate(wp, key, [
+        result = await client.operate(
+            key,
+            [
             HllOperation.add("hll1", list1, index_bit_count=8),
             HllOperation.add("hll2", list2, index_bit_count=8),
             HllOperation.add("hll3", list3, index_bit_count=8),
-        ])
+        ],
+            policy=wp,
+        )
         assert result is not None
 
         yield key
 
         try:
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
         except ServerError:
             pass
 
@@ -58,19 +62,19 @@ class TestHLLExp(TestFixtureConnection):
         # Negative: count == 0 should not match
         rp.filter_expression = fe.eq(fe.hll_get_count(fe.hll_bin("hll1")), fe.int_val(0))
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: count > 0 should match
         rp.filter_expression = fe.gt(fe.hll_get_count(fe.hll_bin("hll1")), fe.int_val(0))
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None
 
     async def test_union(self, client, hll_key):
         """HLL getUnion + getUnionCount: count of union == union count."""
         rp = ReadPolicy()
 
-        rec = await client.get(rp, hll_key, ["hll1", "hll2", "hll3"])
+        rec = await client.get(hll_key, ["hll1", "hll2", "hll3"], policy=rp)
         hll1 = rec.bins["hll1"]
         hll2 = rec.bins["hll2"]
         hll3 = rec.bins["hll3"]
@@ -84,7 +88,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_union_count(fe.list_val(hlls), fe.hll_bin("hll1")),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: count(union) == union_count should match
@@ -94,14 +98,14 @@ class TestHLLExp(TestFixtureConnection):
             ),
             fe.hll_get_union_count(fe.list_val(hlls), fe.hll_bin("hll1")),
         )
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None
 
     async def test_intersect(self, client, hll_key):
         """HLL getIntersectCount: intersect(hll2, hll1) <= intersect(hll3, hll1)."""
         rp = ReadPolicy()
 
-        rec = await client.get(rp, hll_key, ["hll2", "hll3"])
+        rec = await client.get(hll_key, ["hll2", "hll3"], policy=rp)
         hll2 = rec.bins["hll2"]
         hll3 = rec.bins["hll3"]
 
@@ -111,7 +115,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_intersect_count(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: intersect(hll2, hll1) <= intersect(hll3, hll1) should match
@@ -119,14 +123,14 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_intersect_count(fe.list_val([hll2]), fe.hll_bin("hll1")),
             fe.hll_get_intersect_count(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None
 
     async def test_similarity(self, client, hll_key):
         """HLL getSimilarity: similarity(hll2, hll1) <= similarity(hll3, hll1)."""
         rp = ReadPolicy()
 
-        rec = await client.get(rp, hll_key, ["hll2", "hll3"])
+        rec = await client.get(hll_key, ["hll2", "hll3"], policy=rp)
         hll2 = rec.bins["hll2"]
         hll3 = rec.bins["hll3"]
 
@@ -136,7 +140,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_similarity(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: similarity(hll2, hll1) <= similarity(hll3, hll1) should match
@@ -144,7 +148,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_get_similarity(fe.list_val([hll2]), fe.hll_bin("hll1")),
             fe.hll_get_similarity(fe.list_val([hll3]), fe.hll_bin("hll1")),
         )
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None
 
     async def test_describe(self, client, hll_key):
@@ -163,7 +167,7 @@ class TestHLLExp(TestFixtureConnection):
             ),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: describe[0] of hll1 == describe[0] of hll2 should match
@@ -177,7 +181,7 @@ class TestHLLExp(TestFixtureConnection):
                 fe.hll_describe(fe.hll_bin("hll2")), [],
             ),
         )
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None
 
     async def test_may_contain(self, client, hll_key):
@@ -190,7 +194,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.int_val(1),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll2"])
+            await client.get(hll_key, ["hll2"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: "new_val" mayContain != 1 should match
@@ -198,7 +202,7 @@ class TestHLLExp(TestFixtureConnection):
             fe.hll_may_contain(fe.list_val(["new_val"]), fe.hll_bin("hll2")),
             fe.int_val(1),
         )
-        rec = await client.get(rp, hll_key, ["hll2"])
+        rec = await client.get(hll_key, ["hll2"], policy=rp)
         assert rec is not None
 
     async def test_add(self, client, hll_key):
@@ -213,7 +217,7 @@ class TestHLLExp(TestFixtureConnection):
             ),
         )
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, hll_key, ["hll1"])
+            await client.get(hll_key, ["hll1"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         # Positive: count(hll1) < count(add(new_val, hll2)) should match
@@ -223,5 +227,5 @@ class TestHLLExp(TestFixtureConnection):
                 fe.hll_add(HLLPolicy(), fe.list_val(["new_val"]), fe.hll_bin("hll2")),
             ),
         )
-        rec = await client.get(rp, hll_key, ["hll1"])
+        rec = await client.get(hll_key, ["hll1"], policy=rp)
         assert rec is not None

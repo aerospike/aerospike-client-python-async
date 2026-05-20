@@ -147,7 +147,7 @@ def sc_key(sc_namespace):
 
 
 async def _get_bin(client: "any", key: Key, bin_name: str):
-    rec = await client.get(ReadPolicy(), key)
+    rec = await client.get(key, policy=ReadPolicy())
     if rec is None:
         return None
     return rec.bins.get(bin_name)
@@ -158,12 +158,12 @@ async def _get_bin(client: "any", key: Key, bin_name: str):
 # ---------------------------------------------------------------------------
 async def test_txn_commit_persists_writes(sc_client, sc_key):
     # Pre-existing value outside the txn.
-    await sc_client.put(WritePolicy(), sc_key, {"bin": 1})
+    await sc_client.put(sc_key, {"bin": 1}, policy=WritePolicy())
 
     txn = Txn()
     wp = WritePolicy()
     wp.txn = txn
-    await sc_client.put(wp, sc_key, {"bin": 2})
+    await sc_client.put(sc_key, {"bin": 2}, policy=wp)
 
     status = await sc_client.commit(txn)
     assert status == CommitStatus.OK
@@ -171,12 +171,12 @@ async def test_txn_commit_persists_writes(sc_client, sc_key):
 
 
 async def test_txn_abort_rolls_back(sc_client, sc_key):
-    await sc_client.put(WritePolicy(), sc_key, {"bin": 1})
+    await sc_client.put(sc_key, {"bin": 1}, policy=WritePolicy())
 
     txn = Txn()
     wp = WritePolicy()
     wp.txn = txn
-    await sc_client.put(wp, sc_key, {"bin": 2})
+    await sc_client.put(sc_key, {"bin": 2}, policy=wp)
 
     status = await sc_client.abort(txn)
     assert status == AbortStatus.OK
@@ -187,12 +187,12 @@ async def test_txn_abort_rolls_back(sc_client, sc_key):
 # State transitions
 # ---------------------------------------------------------------------------
 async def test_txn_state_open_then_committed(sc_client, sc_key):
-    await sc_client.put(WritePolicy(), sc_key, {"bin": 1})
+    await sc_client.put(sc_key, {"bin": 1}, policy=WritePolicy())
     txn = Txn()
     assert txn.state == TxnState.OPEN
     wp = WritePolicy()
     wp.txn = txn
-    await sc_client.put(wp, sc_key, {"bin": 2})
+    await sc_client.put(sc_key, {"bin": 2}, policy=wp)
 
     status = await sc_client.commit(txn)
     assert status == CommitStatus.OK
@@ -200,12 +200,12 @@ async def test_txn_state_open_then_committed(sc_client, sc_key):
 
 
 async def test_txn_state_open_then_aborted(sc_client, sc_key):
-    await sc_client.put(WritePolicy(), sc_key, {"bin": 1})
+    await sc_client.put(sc_key, {"bin": 1}, policy=WritePolicy())
     txn = Txn()
     assert txn.state == TxnState.OPEN
     wp = WritePolicy()
     wp.txn = txn
-    await sc_client.put(wp, sc_key, {"bin": 2})
+    await sc_client.put(sc_key, {"bin": 2}, policy=wp)
 
     status = await sc_client.abort(txn)
     assert status == AbortStatus.OK
@@ -219,11 +219,11 @@ async def test_committed_txn_rejects_subsequent_writes(sc_client, sc_key):
     txn = Txn()
     wp = WritePolicy()
     wp.txn = txn
-    await sc_client.put(wp, sc_key, {"bin": 1})
+    await sc_client.put(sc_key, {"bin": 1}, policy=wp)
     assert await sc_client.commit(txn) == CommitStatus.OK
 
     with pytest.raises(Exception) as excinfo:
-        await sc_client.put(wp, sc_key, {"bin": 2})
+        await sc_client.put(sc_key, {"bin": 2}, policy=wp)
     msg = str(excinfo.value).lower()
     assert (
         "forbidden" in msg
@@ -241,17 +241,17 @@ async def test_txn_batch_commit(sc_client, sc_namespace):
         for i in range(5)
     ]
     for k in keys:
-        await sc_client.put(WritePolicy(), k, {"bin": 1})
+        await sc_client.put(k, {"bin": 1}, policy=WritePolicy())
 
     txn = Txn()
     bp = BatchPolicy()
     bp.txn = txn
 
     results = await sc_client.batch_write(
-        bp,
-        None,
         keys,
         [{"bin": 2}] * len(keys),
+        batch_policy=bp,
+        write_policy=None,
     )
     for rec in results:
         assert rec.result_code == ResultCode.OK, (

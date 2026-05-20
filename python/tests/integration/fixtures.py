@@ -107,7 +107,7 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         
         # Insert test record
         wp = WritePolicy()
-        await client.put(wp, key, original_bin_val)
+        await client.put(key, original_bin_val, policy=wp)
         
         yield client
         await client.close()

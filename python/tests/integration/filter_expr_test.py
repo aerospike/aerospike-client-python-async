@@ -37,7 +37,7 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         """Test using a matching filter expression."""
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
-        rec = await client.get(rp, key, ["brand", "year"])
+        rec = await client.get(key, ["brand", "year"], policy=rp)
         assert isinstance(rec, Record)
         assert rec.bins == {"brand": "Ford", "year": 1964}
 
@@ -47,7 +47,7 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Peykan"))
 
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, key, ["brand", "year"])
+            await client.get(key, ["brand", "year"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
 
@@ -62,14 +62,14 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         # Put the list in a bin
         from aerospike_async import WritePolicy
         wp = WritePolicy()
-        await client.put(wp, key, {"listbin": test_list})
+        await client.put(key, {"listbin": test_list}, policy=wp)
 
         # Use filter expression to compare list bin to list value
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(test_list))
 
         # Should match and return the record
-        rec = await client.get(rp, key, ["listbin"])
+        rec = await client.get(key, ["listbin"], policy=rp)
         assert isinstance(rec, Record)
         assert rec.bins["listbin"] == test_list
 
@@ -80,13 +80,13 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
 
         from aerospike_async import WritePolicy
         wp = WritePolicy()
-        await client.put(wp, key, {"listbin": test_list})
+        await client.put(key, {"listbin": test_list}, policy=wp)
 
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.list_bin("listbin"), fe.list_val(different_list))
 
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, key, ["listbin"])
+            await client.get(key, ["listbin"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
 
@@ -113,12 +113,12 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         wp = WritePolicy()
         map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
         # Use put_items to store the entire map with KEY_ORDERED policy
-        await client.operate(wp, key, [MapOperation.put_items("mapbin", list(test_map.items()), map_policy)])
+        await client.operate(key, [MapOperation.put_items("mapbin", list(test_map.items()), map_policy)], policy=wp)
 
         # Retrieve the map as stored by the server to get exact serialization format
         # This ensures we use the same byte-level representation for comparison
         rp_no_filter = ReadPolicy()
-        rec_stored = await client.get(rp_no_filter, key, ["mapbin"])
+        rec_stored = await client.get(key, ["mapbin"], policy=rp_no_filter)
         stored_map = rec_stored.bins["mapbin"]
 
         # Use filter expression to compare map bin to the exact stored map value
@@ -127,7 +127,7 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(stored_map))
 
         # Should match and return the record (not filtered out)
-        rec = await client.get(rp, key, ["mapbin"])
+        rec = await client.get(key, ["mapbin"], policy=rp)
         assert isinstance(rec, Record)
         # Verify the map contents match
         assert rec.bins["mapbin"] == stored_map
@@ -139,13 +139,13 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
 
         from aerospike_async import WritePolicy
         wp = WritePolicy()
-        await client.put(wp, key, {"mapbin": test_map})
+        await client.put(key, {"mapbin": test_map}, policy=wp)
 
         rp = ReadPolicy()
         rp.filter_expression = fe.eq(fe.map_bin("mapbin"), fe.map_val(different_map))
 
         with pytest.raises(FilteredOut) as exc_info:
-            await client.get(rp, key, ["mapbin"])
+            await client.get(key, ["mapbin"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
 
@@ -162,7 +162,7 @@ class TestFilterExprBase64Query(TestFixtureConnection):
         wp = WritePolicy()
         for i in range(20):
             key = Key(self.NAMESPACE, set_name, i)
-            await client.put(wp, key, {self.BIN_NAME: i})
+            await client.put(key, {self.BIN_NAME: i}, policy=wp)
         yield client, set_name
 
     async def test_query_with_restored_expression_single_match(self, client_and_data):
@@ -175,7 +175,7 @@ class TestFilterExprBase64Query(TestFixtureConnection):
         qp = QueryPolicy()
         qp.filter_expression = restored
         stmt = Statement(self.NAMESPACE, set_name, None)
-        records = await client.query(qp, PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=qp)
         count = 0
         async for _ in records:
             count += 1
@@ -197,7 +197,7 @@ class TestFilterExprBase64Query(TestFixtureConnection):
         qp = QueryPolicy()
         qp.filter_expression = restored
         stmt = Statement(self.NAMESPACE, set_name, None)
-        records = await client.query(qp, PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=qp)
         count = 0
         async for _ in records:
             count += 1

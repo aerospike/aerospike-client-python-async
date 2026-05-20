@@ -33,7 +33,7 @@ async def client_and_key(aerospike_host):
 
     # Delete the record first to ensure clean state
     wp = WritePolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     return client, key
 
@@ -44,20 +44,24 @@ async def test_operate_put_and_get(client_and_key):
     wp = WritePolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "optintbin": 7,
         "optstringbin": "string value"
-    })
+    },
+        policy=wp,
+    )
 
     # Use operate to put a new value and get the record
     # This is similar to: client.operate(null, key, Operation.put(bin4), Operation.get())
     record = await client.operate(
-        wp,
         key,
         [
             Operation.put("optstringbin", "new string"),
             Operation.get()
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -78,16 +82,20 @@ async def test_operate_get_only(client_and_key):
     wp = WritePolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "bin1": "value1",
         "bin2": 42
-    })
+    },
+        policy=wp,
+    )
 
     # Use operate to get the record
     record = await client.operate(
-        wp,
         key,
-        [Operation.get()]
+        [Operation.get()],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -105,20 +113,24 @@ async def test_operate_multiple_puts(client_and_key):
     rp = ReadPolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "bin1": "original1",
         "bin2": "original2"
-    })
+    },
+        policy=wp,
+    )
 
     # Use operate to put multiple bins and get the record
     record = await client.operate(
-        wp,
         key,
         [
             Operation.put("bin1", "updated1"),
             Operation.put("bin2", "updated2"),
             Operation.get()
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -130,7 +142,7 @@ async def test_operate_multiple_puts(client_and_key):
     assert record.bins.get("bin2") == "updated2"
 
     # Verify by reading the record again
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec.bins.get("bin1") == "updated1"
     assert rec.bins.get("bin2") == "updated2"
 
@@ -142,20 +154,24 @@ async def test_operate_add_and_put(client_and_key):
     wp = WritePolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "optintbin": 7,
         "optstringbin": "string value"
-    })
+    },
+        policy=wp,
+    )
 
     # Add integer, write new string and read record
     record = await client.operate(
-        wp,
         key,
         [
             Operation.add("optintbin", 4),
             Operation.put("optstringbin", "new string"),
             Operation.get()
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -177,24 +193,24 @@ async def test_operate_add_and_get(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first to ensure clean state
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Perform some adds
-    await client.add(wp, key, {"addbin": 10})
-    await client.add(wp, key, {"addbin": 5})
+    await client.add(key, {"addbin": 10}, policy=wp)
+    await client.add(key, {"addbin": 5}, policy=wp)
 
     # Verify the result
-    rec = await client.get(rp, key, ["addbin"])
+    rec = await client.get(key, ["addbin"], policy=rp)
     assert rec.bins.get("addbin") == 15
 
     # Test add and get combined
     record = await client.operate(
-        wp,
         key,
         [
             Operation.add("addbin", 30),
             Operation.get_bin("addbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result (15 + 30 = 45)
@@ -211,24 +227,24 @@ async def test_operate_append(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first to ensure clean state
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Append operations
-    await client.append(wp, key, {"appendbin": "Hello"})
-    await client.append(wp, key, {"appendbin": " World"})
+    await client.append(key, {"appendbin": "Hello"}, policy=wp)
+    await client.append(key, {"appendbin": " World"}, policy=wp)
 
     # Verify the result
-    rec = await client.get(rp, key, ["appendbin"])
+    rec = await client.get(key, ["appendbin"], policy=rp)
     assert rec.bins.get("appendbin") == "Hello World"
 
     # Test append in operate
     record = await client.operate(
-        wp,
         key,
         [
             Operation.append("appendbin", "!"),
             Operation.get_bin("appendbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -245,24 +261,24 @@ async def test_operate_prepend(client_and_key):
     rp = ReadPolicy()
 
     # Delete record first to ensure clean state
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Prepend operations
-    await client.prepend(wp, key, {"prependbin": "World"})
-    await client.prepend(wp, key, {"prependbin": "Hello "})
+    await client.prepend(key, {"prependbin": "World"}, policy=wp)
+    await client.prepend(key, {"prependbin": "Hello "}, policy=wp)
 
     # Verify the result
-    rec = await client.get(rp, key, ["prependbin"])
+    rec = await client.get(key, ["prependbin"], policy=rp)
     assert rec.bins.get("prependbin") == "Hello World"
 
     # Test prepend in operate
     record = await client.operate(
-        wp,
         key,
         [
             Operation.prepend("prependbin", "Say: "),
             Operation.get_bin("prependbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify the result
@@ -278,15 +294,19 @@ async def test_operate_get_header(client_and_key):
     wp = WritePolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "mybin": "myvalue"
-    })
+    },
+        policy=wp,
+    )
 
     # Use operate to get header (metadata only, no bin data)
     record = await client.operate(
-        wp,
         key,
-        [Operation.get_header()]
+        [Operation.get_header()],
+        policy=wp,
     )
 
     # Verify the record was returned
@@ -306,18 +326,22 @@ async def test_operate_delete(client_and_key):
     rp = ReadPolicy()
 
     # Write initial record
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "optintbin1": 1
-    })
+    },
+        policy=wp,
+    )
 
     # Read bin1 and then delete all
     record = await client.operate(
-        wp,
         key,
         [
             Operation.get_bin("optintbin1"),
             Operation.delete()
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify we got the bin value before deletion
@@ -326,25 +350,29 @@ async def test_operate_delete(client_and_key):
     assert record.bins.get("optintbin1") == 1
 
     # Verify record is gone
-    exists = await client.exists(rp, key)
+    exists = await client.exists(key, policy=rp)
     assert not exists
 
     # Rewrite record with two bins
-    await client.put(wp, key, {
+    await client.put(
+        key,
+        {
         "optintbin1": 1,
         "optintbin2": 2
-    })
+    },
+        policy=wp,
+    )
 
     # Read bin 1 and then delete all followed by a write of bin2
     record = await client.operate(
-        wp,
         key,
         [
             Operation.get_bin("optintbin1"),
             Operation.delete(),
             Operation.put("optintbin2", 2),
             Operation.get_bin("optintbin2")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify we got bin1 value before deletion
@@ -353,7 +381,7 @@ async def test_operate_delete(client_and_key):
     assert record.bins.get("optintbin1") == 1
 
     # Read record - should only have bin2
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins.get("optintbin2") == 2
     # bin1 should be gone
@@ -375,27 +403,31 @@ async def test_operate_touch_and_get_header(client_and_key):
     # Check if TTL is supported by trying to set expiration
     try:
         wp.expiration = Expiration.seconds(60)
-        await client.put(wp, key, {
+        await client.put(
+            key,
+            {
             "touchbin": "touchvalue"
-        })
+        },
+            policy=wp,
+        )
     except Exception as e:
         # If setting expiration fails, TTL is not supported - skip the test
         pytest.skip(f"TTL not supported on this server: {e}")
 
     # Verify TTL was actually set on the record
     rp_check = ReadPolicy()
-    check_rec = await client.get(rp_check, key, ["touchbin"])
+    check_rec = await client.get(key, ["touchbin"], policy=rp_check)
     if check_rec.ttl == 0:
         pytest.skip(f"TTL not being applied by server (got ttl=0)")
 
     wp.expiration = Expiration.seconds(120)
     record = await client.operate(
-        wp,
         key,
         [
             Operation.touch(),
             Operation.get_header()
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -405,7 +437,7 @@ async def test_operate_touch_and_get_header(client_and_key):
     assert record.ttl is not None
     assert record.ttl > 0, f"Expected TTL > 0 after touch with expiration=120s, got {record.ttl}"
 
-    rec = await client.get(rp, key, ["touchbin"])
+    rec = await client.get(key, ["touchbin"], policy=rp)
     assert rec is not None
     assert rec.bins.get("touchbin") == "touchvalue"
     assert rec.ttl > 0, f"Record TTL should be > 0, got {rec.ttl}"

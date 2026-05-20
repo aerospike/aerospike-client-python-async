@@ -51,9 +51,9 @@ async def client_and_keys():
         # list_bin2 is always [0, 1] for all keys
         list_bin2 = [0, 1]
         if i != 6:
-            await client.put(wp, key, {bin_name: f"batchvalue{i}", "lbin": list_bin, "lbin2": list_bin2})
+            await client.put(key, {bin_name: f"batchvalue{i}", "lbin": list_bin, "lbin2": list_bin2}, policy=wp)
         else:
-            await client.put(wp, key, {bin_name: i, "lbin": list_bin, "lbin2": list_bin2})
+            await client.put(key, {bin_name: i, "lbin": list_bin, "lbin2": list_bin2}, policy=wp)
 
     delete_keys = [
         Key("test", "test", 10000),
@@ -61,7 +61,7 @@ async def client_and_keys():
         Key("test", "test", 10002),
     ]
     for key in delete_keys:
-        await client.put(wp, key, {bin_name: key.value})
+        await client.put(key, {bin_name: key.value}, policy=wp)
 
     yield client, keys, delete_keys, bin_name
     await client.close()
@@ -71,7 +71,7 @@ async def test_batch_read(client_and_keys):
 
     client, keys, _, bin_name = client_and_keys
 
-    results = await client.batch_read(None, None, keys, [bin_name])
+    results = await client.batch_read(keys, [bin_name], batch_policy=None, read_policy=None)
 
     assert len(results) == len(keys)
 
@@ -98,13 +98,13 @@ async def test_batch_read_all_bins(client_and_keys):
         Operation.put("bin5", "NewValue")
     ]
 
-    write_results = await client.batch_operate(None, None, keys, [operations] * len(keys))
+    write_results = await client.batch_operate(keys, [operations] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(write_results) == len(keys)
     for result in write_results:
         assert result.result_code == ResultCode.OK
 
-    read_results = await client.batch_read(None, None, keys, None)
+    read_results = await client.batch_read(keys, None, batch_policy=None, read_policy=None)
 
     assert len(read_results) == len(keys)
 
@@ -128,7 +128,7 @@ async def test_batch_read_empty_bins(client_and_keys):
 
     client, keys, _, bin_name = client_and_keys
 
-    results = await client.batch_read(None, None, keys, None)
+    results = await client.batch_read(keys, None, batch_policy=None, read_policy=None)
 
     assert len(results) == len(keys)
 
@@ -154,37 +154,37 @@ async def test_batch_read_complex(client_and_keys):
 
     client, keys, _, bin_name = client_and_keys
 
-    results1 = await client.batch_read(None, None, [keys[0]], [bin_name])
+    results1 = await client.batch_read([keys[0]], [bin_name], batch_policy=None, read_policy=None)
     assert results1[0].result_code == ResultCode.OK
     assert results1[0].record.bins[bin_name] == "batchvalue1"
 
-    results2 = await client.batch_read(None, None, [keys[1]], None)
+    results2 = await client.batch_read([keys[1]], None, batch_policy=None, read_policy=None)
     assert results2[0].result_code == ResultCode.OK
     assert bin_name in results2[0].record.bins
 
-    results3 = await client.batch_read(None, None, [keys[2]], [])
+    results3 = await client.batch_read([keys[2]], [], batch_policy=None, read_policy=None)
     assert results3[0].result_code == ResultCode.OK
     assert len(results3[0].record.bins) == 0
     assert results3[0].record.generation > 0
 
-    results4 = await client.batch_read(None, None, [keys[3]], [bin_name])
+    results4 = await client.batch_read([keys[3]], [bin_name], batch_policy=None, read_policy=None)
     assert results4[0].result_code == ResultCode.OK
     assert bin_name in results4[0].record.bins
 
-    results5 = await client.batch_read(None, None, [keys[4]], None)
+    results5 = await client.batch_read([keys[4]], None, batch_policy=None, read_policy=None)
     assert results5[0].result_code == ResultCode.OK
     assert bin_name in results5[0].record.bins
 
-    results6 = await client.batch_read(None, None, [keys[6]], [bin_name])
+    results6 = await client.batch_read([keys[6]], [bin_name], batch_policy=None, read_policy=None)
     assert results6[0].result_code == ResultCode.OK
     assert results6[0].record.bins[bin_name] == "batchvalue7"
 
-    results7 = await client.batch_read(None, None, [keys[7]], ["binnotfound"])
+    results7 = await client.batch_read([keys[7]], ["binnotfound"], batch_policy=None, read_policy=None)
     assert results7[0].result_code == ResultCode.OK
     assert "binnotfound" not in results7[0].record.bins
 
     non_existent_key = Key("test", "test", "keynotfound")
-    results8 = await client.batch_read(None, None, [non_existent_key], [bin_name])
+    results8 = await client.batch_read([non_existent_key], [bin_name], batch_policy=None, read_policy=None)
     assert results8[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
     assert results8[0].record is None
 
@@ -194,7 +194,7 @@ async def test_batch_read_key_not_found(client_and_keys):
     client, _, _, bin_name = client_and_keys
 
     non_existent_key = Key("test", "test", "keynotfound")
-    results = await client.batch_read(None, None, [non_existent_key], [bin_name])
+    results = await client.batch_read([non_existent_key], [bin_name], batch_policy=None, read_policy=None)
 
     assert len(results) == 1
     assert results[0].result_code is not None
@@ -210,7 +210,7 @@ async def test_batch_write(client_and_keys):
     bwp = BatchWritePolicy()
     bins_list = [{"newbin": f"newvalue{i}"} for i in range(len(keys))]
 
-    results = await client.batch_write(bp, bwp, keys, bins_list)
+    results = await client.batch_write(keys, bins_list, batch_policy=bp, write_policy=bwp)
 
     assert len(results) == len(keys)
 
@@ -220,7 +220,7 @@ async def test_batch_write(client_and_keys):
 
     rp = ReadPolicy()
     for i, key in enumerate(keys):
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         assert rec is not None
         assert rec.bins["newbin"] == f"newvalue{i}"
 
@@ -235,10 +235,10 @@ async def test_batch_delete(client_and_keys):
 
     rp = ReadPolicy()
     for key in delete_keys[:2]:
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         assert rec is not None
 
-    results = await client.batch_delete(None, None, delete_keys[:2])
+    results = await client.batch_delete(delete_keys[:2], batch_policy=None, delete_policy=None)
 
     assert len(results) == 2
     assert results[0].result_code == ResultCode.OK
@@ -246,7 +246,7 @@ async def test_batch_delete(client_and_keys):
 
     for key in delete_keys[:2]:
         try:
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec is None
         except ServerError as e:
             assert e.result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -261,7 +261,7 @@ async def test_batch_delete_key_not_found(client_and_keys):
     client, _, _, _ = client_and_keys
 
     non_existent_key = Key("test", "test", 989299023)
-    results = await client.batch_delete(None, None, [non_existent_key])
+    results = await client.batch_delete([non_existent_key], batch_policy=None, delete_policy=None)
 
     assert len(results) == 1
     assert results[0].result_code is not None
@@ -277,11 +277,11 @@ async def test_batch_read_multiple_bins(client_and_keys):
     client, keys, _, _ = client_and_keys
 
     wp = WritePolicy()
-    await client.put(wp, keys[0], {"bin1": "value1", "bin2": "value2", "bin3": "value3"})
+    await client.put(keys[0], {"bin1": "value1", "bin2": "value2", "bin3": "value3"}, policy=wp)
 
     bp = BatchPolicy()
     brp = BatchReadPolicy()
-    results = await client.batch_read(bp, brp, [keys[0]], ["bin1", "bin2"])
+    results = await client.batch_read([keys[0]], ["bin1", "bin2"], batch_policy=bp, read_policy=brp)
 
     assert len(results) == 1
     assert results[0].result_code is not None
@@ -302,7 +302,7 @@ async def test_batch_write_empty_keys(client_and_keys):
 
     bp = BatchPolicy()
     bwp = BatchWritePolicy()
-    results = await client.batch_write(bp, bwp, [], [])
+    results = await client.batch_write([], [], batch_policy=bp, write_policy=bwp)
 
     assert len(results) == 0
 
@@ -317,7 +317,7 @@ async def test_batch_read_empty_keys(client_and_keys):
 
     bp = BatchPolicy()
     brp = BatchReadPolicy()
-    results = await client.batch_read(bp, brp, [], ["bin"])
+    results = await client.batch_read([], ["bin"], batch_policy=bp, read_policy=brp)
 
     assert len(results) == 0
 
@@ -338,7 +338,7 @@ async def test_batch_write_different_bins_per_key(client_and_keys):
         {"a": 3, "b": "third"},
     ]
 
-    results = await client.batch_write(bp, bwp, keys[:3], bins_list)
+    results = await client.batch_write(keys[:3], bins_list, batch_policy=bp, write_policy=bwp)
 
     assert len(results) == 3
     for result in results:
@@ -347,7 +347,7 @@ async def test_batch_write_different_bins_per_key(client_and_keys):
 
     rp = ReadPolicy()
     for i, key in enumerate(keys[:3]):
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         assert rec is not None
         assert rec.bins["a"] == i + 1
         assert rec.bins["b"] == ["first", "second", "third"][i]
@@ -363,7 +363,7 @@ async def test_batch_record_properties(client_and_keys):
 
     bp = BatchPolicy()
     brp = BatchReadPolicy()
-    results = await client.batch_read(bp, brp, [keys[0]], [bin_name])
+    results = await client.batch_read([keys[0]], [bin_name], batch_policy=bp, read_policy=brp)
 
     assert len(results) == 1
     record = results[0]
@@ -385,13 +385,13 @@ async def test_batch_read_with_filter_expression(client_and_keys):
     client, keys, _, bin_name = client_and_keys
 
     wp = WritePolicy()
-    await client.put(wp, keys[0], {bin_name: "match"})
+    await client.put(keys[0], {bin_name: "match"}, policy=wp)
 
     bp = BatchPolicy()
     brp = BatchReadPolicy()
     brp.filter_expression = FilterExpression.eq(FilterExpression.string_bin(bin_name), FilterExpression.string_val("match"))
 
-    results = await client.batch_read(bp, brp, [keys[0]], [bin_name])
+    results = await client.batch_read([keys[0]], [bin_name], batch_policy=bp, read_policy=brp)
 
     assert len(results) == 1
     assert results[0].result_code is not None
@@ -411,18 +411,18 @@ async def test_batch_read_invalid_filter_expression_bytes_returns_parameter_erro
     wp = WritePolicy()
     key = Key("test", "test", "batch_bad_filter_expr_key")
     try:
-        await client.delete(wp, key)
-        await client.put(wp, key, {"b": 1})
+        await client.delete(key, policy=wp)
+        await client.put(key, {"b": 1}, policy=wp)
         garbage_b64 = base64.b64encode(b"\xff\x00not-a-valid-expression").decode("ascii")
         bad_expr = FilterExpression.from_base64(garbage_b64)
         brp = BatchReadPolicy()
         brp.filter_expression = bad_expr
-        results = await client.batch_read(None, brp, [key], ["b"])
+        results = await client.batch_read([key], ["b"], batch_policy=None, read_policy=brp)
         assert len(results) == 1
         assert results[0].result_code == ResultCode.PARAMETER_ERROR
     finally:
         try:
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
         except Exception:
             pass
         await client.close()
@@ -443,7 +443,7 @@ async def test_batch_write_with_policy(client_and_keys):
     bwp.durable_delete = False
 
     bins_list = [{"testbin": "testvalue"} for _ in keys[:2]]
-    results = await client.batch_write(bp, bwp, keys[:2], bins_list)
+    results = await client.batch_write(keys[:2], bins_list, batch_policy=bp, write_policy=bwp)
 
     assert len(results) == 2
     for result in results:
@@ -464,14 +464,14 @@ async def test_batch_mixed_operations(client_and_keys):
     bwp = BatchWritePolicy()
     bdp = BatchDeletePolicy()
 
-    read_results = await client.batch_read(bp, brp, keys[:3], [bin_name])
+    read_results = await client.batch_read(keys[:3], [bin_name], batch_policy=bp, read_policy=brp)
     assert len(read_results) == 3
 
     bins_list = [{"new": "data"} for _ in keys[:3]]
-    write_results = await client.batch_write(bp, bwp, keys[:3], bins_list)
+    write_results = await client.batch_write(keys[:3], bins_list, batch_policy=bp, write_policy=bwp)
     assert len(write_results) == 3
 
-    delete_results = await client.batch_delete(bp, bdp, delete_keys[:1])
+    delete_results = await client.batch_delete(delete_keys[:1], batch_policy=bp, delete_policy=bdp)
     assert len(delete_results) == 1
 
 
@@ -480,7 +480,7 @@ async def test_batch_read_headers(client_and_keys):
 
     client, keys, _, _ = client_and_keys
 
-    results = await client.batch_get_header(None, None, keys)
+    results = await client.batch_get_header(keys, batch_policy=None, read_policy=None)
 
     assert len(results) == len(keys)
 
@@ -507,7 +507,7 @@ async def test_batch_list_read_operate(client_and_keys):
         ListOperation.get_by_index("lbin", -1, ListReturnType.VALUE)
     ]
 
-    results = await client.batch_operate(None, None, keys, [operations] * len(keys))
+    results = await client.batch_operate(keys, [operations] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
 
@@ -542,7 +542,7 @@ async def test_batch_list_write_operate(client_and_keys):
         ListOperation.get_by_index("lbin2", -1, ListReturnType.VALUE)
     ]
 
-    results = await client.batch_operate(None, None, keys, [operations] * len(keys))
+    results = await client.batch_operate(keys, [operations] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
 
@@ -579,18 +579,18 @@ async def test_batch_operate_complex(client_and_keys):
         wops2,  # Key 6: write bbin3 = 200
     ]
 
-    results = await client.batch_operate(None, bwp, [keys[0], keys[5]], operations_list)
+    results = await client.batch_operate([keys[0], keys[5]], operations_list, batch_policy=None, write_policy=bwp)
 
     assert len(results) == 2
     assert results[0].result_code == ResultCode.OK
     assert results[1].result_code == ResultCode.OK
 
-    delete_results = await client.batch_delete(None, None, [delete_keys[2]])
+    delete_results = await client.batch_delete([delete_keys[2]], batch_policy=None, delete_policy=None)
 
     assert len(delete_results) == 1
     assert delete_results[0].result_code == ResultCode.OK
 
-    read_results = await client.batch_read(None, None, [keys[0], keys[5], delete_keys[2]], ["bbin2", "bbin3"])
+    read_results = await client.batch_read([keys[0], keys[5], delete_keys[2]], ["bbin2", "bbin3"], batch_policy=None, read_policy=None)
 
     assert len(read_results) == 3
     assert read_results[0].result_code == ResultCode.OK
@@ -611,22 +611,22 @@ async def test_batch_invalid_namespace(client_and_keys):
     invalid_key = Key("invalid", "test", "batchkey1")
 
     with pytest.raises(InvalidNamespaceError):
-        await client.batch_read(None, None, [invalid_key], ["bbin"])
+        await client.batch_read([invalid_key], ["bbin"], batch_policy=None, read_policy=None)
 
     bwp = BatchWritePolicy()
     with pytest.raises(InvalidNamespaceError):
-        await client.batch_write(None, bwp, [invalid_key], [{"bbin": 100}])
+        await client.batch_write([invalid_key], [{"bbin": 100}], batch_policy=None, write_policy=bwp)
 
     operations = [Operation.put("bbin", 100)]
     with pytest.raises(InvalidNamespaceError):
-        await client.batch_operate(None, bwp, [invalid_key], [operations])
+        await client.batch_operate([invalid_key], [operations], batch_policy=None, write_policy=bwp)
 
 async def test_batch_exists(client_and_keys):
     """Test batch exists operations."""
 
     client, keys, _, _ = client_and_keys
 
-    exists_results = await client.batch_exists(None, None, keys)
+    exists_results = await client.batch_exists(keys, batch_policy=None, read_policy=None)
 
     assert len(exists_results) == len(keys)
     for exists in exists_results:
@@ -656,9 +656,9 @@ async def test_batch_read_ttl(client_and_keys):
     try:
         bwp.expiration = Expiration.seconds(5)
         operations = [Operation.put("a", 1)]
-        await client.batch_operate(None, bwp, [key1], [operations])
+        await client.batch_operate([key1], [operations], batch_policy=None, write_policy=bwp)
         rp = ReadPolicy()
-        test_rec = await client.get(rp, key1)
+        test_rec = await client.get(key1, policy=rp)
         if test_rec is None or test_rec.ttl is None or test_rec.ttl == 0:
             pytest.skip("TTL not enabled on this server (expiration was set but record has no TTL)")
     except Exception as e:
@@ -666,7 +666,7 @@ async def test_batch_read_ttl(client_and_keys):
 
     # Write both keys with 5s TTL
     operations = [Operation.put("a", 1)]
-    await client.batch_operate(None, bwp, [key1, key2], [operations, operations])
+    await client.batch_operate([key1, key2], [operations, operations], batch_policy=None, write_policy=bwp)
 
     # Wait 3s (both keys still alive within 5s TTL)
     await asyncio.sleep(3)
@@ -678,8 +678,8 @@ async def test_batch_read_ttl(client_and_keys):
     brp2.read_touch_ttl = -1  # no refresh for key2
 
     bp = BatchPolicy()
-    results1 = await client.batch_read(bp, brp1, [key1], ["a"])
-    results2 = await client.batch_read(bp, brp2, [key2], ["a"])
+    results1 = await client.batch_read([key1], ["a"], batch_policy=bp, read_policy=brp1)
+    results2 = await client.batch_read([key2], ["a"], batch_policy=bp, read_policy=brp2)
 
     assert results1[0].result_code == ResultCode.OK
     assert results2[0].result_code == ResultCode.OK
@@ -690,8 +690,8 @@ async def test_batch_read_ttl(client_and_keys):
     brp1.read_touch_ttl = -1
     brp2.read_touch_ttl = -1
 
-    results1 = await client.batch_read(bp, brp1, [key1], ["a"])
-    results2 = await client.batch_read(bp, brp2, [key2], ["a"])
+    results1 = await client.batch_read([key1], ["a"], batch_policy=bp, read_policy=brp1)
+    results2 = await client.batch_read([key2], ["a"], batch_policy=bp, read_policy=brp2)
 
     assert results1[0].result_code == ResultCode.OK
     assert results2[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -700,8 +700,8 @@ async def test_batch_read_ttl(client_and_keys):
     # At t=11s both keys should be expired.
     await asyncio.sleep(5)
 
-    results1 = await client.batch_read(bp, brp1, [key1], ["a"])
-    results2 = await client.batch_read(bp, brp2, [key2], ["a"])
+    results1 = await client.batch_read([key1], ["a"], batch_policy=bp, read_policy=brp1)
+    results2 = await client.batch_read([key2], ["a"], batch_policy=bp, read_policy=brp2)
 
     assert results1[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
     assert results2[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
@@ -721,12 +721,12 @@ async def exp_client_and_keys():
         Key("test", "test", "batchexp3"),
     ]
     for i, key in enumerate(keys, start=1):
-        await client.put(wp, key, {"A": i * 10, "B": i * 100})
+        await client.put(key, {"A": i * 10, "B": i * 100}, policy=wp)
 
     yield client, keys
     for key in keys:
         try:
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
         except ServerError:
             pass
     await client.close()
@@ -739,7 +739,7 @@ async def test_batch_operate_exp_read(exp_client_and_keys):
     expr = FilterExpression.num_add([FilterExpression.int_bin("A"), FilterExpression.int_val(5)])
     ops = [ExpOperation.read("result", expr)]
 
-    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+    results = await client.batch_operate(keys, [ops] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
     for i, result in enumerate(results):
@@ -755,14 +755,14 @@ async def test_batch_operate_exp_write(exp_client_and_keys):
     expr = FilterExpression.num_mul([FilterExpression.int_bin("A"), FilterExpression.int_val(2)])
     ops = [ExpOperation.write("doubled", expr)]
 
-    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+    results = await client.batch_operate(keys, [ops] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
     for result in results:
         assert result.result_code == ResultCode.OK
 
     for i, key in enumerate(keys):
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         assert rec.bins["doubled"] == (i + 1) * 10 * 2
 
 
@@ -777,7 +777,7 @@ async def test_batch_operate_exp_read_and_write(exp_client_and_keys):
         ExpOperation.read("a_val", read_expr),
     ]
 
-    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+    results = await client.batch_operate(keys, [ops] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
     for i, result in enumerate(results):
@@ -795,7 +795,7 @@ async def test_batch_operate_exp_with_regular_ops(exp_client_and_keys):
         ExpOperation.write("incremented", expr),
     ]
 
-    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+    results = await client.batch_operate(keys, [ops] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
     for result in results:
@@ -803,7 +803,7 @@ async def test_batch_operate_exp_with_regular_ops(exp_client_and_keys):
 
     rp = ReadPolicy()
     for i, key in enumerate(keys):
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         assert rec.bins["tag"] == "processed"
         assert rec.bins["incremented"] == (i + 1) * 10 + 1
 
@@ -815,7 +815,7 @@ async def test_batch_operate_exp_read_eval_no_fail(exp_client_and_keys):
     expr = FilterExpression.int_bin("nonexistent")
     ops = [ExpOperation.read("result", expr, ExpReadFlags.EVAL_NO_FAIL)]
 
-    results = await client.batch_operate(None, None, keys, [ops] * len(keys))
+    results = await client.batch_operate(keys, [ops] * len(keys), batch_policy=None, write_policy=None)
 
     assert len(results) == len(keys)
     for result in results:
@@ -832,13 +832,13 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
     k_delete = delete_keys[0]
 
     wp = WritePolicy()
-    await client.put(wp, k_write, {bin_name: "old_value"})
+    await client.put(k_write, {bin_name: "old_value"}, policy=wp)
 
     read_op = BatchReadOp(k_read, bins=[bin_name])
     write_op = BatchWriteOp(k_write, [Operation.put(bin_name, "new_value")])
     delete_op = BatchDeleteOp(k_delete)
 
-    results = await client.batch(None, [read_op, write_op, delete_op])
+    results = await client.batch([read_op, write_op, delete_op], batch_policy=None)
 
     assert len(results) == 3
 
@@ -850,10 +850,10 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
     assert results[2].result_code == ResultCode.OK
 
     rp = ReadPolicy()
-    rec = await client.get(rp, k_write)
+    rec = await client.get(k_write, policy=rp)
     assert rec.bins[bin_name] == "new_value"
 
-    exists = await client.exists(rp, k_delete)
+    exists = await client.exists(k_delete, policy=rp)
     assert exists is False
 
 
@@ -868,7 +868,7 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
     bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
 
     with pytest.raises(InvalidNamespaceError):
-        await client.batch(None, [good_op, bad_op])
+        await client.batch([good_op, bad_op], batch_policy=None)
 
 
 @pytest.mark.xfail(
@@ -886,12 +886,15 @@ async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
     k_good2 = keys[5]
     k_del = delete_keys[0]
 
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchWriteOp(k_good, [Operation.put("bin2", 100)]),
         BatchWriteOp(k_bad, [Operation.put("bin2", 100)]),
         BatchWriteOp(k_good2, [Operation.put("bin3", 999)]),
         BatchDeleteOp(k_del),
-    ])
+    ],
+        batch_policy=None,
+    )
 
     assert len(results) == 4
     assert results[0].result_code == ResultCode.OK
@@ -911,7 +914,7 @@ async def test_batch_mixed_with_policy(client_and_keys):
 
     op = BatchWriteOp(k, [Operation.put("new_bin", 42)], policy=bwp)
 
-    results = await client.batch(None, [op])
+    results = await client.batch([op], batch_policy=None)
     assert len(results) == 1
     assert results[0].result_code == ResultCode.KEY_EXISTS_ERROR
 
@@ -922,16 +925,19 @@ async def test_batch_write_map_put(client_and_keys):
 
     k = Key("test", "test", "batch_cdt_map_write")
     wp = WritePolicy()
-    await client.put(wp, k, {"_init": 0})
+    await client.put(k, {"_init": 0}, policy=wp)
 
     mp = MapPolicy(None, None)
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchWriteOp(k, [MapOperation.put("mb", "x", 99, mp)]),
-    ])
+    ],
+        batch_policy=None,
+    )
     assert len(results) == 1
     assert results[0].result_code == ResultCode.OK
 
-    rec = await client.get(ReadPolicy(), k)
+    rec = await client.get(k, policy=ReadPolicy())
     assert rec.bins["mb"]["x"] == 99
 
 
@@ -942,14 +948,17 @@ async def test_batch_read_map_get_by_key(client_and_keys):
     k = Key("test", "test", "batch_cdt_map_read")
     wp = WritePolicy()
     mp = MapPolicy(None, None)
-    await client.put(wp, k, {"_init": 0})
-    await client.operate(wp, k, [MapOperation.put("mb", "k1", 42, mp)])
+    await client.put(k, {"_init": 0}, policy=wp)
+    await client.operate(k, [MapOperation.put("mb", "k1", 42, mp)], policy=wp)
 
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchReadOp(k, operations=[
             MapOperation.get_by_key("mb", "k1", MapReturnType.VALUE),
         ]),
-    ])
+    ],
+        batch_policy=None,
+    )
     assert len(results) == 1
     assert results[0].result_code == ResultCode.OK
     assert results[0].record.bins["mb"] == 42
@@ -961,13 +970,16 @@ async def test_batch_write_list_append(client_and_keys):
 
     k = keys[0]
     lp = ListPolicy(None, None)
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchWriteOp(k, [ListOperation.append("lbin2", 7, lp)]),
-    ])
+    ],
+        batch_policy=None,
+    )
     assert len(results) == 1
     assert results[0].result_code == ResultCode.OK
 
-    rec = await client.get(ReadPolicy(), k)
+    rec = await client.get(k, policy=ReadPolicy())
     assert rec.bins["lbin2"] == [0, 1, 7]
 
 
@@ -977,22 +989,25 @@ async def test_batch_write_with_nested_context(client_and_keys):
 
     k = Key("test", "test", "batch_cdt_nested_ctx")
     wp = WritePolicy()
-    await client.delete(wp, k)
+    await client.delete(k, policy=wp)
 
     m1 = {"key11": 9, "key12": 4}
     m2 = {"key21": 3, "key22": 5}
-    await client.put(wp, k, {"mapbin": {"key1": m1, "key2": m2}})
+    await client.put(k, {"mapbin": {"key1": m1, "key2": m2}}, policy=wp)
 
     mp = MapPolicy(None, None)
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchWriteOp(k, [
             MapOperation.put("mapbin", "key21", 11, mp).set_context([CTX.map_key("key2")]),
         ]),
-    ])
+    ],
+        batch_policy=None,
+    )
     assert len(results) == 1
     assert results[0].result_code == ResultCode.OK
 
-    rec = await client.get(ReadPolicy(), k, ["mapbin"])
+    rec = await client.get(k, ["mapbin"], policy=ReadPolicy())
     full_map = rec.bins["mapbin"]
     assert full_map["key2"]["key21"] == 11
     assert full_map["key2"]["key22"] == 5
@@ -1004,18 +1019,21 @@ async def test_batch_mixed_cdt_and_scalar(client_and_keys):
 
     k = Key("test", "test", "batch_mixed_scalar_cdt")
     wp = WritePolicy()
-    await client.put(wp, k, {"_init": 0})
+    await client.put(k, {"_init": 0}, policy=wp)
 
     mp = MapPolicy(None, None)
-    results = await client.batch(None, [
+    results = await client.batch(
+        [
         BatchWriteOp(k, [
             Operation.put("txt", "hello"),
             MapOperation.put("mb", "a", 1, mp),
         ]),
-    ])
+    ],
+        batch_policy=None,
+    )
     assert len(results) == 1
     assert results[0].result_code == ResultCode.OK
 
-    rec = await client.get(ReadPolicy(), k)
+    rec = await client.get(k, policy=ReadPolicy())
     assert rec.bins["txt"] == "hello"
     assert rec.bins["mb"]["a"] == 1

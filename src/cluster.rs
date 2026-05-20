@@ -33,7 +33,7 @@ use crate::policies::AdminPolicy;
 
     /// Privilege code for access control.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum PrivilegeCode {
         /// User can edit/remove other users.  Global scope only.
@@ -91,7 +91,7 @@ use crate::policies::AdminPolicy;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass, freelist = 1)]
     #[derive(Clone)]
     pub struct Version {
         pub(crate) _as: aerospike_core::Version,
@@ -188,7 +188,7 @@ use crate::policies::AdminPolicy;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass, freelist = 1)]
     #[derive(Clone)]
     pub struct Node {
         pub(crate) _as: std::sync::Arc<aerospike_core::Node>,
@@ -334,7 +334,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct User {
         pub(crate) _as: aerospike_core::User,
@@ -397,7 +397,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Clone)]
     pub struct Role {
         pub(crate) _as: aerospike_core::Role,
@@ -448,7 +448,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(
+    #[pyclass(from_py_object, 
         name = "Privilege",
         module = "_aerospike_async_native",
         subclass,
