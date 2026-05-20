@@ -101,14 +101,14 @@ _BOOK_DATA = {
 async def _put_books(client, key):
     """Reset a key and load the standard 4-book fixture."""
     try:
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
     except Exception:
         pass
-    await client.put(WritePolicy(), key, {"data": _BOOK_DATA})
+    await client.put(key, {"data": _BOOK_DATA}, policy=WritePolicy())
 
 
 async def _get_data(client, key):
-    rec = await client.get(ReadPolicy(), key)
+    rec = await client.get(key, policy=ReadPolicy())
     return rec.bins["data"]
 
 
@@ -144,7 +144,7 @@ class TestSelectByPath:
             ),
         ]
         op = CdtOperation.select_by_path("data", SelectFlags.VALUE, ctx)
-        result = await cdt_op_client_812.operate(WritePolicy(), key, [op])
+        result = await cdt_op_client_812.operate(key, [op], policy=WritePolicy())
 
         titles = result.bins.get("data")
         assert isinstance(titles, list)
@@ -171,7 +171,7 @@ class TestModifyByPath:
             Exp.float_val(1.10),
         ])
         op = CdtOperation.modify_by_path("data", ModifyFlags.DEFAULT, modify_exp, ctx)
-        await cdt_op_client_812.operate(WritePolicy(), key, [op])
+        await cdt_op_client_812.operate(key, [op], policy=WritePolicy())
 
         data = await _get_data(cdt_op_client_812, key)
         prices = [b["price"] for b in data["book"]]
@@ -193,7 +193,9 @@ class TestSelectConvenience:
 
         ctx = [CTX.map_key("book"), CTX.all_children(), CTX.map_key("price")]
         result = await cdt_op_client_812.operate(
-            WritePolicy(), key, [CdtOperation.select_values("data", ctx)]
+            key,
+            [CdtOperation.select_values("data", ctx)],
+            policy=WritePolicy(),
         )
         prices = result.bins.get("data")
         assert isinstance(prices, list)
@@ -209,13 +211,13 @@ class TestSelectConvenience:
         """
         key = Key(_NAMESPACE, _SET, "select_map_keys")
         try:
-            await cdt_op_client_812.delete(WritePolicy(), key)
+            await cdt_op_client_812.delete(key, policy=WritePolicy())
         except Exception:
             pass
         await cdt_op_client_812.put(
-            WritePolicy(),
             key,
             {"data": {"items": {"item1": 100, "item2": 200, "item3": 50}}},
+            policy=WritePolicy(),
         )
 
         # int_loop_var(VALUE) > 75 keeps item1 (100) and item2 (200), drops item3 (50).
@@ -226,7 +228,9 @@ class TestSelectConvenience:
             ),
         ]
         result = await cdt_op_client_812.operate(
-            WritePolicy(), key, [CdtOperation.select_map_keys("data", ctx)]
+            key,
+            [CdtOperation.select_map_keys("data", ctx)],
+            policy=WritePolicy(),
         )
         keys = result.bins.get("data")
         assert isinstance(keys, list)
@@ -251,7 +255,9 @@ class TestSelectConvenience:
             CTX.all_children_with_filter(Exp.le(price_lookup, Exp.float_val(10.0))),
         ]
         result = await cdt_op_client_812.operate(
-            WritePolicy(), key, [CdtOperation.select_matching_tree("data", ctx)]
+            key,
+            [CdtOperation.select_matching_tree("data", ctx)],
+            policy=WritePolicy(),
         )
         tree = result.bins.get("data")
         # Exact shape varies a bit by server, but the result must include the
@@ -286,7 +292,7 @@ class TestModifyConvenience:
             Exp.float_val(2.0),
         ])
         op = CdtOperation.modify_no_fail("data", modify_exp, ctx)
-        await cdt_op_client_812.operate(WritePolicy(), key, [op])
+        await cdt_op_client_812.operate(key, [op], policy=WritePolicy())
 
         data = await _get_data(cdt_op_client_812, key)
         # Prices were doubled.
@@ -309,7 +315,7 @@ class TestRemoveByPath:
 
         ctx = [CTX.map_key("book"), CTX.all_children(), CTX.map_key("price")]
         op = CdtOperation.remove("data", ctx)
-        await cdt_op_client_812.operate(WritePolicy(), key, [op])
+        await cdt_op_client_812.operate(key, [op], policy=WritePolicy())
 
         data = await _get_data(cdt_op_client_812, key)
         # Every book should now have only ``title`` (no ``price``).

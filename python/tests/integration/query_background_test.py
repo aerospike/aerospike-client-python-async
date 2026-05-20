@@ -51,7 +51,7 @@ class TestQueryBackground(TestFixtureConnection):
         wp = WritePolicy()
         for i in range(10):
             key = Key(self.NAMESPACE, self.SET_NAME, i)
-            await client.put(wp, key, {self.BIN_NAME: i})
+            await client.put(key, {self.BIN_NAME: i}, policy=wp)
         yield client
         # Teardown: delete test records (optional, next run overwrites)
 
@@ -73,7 +73,7 @@ class TestQueryBackground(TestFixtureConnection):
         wp = WritePolicy()
         for i in range(1, 11):
             key = Key(self.NAMESPACE, self.SET_NAME_FILTER, f"key_{i}")
-            await client.put(wp, key, {self.BIN_NAME: i})
+            await client.put(key, {self.BIN_NAME: i}, policy=wp)
         yield client
 
     async def test_query_operate_scan_put(self, client_and_data):
@@ -85,9 +85,9 @@ class TestQueryBackground(TestFixtureConnection):
         # No filter: scan all records in namespace/set
         statement = Statement(self.NAMESPACE, self.SET_NAME, None)
         task = await client.query_operate(
-            wp,
             statement,
             [Operation.put("marker_bin", 1)],
+            write_policy=wp,
         )
         assert task is not None
 
@@ -96,12 +96,12 @@ class TestQueryBackground(TestFixtureConnection):
 
         # Verify a couple of records have the new bin
         key0 = Key(self.NAMESPACE, self.SET_NAME, 0)
-        rec0 = await client.get(rp, key0, ["marker_bin"])
+        rec0 = await client.get(key0, ["marker_bin"], policy=rp)
         assert rec0 is not None
         assert rec0.bins.get("marker_bin") == 1
 
         key5 = Key(self.NAMESPACE, self.SET_NAME, 5)
-        rec5 = await client.get(rp, key5, ["marker_bin"])
+        rec5 = await client.get(key5, ["marker_bin"], policy=rp)
         assert rec5 is not None
         assert rec5.bins.get("marker_bin") == 1
 
@@ -120,9 +120,9 @@ class TestQueryBackground(TestFixtureConnection):
         statement.filters = [Filter.range(self.BIN_NAME, begin, end)]
 
         task = await client.query_operate(
-            wp,
             statement,
             [Operation.put("foo", "bar")],
+            write_policy=wp,
         )
         assert task is not None
         done = await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
@@ -131,7 +131,7 @@ class TestQueryBackground(TestFixtureConnection):
         # Query and verify all records in range have the new bin
         stmt2 = Statement(self.NAMESPACE, self.SET_NAME_FILTER, ["foo", self.BIN_NAME])
         stmt2.filters = [Filter.range(self.BIN_NAME, begin, end)]
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt2)
+        records = await client.query(stmt2, PartitionFilter.all(), policy=QueryPolicy())
         count = 0
         async for record in records:
             assert record.bins.get("foo") == "bar"
@@ -144,7 +144,7 @@ class TestQueryBackground(TestFixtureConnection):
         client = client_and_data
         wp = WritePolicy()
         statement = Statement(self.NAMESPACE, self.SET_NAME, None)
-        task = await client.query_operate(wp, statement, [Operation.touch()])
+        task = await client.query_operate(statement, [Operation.touch()], write_policy=wp)
         assert task is not None
         done = await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
         assert done is True
@@ -154,7 +154,7 @@ class TestQueryBackground(TestFixtureConnection):
         client = client_and_data
         wp = WritePolicy()
         statement = Statement(self.NAMESPACE, self.SET_NAME, None)
-        task = await client.query_operate(wp, statement, [Operation.put("status_bin", 2)])
+        task = await client.query_operate(statement, [Operation.put("status_bin", 2)], write_policy=wp)
         assert task is not None
 
         status = await task.query_status()

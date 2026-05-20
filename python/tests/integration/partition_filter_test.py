@@ -26,7 +26,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         """Test query with PartitionFilter.by_id()."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_id(0)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
         assert isinstance(records, Recordset)
 
         # Consume records
@@ -40,7 +40,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         """Test query with PartitionFilter.by_range()."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 10)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
         assert isinstance(records, Recordset)
 
         # Consume records
@@ -54,7 +54,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         """Test Recordset.partition_filter() returns updated PartitionFilter."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 5)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
         assert isinstance(records, Recordset)
 
         count = 0
@@ -71,7 +71,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         """Test Recordset.partition_filter() behavior with active recordsets."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 5)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
         assert isinstance(records, Recordset)
 
         # Check immediately after query
@@ -87,7 +87,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         policy = QueryPolicy()
         policy.max_records = 20
 
-        records = await client.query(policy, pf, stmt)
+        records = await client.query(stmt, pf, policy=policy)
 
         # Consume all records
         count = 0
@@ -106,7 +106,7 @@ class TestPartitionFilterUsage(TestFixtureInsertRecord):
         policy = QueryPolicy()
         policy.max_records = 10
 
-        records = await client.query(policy, pf, stmt)
+        records = await client.query(stmt, pf, policy=policy)
 
         # Consume records
         async for _ in records:
@@ -134,7 +134,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 21):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
@@ -145,7 +145,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         page_count = 0
 
         while page_count < 5 and not pf.done():
-            records = await client.query(policy, pf, stmt)
+            records = await client.query(stmt, pf, policy=policy)
             page_records = 0
 
             async for _ in records:
@@ -168,7 +168,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 31):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
@@ -179,7 +179,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         pages = 0
 
         while pages < 10 and not pf.done():
-            records = await client.query(policy, pf, stmt)
+            records = await client.query(stmt, pf, policy=policy)
             page_records = 0
 
             async for _ in records:
@@ -202,7 +202,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 11):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
@@ -213,7 +213,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         max_pages = 10
 
         while pages < max_pages and not pf.done():
-            records = await client.query(policy, pf, stmt)
+            records = await client.query(stmt, pf, policy=policy)
 
             async for _ in records:
                 pass
@@ -235,7 +235,7 @@ class TestQueryPagination(TestFixtureInsertRecord):
         policy.max_records = 10
 
         pf = PartitionFilter.by_range(0, 1)
-        records = await client.query(policy, pf, stmt)
+        records = await client.query(stmt, pf, policy=policy)
 
         count = 0
         async for _ in records:
@@ -256,14 +256,14 @@ class TestQueryResume(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 31):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
         policy.max_records = 10  # Smaller max_records so query finishes after first batch
 
         pf = PartitionFilter.all()
-        records = await client.query(policy, pf, stmt)
+        records = await client.query(stmt, pf, policy=policy)
 
         first_batch_count = 0
         async for _ in records:
@@ -280,7 +280,7 @@ class TestQueryResume(TestFixtureInsertRecord):
         updated_pf = await records.partition_filter()
         assert updated_pf is not None
 
-        resumed_records = await client.query(policy, updated_pf, stmt)
+        resumed_records = await client.query(stmt, updated_pf, policy=policy)
         resumed_count = 0
 
         async for _ in resumed_records:
@@ -294,14 +294,14 @@ class TestQueryResume(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 21):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
         policy.max_records = 50
 
         pf = PartitionFilter.all()
-        records = await client.query(policy, pf, stmt)
+        records = await client.query(stmt, pf, policy=policy)
 
         first_count = 0
         async for _ in records:
@@ -310,7 +310,7 @@ class TestQueryResume(TestFixtureInsertRecord):
         updated_pf = await records.partition_filter()
         assert updated_pf is not None
 
-        resumed_records = await client.query(policy, updated_pf, stmt)
+        resumed_records = await client.query(stmt, updated_pf, policy=policy)
         resumed_count = 0
 
         async for _ in resumed_records:
@@ -324,7 +324,7 @@ class TestQueryResume(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 21):
             key = Key("test", "test", i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", "test", None)
         policy = QueryPolicy()
@@ -334,7 +334,7 @@ class TestQueryResume(TestFixtureInsertRecord):
         total_count = 0
 
         for resume_iteration in range(3):
-            records = await client.query(policy, pf, stmt)
+            records = await client.query(stmt, pf, policy=policy)
             iteration_count = 0
 
             async for _ in records:
@@ -361,7 +361,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(4096, 1)
 
         with pytest.raises(Exception):
-            records = await client.query(QueryPolicy(), pf, stmt)
+            records = await client.query(stmt, pf, policy=QueryPolicy())
             async for _ in records:
                 pass
 
@@ -371,7 +371,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 5000)
 
         with pytest.raises(Exception):
-            records = await client.query(QueryPolicy(), pf, stmt)
+            records = await client.query(stmt, pf, policy=QueryPolicy())
             async for _ in records:
                 pass
 
@@ -381,7 +381,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 0)
 
         with pytest.raises(Exception):
-            records = await client.query(QueryPolicy(), pf, stmt)
+            records = await client.query(stmt, pf, policy=QueryPolicy())
             async for _ in records:
                 pass
 
@@ -391,7 +391,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         pf = PartitionFilter.by_range(0, 1)
 
         with pytest.raises(Exception):
-            records = await client.query(QueryPolicy(), pf, stmt)
+            records = await client.query(stmt, pf, policy=QueryPolicy())
             async for _ in records:
                 pass
 
@@ -400,7 +400,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         stmt = Statement("test", "nonexistent_set", ["bin"])
         pf = PartitionFilter.by_range(0, 1)
 
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
         count = 0
         async for _ in records:
             count += 1
@@ -413,18 +413,18 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         wp = WritePolicy()
         for i in range(1, 11):
             key = Key("test", set_name, i)
-            await client.put(wp, key, {"bin": i})
+            await client.put(key, {"bin": i}, policy=wp)
 
         stmt = Statement("test", set_name, None)
         pf = PartitionFilter.all()
 
-        records1 = await client.query(QueryPolicy(), pf, stmt)
+        records1 = await client.query(stmt, pf, policy=QueryPolicy())
         count1 = 0
         async for _ in records1:
             count1 += 1
 
         # PartitionFilter is cloned (by-value) into query, so pf stays fresh
-        records2 = await client.query(QueryPolicy(), pf, stmt)
+        records2 = await client.query(stmt, pf, policy=QueryPolicy())
         count2 = 0
         async for _ in records2:
             count2 += 1
@@ -436,7 +436,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         """Test partition_filter() behavior with active recordsets."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 2)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
 
         # Check immediately after query
         # partition_filter() may return None or a PartitionFilter depending on implementation
@@ -456,7 +456,7 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         """Test partition_filter() after recordset is closed."""
         stmt = Statement("test", "test", ["bin"])
         pf = PartitionFilter.by_range(0, 2)
-        records = await client.query(QueryPolicy(), pf, stmt)
+        records = await client.query(stmt, pf, policy=QueryPolicy())
 
         async for _ in records:
             pass

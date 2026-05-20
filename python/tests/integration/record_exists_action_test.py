@@ -33,31 +33,31 @@ class TestReplace(TestFixtureConnection):
 
         # Clean up
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
         # Create record with two bins
-        await client.put(WritePolicy(), key, {"bin1": "value1", "bin2": "value2"})
+        await client.put(key, {"bin1": "value1", "bin2": "value2"}, policy=WritePolicy())
 
         # Verify both bins exist
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin1"] == "value1"
         assert record.bins["bin2"] == "value2"
 
         # Replace with only bin3
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.REPLACE
-        await client.put(wp, key, {"bin3": "value3"})
+        await client.put(key, {"bin3": "value3"}, policy=wp)
 
         # Verify bin1 and bin2 are gone, only bin3 exists
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert "bin1" not in record.bins
         assert "bin2" not in record.bins
         assert record.bins["bin3"] == "value3"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
     async def test_replace_on_nonexistent_creates_record(self, client):
         """Test that REPLACE on non-existent record creates it."""
@@ -65,21 +65,21 @@ class TestReplace(TestFixtureConnection):
 
         # Ensure record doesn't exist
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
         # REPLACE on non-existent should create the record
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.REPLACE
-        await client.put(wp, key, {"bin": "value"})
+        await client.put(key, {"bin": "value"}, policy=wp)
 
         # Verify record was created
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin"] == "value"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
 
 class TestReplaceOnly(TestFixtureConnection):
@@ -91,25 +91,25 @@ class TestReplaceOnly(TestFixtureConnection):
 
         # Clean up and create record
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
-        await client.put(WritePolicy(), key, {"bin1": "value1", "bin2": "value2"})
+        await client.put(key, {"bin1": "value1", "bin2": "value2"}, policy=WritePolicy())
 
         # REPLACE_ONLY should succeed and replace all bins
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
-        await client.put(wp, key, {"bin3": "value3"})
+        await client.put(key, {"bin3": "value3"}, policy=wp)
 
         # Verify replacement
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert "bin1" not in record.bins
         assert "bin2" not in record.bins
         assert record.bins["bin3"] == "value3"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
     async def test_replace_only_fails_when_not_exists(self, client):
         """Test that REPLACE_ONLY fails when record doesn't exist."""
@@ -117,7 +117,7 @@ class TestReplaceOnly(TestFixtureConnection):
 
         # Ensure record doesn't exist
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
@@ -126,7 +126,7 @@ class TestReplaceOnly(TestFixtureConnection):
         wp.record_exists_action = RecordExistsAction.REPLACE_ONLY
 
         with pytest.raises(RecordNotFound) as exc_info:
-            await client.put(wp, key, {"bin": "value"})
+            await client.put(key, {"bin": "value"}, policy=wp)
 
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
@@ -140,26 +140,26 @@ class TestUpdate(TestFixtureConnection):
 
         # Clean up
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
         # Create record with two bins
-        await client.put(WritePolicy(), key, {"bin1": "value1", "bin2": "value2"})
+        await client.put(key, {"bin1": "value1", "bin2": "value2"}, policy=WritePolicy())
 
         # Update with bin3 (default UPDATE action)
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.UPDATE
-        await client.put(wp, key, {"bin3": "value3"})
+        await client.put(key, {"bin3": "value3"}, policy=wp)
 
         # Verify all bins exist
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin1"] == "value1"
         assert record.bins["bin2"] == "value2"
         assert record.bins["bin3"] == "value3"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
 
 class TestUpdateOnly(TestFixtureConnection):
@@ -171,24 +171,24 @@ class TestUpdateOnly(TestFixtureConnection):
 
         # Clean up and create record
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
-        await client.put(WritePolicy(), key, {"bin1": "value1"})
+        await client.put(key, {"bin1": "value1"}, policy=WritePolicy())
 
         # UPDATE_ONLY should succeed
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.UPDATE_ONLY
-        await client.put(wp, key, {"bin2": "value2"})
+        await client.put(key, {"bin2": "value2"}, policy=wp)
 
         # Verify both bins exist (merged)
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin1"] == "value1"
         assert record.bins["bin2"] == "value2"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
     async def test_update_only_fails_when_not_exists(self, client):
         """Test that UPDATE_ONLY fails when record doesn't exist."""
@@ -196,7 +196,7 @@ class TestUpdateOnly(TestFixtureConnection):
 
         # Ensure record doesn't exist
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
@@ -205,7 +205,7 @@ class TestUpdateOnly(TestFixtureConnection):
         wp.record_exists_action = RecordExistsAction.UPDATE_ONLY
 
         with pytest.raises(RecordNotFound) as exc_info:
-            await client.put(wp, key, {"bin": "value"})
+            await client.put(key, {"bin": "value"}, policy=wp)
 
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
@@ -219,21 +219,21 @@ class TestCreateOnly(TestFixtureConnection):
 
         # Ensure record doesn't exist
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
         # CREATE_ONLY should succeed
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.CREATE_ONLY
-        await client.put(wp, key, {"bin": "value"})
+        await client.put(key, {"bin": "value"}, policy=wp)
 
         # Verify record was created
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin"] == "value"
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
 
     async def test_create_only_fails_when_exists(self, client):
         """Test that CREATE_ONLY fails when record already exists."""
@@ -241,25 +241,25 @@ class TestCreateOnly(TestFixtureConnection):
 
         # Clean up and create record
         try:
-            await client.delete(WritePolicy(), key)
+            await client.delete(key, policy=WritePolicy())
         except Exception:
             pass
 
-        await client.put(WritePolicy(), key, {"bin1": "value1"})
+        await client.put(key, {"bin1": "value1"}, policy=WritePolicy())
 
         # CREATE_ONLY on existing should fail
         wp = WritePolicy()
         wp.record_exists_action = RecordExistsAction.CREATE_ONLY
 
         with pytest.raises(RecordExistsError) as exc_info:
-            await client.put(wp, key, {"bin2": "value2"})
+            await client.put(key, {"bin2": "value2"}, policy=wp)
 
         assert exc_info.value.result_code == ResultCode.KEY_EXISTS_ERROR
 
         # Verify original record is unchanged
-        record = await client.get(ReadPolicy(), key)
+        record = await client.get(key, policy=ReadPolicy())
         assert record.bins["bin1"] == "value1"
         assert "bin2" not in record.bins
 
         # Cleanup
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())

@@ -31,23 +31,23 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with two bins
-            await client.put(wp, key, {"bin1": "value1", "bin2": "value2"})
+            await client.put(key, {"bin1": "value1", "bin2": "value2"}, policy=wp)
 
             # Verify both bins exist
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert "bin1" in rec.bins
             assert "bin2" in rec.bins
 
             # Delete bin1 by setting to None
-            await client.put(wp, key, {"bin1": None})
+            await client.put(key, {"bin1": None}, policy=wp)
 
             # Verify bin1 is deleted, bin2 remains
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert "bin1" not in rec.bins, "bin1 should be deleted"
             assert rec.bins.get("bin2") == "value2", "bin2 should remain"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
@@ -59,19 +59,19 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with three bins
-            await client.put(wp, key, {"bin1": "v1", "bin2": "v2", "bin3": "v3"})
+            await client.put(key, {"bin1": "v1", "bin2": "v2", "bin3": "v3"}, policy=wp)
 
             # Delete bin1 and bin2
-            await client.put(wp, key, {"bin1": None, "bin2": None})
+            await client.put(key, {"bin1": None, "bin2": None}, policy=wp)
 
             # Verify only bin3 remains
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert "bin1" not in rec.bins
             assert "bin2" not in rec.bins
             assert rec.bins.get("bin3") == "v3"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
@@ -86,21 +86,21 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with two bins
-            await client.put(wp, key, {"bin1": "v1", "bin2": "v2"})
+            await client.put(key, {"bin1": "v1", "bin2": "v2"}, policy=wp)
 
             # Verify record exists
-            exists = await client.exists(rp, key)
+            exists = await client.exists(key, policy=rp)
             assert exists, "Record should exist initially"
 
             # Delete all bins
-            await client.put(wp, key, {"bin1": None, "bin2": None})
+            await client.put(key, {"bin1": None, "bin2": None}, policy=wp)
 
             # Record should be automatically deleted by server
-            exists = await client.exists(rp, key)
+            exists = await client.exists(key, policy=rp)
             assert not exists, "Record should be deleted when all bins are removed"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
@@ -112,17 +112,17 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with one bin
-            await client.put(wp, key, {"bin1": "value1"})
+            await client.put(key, {"bin1": "value1"}, policy=wp)
 
             # Try to delete nonexistent bin
-            await client.put(wp, key, {"nonexistent": None})
+            await client.put(key, {"nonexistent": None}, policy=wp)
 
             # Original bin should still exist
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec.bins.get("bin1") == "value1"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
@@ -134,18 +134,18 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with bin1
-            await client.put(wp, key, {"bin1": "value1"})
+            await client.put(key, {"bin1": "value1"}, policy=wp)
 
             # Delete bin1 and add bin2 in same operation
-            await client.put(wp, key, {"bin1": None, "bin2": "value2"})
+            await client.put(key, {"bin1": None, "bin2": "value2"}, policy=wp)
 
             # Verify bin1 deleted, bin2 added
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert "bin1" not in rec.bins
             assert rec.bins.get("bin2") == "value2"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
@@ -157,19 +157,23 @@ class TestDeleteBin(TestFixtureConnection):
 
         try:
             # Create record with bins of different types
-            await client.put(wp, key, {
+            await client.put(
+                key,
+                {
                 "str_bin": "string",
                 "int_bin": 42,
                 "float_bin": 3.14,
                 "list_bin": [1, 2, 3],
                 "map_bin": {"a": 1}
-            })
+            },
+                policy=wp,
+            )
 
             # Delete string and int bins
-            await client.put(wp, key, {"str_bin": None, "int_bin": None})
+            await client.put(key, {"str_bin": None, "int_bin": None}, policy=wp)
 
             # Verify deletions
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert "str_bin" not in rec.bins
             assert "int_bin" not in rec.bins
             assert rec.bins.get("float_bin") == 3.14
@@ -177,6 +181,6 @@ class TestDeleteBin(TestFixtureConnection):
             assert rec.bins.get("map_bin") == {"a": 1}
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass

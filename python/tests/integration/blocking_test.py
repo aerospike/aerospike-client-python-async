@@ -64,16 +64,16 @@ def test_blocking_round_trip(aerospike_host, use_services_alternate):
 
         key = Key("test", "blocking", "rt-1")
 
-        client.put_blocking(WritePolicy(), key, {"name": "alice", "age": 30})
+        client.put_blocking(key, {"name": "alice", "age": 30}, policy=WritePolicy())
 
-        rec = client.get_blocking(ReadPolicy(), key)
+        rec = client.get_blocking(key, policy=ReadPolicy())
         assert rec.bins["name"] == "alice"
         assert rec.bins["age"] == 30
 
-        existed = client.delete_blocking(WritePolicy(), key)
+        existed = client.delete_blocking(key, policy=WritePolicy())
         assert existed is True
 
-        existed_again = client.delete_blocking(WritePolicy(), key)
+        existed_again = client.delete_blocking(key, policy=WritePolicy())
         assert existed_again is False
     finally:
         client.close_blocking()
@@ -91,7 +91,7 @@ def test_blocking_async_context_guard(aerospike_host, use_services_alternate):
             # variant must refuse to run rather than calling `block_on` from
             # within asyncio (which would deadlock or silently dispatch on a
             # foreign runtime).
-            client.put_blocking(WritePolicy(), key, {"x": 1})
+            client.put_blocking(key, {"x": 1}, policy=WritePolicy())
 
         with pytest.raises(RuntimeError, match="async context"):
             asyncio.run(misuse())
@@ -117,7 +117,7 @@ def test_blocking_client_rejects_async_methods(aerospike_host, use_services_alte
             # `client.put(...)` returns an awaitable — but the bridge guard
             # fires synchronously when we call the method, so we never reach
             # the `await`.
-            client.put(WritePolicy(), key, {"x": 1})
+            client.put(key, {"x": 1}, policy=WritePolicy())
 
         with pytest.raises(RuntimeError, match="new_client_blocking"):
             asyncio.run(use_async())
@@ -144,10 +144,10 @@ def test_async_client_supports_blocking_methods(aerospike_host, use_services_alt
     client = asyncio.run(_build())
     try:
         key = Key("test", "blocking", "mixed-1")
-        client.put_blocking(WritePolicy(), key, {"v": 42})
-        rec = client.get_blocking(ReadPolicy(), key)
+        client.put_blocking(key, {"v": 42}, policy=WritePolicy())
+        rec = client.get_blocking(key, policy=ReadPolicy())
         assert rec.bins["v"] == 42
-        client.delete_blocking(WritePolicy(), key)
+        client.delete_blocking(key, policy=WritePolicy())
     finally:
         client.close_blocking()
 
@@ -176,40 +176,40 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
 
         # add / append / prepend / touch / exists
         k = Key("test", "blocking", "ext-1")
-        client.put_blocking(wp, k, {"counter": 1, "label": "alpha"})
-        client.add_blocking(wp, k, {"counter": 10})
-        client.append_blocking(wp, k, {"label": "-end"})
-        client.prepend_blocking(wp, k, {"label": "start-"})
-        client.touch_blocking(wp, k)
-        rec = client.get_blocking(rp, k)
+        client.put_blocking(k, {"counter": 1, "label": "alpha"}, policy=wp)
+        client.add_blocking(k, {"counter": 10}, policy=wp)
+        client.append_blocking(k, {"label": "-end"}, policy=wp)
+        client.prepend_blocking(k, {"label": "start-"}, policy=wp)
+        client.touch_blocking(k, policy=wp)
+        rec = client.get_blocking(k, policy=rp)
         assert rec.bins["counter"] == 11
         assert rec.bins["label"] == "start-alpha-end"
-        assert client.exists_blocking(rp, k) is True
+        assert client.exists_blocking(k, policy=rp) is True
 
         # batch read/write/delete/exists/get_header
         keys = [Key("test", "blocking", f"batch-{i}") for i in range(4)]
         bins_list = [{"i": i} for i in range(4)]
         bp = BatchPolicy()
-        client.batch_write_blocking(bp, None, [pytest_pyref(k) for k in keys], bins_list)
-        batched = client.batch_read_blocking(bp, None, [pytest_pyref(k) for k in keys], None)
+        client.batch_write_blocking([pytest_pyref(k) for k in keys], bins_list, batch_policy=bp, write_policy=None)
+        batched = client.batch_read_blocking([pytest_pyref(k) for k in keys], None, batch_policy=bp, read_policy=None)
         assert len(batched) == 4
         for i, br in enumerate(batched):
             assert br.record is not None
             assert br.record.bins["i"] == i
-        exists = client.batch_exists_blocking(bp, None, [pytest_pyref(k) for k in keys])
+        exists = client.batch_exists_blocking([pytest_pyref(k) for k in keys], batch_policy=bp, read_policy=None)
         assert exists == [True, True, True, True]
-        headers = client.batch_get_header_blocking(bp, None, [pytest_pyref(k) for k in keys])
+        headers = client.batch_get_header_blocking([pytest_pyref(k) for k in keys], batch_policy=bp, read_policy=None)
         assert all(h is not None for h in headers)
-        client.batch_delete_blocking(bp, None, [pytest_pyref(k) for k in keys])
-        exists_after = client.batch_exists_blocking(bp, None, [pytest_pyref(k) for k in keys])
+        client.batch_delete_blocking([pytest_pyref(k) for k in keys], batch_policy=bp, delete_policy=None)
+        exists_after = client.batch_exists_blocking([pytest_pyref(k) for k in keys], batch_policy=bp, read_policy=None)
         assert exists_after == [False, False, False, False]
 
         # query (iter) — primary-key scan with no filter, just sanity-check
         # that __iter__/__next__ work and yield records we wrote.
-        client.put_blocking(wp, Key("test", "blocking", "scan-1"), {"x": 1})
-        client.put_blocking(wp, Key("test", "blocking", "scan-2"), {"x": 2})
+        client.put_blocking(Key("test", "blocking", "scan-1"), {"x": 1}, policy=wp)
+        client.put_blocking(Key("test", "blocking", "scan-2"), {"x": 2}, policy=wp)
         stmt = Statement("test", "blocking", ["x"])
-        recordset = client.query_blocking(QueryPolicy(), PartitionFilter.all(), stmt)
+        recordset = client.query_blocking(stmt, PartitionFilter.all(), policy=QueryPolicy())
         seen = 0
         for _record in recordset:
             seen += 1
@@ -218,11 +218,11 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
         assert seen >= 2
 
         # cleanup
-        client.delete_blocking(wp, k)
+        client.delete_blocking(k, policy=wp)
         for kk in keys:
-            client.delete_blocking(wp, kk)
-        client.delete_blocking(wp, Key("test", "blocking", "scan-1"))
-        client.delete_blocking(wp, Key("test", "blocking", "scan-2"))
+            client.delete_blocking(kk, policy=wp)
+        client.delete_blocking(Key("test", "blocking", "scan-1"), policy=wp)
+        client.delete_blocking(Key("test", "blocking", "scan-2"), policy=wp)
     finally:
         client.close_blocking()
 
@@ -252,14 +252,14 @@ def test_blocking_latency_smoke(aerospike_host, use_services_alternate):
 
         # Warmup
         for _ in range(100):
-            client.put_blocking(wp, key, {"v": 1})
-            client.get_blocking(rp, key)
+            client.put_blocking(key, {"v": 1}, policy=wp)
+            client.get_blocking(key, policy=rp)
 
         n = 10_000
         t0 = time.perf_counter()
         for i in range(n):
-            client.put_blocking(wp, key, {"v": i})
-            client.get_blocking(rp, key)
+            client.put_blocking(key, {"v": i}, policy=wp)
+            client.get_blocking(key, policy=rp)
         elapsed = time.perf_counter() - t0
 
         ops = 2 * n
@@ -270,6 +270,6 @@ def test_blocking_latency_smoke(aerospike_host, use_services_alternate):
             f"{tps:,.0f} TPS, {per_op_us:.1f} µs/op"
         )
 
-        client.delete_blocking(wp, key)
+        client.delete_blocking(key, policy=wp)
     finally:
         client.close_blocking()

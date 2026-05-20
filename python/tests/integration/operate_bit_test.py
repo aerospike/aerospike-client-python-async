@@ -33,7 +33,7 @@ async def client_and_key(aerospike_host):
 
     # Delete the record first to ensure clean state
     wp = WritePolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     return client, key
 
@@ -45,21 +45,21 @@ async def test_operate_bit_set_and_get(client_and_key):
     bit_policy = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Set initial bytes
     initial_bytes = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     # Set bits: set bit at offset 1, size 1, value 0x80
     bit0 = bytes([0x80])
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.set("bitbin", 1, 1, bit0, bit_policy),
             BitOperation.get("bitbin", 0, 8),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -87,7 +87,7 @@ async def test_operate_bit_set_and_get(client_and_key):
 
     # Verify the final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     assert record is not None
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
@@ -105,26 +105,26 @@ async def test_operate_bit_bin(client_and_key):
     add_mode = BitPolicy(BitWriteFlags.CREATE_ONLY)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Test set, remove operations
     initial_bytes = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     bit0 = bytes([0x80])
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.set("bitbin", 1, 1, bit0, put_mode),
             BitOperation.set("bitbin", 3, 1, bit0, update_mode),
             BitOperation.remove("bitbin", 6, 2, update_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     assert len(final_bytes) == 6  # Removed 2 bytes
@@ -132,26 +132,26 @@ async def test_operate_bit_bin(client_and_key):
     # Test error cases
     # Bin doesn't exist
     with pytest.raises(BinNotFound) as exi:
-        await client.operate(wp, key, [BitOperation.set("b", 1, 1, bit0, put_mode)])
+        await client.operate(key, [BitOperation.set("b", 1, 1, bit0, put_mode)], policy=wp)
     assert exi.value.result_code == ResultCode.BIN_NOT_FOUND
 
     # CREATE_ONLY on existing bin
     with pytest.raises(InvalidRequest) as exi:
-        await client.operate(wp, key, [BitOperation.set("bitbin", 1, 1, bit0, add_mode)])
+        await client.operate(key, [BitOperation.set("bitbin", 1, 1, bit0, add_mode)], policy=wp)
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
 
     # Test insert operation
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     bytes1 = bytes([0x0A])
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.insert("bitbin", 1, bytes1, add_mode),
-        ]
+        ],
+        policy=wp,
     )
 
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     assert len(final_bytes) == 2
@@ -169,15 +169,14 @@ async def test_operate_bit_set(client_and_key):
     bits1 = bytes([0x11, 0x22, 0x33])
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x01, 0x12, 0x02, 0x03, 0x04, 0x05, 0x06,
                           0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
                           0x0E, 0x0F, 0x10, 0x11, 0x41])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.set("bitbin", 1, 1, bit0, put_mode),
@@ -188,12 +187,13 @@ async def test_operate_bit_set(client_and_key):
             BitOperation.set("bitbin", 100, 20, bits1, put_mode),
             BitOperation.set("bitbin", 120, 17, bits1, put_mode),
             BitOperation.set("bitbin", 144, 1, bit0, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified
@@ -208,15 +208,14 @@ async def test_operate_bit_lshift(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x01, 0x01, 0x00, 0x80,
                           0xFF, 0x01, 0x01,
                           0x18, 0x01])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.lshift("bitbin", 0, 8, 1, put_mode),
@@ -225,12 +224,13 @@ async def test_operate_bit_lshift(client_and_key):
             BitOperation.lshift("bitbin", 37, 18, 3, put_mode),
             BitOperation.lshift("bitbin", 58, 2, 1, put_mode),
             BitOperation.lshift("bitbin", 64, 4, 7, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after left shifts
@@ -245,15 +245,14 @@ async def test_operate_bit_rshift(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x80, 0x40, 0x01, 0x00,
                           0xFF, 0x01, 0x01,
                           0x18, 0x80])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.rshift("bitbin", 0, 8, 1, put_mode),
@@ -262,12 +261,13 @@ async def test_operate_bit_rshift(client_and_key):
             BitOperation.rshift("bitbin", 37, 18, 3, put_mode),
             BitOperation.rshift("bitbin", 60, 2, 1, put_mode),
             BitOperation.rshift("bitbin", 68, 4, 7, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after right shifts
@@ -283,14 +283,13 @@ async def test_operate_bit_or(client_and_key):
     bits1 = bytes([0x11, 0x22, 0x33])
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x80, 0x40, 0x01, 0x00, 0x00,
                           0x01, 0x02, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.or_("bitbin", 0, 5, bits1, put_mode),
@@ -298,12 +297,13 @@ async def test_operate_bit_or(client_and_key):
             BitOperation.or_("bitbin", 23, 6, bits1, put_mode),
             BitOperation.or_("bitbin", 32, 8, bits1, put_mode),
             BitOperation.or_("bitbin", 40, 24, bits1, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after OR operations
@@ -319,14 +319,13 @@ async def test_operate_bit_xor(client_and_key):
     bits1 = bytes([0x11, 0x22, 0x33])
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x80, 0x40, 0x01, 0x00, 0x00,
                           0x01, 0x02, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.xor("bitbin", 0, 5, bits1, put_mode),
@@ -334,12 +333,13 @@ async def test_operate_bit_xor(client_and_key):
             BitOperation.xor("bitbin", 23, 6, bits1, put_mode),
             BitOperation.xor("bitbin", 32, 8, bits1, put_mode),
             BitOperation.xor("bitbin", 40, 24, bits1, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after XOR operations
@@ -355,14 +355,13 @@ async def test_operate_bit_and(client_and_key):
     bits1 = bytes([0x11, 0x22, 0x33])
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x80, 0x40, 0x01, 0x00, 0x00,
                           0x01, 0x02, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.and_("bitbin", 0, 5, bits1, put_mode),
@@ -370,12 +369,13 @@ async def test_operate_bit_and(client_and_key):
             BitOperation.and_("bitbin", 23, 6, bits1, put_mode),
             BitOperation.and_("bitbin", 32, 8, bits1, put_mode),
             BitOperation.and_("bitbin", 40, 24, bits1, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after AND operations
@@ -390,14 +390,13 @@ async def test_operate_bit_not(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x80, 0x40, 0x01, 0x00, 0x00,
                           0x01, 0x02, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.not_("bitbin", 0, 5, put_mode),
@@ -405,12 +404,13 @@ async def test_operate_bit_not(client_and_key):
             BitOperation.not_("bitbin", 23, 6, put_mode),
             BitOperation.not_("bitbin", 32, 8, put_mode),
             BitOperation.not_("bitbin", 40, 24, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after NOT operations
@@ -425,7 +425,7 @@ async def test_operate_bit_add(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x38, 0x1F, 0x00, 0xE8, 0x7F,
                           0x00, 0x00, 0x00,
@@ -433,10 +433,9 @@ async def test_operate_bit_add(client_and_key):
                           0x01, 0x01, 0x01,
                           0x02, 0x02, 0x02,
                           0x03, 0x03, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.add("bitbin", 0, 5, 1, False, BitwiseOverflowActions.FAIL, put_mode),
@@ -448,24 +447,24 @@ async def test_operate_bit_add(client_and_key):
             BitOperation.add("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.FAIL, put_mode),
             BitOperation.add("bitbin", 113, 22, 0x8082, False, BitwiseOverflowActions.FAIL, put_mode),
             BitOperation.add("bitbin", 136, 23, 0x20202, False, BitwiseOverflowActions.FAIL, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after add operations
     assert final_bytes != initial_bytes
 
     # Test overflow actions: WRAP and SATURATE
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.WRAP, put_mode),
@@ -480,22 +479,23 @@ async def test_operate_bit_add(client_and_key):
             BitOperation.add("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
             BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
             BitOperation.add("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Test overflow FAIL - should raise exception
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     with pytest.raises(OpNotApplicable) as exi:
         await client.operate(
-            wp,
             key,
             [
                 BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.FAIL, put_mode),
                 BitOperation.add("bitbin", 0, 8, 0xFF, False, BitwiseOverflowActions.FAIL, put_mode),
-            ]
+            ],
+            policy=wp,
         )
     # Operation cannot be applied to current bin value
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
@@ -509,7 +509,7 @@ async def test_operate_bit_subtract(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x38, 0x1F, 0x00, 0xE8, 0x7F,
                           0x80, 0x80, 0x80,
@@ -517,10 +517,9 @@ async def test_operate_bit_subtract(client_and_key):
                           0x01, 0x01, 0x01,
                           0x02, 0x02, 0x02,
                           0x03, 0x03, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.subtract("bitbin", 0, 5, 0x01, False, BitwiseOverflowActions.FAIL, put_mode),
@@ -532,24 +531,24 @@ async def test_operate_bit_subtract(client_and_key):
             BitOperation.subtract("bitbin", 92, 20, 0x10101, False, BitwiseOverflowActions.FAIL, put_mode),
             BitOperation.subtract("bitbin", 113, 21, 0x101, False, BitwiseOverflowActions.FAIL, put_mode),
             BitOperation.subtract("bitbin", 136, 23, 0x11111, False, BitwiseOverflowActions.FAIL, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after subtract operations
     assert final_bytes != initial_bytes
 
     # Test overflow actions: WRAP and SATURATE
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.subtract("bitbin", 0, 8, 0x01, False, BitwiseOverflowActions.WRAP, put_mode),
@@ -562,21 +561,22 @@ async def test_operate_bit_subtract(client_and_key):
             BitOperation.subtract("bitbin", 32, 8, 0x77, True, BitwiseOverflowActions.SATURATE, put_mode),
             BitOperation.subtract("bitbin", 40, 8, 0x81, True, BitwiseOverflowActions.SATURATE, put_mode),
             BitOperation.subtract("bitbin", 40, 8, 0x8F, True, BitwiseOverflowActions.SATURATE, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Test overflow FAIL - should raise exception
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     initial_bytes = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     with pytest.raises(OpNotApplicable) as exi:
         await client.operate(
-            wp,
             key,
             [
                 BitOperation.subtract("bitbin", 0, 8, 1, False, BitwiseOverflowActions.FAIL, put_mode),
-            ]
+            ],
+            policy=wp,
         )
     # Operation cannot be applied to current bin value
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
@@ -590,7 +590,7 @@ async def test_operate_bit_set_int(client_and_key):
     put_mode = BitPolicy(None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     initial_bytes = bytes([0x38, 0x1F, 0x00, 0xE8, 0x7F,
                           0x80, 0x80, 0x80,
@@ -598,10 +598,9 @@ async def test_operate_bit_set_int(client_and_key):
                           0x01, 0x01, 0x01,
                           0x02, 0x02, 0x02,
                           0x03, 0x03, 0x03])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.set_int("bitbin", 0, 5, 0x01, put_mode),
@@ -613,12 +612,13 @@ async def test_operate_bit_set_int(client_and_key):
             BitOperation.set_int("bitbin", 92, 20, 0x10101, put_mode),
             BitOperation.set_int("bitbin", 113, 21, 0x101, put_mode),
             BitOperation.set_int("bitbin", 136, 23, 0x11111, put_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify final state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["bitbin"])
+    record = await client.get(key, ["bitbin"], policy=rp)
     final_bytes = record.bins.get("bitbin")
     assert isinstance(final_bytes, bytes)
     # Bytes should be modified after setInt operations
@@ -632,13 +632,12 @@ async def test_operate_bit_get(client_and_key):
     wp = WritePolicy()
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     bytes_data = bytes([0xC1, 0xAA, 0xAA])
-    await client.put(wp, key, {"bitbin": bytes_data})
+    await client.put(key, {"bitbin": bytes_data}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.get("bitbin", 0, 1),
@@ -648,7 +647,8 @@ async def test_operate_bit_get(client_and_key):
             BitOperation.get("bitbin", 8, 16),
             BitOperation.get("bitbin", 9, 15),
             BitOperation.get("bitbin", 9, 14),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -668,13 +668,12 @@ async def test_operate_bit_count(client_and_key):
     wp = WritePolicy()
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     bytes_data = bytes([0xC1, 0xAA, 0xAB])
-    await client.put(wp, key, {"bitbin": bytes_data})
+    await client.put(key, {"bitbin": bytes_data}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.count("bitbin", 0, 1),
@@ -684,7 +683,8 @@ async def test_operate_bit_count(client_and_key):
             BitOperation.count("bitbin", 8, 16),
             BitOperation.count("bitbin", 9, 15),
             BitOperation.count("bitbin", 9, 14),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -710,13 +710,12 @@ async def test_operate_bit_lscan(client_and_key):
     wp = WritePolicy()
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     bytes_data = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x01])
-    await client.put(wp, key, {"bitbin": bytes_data})
+    await client.put(key, {"bitbin": bytes_data}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.lscan("bitbin", 0, 1, True),
@@ -731,7 +730,8 @@ async def test_operate_bit_lscan(client_and_key):
             BitOperation.lscan("bitbin", 33, 38, False),
             BitOperation.lscan("bitbin", 0, 72, True),
             BitOperation.lscan("bitbin", 0, 72, False),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -755,13 +755,12 @@ async def test_operate_bit_rscan(client_and_key):
     wp = WritePolicy()
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     bytes_data = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x01])
-    await client.put(wp, key, {"bitbin": bytes_data})
+    await client.put(key, {"bitbin": bytes_data}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.rscan("bitbin", 0, 1, True),
@@ -776,7 +775,8 @@ async def test_operate_bit_rscan(client_and_key):
             BitOperation.rscan("bitbin", 33, 38, False),
             BitOperation.rscan("bitbin", 0, 72, True),
             BitOperation.rscan("bitbin", 0, 72, False),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -800,13 +800,12 @@ async def test_operate_bit_get_int(client_and_key):
     wp = WritePolicy()
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     bytes_data = bytes([0x0F, 0x0F, 0x00])
-    await client.put(wp, key, {"bitbin": bytes_data})
+    await client.put(key, {"bitbin": bytes_data}, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.get_int("bitbin", 4, 4, False),
@@ -823,7 +822,8 @@ async def test_operate_bit_get_int(client_and_key):
             BitOperation.get_int("bitbin", 9, 14, True),
             BitOperation.get_int("bitbin", 5, 17, False),
             BitOperation.get_int("bitbin", 5, 17, True),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -849,10 +849,9 @@ async def test_operate_bit_resize(client_and_key):
     no_fail = BitPolicy(BitWriteFlags.NO_FAIL)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     record = await client.operate(
-        wp,
         key,
         [
             BitOperation.resize("bitbin", 20, BitwiseResizeFlags.DEFAULT, policy),
@@ -867,7 +866,8 @@ async def test_operate_bit_resize(client_and_key):
             BitOperation.get("bitbin", 18 * 8, 8),
             BitOperation.resize("bitbin", 0, BitwiseResizeFlags.GROW_ONLY, no_fail),
             BitOperation.resize("bitbin", 0, BitwiseResizeFlags.SHRINK_ONLY, policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -892,77 +892,77 @@ async def test_operate_bit_null_blob(client_and_key):
     buf = bytes([0x80])
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Put empty blob
     initial_bytes = bytes([])
-    await client.put(wp, key, {"bitbin": initial_bytes})
+    await client.put(key, {"bitbin": initial_bytes}, policy=wp)
 
     # All these operations should fail with OpNotApplicable (OP_NOT_APPLICABLE) or InvalidRequest (PARAMETER_ERROR)
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.set("bitbin", 0, 1, buf, policy)])
+        await client.operate(key, [BitOperation.set("bitbin", 0, 1, buf, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.or_("bitbin", 0, 1, buf, policy)])
+        await client.operate(key, [BitOperation.or_("bitbin", 0, 1, buf, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.xor("bitbin", 0, 1, buf, policy)])
+        await client.operate(key, [BitOperation.xor("bitbin", 0, 1, buf, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.and_("bitbin", 0, 1, buf, policy)])
+        await client.operate(key, [BitOperation.and_("bitbin", 0, 1, buf, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.not_("bitbin", 0, 1, policy)])
+        await client.operate(key, [BitOperation.not_("bitbin", 0, 1, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.lshift("bitbin", 0, 1, 1, policy)])
+        await client.operate(key, [BitOperation.lshift("bitbin", 0, 1, 1, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.rshift("bitbin", 0, 1, 1, policy)])
+        await client.operate(key, [BitOperation.rshift("bitbin", 0, 1, 1, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     # Remove should fail with PARAMETER_ERROR
     with pytest.raises(InvalidRequest) as exi:
-        await client.operate(wp, key, [BitOperation.remove("bitbin", 0, 1, policy)])
+        await client.operate(key, [BitOperation.remove("bitbin", 0, 1, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.add("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
+        await client.operate(key, [BitOperation.add("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.subtract("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)])
+        await client.operate(key, [BitOperation.subtract("bitbin", 0, 1, 1, False, BitwiseOverflowActions.FAIL, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.set_int("bitbin", 0, 1, 1, policy)])
+        await client.operate(key, [BitOperation.set_int("bitbin", 0, 1, 1, policy)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     # Read operations should also fail with OP_NOT_APPLICABLE
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.get("bitbin", 0, 1)])
+        await client.operate(key, [BitOperation.get("bitbin", 0, 1)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.count("bitbin", 0, 1)])
+        await client.operate(key, [BitOperation.count("bitbin", 0, 1)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.lscan("bitbin", 0, 1, True)])
+        await client.operate(key, [BitOperation.lscan("bitbin", 0, 1, True)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.rscan("bitbin", 0, 1, True)])
+        await client.operate(key, [BitOperation.rscan("bitbin", 0, 1, True)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
     with pytest.raises(OpNotApplicable) as exi:
-        await client.operate(wp, key, [BitOperation.get_int("bitbin", 0, 1, False)])
+        await client.operate(key, [BitOperation.get_int("bitbin", 0, 1, False)], policy=wp)
     assert exi.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
 
@@ -981,18 +981,22 @@ async def test_operate_bit_set_exhaustive(client_and_key):
         
         # Test various offsets
         for offset in range(0, bin_bit_sz - set_sz + 1, max(1, (bin_bit_sz - set_sz) // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             initial = bytes([0xFF] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # Set bits and verify
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.set("bitbin", offset, set_sz, set_data, policy),
                 BitOperation.get("bitbin", offset, set_sz),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
 
 
@@ -1015,18 +1019,22 @@ async def test_operate_bit_lshift_exhaustive(client_and_key):
             
             # Test various shift amounts
             for n_bits in range(0, limit + 1, max(1, limit // 5)):
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
                 initial = bytes([0xFF] * bin_sz)
-                await client.put(wp, key, {"bitbin": initial})
+                await client.put(key, {"bitbin": initial}, policy=wp)
                 
                 # Set bits, then shift
-                await client.operate(wp, key, [
+                await client.operate(
+                    key,
+                    [
                     BitOperation.set("bitbin", offset, set_sz, set_data, policy),
                     BitOperation.lshift("bitbin", offset, set_sz, n_bits, policy),
-                ])
+                ],
+                    policy=wp,
+                )
                 
                 rp = ReadPolicy()
-                record = await client.get(rp, key, ["bitbin"])
+                record = await client.get(key, ["bitbin"], policy=rp)
                 assert record is not None
 
 
@@ -1049,18 +1057,22 @@ async def test_operate_bit_rshift_exhaustive(client_and_key):
             
             # Test various shift amounts
             for n_bits in range(0, limit + 1, max(1, limit // 5)):
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
                 initial = bytes([0xFF] * bin_sz)
-                await client.put(wp, key, {"bitbin": initial})
+                await client.put(key, {"bitbin": initial}, policy=wp)
                 
                 # Set bits, then shift
-                await client.operate(wp, key, [
+                await client.operate(
+                    key,
+                    [
                     BitOperation.set("bitbin", offset, set_sz, set_data, policy),
                     BitOperation.rshift("bitbin", offset, set_sz, n_bits, policy),
-                ])
+                ],
+                    policy=wp,
+                )
                 
                 rp = ReadPolicy()
-                record = await client.get(rp, key, ["bitbin"])
+                record = await client.get(key, ["bitbin"], policy=rp)
                 assert record is not None
 
 
@@ -1079,17 +1091,21 @@ async def test_operate_bit_and_exhaustive(client_and_key):
         
         # Test various offsets
         for offset in range(0, bin_bit_sz - set_sz + 1, max(1, (bin_bit_sz - set_sz) // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             initial = bytes([0xFF] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # AND operation
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.and_("bitbin", offset, set_sz, set_data, policy),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
 
 
@@ -1106,17 +1122,21 @@ async def test_operate_bit_not_exhaustive(client_and_key):
     for set_sz in range(1, 11):
         # Test various offsets
         for offset in range(0, bin_bit_sz - set_sz + 1, max(1, (bin_bit_sz - set_sz) // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             initial = bytes([0xFF] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # NOT operation
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.not_("bitbin", offset, set_sz, policy),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
 
 
@@ -1134,17 +1154,21 @@ async def test_operate_bit_insert_exhaustive(client_and_key):
         
         # Test various byte offsets
         for offset in range(0, bin_sz + 1, max(1, bin_sz // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             initial = bytes([0xFF] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # Insert operation
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.insert("bitbin", offset, set_data, policy),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
             # Size should increase
             assert len(record.bins.get("bitbin")) >= bin_sz
@@ -1163,17 +1187,21 @@ async def test_operate_bit_add_exhaustive(client_and_key):
     for set_sz in range(1, 11):
         # Test various offsets
         for offset in range(0, bin_bit_sz - set_sz + 1, max(1, (bin_bit_sz - set_sz) // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             initial = bytes([0x00] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # Add operation with WRAP to avoid overflow errors
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.add("bitbin", offset, set_sz, 1, False, BitwiseOverflowActions.WRAP, policy),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
 
 
@@ -1193,18 +1221,22 @@ async def test_operate_bit_subtract_exhaustive(client_and_key):
         
         # Test various offsets
         for offset in range(0, bin_bit_sz - set_sz + 1, max(1, (bin_bit_sz - set_sz) // 10)):
-            await client.delete(wp, key)
+            await client.delete(key, policy=wp)
             # Set to max value so subtract won't underflow
             initial = bytes([0xFF] * bin_sz)
-            await client.put(wp, key, {"bitbin": initial})
+            await client.put(key, {"bitbin": initial}, policy=wp)
             
             # Subtract operation with WRAP to avoid underflow errors
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 BitOperation.subtract("bitbin", offset, set_sz, max_value, False, BitwiseOverflowActions.WRAP, policy),
-            ])
+            ],
+                policy=wp,
+            )
             
             rp = ReadPolicy()
-            record = await client.get(rp, key, ["bitbin"])
+            record = await client.get(key, ["bitbin"], policy=rp)
             assert record is not None
 
 

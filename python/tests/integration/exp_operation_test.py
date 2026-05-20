@@ -35,19 +35,23 @@ class TestExpOperationRead(TestFixtureConnection):
 
         try:
             # Create a record with an integer bin
-            await client.put(wp, key, {"value": 100})
+            await client.put(key, {"value": 100}, policy=wp)
 
             # Read with expression that adds 50 to the value
             expr = fe.num_add([fe.int_bin("value"), fe.int_val(50)])
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("computed", expr)
-            ])
+            ],
+                policy=wp,
+            )
 
             assert "computed" in result.bins
             assert result.bins["computed"] == 150
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -57,19 +61,23 @@ class TestExpOperationRead(TestFixtureConnection):
         wp = WritePolicy()
 
         try:
-            await client.put(wp, key, {"name": "test"})
+            await client.put(key, {"name": "test"}, policy=wp)
 
             # Read with expression that returns the string bin
             expr = fe.string_bin("name")
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("name_result", expr)
-            ])
+            ],
+                policy=wp,
+            )
 
             assert "name_result" in result.bins
             assert result.bins["name_result"] == "test"
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -79,19 +87,23 @@ class TestExpOperationRead(TestFixtureConnection):
         wp = WritePolicy()
 
         try:
-            await client.put(wp, key, {"score": 85})
+            await client.put(key, {"score": 85}, policy=wp)
 
             # Read with expression that checks if score > 80
             expr = fe.gt(fe.int_bin("score"), fe.int_val(80))
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("passed", expr)
-            ])
+            ],
+                policy=wp,
+            )
 
             assert "passed" in result.bins
             assert result.bins["passed"] == True
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -101,19 +113,23 @@ class TestExpOperationRead(TestFixtureConnection):
         wp = WritePolicy()
 
         try:
-            await client.put(wp, key, {"value": 10})
+            await client.put(key, {"value": 10}, policy=wp)
 
             # Read with EVAL_NO_FAIL flag
             expr = fe.int_bin("value")
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("result", expr, ExpReadFlags.EVAL_NO_FAIL)
-            ])
+            ],
+                policy=wp,
+            )
 
             assert "result" in result.bins
             assert result.bins["result"] == 10
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -129,21 +145,25 @@ class TestExpOperationWrite(TestFixtureConnection):
 
         try:
             # Create a record with initial value
-            await client.put(wp, key, {"value": 50})
+            await client.put(key, {"value": 50}, policy=wp)
 
             # Write doubled value to a new bin
             expr = fe.num_mul([fe.int_bin("value"), fe.int_val(2)])
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 ExpOperation.write("doubled", expr)
-            ])
+            ],
+                policy=wp,
+            )
 
             # Verify the result
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec.bins["value"] == 50
             assert rec.bins["doubled"] == 100
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -154,19 +174,23 @@ class TestExpOperationWrite(TestFixtureConnection):
         rp = ReadPolicy()
 
         try:
-            await client.put(wp, key, {"counter": 10})
+            await client.put(key, {"counter": 10}, policy=wp)
 
             # Overwrite counter with incremented value
             expr = fe.num_add([fe.int_bin("counter"), fe.int_val(1)])
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 ExpOperation.write("counter", expr)
-            ])
+            ],
+                policy=wp,
+            )
 
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec.bins["counter"] == 11
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -176,18 +200,22 @@ class TestExpOperationWrite(TestFixtureConnection):
         wp = WritePolicy()
 
         try:
-            await client.put(wp, key, {"existing": 100})
+            await client.put(key, {"existing": 100}, policy=wp)
 
             expr = fe.int_val(200)
             # This should fail because bin exists and CREATE_ONLY is set
             with pytest.raises(ServerError) as exc_info:
-                await client.operate(wp, key, [
+                await client.operate(
+                    key,
+                    [
                     ExpOperation.write("existing", expr, ExpWriteFlags.CREATE_ONLY)
-                ])
+                ],
+                    policy=wp,
+                )
             assert exc_info.value.result_code == ResultCode.BIN_EXISTS_ERROR
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -197,18 +225,22 @@ class TestExpOperationWrite(TestFixtureConnection):
         wp = WritePolicy()
 
         try:
-            await client.put(wp, key, {"other": 100})
+            await client.put(key, {"other": 100}, policy=wp)
 
             expr = fe.int_val(200)
             # This should fail because newbin doesn't exist and UPDATE_ONLY is set
             with pytest.raises(BinNotFound) as exc_info:
-                await client.operate(wp, key, [
+                await client.operate(
+                    key,
+                    [
                     ExpOperation.write("newbin", expr, ExpWriteFlags.UPDATE_ONLY)
-                ])
+                ],
+                    policy=wp,
+                )
             assert exc_info.value.result_code == ResultCode.BIN_NOT_FOUND
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -223,26 +255,30 @@ class TestExpOperationCombined(TestFixtureConnection):
         rp = ReadPolicy()
 
         try:
-            await client.put(wp, key, {"x": 5, "y": 10})
+            await client.put(key, {"x": 5, "y": 10}, policy=wp)
 
             # Read sum and write product in same operation
             sum_expr = fe.num_add([fe.int_bin("x"), fe.int_bin("y")])
             prod_expr = fe.num_mul([fe.int_bin("x"), fe.int_bin("y")])
 
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("sum", sum_expr),
                 ExpOperation.write("product", prod_expr)
-            ])
+            ],
+                policy=wp,
+            )
 
             # Check read result
             assert result.bins["sum"] == 15
 
             # Check write result persisted
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec.bins["product"] == 50
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 

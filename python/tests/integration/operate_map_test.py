@@ -33,7 +33,7 @@ async def client_and_key(aerospike_host):
 
     # Delete the record first to ensure clean state
     wp = WritePolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     return client, key
 
@@ -46,22 +46,22 @@ async def test_operate_map_size(client_and_key):
 
     # Create a map with some items
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 1, "value1", map_policy),
             MapOperation.put("mapbin", 2, "value2", map_policy),
             MapOperation.put("mapbin", 3, "value3", map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Get map size
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -79,30 +79,30 @@ async def test_operate_map_clear(client_and_key):
 
     # Create a map with some items
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 1, "value1", map_policy),
             MapOperation.put("mapbin", 2, "value2", map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Clear the map
     await client.operate(
-        wp,
         key,
         [
             MapOperation.clear("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     # Verify map is empty
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -122,11 +122,10 @@ async def test_operate_map_put(client_and_key):
     update_mode = MapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE_ONLY)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Put multiple items with different policies
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 11, 789, put_mode),
@@ -135,7 +134,8 @@ async def test_operate_map_put(client_and_key):
             MapOperation.put("mapbin", 15, 1000, add_mode),
             MapOperation.put("mapbin", 10, 1, update_mode),
             MapOperation.put("mapbin", 15, 5, update_mode),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -168,7 +168,7 @@ async def test_operate_map_put(client_and_key):
     assert size == 4
 
     # Verify final map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -189,11 +189,10 @@ async def test_operate_map_put_items(client_and_key):
     update_mode = MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE_ONLY)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Put items with different policies, then getByKey and getByKeyRange operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", [(12, "myval"), (-8734, "str2"), (1, "my default")], add_mode),
@@ -205,7 +204,8 @@ async def test_operate_map_put_items(client_and_key):
             MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.KEY_VALUE),
             MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.UNORDERED_MAP),
             MapOperation.get_by_key_range("mapbin", 12, 15, MapReturnType.ORDERED_MAP),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -269,7 +269,7 @@ async def test_operate_map_put_items(client_and_key):
     assert 13 in ordered_map
 
     # Verify final map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -292,23 +292,23 @@ async def test_operate_map_increment_value(client_and_key):
 
     # Create a map with numeric values
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "counter1", 10, map_policy),
             MapOperation.put("mapbin", "counter2", 20, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Increment values
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.increment_value("mapbin", "counter1", 5, map_policy),
             MapOperation.increment_value("mapbin", "counter2", 10, map_policy),
             MapOperation.increment_value("mapbin", "counter1", 3, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -318,7 +318,7 @@ async def test_operate_map_increment_value(client_and_key):
     assert len(results) == 3
 
     # Verify final map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -338,23 +338,23 @@ async def test_operate_map_decrement_value(client_and_key):
 
     # Create a map with numeric values
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "counter1", 100, map_policy),
             MapOperation.put("mapbin", "counter2", 50, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Decrement values
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.decrement_value("mapbin", "counter1", 10, map_policy),
             MapOperation.decrement_value("mapbin", "counter2", 5, map_policy),
             MapOperation.decrement_value("mapbin", "counter1", 20, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -364,7 +364,7 @@ async def test_operate_map_decrement_value(client_and_key):
     assert len(results) == 3
 
     # Verify final map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -384,22 +384,22 @@ async def test_operate_map_remove_by_key(client_and_key):
 
     # Create a map with some items
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "key1", "value1", map_policy),
             MapOperation.put("mapbin", "key2", "value2", map_policy),
             MapOperation.put("mapbin", "key3", "value3", map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by key
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_key("mapbin", "key2", MapReturnType.VALUE),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -408,7 +408,7 @@ async def test_operate_map_remove_by_key(client_and_key):
     assert results == "value2"
 
     # Verify the map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -429,11 +429,10 @@ async def test_operate_map_remove_by_key_range(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 1, "value1", map_policy),
@@ -441,16 +440,17 @@ async def test_operate_map_remove_by_key_range(client_and_key):
             MapOperation.put("mapbin", 3, "value3", map_policy),
             MapOperation.put("mapbin", 4, "value4", map_policy),
             MapOperation.put("mapbin", 5, "value5", map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by key range
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_key_range("mapbin", 2, 4, MapReturnType.COUNT),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -460,7 +460,7 @@ async def test_operate_map_remove_by_key_range(client_and_key):
     assert results == 2
 
     # Verify the map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     assert record.bins is not None
     map_data = record.bins.get("mapbin")
@@ -482,11 +482,10 @@ async def test_operate_map_index_operations(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 4, 4, map_policy),
@@ -495,7 +494,8 @@ async def test_operate_map_index_operations(client_and_key):
             MapOperation.put("mapbin", 1, 1, map_policy),
             MapOperation.get_by_index("mapbin", 2, MapReturnType.KEY_VALUE),
             MapOperation.get_by_index_range("mapbin", 0, 10, MapReturnType.KEY_VALUE),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -529,38 +529,38 @@ async def test_operate_map_rank_operations(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Increment some scores
     await client.operate(
-        wp,
         key,
         [
             MapOperation.increment_value("mapbin", "John", 5, map_policy),
             MapOperation.increment_value("mapbin", "Jim", -4, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Get by rank operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_rank_range("mapbin", -2, 2, MapReturnType.KEY),
             MapOperation.get_by_rank_range("mapbin", 0, 2, MapReturnType.KEY_VALUE),
             MapOperation.get_by_rank("mapbin", 0, MapReturnType.VALUE),
             MapOperation.get_by_rank("mapbin", 2, MapReturnType.KEY),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -601,21 +601,20 @@ async def test_operate_map_value_operations(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 94), ("John", 81), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Get by value operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_value_range("mapbin", 90, 95, MapReturnType.RANK),
@@ -624,7 +623,8 @@ async def test_operate_map_value_operations(client_and_key):
             MapOperation.get_by_value_range("mapbin", 81, 82, MapReturnType.KEY),
             MapOperation.get_by_value("mapbin", 77, MapReturnType.KEY),
             MapOperation.get_by_value("mapbin", 81, MapReturnType.RANK),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -675,11 +675,10 @@ async def test_operate_map_get_by_index_range_from(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", 4, 4, map_policy),
@@ -687,15 +686,16 @@ async def test_operate_map_get_by_index_range_from(client_and_key):
             MapOperation.put("mapbin", 2, 2, map_policy),
             MapOperation.put("mapbin", 1, 1, map_policy),
         ],
+        policy=wp,
     )
 
     # Get by index range from index 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_index_range_from("mapbin", 2, MapReturnType.KEY_VALUE),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -723,25 +723,25 @@ async def test_operate_map_get_by_rank_range_from(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Get by rank range from rank 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_rank_range_from("mapbin", 2, MapReturnType.KEY_VALUE),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -769,26 +769,26 @@ async def test_operate_map_remove_by_index(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by index
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_index("mapbin", 1, MapReturnType.KEY_VALUE),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -814,27 +814,27 @@ async def test_operate_map_remove_by_index_range(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
                  ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by index range
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_index_range("mapbin", 0, 2, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -859,26 +859,26 @@ async def test_operate_map_remove_by_index_range_from(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by index range from index 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_index_range_from("mapbin", 2, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -903,26 +903,26 @@ async def test_operate_map_remove_by_rank(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by rank
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_rank("mapbin", 1, MapReturnType.KEY_VALUE),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -948,27 +948,27 @@ async def test_operate_map_remove_by_rank_range(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
                  ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by rank range
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_rank_range("mapbin", 0, 2, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -993,26 +993,26 @@ async def test_operate_map_remove_by_rank_range_from(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by rank range from rank 2 to end
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_rank_range_from("mapbin", 2, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1037,27 +1037,27 @@ async def test_operate_map_remove_by_value(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
                  ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by value
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_value("mapbin", 55, MapReturnType.KEY),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1084,27 +1084,27 @@ async def test_operate_map_remove_by_value_range(client_and_key):
     map_policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, MapWriteMode.UPDATE)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (scores)
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82),
                  ("Sally", 79), ("Lenny", 84), ("Abe", 88)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Remove by value range
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_value_range("mapbin", 80, 85, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1130,16 +1130,16 @@ async def test_operate_map_get_by_list(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     input_map = [("Charlie", 55), ("Jim", 98), ("John", 76), ("Harry", 82)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     # Get by key list and value list
@@ -1147,12 +1147,12 @@ async def test_operate_map_get_by_list(client_and_key):
     value_list = [76, 50]
 
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_key_list("mapbin", key_list, MapReturnType.KEY_VALUE),
             MapOperation.get_by_value_list("mapbin", value_list, MapReturnType.KEY_VALUE),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1199,7 +1199,7 @@ async def test_operate_map_remove_by_key_list(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items
     input_map = [
@@ -1215,7 +1215,6 @@ async def test_operate_map_remove_by_key_list(client_and_key):
     # Remove by key list - combine putItems with remove operations in one call
     remove_keys = ["Sally", "UNKNOWN", "Lenny"]
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
@@ -1224,7 +1223,8 @@ async def test_operate_map_remove_by_key_list(client_and_key):
             MapOperation.remove_by_key_list("mapbin", remove_keys, MapReturnType.COUNT),
             MapOperation.remove_by_value("mapbin", 55, MapReturnType.KEY),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1254,7 +1254,7 @@ async def test_operate_map_remove_by_key_list(client_and_key):
 
     # Verify the map state
     rp = ReadPolicy()
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     map_data = record.bins.get("mapbin")
     assert isinstance(map_data, dict)
@@ -1275,16 +1275,16 @@ async def test_operate_map_remove_by_key_list_for_non_existing_key(client_and_ke
     wp = WritePolicy()
 
     # Delete the record to ensure it doesn't exist
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Try to remove from a non-existing key - should raise KEY_NOT_FOUND_ERROR
     with pytest.raises(RecordNotFound) as exi:
         await client.operate(
-            wp,
             key,
             [
                 MapOperation.remove_by_key_list("mapbin", ["key-1"], MapReturnType.VALUE),
-            ]
+            ],
+            policy=wp,
         )
     assert exi.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR
 
@@ -1298,7 +1298,7 @@ async def test_operate_map_remove_by_value_list(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete the record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with items (some with duplicate values)
     input_map = [
@@ -1314,13 +1314,13 @@ async def test_operate_map_remove_by_value_list(client_and_key):
     # Remove by value list - remove items with values 100 and 200
     remove_values = [100, 200, 999]  # 999 doesn't exist
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
             MapOperation.remove_by_value_list("mapbin", remove_values, MapReturnType.COUNT),
             MapOperation.size("mapbin"),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1339,7 +1339,7 @@ async def test_operate_map_remove_by_value_list(client_and_key):
     assert 2 in results
 
     # Verify the map state
-    record = await client.get(rp, key, ["mapbin"])
+    record = await client.get(key, ["mapbin"], policy=rp)
     assert record is not None
     map_data = record.bins.get("mapbin")
     assert isinstance(map_data, dict)
@@ -1366,14 +1366,14 @@ async def test_operate_map_set_map_policy(client_and_key):
 
     # Create a map and then set its policy
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "key1", "value1", map_policy),
             MapOperation.put("mapbin", "key2", "value2", map_policy),
             MapOperation.set_map_policy("mapbin", MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)),
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1385,7 +1385,7 @@ async def test_operate_map_set_map_policy(client_and_key):
     assert 2 in results
 
     # Verify map still has the items
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     map_data = rec.bins.get("mapbin")
     assert isinstance(map_data, dict)
     assert len(map_data) == 2
@@ -1402,18 +1402,17 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
 
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
 
     # Test getByKeyRelativeIndexRange operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.KEY),
@@ -1424,7 +1423,8 @@ async def test_operate_map_get_by_key_relative_index_range(client_and_key):
             MapOperation.get_by_key_relative_index_range("mapbin", 5, 0, 1, MapReturnType.KEY),
             MapOperation.get_by_key_relative_index_range("mapbin", 5, 1, 2, MapReturnType.KEY),
             MapOperation.get_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.KEY),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1448,25 +1448,25 @@ async def test_operate_map_get_by_value_relative_rank_range(client_and_key):
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
 
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
 
     # Test getByValueRelativeRankRange operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.VALUE),
             MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, None, MapReturnType.VALUE),
             MapOperation.get_by_value_relative_rank_range("mapbin", 11, 1, 1, MapReturnType.VALUE),
             MapOperation.get_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.VALUE)
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1490,25 +1490,25 @@ async def test_operate_map_remove_by_key_relative_index_range(client_and_key):
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
 
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
 
     # Test removeByKeyRelativeIndexRange operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_key_relative_index_range("mapbin", 5, 0, None, MapReturnType.VALUE),
             MapOperation.remove_by_key_relative_index_range("mapbin", 5, 1, None, MapReturnType.VALUE),
             MapOperation.remove_by_key_relative_index_range("mapbin", 5, -1, 1, MapReturnType.VALUE),
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1516,7 +1516,7 @@ async def test_operate_map_remove_by_key_relative_index_range(client_and_key):
     assert isinstance(results, list)
 
     # Verify removals happened
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     map_data = rec.bins.get("mapbin")
     assert isinstance(map_data, dict)
     # After removals, map should be smaller
@@ -1535,24 +1535,24 @@ async def test_operate_map_remove_by_value_relative_rank_range(client_and_key):
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
 
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
 
     # Test removeByValueRelativeRankRange operations
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.remove_by_value_relative_rank_range("mapbin", 11, 1, None, MapReturnType.VALUE),
             MapOperation.remove_by_value_relative_rank_range("mapbin", 11, -1, 1, MapReturnType.VALUE),
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1560,7 +1560,7 @@ async def test_operate_map_remove_by_value_relative_rank_range(client_and_key):
     assert isinstance(results, list)
 
     # Verify removals happened
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     map_data = rec.bins.get("mapbin")
     assert isinstance(map_data, dict)
     # After removals, map should be smaller
@@ -1575,16 +1575,16 @@ async def test_operate_map_create(client_and_key):
     rp = ReadPolicy()
 
     # Delete the record first to ensure clean state
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create a map with order
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.create("mapbin", MapOrder.KEY_ORDERED),
             MapOperation.size("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1597,7 +1597,7 @@ async def test_operate_map_create(client_and_key):
         assert results == 0
 
     # Verify map was created
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     assert "mapbin" in rec.bins
     assert rec.bins.get("mapbin") == {}
 
@@ -1610,7 +1610,7 @@ async def test_operate_nested_map(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create nested maps
     m1 = {"key11": 9, "key12": 4}
@@ -1618,16 +1618,16 @@ async def test_operate_nested_map(client_and_key):
     input_map = {"key1": m1, "key2": m2}
 
     # Create maps
-    await client.put(wp, key, {"mapbin": input_map})
+    await client.put(key, {"mapbin": input_map}, policy=wp)
 
     # Set map value to 11 for map key "key21" inside of map key "key2" and retrieve all maps
     record = await client.operate(
-        wp,
         key,
         [
                 MapOperation.put("mapbin", "key21", 11, map_policy).set_context([CTX.map_key("key2")]),
                 Operation.get_bin("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1661,7 +1661,7 @@ async def test_operate_double_nested_map(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create double nested maps
     m11 = {"key111": 1}
@@ -1674,11 +1674,10 @@ async def test_operate_double_nested_map(client_and_key):
     input_map = {"key1": m1, "key2": m2}
 
     # Create maps
-    await client.put(wp, key, {"mapbin": input_map})
+    await client.put(key, {"mapbin": input_map}, policy=wp)
 
     # Set map value to 11 for map key "key121" inside of map key "key1" at rank -1
     record = await client.operate(
-        wp,
         key,
         [
                 MapOperation.put("mapbin", "key121", 11, map_policy).set_context([
@@ -1686,7 +1685,8 @@ async def test_operate_double_nested_map(client_and_key):
                     CTX.map_rank(-1)
                 ]),
                 Operation.get_bin("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1729,7 +1729,7 @@ async def test_operate_nested_map_value(client_and_key):
 
     # Delete record first to ensure clean state
     try:
-        await client.delete(wp, key)
+        await client.delete(key, policy=wp)
     except ServerError:
         pass  # Ignore if record doesn't exist
 
@@ -1740,7 +1740,6 @@ async def test_operate_nested_map_value(client_and_key):
 
     # Create nested maps that are all sorted and lookup by map value
     record = await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, map_policy),
@@ -1748,7 +1747,8 @@ async def test_operate_nested_map_value(client_and_key):
             MapOperation.get_by_key("mapbin", 3, MapReturnType.KEY_VALUE).set_context([
                 CTX.map_value(m1)
             ])
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1796,7 +1796,7 @@ async def test_operate_map_create_context(client_and_key):
     map_policy = MapPolicy(None, None)
 
     # Delete record first
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     # Create nested maps
     m1 = {"key11": 9, "key12": 4}
@@ -1804,18 +1804,18 @@ async def test_operate_map_create_context(client_and_key):
     input_map = {"key1": m1, "key2": m2}
 
     # Create maps
-    await client.put(wp, key, {"mapbin": input_map})
+    await client.put(key, {"mapbin": input_map}, policy=wp)
 
     # Create new map at key "key3" and put value in it
     # Adapted to use CTX.map_key_create with put operation instead of MapOperation.create
     # with context, since the Rust core client's MapOperation.create doesn't support context.
     record = await client.operate(
-        wp,
         key,
         [
                 MapOperation.put("mapbin", "key31", 99, map_policy).set_context([CTX.map_key_create("key3", MapOrder.KEY_ORDERED)]),
                 Operation.get_bin("mapbin")
-        ]
+        ],
+        policy=wp,
     )
 
     assert record is not None
@@ -1848,33 +1848,33 @@ async def test_operate_map_put_with_write_flags(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     create_only = MapPolicy.new_with_flags(MapOrder.UNORDERED, MapWriteFlags.CREATE_ONLY)
     update_only = MapPolicy.new_with_flags(MapOrder.UNORDERED, MapWriteFlags.UPDATE_ONLY)
 
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "a", 1, create_only),
             MapOperation.put("mapbin", "b", 2, create_only),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     assert rec.bins.get("mapbin") == {"a": 1, "b": 2}
 
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "a", 10, update_only),
             MapOperation.put("mapbin", "b", 20, update_only),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     assert rec.bins.get("mapbin") == {"a": 10, "b": 20}
 
 
@@ -1884,20 +1884,20 @@ async def test_operate_map_create_with_index(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     policy = MapPolicy(None, None)
     await client.operate(
-        wp,
         key,
         [
             MapOperation.create_with_index("mapbin", MapOrder.KEY_ORDERED),
             MapOperation.put("mapbin", "k1", 1, policy),
             MapOperation.put("mapbin", "k2", 2, policy),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     assert rec.bins.get("mapbin") == {"k1": 1, "k2": 2}
 
 
@@ -1907,11 +1907,10 @@ async def test_operate_map_set_policy(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     policy = MapPolicy(MapOrder.KEY_ORDERED, None)
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put("mapbin", "x", 1, policy),
@@ -1919,9 +1918,10 @@ async def test_operate_map_set_policy(client_and_key):
             MapOperation.set_policy("mapbin", MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)),
             MapOperation.size("mapbin"),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["mapbin"])
+    rec = await client.get(key, ["mapbin"], policy=rp)
     assert rec.bins.get("mapbin") == {"x": 1, "y": 2}
 
 
@@ -1931,17 +1931,17 @@ async def test_operate_map_put_items_partial(client_and_key):
 
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     default_policy = MapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
     input_map = [(0, 17), (4, 2), (5, 15), (9, 10)]
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", input_map, default_policy),
             MapOperation.put_items("mapbin2", input_map, default_policy),
         ],
+        policy=wp,
     )
 
     # sourceMap: key 3 is new, key 5 already exists. CREATE_ONLY | PARTIAL | NO_FAIL adds 3 only.
@@ -1955,15 +1955,15 @@ async def test_operate_map_put_items_partial(client_and_key):
     source_items = [(3, 3), (5, 15)]
 
     await client.operate(
-        wp,
         key,
         [
             MapOperation.put_items("mapbin", source_items, policy_partial),
             MapOperation.put_items("mapbin2", source_items, policy_no_fail),
         ],
+        policy=wp,
     )
 
-    rec = await client.get(rp, key, ["mapbin", "mapbin2"])
+    rec = await client.get(key, ["mapbin", "mapbin2"], policy=rp)
     assert rec.bins.get("mapbin") is not None
     assert len(rec.bins["mapbin"]) == 5
     assert rec.bins.get("mapbin2") is not None

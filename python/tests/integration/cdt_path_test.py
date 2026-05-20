@@ -74,14 +74,14 @@ async def cdt_client_and_key(aerospike_host, use_services_alternate):
     key = Key("test", "test", "cdtpath_key")
     wp = WritePolicy()
     try:
-        await c.delete(wp, key)
+        await c.delete(key, policy=wp)
     except Exception:
         pass
 
     yield c, key
 
     try:
-        await c.delete(wp, key)
+        await c.delete(key, policy=wp)
     except Exception:
         pass
     await c.close()
@@ -97,14 +97,14 @@ class TestSelectByPath:
         """Select a scalar value via a single map-key context step."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"score": 42}})
+        await client.put(key, {"data": {"score": 42}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
             SelectFlags.VALUE,
             [CTX.map_key("score")],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         bins = record.bins
         assert bins is not None
@@ -115,14 +115,14 @@ class TestSelectByPath:
         """Select all list elements using CTX.all_children()."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"matrix": [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}})
+        await client.put(key, {"data": {"matrix": [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
             SelectFlags.VALUE,
             [CTX.map_key("matrix"), CTX.all_children()],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -134,7 +134,7 @@ class TestSelectByPath:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         numbers = [10, 20, 30, 40, 50]
-        await client.put(wp, key, {"data": {"numbers": numbers}})
+        await client.put(key, {"data": {"numbers": numbers}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -146,7 +146,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -158,7 +158,7 @@ class TestSelectByPath:
         """Filter list items by position using LoopVarPart.INDEX."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"nums": [10, 20, 30, 40, 50]}})
+        await client.put(key, {"data": {"nums": [10, 20, 30, 40, 50]}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -170,7 +170,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -183,7 +183,7 @@ class TestSelectByPath:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         products = {"apple": 1.50, "banana": 0.75, "cherry": 2.25}
-        await client.put(wp, key, {"data": {"products": products}})
+        await client.put(key, {"data": {"products": products}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -195,7 +195,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -212,7 +212,7 @@ class TestSelectByPath:
             {"title": "Moby Dick", "price": 8.99},
             {"title": "The Lord of the Rings", "price": 22.99},
         ]
-        await client.put(wp, key, {"data": {"book": books}})
+        await client.put(key, {"data": {"book": books}}, policy=wp)
 
         # Price is a float; use map_loop_var to get the current map (book entry),
         # then read the "price" key from it via a map get-by-key expression.
@@ -237,7 +237,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -248,14 +248,14 @@ class TestSelectByPath:
         """SelectFlags.NO_FAIL succeeds even when the path has an empty collection."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"emptyList": [], "items": [1, 2, 3]}})
+        await client.put(key, {"data": {"emptyList": [], "items": [1, 2, 3]}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
             SelectFlags.NO_FAIL,
             [CTX.map_key("emptyList"), CTX.all_children()],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         # Should not raise; result may be empty but the operation completes
         assert record is not None
 
@@ -263,21 +263,21 @@ class TestSelectByPath:
         """SelectFlags.NO_FAIL succeeds when the path leads to an empty map."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"emptyMap": {}, "items": {"a": 1}}})
+        await client.put(key, {"data": {"emptyMap": {}, "items": {"a": 1}}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
             SelectFlags.NO_FAIL,
             [CTX.map_key("emptyMap"), CTX.all_children()],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
 
     async def test_select_map_key_flag(self, cdt_client_and_key):
         """SelectFlags.MAP_KEY returns only map keys, not values."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"items": {"item1": 100, "item2": 200, "item3": 50}}})
+        await client.put(key, {"data": {"items": {"item1": 100, "item2": 200, "item3": 50}}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -289,7 +289,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         # item1 (100) and item2 (200) have value > 75; we get their keys
@@ -303,7 +303,7 @@ class TestSelectByPath:
             {"title": "Cheap Book", "price": 5.99},
             {"title": "Expensive Book", "price": 25.99},
         ]
-        await client.put(wp, key, {"data": {"book": books}})
+        await client.put(key, {"data": {"book": books}}, policy=wp)
 
         from aerospike_async import MapReturnType, ExpType
         price_exp = fe.map_get_by_key(
@@ -324,7 +324,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -338,7 +338,7 @@ class TestSelectByPath:
             {"name": "item2", "value": 20},
             {"name": "item3", "value": 30},
         ]
-        await client.put(wp, key, {"data": {"items": items}})
+        await client.put(key, {"data": {"items": items}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -349,7 +349,7 @@ class TestSelectByPath:
                 CTX.map_key("value"),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -365,7 +365,7 @@ class TestSelectByPath:
             {"title": "Expensive 1", "price": 25.99},
             {"title": "Expensive 2", "price": 30.50},
         ]
-        await client.put(wp, key, {"data": {"book": books}})
+        await client.put(key, {"data": {"book": books}}, policy=wp)
 
         from aerospike_async import MapReturnType, ExpType
         price_exp = fe.map_get_by_key(
@@ -389,7 +389,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         # Expect None or an empty list (no book has price <= 10.0)
@@ -405,7 +405,7 @@ class TestSelectByPath:
             {"name": "Bob", "active": False},
             {"name": "Charlie", "active": True},
         ]
-        await client.put(wp, key, {"data": {"users": users}})
+        await client.put(key, {"data": {"users": users}}, policy=wp)
 
         from aerospike_async import MapReturnType, ExpType
         active_exp = fe.map_get_by_key(
@@ -427,7 +427,7 @@ class TestSelectByPath:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -451,7 +451,7 @@ class TestModifyByPath:
             {"title": "Moby Dick", "price": 8.99},
             {"title": "The Lord of the Rings", "price": 22.99},
         ]
-        await client.put(wp, key, {"data": {"book": books}})
+        await client.put(key, {"data": {"book": books}}, policy=wp)
 
         modify_exp = fe.num_mul([fe.float_loop_var(LoopVarPart.VALUE), fe.float_val(1.10)])
 
@@ -465,10 +465,10 @@ class TestModifyByPath:
                 CTX.map_key("price"),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         assert record is not None
         final_books = record.bins.get("data", {}).get("book")
         assert final_books is not None
@@ -481,7 +481,7 @@ class TestModifyByPath:
         """Add 5 to every score in a list."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"scores": [10, 20, 30, 40, 50]}})
+        await client.put(key, {"data": {"scores": [10, 20, 30, 40, 50]}}, policy=wp)
 
         modify_exp = fe.num_add([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(5)])
 
@@ -494,10 +494,10 @@ class TestModifyByPath:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final_scores = record.bins.get("data", {}).get("scores")
         assert final_scores is not None
         assert len(final_scores) == 5
@@ -507,7 +507,7 @@ class TestModifyByPath:
         """Subtract 100 from every map value."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"balances": {"account1": 1000, "account2": 2000}}})
+        await client.put(key, {"data": {"balances": {"account1": 1000, "account2": 2000}}}, policy=wp)
 
         modify_exp = fe.num_sub([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(100)])
 
@@ -520,10 +520,10 @@ class TestModifyByPath:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         balances = record.bins.get("data", {}).get("balances")
         assert balances is not None
         assert balances["account1"] == 900
@@ -537,7 +537,7 @@ class TestModifyByPath:
             {"value": 10, "multiplier": 2},
             {"value": 20, "multiplier": 3},
         ]
-        await client.put(wp, key, {"data": {"metrics": metrics}})
+        await client.put(key, {"data": {"metrics": metrics}}, policy=wp)
 
         modify_exp = fe.num_add([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(100)])
 
@@ -553,10 +553,10 @@ class TestModifyByPath:
                 ),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final_metrics = record.bins.get("data", {}).get("metrics")
         assert final_metrics is not None
         assert final_metrics[0]["value"] == 110
@@ -567,7 +567,7 @@ class TestModifyByPath:
         """ModifyFlags.NO_FAIL does not raise when the path leads to no items."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"scores": []}})
+        await client.put(key, {"data": {"scores": []}}, policy=wp)
 
         modify_exp = fe.num_add([fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(1)])
 
@@ -581,7 +581,7 @@ class TestModifyByPath:
             ],
         )
         # Should not raise
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
 
 # ---------------------------------------------------------------------------
@@ -609,19 +609,19 @@ class TestUseCompressionIntegration:
             payload = bytes(range(256)) * 8  # 2048 bytes, compressible
 
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
 
-            await client.put(wp, key, {"bb": payload})
-            record = await client.get(rp, key)
+            await client.put(key, {"bb": payload}, policy=wp)
+            record = await client.get(key, policy=rp)
 
             assert record is not None
             received = record.bins.get("bb")
             assert received == payload
 
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except Exception:
                 pass
         finally:
@@ -638,7 +638,7 @@ class TestRemoveByPath:
         """Remove every element from a list using remove_result()."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"items": [1, 2, 3, 4, 5]}})
+        await client.put(key, {"data": {"items": [1, 2, 3, 4, 5]}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -649,10 +649,10 @@ class TestRemoveByPath:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         items = record.bins.get("data", {}).get("items")
         assert items is not None
         assert len(items) == 0
@@ -661,7 +661,7 @@ class TestRemoveByPath:
         """Remove list elements with value > 10; keep the rest."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"numbers": [1, 5, 10, 15, 20, 25, 30]}})
+        await client.put(key, {"data": {"numbers": [1, 5, 10, 15, 20, 25, 30]}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -674,10 +674,10 @@ class TestRemoveByPath:
                 ),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         numbers = record.bins.get("data", {}).get("numbers")
         assert numbers is not None
         assert len(numbers) == 3
@@ -687,7 +687,7 @@ class TestRemoveByPath:
         """Remove all entries from a nested map using remove_result()."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"config": {"opt1": "v1", "opt2": "v2", "opt3": "v3"}}})
+        await client.put(key, {"data": {"config": {"opt1": "v1", "opt2": "v2", "opt3": "v3"}}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -698,10 +698,10 @@ class TestRemoveByPath:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         config = record.bins.get("data", {}).get("config")
         assert config is not None
         assert len(config) == 0
@@ -711,7 +711,7 @@ class TestRemoveByPath:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         scores = {"alice": 95, "bob": 45, "carol": 75, "dave": 30}
-        await client.put(wp, key, {"data": {"scores": scores}})
+        await client.put(key, {"data": {"scores": scores}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -724,10 +724,10 @@ class TestRemoveByPath:
                 ),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final_scores = record.bins.get("data", {}).get("scores")
         assert final_scores is not None
         assert len(final_scores) == 2
@@ -741,7 +741,7 @@ class TestRemoveByPath:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         inventory = {"apple": 10, "banana": 5, "cherry": 8, "date": 3}
-        await client.put(wp, key, {"data": {"inventory": inventory}})
+        await client.put(key, {"data": {"inventory": inventory}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -754,10 +754,10 @@ class TestRemoveByPath:
                 ),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final = record.bins.get("data", {}).get("inventory")
         assert final is not None
         assert len(final) == 2
@@ -768,7 +768,7 @@ class TestRemoveByPath:
         """Remove list elements at index >= 3 (keep first three)."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"values": [100, 200, 300, 400, 500]}})
+        await client.put(key, {"data": {"values": [100, 200, 300, 400, 500]}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -781,10 +781,10 @@ class TestRemoveByPath:
                 ),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         values = record.bins.get("data", {}).get("values")
         assert values is not None
         assert len(values) == 3
@@ -802,7 +802,7 @@ class TestRemoveByPath:
             {"title": "Cheap 2", "price": 3.99},
             {"title": "Mid Price", "price": 15.99},
         ]
-        await client.put(wp, key, {"data": {"books": books}})
+        await client.put(key, {"data": {"books": books}}, policy=wp)
 
         price_exp = fe.map_get_by_key(
             MapReturnType.VALUE,
@@ -821,10 +821,10 @@ class TestRemoveByPath:
                 CTX.all_children_with_filter(fe.le(price_exp, fe.float_val(10.0))),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final_books = record.bins.get("data", {}).get("books")
         assert final_books is not None
         assert len(final_books) == 2
@@ -839,7 +839,7 @@ class TestRemoveByPath:
             "sales": [{"name": "John", "sales": 1000}, {"name": "Jane", "sales": 5000}],
             "engineering": [{"name": "Bob", "sales": 500}, {"name": "Alice", "sales": 3000}],
         }
-        await client.put(wp, key, {"data": {"departments": departments}})
+        await client.put(key, {"data": {"departments": departments}}, policy=wp)
 
         sales_exp = fe.map_get_by_key(
             MapReturnType.VALUE,
@@ -859,10 +859,10 @@ class TestRemoveByPath:
                 CTX.all_children_with_filter(fe.lt(sales_exp, fe.int_val(2000))),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         final = record.bins.get("data", {}).get("departments")
         assert final is not None
         assert len(final["sales"]) == 1
@@ -887,7 +887,7 @@ class TestSelectModifyAdditional:
             {"name": "Gizmo", "price": 15.0, "inStock": True},
             {"name": "Doohickey", "price": 30.0, "inStock": True},
         ]
-        await client.put(wp, key, {"data": {"products": products}})
+        await client.put(key, {"data": {"products": products}}, policy=wp)
 
         in_stock_exp = fe.map_get_by_key(
             MapReturnType.VALUE, ExpType.BOOL,
@@ -917,7 +917,7 @@ class TestSelectModifyAdditional:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -928,7 +928,7 @@ class TestSelectModifyAdditional:
         """Divide every list element by 10."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"values": [100, 200, 300]}})
+        await client.put(key, {"data": {"values": [100, 200, 300]}}, policy=wp)
 
         op = CdtOperation.modify_by_path(
             "data",
@@ -939,10 +939,10 @@ class TestSelectModifyAdditional:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         values = record.bins.get("data", {}).get("values")
         assert values is not None
         assert values[0] == 10
@@ -952,7 +952,7 @@ class TestSelectModifyAdditional:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         matrix = [[1, 2, 3], [4, 5], [7, 8, 9]]
-        await client.put(wp, key, {"data": {"matrix": matrix}})
+        await client.put(key, {"data": {"matrix": matrix}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -967,7 +967,7 @@ class TestSelectModifyAdditional:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -977,7 +977,7 @@ class TestSelectModifyAdditional:
         """Multiply each element by (index + 1)."""
         client, key = cdt_client_and_key
         wp = WritePolicy()
-        await client.put(wp, key, {"data": {"values": [100, 200, 300, 400]}})
+        await client.put(key, {"data": {"values": [100, 200, 300, 400]}}, policy=wp)
 
         modify_exp = fe.num_mul([
             fe.int_loop_var(LoopVarPart.VALUE),
@@ -993,10 +993,10 @@ class TestSelectModifyAdditional:
                 CTX.all_children_with_filter(fe.bool_val(True)),
             ],
         )
-        await client.operate(wp, key, [op])
+        await client.operate(key, [op], policy=wp)
 
         rp = ReadPolicy()
-        record = await client.get(rp, key)
+        record = await client.get(key, policy=rp)
         values = record.bins.get("data", {}).get("values")
         assert values is not None
         assert values[0] == 100   # 100 * (0+1)
@@ -1009,7 +1009,7 @@ class TestSelectModifyAdditional:
         client, key = cdt_client_and_key
         wp = WritePolicy()
         blobs = [b"First blob content", b"Second blob content", b"Target blob", b"Fourth blob content"]
-        await client.put(wp, key, {"data": {"blobs": blobs}})
+        await client.put(key, {"data": {"blobs": blobs}}, policy=wp)
 
         op = CdtOperation.select_by_path(
             "data",
@@ -1024,7 +1024,7 @@ class TestSelectModifyAdditional:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         assert result is not None
@@ -1040,7 +1040,7 @@ class TestSelectModifyAdditional:
             GeoJSON('{"type":"Point","coordinates":[-118.2437,34.0522]}'),  # Los Angeles
             GeoJSON('{"type":"Point","coordinates":[-73.9352,40.7306]}'),   # New York
         ]
-        await client.put(wp, key, {"data": {"locations": locations}})
+        await client.put(key, {"data": {"locations": locations}}, policy=wp)
 
         california = '{"type":"Polygon","coordinates":[[[-124.5,32.5],[-114.0,32.5],[-114.0,42.0],[-124.5,42.0],[-124.5,32.5]]]}'
 
@@ -1057,7 +1057,7 @@ class TestSelectModifyAdditional:
                 ),
             ],
         )
-        record = await client.operate(wp, key, [op])
+        record = await client.operate(key, [op], policy=wp)
         assert record is not None
         result = record.bins.get("data")
         # SF and LA are in California, NY is not

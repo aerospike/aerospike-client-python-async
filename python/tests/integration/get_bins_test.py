@@ -40,12 +40,12 @@ async def client_and_key():
     # Delete the record first
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     yield client, rp, key
 
     # Cleanup
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
     await client.close()
 
 
@@ -57,9 +57,9 @@ class TestGetBinsStandardTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": "hello world"})
+        await client.put(key, {"bin": "hello world"}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], str)
@@ -70,9 +70,9 @@ class TestGetBinsStandardTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": 42})
+        await client.put(key, {"bin": 42}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], int)
@@ -83,9 +83,9 @@ class TestGetBinsStandardTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": 3.14159})
+        await client.put(key, {"bin": 3.14159}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], float)
@@ -96,9 +96,9 @@ class TestGetBinsStandardTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": True})
+        await client.put(key, {"bin": True}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], bool)
@@ -110,11 +110,11 @@ class TestGetBinsStandardTypes:
 
         wp = WritePolicy()
         # First put a record with a non-Nil value (Aerospike requires at least one non-Nil bin)
-        await client.put(wp, key, {"placeholder": 1})
+        await client.put(key, {"placeholder": 1}, policy=wp)
         # Then put None to create a nil bin (Aerospike behavior: nil bins are not returned)
-        await client.put(wp, key, {"bin": None})
+        await client.put(key, {"bin": None}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Aerospike doesn't return nil bins - they are omitted from the result
@@ -131,9 +131,9 @@ class TestGetBinsWrapperTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": List([1, 2, 3])})
+        await client.put(key, {"bin": List([1, 2, 3])}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Returns Python native list
@@ -145,9 +145,9 @@ class TestGetBinsWrapperTypes:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": List([1, [2, 3], 4])})
+        await client.put(key, {"bin": List([1, [2, 3], 4])}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Returns Python native list
@@ -164,9 +164,9 @@ class TestGetBinsWrapperTypes:
 
         wp = WritePolicy()
         # Python dict input -> Python dict output (not wrapped in Map)
-        await client.put(wp, key, {"bin": {"a": 1, "b": 2}})
+        await client.put(key, {"bin": {"a": 1, "b": 2}}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Current behavior: Python dict is returned as Python dict (not wrapped)
@@ -179,9 +179,9 @@ class TestGetBinsWrapperTypes:
 
         wp = WritePolicy()
         # Python dict input -> Python dict output (not wrapped)
-        await client.put(wp, key, {"bin": {"a": 1, "nested": {"b": 2}}})
+        await client.put(key, {"bin": {"a": 1, "nested": {"b": 2}}}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Current behavior: Python dict is returned as Python dict (not wrapped)
@@ -196,9 +196,9 @@ class TestGetBinsWrapperTypes:
 
         geo_str = '{"type": "Point", "coordinates": [-122.0, 37.5]}'
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": GeoJSON(geo_str)})
+        await client.put(key, {"bin": GeoJSON(geo_str)}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Current behavior: returns GeoJSON wrapper class
@@ -211,9 +211,9 @@ class TestGetBinsWrapperTypes:
 
         blob_data = b"hello world"
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": Blob(blob_data)})
+        await client.put(key, {"bin": Blob(blob_data)}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Returns Python native bytes
@@ -240,9 +240,9 @@ class TestGetBinsComplexNested:
 
         wp = WritePolicy()
         # Map needs to be created from Python dict, and nested Map is automatically created
-        await client.put(wp, key, {"bin": List([1, {"a": 2}, 3])})
+        await client.put(key, {"bin": List([1, {"a": 2}, 3])}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Returns Python native list
@@ -259,9 +259,9 @@ class TestGetBinsComplexNested:
 
         wp = WritePolicy()
         # Map can be created from Python dict, nested List is automatically created
-        await client.put(wp, key, {"bin": {"items": [1, 2, 3], "count": 3}})
+        await client.put(key, {"bin": {"items": [1, 2, 3], "count": 3}}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], dict)
@@ -277,7 +277,6 @@ class TestGetBinsComplexNested:
         wp = WritePolicy()
         # Use Python dict/list - nested structures are automatically wrapped
         await client.put(
-            wp,
             key,
             {
                 "bin": {
@@ -286,9 +285,10 @@ class TestGetBinsComplexNested:
                     }
                 }
             },
+            policy=wp,
         )
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["bin"], dict)
@@ -311,7 +311,6 @@ class TestGetBinsMultipleBins:
 
         wp = WritePolicy()
         await client.put(
-            wp,
             key,
             {
                 "str": "hello",
@@ -323,9 +322,10 @@ class TestGetBinsMultipleBins:
                 "geo": GeoJSON('{"type": "Point", "coordinates": [-122.0, 37.5]}'),
                 "blob": Blob(b"data"),
             },
+            policy=wp,
         )
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         assert isinstance(bins["str"], str)
@@ -356,9 +356,9 @@ class TestBinMethod:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": "hello"})
+        await client.put(key, {"bin": "hello"}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         value = rec.bin("bin")
 
         assert isinstance(value, str)
@@ -369,9 +369,9 @@ class TestBinMethod:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": List([1, 2, 3])})
+        await client.put(key, {"bin": List([1, 2, 3])}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         value = rec.bin("bin")
 
         # Returns Python native list
@@ -383,9 +383,9 @@ class TestBinMethod:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"bin": "value"})
+        await client.put(key, {"bin": "value"}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         value = rec.bin("nonexistent")
 
         assert value is None
@@ -399,9 +399,9 @@ class TestGetBinsReturnType:
         client, rp, key = client_and_key
 
         wp = WritePolicy()
-        await client.put(wp, key, {"a": 1, "b": 2})
+        await client.put(key, {"a": 1, "b": 2}, policy=wp)
 
-        rec = await client.get(rp, key)
+        rec = await client.get(key, policy=rp)
         bins = rec.bins
 
         # Should be dict-like

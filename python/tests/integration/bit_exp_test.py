@@ -36,7 +36,7 @@ class TestBitExpRead(TestFixtureConnection):
         blob = bytes([0x01, 0x42, 0x03, 0x04, 0x05])
 
         try:
-            await client.put(wp, key, {bin_a: blob})
+            await client.put(key, {bin_a: blob}, policy=wp)
             bb = fe.blob_bin(bin_a)
 
             # --- bit_get ---
@@ -46,7 +46,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive: byte at offset 16 == 0x03
@@ -54,7 +54,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
                 fe.blob_val(bytes([0x03])),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- bit_count ---
@@ -64,7 +64,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_count(fe.int_val(32), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -72,7 +72,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_count(fe.int_val(16), fe.int_val(8), bb),
                 fe.bit_count(fe.int_val(32), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- bit_lscan ---
@@ -82,7 +82,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.int_val(5),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Nested: lscan on bit_get result
@@ -93,7 +93,7 @@ class TestBitExpRead(TestFixtureConnection):
                 ),
                 fe.int_val(5),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # Positive: direct lscan
@@ -101,7 +101,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_lscan(fe.int_val(32), fe.int_val(8), fe.bool_val(True), bb),
                 fe.int_val(5),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- bit_rscan ---
@@ -111,7 +111,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.int_val(7),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -119,7 +119,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_rscan(fe.int_val(32), fe.int_val(8), fe.bool_val(True), bb),
                 fe.int_val(7),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- bit_get_int ---
@@ -129,7 +129,7 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.int_val(0x05),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -137,12 +137,12 @@ class TestBitExpRead(TestFixtureConnection):
                 fe.bit_get_int(fe.int_val(32), fe.int_val(8), True, bb),
                 fe.int_val(0x05),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -161,7 +161,7 @@ class TestBitExpModify(TestFixtureConnection):
         bp = BitPolicy(BitWriteFlags.DEFAULT)
 
         try:
-            await client.put(wp, key, {bin_a: blob})
+            await client.put(key, {bin_a: blob}, policy=wp)
             bb = fe.blob_bin(bin_a)
 
             # --- resize ---
@@ -171,7 +171,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_resize(bp, fe.int_val(6), BitwiseResizeFlags.DEFAULT, bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -179,7 +179,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_resize(bp, fe.int_val(6), BitwiseResizeFlags.DEFAULT, bb),
                 fe.bit_resize(bp, fe.int_val(6), BitwiseResizeFlags.DEFAULT, bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- insert ---
@@ -193,7 +193,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.int_val(0xFF),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -204,7 +204,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.int_val(0xFF),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- remove ---
@@ -217,7 +217,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.int_val(0x42),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -228,7 +228,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.int_val(0x42),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- set ---
@@ -242,7 +242,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(32), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -253,7 +253,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(32), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- or ---
@@ -267,7 +267,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(32), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -278,7 +278,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(32), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- xor ---
@@ -292,7 +292,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -303,7 +303,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- and ---
@@ -317,7 +317,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(0), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -328,7 +328,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(0), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- not ---
@@ -341,7 +341,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -352,7 +352,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- lshift ---
@@ -365,7 +365,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(2), fe.int_val(6), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -376,7 +376,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(2), fe.int_val(6), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- rshift ---
@@ -389,7 +389,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(24), fe.int_val(6), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -400,7 +400,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(24), fe.int_val(6), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- add ---
@@ -413,7 +413,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(24), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -424,7 +424,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(24), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- subtract ---
@@ -437,7 +437,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -448,7 +448,7 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(16), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
             # --- set_int ---
@@ -461,7 +461,7 @@ class TestBitExpModify(TestFixtureConnection):
                 fe.bit_get(fe.int_val(8), fe.int_val(8), bb),
             )
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key, [bin_a])
+                await client.get(key, [bin_a], policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
             # Positive
@@ -472,11 +472,11 @@ class TestBitExpModify(TestFixtureConnection):
                 ),
                 fe.bit_get(fe.int_val(8), fe.int_val(8), bb),
             )
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass

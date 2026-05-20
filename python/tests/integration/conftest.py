@@ -49,7 +49,10 @@ def wait_for_index():
                 stmt = Statement(ns, set_name, bins or [])
                 stmt.filters = [sindex_filter]
                 records = await client.query(
-                    QueryPolicy(), PartitionFilter.all(), stmt)
+                    stmt,
+                    PartitionFilter.all(),
+                    policy=QueryPolicy(),
+                )
                 async for _ in records:
                     break
                 return

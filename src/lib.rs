@@ -38,6 +38,7 @@ use tokio::sync::Mutex;
 use aerospike_core::errors::Error;
 
 
+mod blocking;
 mod completion;
 mod enums;
 mod errors;
@@ -66,42 +67,12 @@ pub use tls::*;
 
 define_stub_info_gatherer!(stub_info);
 
+use crate::blocking::run_blocking;
 use crate::cdt::ctx_to_vec;
 use crate::operations::{
     bins_flag, convert_ops_with_ctx_to_core, convert_scalar_ops_to_core, extract_py_ops,
     extract_py_ops_with_ctx,
 };
-
-    fn check_not_in_async_context(py: Python<'_>) -> PyResult<()> {
-        let asyncio = py.import("asyncio")?;
-        if asyncio.call_method0("get_running_loop").is_ok() {
-            return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                "Cannot call a blocking method from within an async context \
-                 (a running asyncio event loop was detected). Use the async \
-                 method and `await` it instead.",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Run a `Send` future to completion on the global Tokio runtime while
-    /// the GIL is released.  The future is moved in, polled by `block_on`
-    /// on the calling thread; aerospike-core dispatches I/O to its workers
-    /// internally.  The caller wraps any pyclass returns post-detach (the
-    /// GIL is reacquired automatically on return).
-    ///
-    /// Async-context misuse (running this from inside `asyncio.run`) is
-    /// rejected up front so we never end up calling `block_on` from a
-    /// thread that already owns an asyncio loop.
-    fn run_blocking<Fut, T>(py: Python<'_>, fut: Fut) -> PyResult<T>
-    where
-        Fut: std::future::Future<Output = PyResult<T>> + Send,
-        T: Send,
-    {
-        check_not_in_async_context(py)?;
-        let rt = pyo3_async_runtimes::tokio::get_runtime();
-        py.detach(move || rt.block_on(fut))
-    }
 
     /**********************************************************************************
      *
@@ -138,41 +109,8 @@ use crate::operations::{
         .into())
     }
 
-    /// Synchronously create and connect a Client.
-    ///
-    /// Unlike :func:`new_client`, this function does not require a running
-    /// asyncio event loop. The returned Client can only be used with the
-    /// `_blocking` method variants — calling an async method on a client built
-    /// this way raises ``RuntimeError`` because the completion bridge (which
-    /// captures an asyncio loop at construction time) is not initialized.
-    #[gen_stub_pyfunction(module = "_aerospike_async_native")]
-    #[pyfunction]
-    pub fn new_client_blocking(
-        py: Python<'_>,
-        policy: ClientPolicy,
-        seeds: String,
-    ) -> PyResult<Client> {
-        check_not_in_async_context(py)?;
-        let as_policy = policy._as.clone();
-        let as_seeds = seeds.clone();
-        let rt = pyo3_async_runtimes::tokio::get_runtime();
-
-        let raw = py.detach(|| {
-            rt.block_on(async move {
-                log::debug!(target: "aerospike_async", "connecting (blocking) to {}", as_seeds);
-                aerospike_core::Client::new(&as_policy, &as_seeds)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
-            })
-        })?;
-
-        log::debug!(target: "aerospike_async", "connected (blocking) to {}", seeds);
-        Ok(Client {
-            _as: Arc::new(raw),
-            seeds,
-            bridge: None,
-        })
-    }
+    // `new_client_blocking` lives in :mod:`blocking` alongside the other
+    // shared blocking-flavor infrastructure (``run_blocking`` etc.).
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -403,14 +341,15 @@ use crate::operations::{
         }
 
         /// Synchronously write record bin(s).
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn put_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: &Bound<'_, PyDict>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<()> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -433,16 +372,18 @@ use crate::operations::{
         }
 
         /// Synchronously read a record for the specified key.
-        #[pyo3(signature = (policy, key, bins = None))]
+        #[pyo3(signature = (key, bins=None, *, policy=None))]
         pub fn get_blocking(
             &self,
-            policy: &ReadPolicy,
             key: &Key,
             bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
             py: Python<'_>,
         ) -> PyResult<Record> {
-            let has_filter_expression = policy._as.base_policy.filter_expression.is_some();
-            let policy = policy._as.clone();
+            let has_filter_expression = policy.as_ref()
+                .map(|p| p._as.base_policy.filter_expression.is_some())
+                .unwrap_or(false);
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -465,13 +406,14 @@ use crate::operations::{
         ///
         /// Returns ``True`` if the record existed on the server before the
         /// delete, ``False`` otherwise.
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn delete_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<bool> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             run_blocking(py, async move {
@@ -504,14 +446,15 @@ use crate::operations::{
 
 
         /// Synchronously add integer bin values.
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn add_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<()> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             let bins: Vec<aerospike_core::Bin> = bins.into_iter()
@@ -524,14 +467,15 @@ use crate::operations::{
         }
 
         /// Synchronously append string bin values.
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn append_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<()> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             let bins: Vec<aerospike_core::Bin> = bins.into_iter()
@@ -544,14 +488,15 @@ use crate::operations::{
         }
 
         /// Synchronously prepend string bin values.
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn prepend_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<()> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             let bins: Vec<aerospike_core::Bin> = bins.into_iter()
@@ -564,13 +509,14 @@ use crate::operations::{
         }
 
         /// Synchronously reset record TTL.
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn touch_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<()> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             run_blocking(py, async move {
@@ -580,13 +526,14 @@ use crate::operations::{
         }
 
         /// Synchronously check whether a record exists.
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn exists_blocking(
             &self,
-            policy: &ReadPolicy,
             key: &Key,
+            policy: Option<ReadPolicy>,
             py: Python<'_>,
         ) -> PyResult<bool> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             run_blocking(py, async move {
@@ -596,14 +543,15 @@ use crate::operations::{
         }
 
         /// Synchronously execute multiple operations atomically on a single record.
+        #[pyo3(signature = (key, operations, *, policy=None))]
         pub fn operate_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             operations: Vec<Py<PyAny>>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<Record> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
@@ -616,17 +564,17 @@ use crate::operations::{
         }
 
         /// Synchronously execute a registered UDF on a single record.
-        #[pyo3(signature = (policy, key, server_path, function_name, args = None))]
+        #[pyo3(signature = (key, server_path, function_name, args=None, *, policy=None))]
         pub fn execute_udf_blocking(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             server_path: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<Option<PythonValue>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
             let core_args: Option<Vec<aerospike_core::Value>> =
@@ -641,14 +589,15 @@ use crate::operations::{
 
         /// Synchronously execute a query and return a Recordset that supports
         /// `for record in recordset:` iteration via `__iter__`/`__next__`.
+        #[pyo3(signature = (statement, partition_filter, *, policy=None))]
         pub fn query_blocking(
             &self,
-            policy: &QueryPolicy,
-            partition_filter: PartitionFilter,
             statement: &Statement,
+            partition_filter: PartitionFilter,
+            policy: Option<QueryPolicy>,
             py: Python<'_>,
         ) -> PyResult<Recordset> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let stmt = statement.clone()._as;
             let raw = run_blocking(py, async move {
@@ -659,14 +608,15 @@ use crate::operations::{
         }
 
         /// Synchronously execute a background query that performs ops on each matching record.
+        #[pyo3(signature = (statement, operations, *, write_policy=None))]
         pub fn query_operate_blocking(
             &self,
-            write_policy: &WritePolicy,
             statement: &Statement,
             operations: Vec<Py<PyAny>>,
+            write_policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<ExecuteTask> {
-            let policy = write_policy._as.clone();
+            let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let core_statement = statement._as.clone();
             let rust_ops = extract_py_ops(py, &operations)?;
@@ -684,17 +634,17 @@ use crate::operations::{
         }
 
         /// Synchronously apply a UDF to records matching the statement (background).
-        #[pyo3(signature = (write_policy, statement, package_name, function_name, args = None))]
+        #[pyo3(signature = (statement, package_name, function_name, args=None, *, write_policy=None))]
         pub fn query_execute_udf_blocking(
             &self,
-            write_policy: &WritePolicy,
             statement: &Statement,
             package_name: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            write_policy: Option<WritePolicy>,
             py: Python<'_>,
         ) -> PyResult<ExecuteTask> {
-            let policy = write_policy._as.clone();
+            let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let mut core_statement = statement._as.clone();
             let rust_args = args.map(|a| a.into_iter().map(|v| v.into())
@@ -1230,12 +1180,13 @@ use crate::operations::{
         // -- Batch blocking variants (Group 2) --
 
         /// Synchronously read multiple records by key in one batch.
+        #[pyo3(signature = (keys, bins=None, *, batch_policy=None, read_policy=None))]
         pub fn batch_read_blocking(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            read_policy: Option<&BatchReadPolicy>,
             keys: Vec<PyRef<Key>>,
             bins: Option<Vec<String>>,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1257,12 +1208,13 @@ use crate::operations::{
         }
 
         /// Synchronously write multiple records by key in one batch.
+        #[pyo3(signature = (keys, bins_list, *, batch_policy=None, write_policy=None))]
         pub fn batch_write_blocking(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            write_policy: Option<&BatchWritePolicy>,
             keys: Vec<PyRef<Key>>,
             bins_list: Vec<Py<PyAny>>,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             if keys.len() != bins_list.len() {
@@ -1308,12 +1260,13 @@ use crate::operations::{
         }
 
         /// Synchronously perform per-key ops on multiple records in one batch.
+        #[pyo3(signature = (keys, operations_list, *, batch_policy=None, write_policy=None))]
         pub fn batch_operate_blocking(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            write_policy: Option<&BatchWritePolicy>,
             keys: Vec<PyRef<Key>>,
             operations_list: Vec<Vec<Py<PyAny>>>,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             if keys.len() != operations_list.len() {
@@ -1350,11 +1303,12 @@ use crate::operations::{
         }
 
         /// Synchronously delete multiple records by key in one batch.
+        #[pyo3(signature = (keys, *, batch_policy=None, delete_policy=None))]
         pub fn batch_delete_blocking(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             delete_policy: Option<&BatchDeletePolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1375,11 +1329,12 @@ use crate::operations::{
         }
 
         /// Synchronously check existence of multiple keys in one batch.
+        #[pyo3(signature = (keys, *, batch_policy=None, read_policy=None))]
         pub fn batch_exists_blocking(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'_>,
         ) -> PyResult<Vec<bool>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1401,11 +1356,12 @@ use crate::operations::{
         }
 
         /// Synchronously read multiple record headers (metadata only) in one batch.
+        #[pyo3(signature = (keys, *, batch_policy=None, read_policy=None))]
         pub fn batch_get_header_blocking(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'_>,
         ) -> PyResult<Vec<Option<Record>>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1429,14 +1385,15 @@ use crate::operations::{
         }
 
         /// Synchronously apply a UDF to multiple keys in one batch.
+        #[pyo3(signature = (keys, udf_name, function_name, args, *, batch_policy=None, udf_policy=None))]
         pub fn batch_apply_blocking(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            udf_policy: Option<&BatchUDFPolicy>,
             keys: Vec<PyRef<Key>>,
             udf_name: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            batch_policy: Option<&BatchPolicy>,
+            udf_policy: Option<&BatchUDFPolicy>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1462,10 +1419,11 @@ use crate::operations::{
         }
 
         /// Synchronously execute a mixed batch of read/write/delete ops.
+        #[pyo3(signature = (ops, *, batch_policy=None))]
         pub fn batch_blocking(
             &self,
-            batch_policy: Option<&BatchPolicy>,
             ops: Vec<Py<PyAny>>,
+            batch_policy: Option<&BatchPolicy>,
             py: Python<'_>,
         ) -> PyResult<Vec<BatchRecord>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1557,14 +1515,15 @@ use crate::operations::{
         /// Write record bin(s). The policy specifies the transaction timeout, record expiration and
         /// how the transaction is handled when the record already exists.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn put<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: &Bound<'a, PyDict>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1596,16 +1555,18 @@ use crate::operations::{
         /// only selected record bins or only the record headers will be returned. The policy can be
         /// used to specify timeouts.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
-        #[pyo3(signature = (policy, key, bins = None))]
+        #[pyo3(signature = (key, bins=None, *, policy=None))]
         pub fn get<'a>(
             &self,
-            policy: &ReadPolicy,
             key: &Key,
             bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let has_filter_expression = policy._as.base_policy.filter_expression.is_some();
-            let policy = policy._as.clone();
+            let has_filter_expression = policy.as_ref()
+                .map(|p| p._as.base_policy.filter_expression.is_some())
+                .unwrap_or(false);
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1638,14 +1599,15 @@ use crate::operations::{
         /// Returns:
         ///     A Record containing the results of the operations.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[Record]", imports=("typing", "aerospike_async")))]
+        #[pyo3(signature = (key, operations, *, policy=None))]
         pub fn operate<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             operations: Vec<Py<PyAny>>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1667,14 +1629,15 @@ use crate::operations::{
         /// timeout, record expiration and how the transaction is handled when the record already
         /// exists. This call only works for integer values.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn add<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1697,14 +1660,15 @@ use crate::operations::{
         /// transaction timeout, record expiration and how the transaction is handled when the record
         /// already exists. This call only works for string values.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn append<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1727,14 +1691,15 @@ use crate::operations::{
         /// transaction timeout, record expiration and how the transaction is handled when the record
         /// already exists. This call only works for string values.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, bins, *, policy=None))]
         pub fn prepend<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1756,13 +1721,14 @@ use crate::operations::{
         /// Delete record for specified key. The policy specifies the transaction timeout.
         /// The call returns `true` if the record existed on the server before deletion.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn delete<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1779,13 +1745,14 @@ use crate::operations::{
         /// Reset record's time to expiration using the policy's expiration. Fail if the record does
         /// not exist.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn touch<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -1801,13 +1768,13 @@ use crate::operations::{
 
         /// Read multiple records for specified keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
-        #[pyo3(signature = (batch_policy, read_policy, keys, bins = None))]
+        #[pyo3(signature = (keys, bins=None, *, batch_policy=None, read_policy=None))]
         pub fn batch_read<'a>(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            read_policy: Option<&BatchReadPolicy>,
             keys: Vec<PyRef<Key>>,
             bins: Option<Vec<String>>,
+            batch_policy: Option<&BatchPolicy>,
+            read_policy: Option<&BatchReadPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1840,12 +1807,13 @@ use crate::operations::{
 
         /// Write multiple records for specified keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (keys, bins_list, *, batch_policy=None, write_policy=None))]
         pub fn batch_write<'a>(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            write_policy: Option<&BatchWritePolicy>,
             keys: Vec<PyRef<Key>>,
             bins_list: Vec<Py<PyAny>>,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             if keys.len() != bins_list.len() {
@@ -1902,12 +1870,13 @@ use crate::operations::{
 
         /// Perform read/write operations on multiple keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (keys, operations_list, *, batch_policy=None, write_policy=None))]
         pub fn batch_operate<'a>(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            write_policy: Option<&BatchWritePolicy>,
             keys: Vec<PyRef<Key>>,
             operations_list: Vec<Vec<Py<PyAny>>>,
+            batch_policy: Option<&BatchPolicy>,
+            write_policy: Option<&BatchWritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             if keys.len() != operations_list.len() {
@@ -1956,11 +1925,12 @@ use crate::operations::{
 
         /// Delete multiple records for specified keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (keys, *, batch_policy=None, delete_policy=None))]
         pub fn batch_delete<'a>(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             delete_policy: Option<&BatchDeletePolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -1992,11 +1962,12 @@ use crate::operations::{
 
         /// Check if multiple record keys exist in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[builtins.bool]]", imports=("typing", "builtins")))]
+        #[pyo3(signature = (keys, *, batch_policy=None, read_policy=None))]
         pub fn batch_exists<'a>(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -2029,11 +2000,12 @@ use crate::operations::{
 
         /// Read multiple record headers (metadata only, no bin data) for specified keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[typing.Optional[Record]]]", imports=("typing")))]
+        #[pyo3(signature = (keys, *, batch_policy=None, read_policy=None))]
         pub fn batch_get_header<'a>(
             &self,
+            keys: Vec<PyRef<Key>>,
             batch_policy: Option<&BatchPolicy>,
             read_policy: Option<&BatchReadPolicy>,
-            keys: Vec<PyRef<Key>>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -2066,14 +2038,15 @@ use crate::operations::{
 
         /// Apply UDF operations on multiple keys in one batch call.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (keys, udf_name, function_name, args, *, batch_policy=None, udf_policy=None))]
         pub fn batch_apply<'a>(
             &self,
-            batch_policy: Option<&BatchPolicy>,
-            udf_policy: Option<&BatchUDFPolicy>,
             keys: Vec<PyRef<Key>>,
             udf_name: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            batch_policy: Option<&BatchPolicy>,
+            udf_policy: Option<&BatchUDFPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -2123,10 +2096,11 @@ use crate::operations::{
         /// Returns:
         ///     A list of :class:`BatchRecord` results in the same order as the input ops.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Sequence[BatchRecord]]", imports=("typing")))]
+        #[pyo3(signature = (ops, *, batch_policy=None))]
         pub fn batch<'a>(
             &self,
-            batch_policy: Option<&BatchPolicy>,
             ops: Vec<Py<PyAny>>,
+            batch_policy: Option<&BatchPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let batch_policy = batch_policy.map(|p| p._as.clone()).unwrap_or_default();
@@ -2233,16 +2207,17 @@ use crate::operations::{
         /// Returns:
         ///     Optional Value containing the UDF result, or None if the UDF returns no value.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[typing.Any]]", imports=("typing")))]
+        #[pyo3(signature = (key, server_path, function_name, args=None, *, policy=None))]
         pub fn execute_udf<'a>(
             &self,
-            policy: &WritePolicy,
             key: &Key,
             server_path: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -2281,14 +2256,15 @@ use crate::operations::{
         /// Returns:
         ///     ExecuteTask to monitor completion (query_status, wait_till_complete).
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[ExecuteTask]", imports=("typing")))]
+        #[pyo3(signature = (statement, operations, *, write_policy=None))]
         pub fn query_operate<'a>(
             &self,
-            write_policy: &WritePolicy,
             statement: &Statement,
             operations: Vec<Py<PyAny>>,
+            write_policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = write_policy._as.clone();
+            let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let core_statement = statement._as.clone();
 
@@ -2323,16 +2299,17 @@ use crate::operations::{
         /// Returns:
         ///     ExecuteTask to monitor completion (query_status, wait_till_complete).
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[ExecuteTask]", imports=("typing")))]
+        #[pyo3(signature = (statement, package_name, function_name, args=None, *, write_policy=None))]
         pub fn query_execute_udf<'a>(
             &self,
-            write_policy: &WritePolicy,
             statement: &Statement,
             package_name: String,
             function_name: String,
             args: Option<Vec<PythonValue>>,
+            write_policy: Option<WritePolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = write_policy._as.clone();
+            let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let mut core_statement = statement._as.clone();
             let rust_args = args.map(|a| a.into_iter().map(|v| v.into()).collect::<Vec<aerospike_core::Value>>());
@@ -2359,12 +2336,13 @@ use crate::operations::{
         /// Returns:
         ///     RegisterTask that can be used to wait for registration completion.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[RegisterTask]", imports=("typing")))]
+        #[pyo3(signature = (udf_body, server_path, language, *, policy=None))]
         pub fn register_udf<'a>(
             &self,
-            policy: Option<AdminPolicy>,
             udf_body: Vec<u8>,
             server_path: String,
             language: UDFLang,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
@@ -2391,12 +2369,13 @@ use crate::operations::{
         /// Returns:
         ///     RegisterTask that can be used to wait for registration completion.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[RegisterTask]", imports=("typing")))]
+        #[pyo3(signature = (client_path, server_path, language, *, policy=None))]
         pub fn register_udf_from_file<'a>(
             &self,
-            policy: Option<AdminPolicy>,
             client_path: String,
             server_path: String,
             language: UDFLang,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
@@ -2421,10 +2400,11 @@ use crate::operations::{
         /// Returns:
         ///     UdfRemoveTask that can be used to wait for removal completion.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[UdfRemoveTask]", imports=("typing")))]
+        #[pyo3(signature = (server_path, *, policy=None))]
         pub fn remove_udf<'a>(
             &self,
-            policy: Option<AdminPolicy>,
             server_path: String,
+            policy: Option<AdminPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
@@ -2441,13 +2421,14 @@ use crate::operations::{
 
         /// Determine if a record key exists. The policy can be used to specify timeouts.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn exists<'a>(
             &self,
-            policy: &ReadPolicy,
             key: &Key,
+            policy: Option<ReadPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -2463,13 +2444,14 @@ use crate::operations::{
         /// Determine if a record key exists (legacy contract). Returns (key, meta) where meta=None if record not found.
         /// This matches the legacy Python client contract.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]", imports=("typing")))]
+        #[pyo3(signature = (key, *, policy=None))]
         pub fn exists_legacy<'a>(
             &self,
-            policy: &ReadPolicy,
             key: &Key,
+            policy: Option<ReadPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let key = key._as.clone();
             let client = self._as.clone();
 
@@ -2629,14 +2611,15 @@ use crate::operations::{
         /// records on a queue in separate threads. The calling thread concurrently pops records off
         /// the queue through the record iterator.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(signature = (statement, partition_filter, *, policy=None))]
         pub fn query<'a>(
             &self,
-            policy: &QueryPolicy,
-            partition_filter: PartitionFilter,
             statement: &Statement,
+            partition_filter: PartitionFilter,
+            policy: Option<QueryPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
-            let policy = policy._as.clone();
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let stmt = statement.clone()._as;
 
@@ -3438,7 +3421,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TlsConfig>()?;
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
-    m.add_function(wrap_pyfunction!(new_client_blocking, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::blocking::new_client_blocking, m)?)?;
     m.add_class::<completion::CompletionDrainer>()?;
 
     // Create and register the exceptions submodule

@@ -44,7 +44,7 @@ class TestQuery(TestFixtureInsertRecord):
 
     async def test_query_and_recordset(self, client, stmt):
         """Test basic query operation and Recordset functionality."""
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         assert isinstance(records, Recordset)
 
         async for record in records:
@@ -67,19 +67,19 @@ class TestQuery(TestFixtureInsertRecord):
     async def test_with_policy(self, client, stmt):
         """Test query operation with query policy."""
         qp = QueryPolicy()
-        records = await client.query(qp, PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=qp)
         assert isinstance(records, Recordset)
 
     async def test_fail(self, client):
         """Test query operation with invalid parameters raises TypeError."""
         # Test with invalid partition filter type to trigger TypeError
         with pytest.raises(TypeError):
-            records = await client.query(QueryPolicy(), "invalid_filter", Statement("test", "test", ["bin1"]))
+            records = await client.query(Statement("test", "test", ["bin1"]), "invalid_filter", policy=QueryPolicy())
 
     async def test_invalid_node_error(self, client):
         """Test query operation with invalid namespace raises InvalidNamespaceError during iteration."""
         stmt_invalid_namespace = Statement("bad_ns", "test", ["bin1"])
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt_invalid_namespace)
+        records = await client.query(stmt_invalid_namespace, PartitionFilter.all(), policy=QueryPolicy())
 
         max_wait = 10
         for _ in range(max_wait):
@@ -103,7 +103,7 @@ class TestQueryEmptySet(TestFixtureConnection):
 
         assert stmt.set_name is None
 
-        rs = await client.query(qp, pf, stmt)
+        rs = await client.query(stmt, pf, policy=qp)
         assert isinstance(rs, Recordset)
 
     async def test_query_empty_set_name_empty_string(self, client):
@@ -114,7 +114,7 @@ class TestQueryEmptySet(TestFixtureConnection):
 
         assert stmt.set_name is None
 
-        rs = await client.query(qp, pf, stmt)
+        rs = await client.query(stmt, pf, policy=qp)
         assert isinstance(rs, Recordset)
 
     async def test_query_empty_set_name_equivalence(self, client):
@@ -156,7 +156,7 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
         stmt = Statement("test", "test", ["year"])
         stmt.filters = [flt]
 
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         found = False
         async for record in records:
             assert isinstance(record, Record)
@@ -190,7 +190,7 @@ class TestQueryFilterContext(TestFixtureConnection):
         wp = WritePolicy()
         for i in range(5):
             key = Key("test", self.set_name, i)
-            await client.put(wp, key, {self.bin_name: [i]})
+            await client.put(key, {self.bin_name: [i]}, policy=wp)
 
         await client.create_index(
             "test",
@@ -208,7 +208,7 @@ class TestQueryFilterContext(TestFixtureConnection):
         stmt = Statement("test", self.set_name, [self.bin_name])
         stmt.filters = [flt]
 
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         count = 0
         async for _ in records:
             count += 1
@@ -246,7 +246,7 @@ class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
         stmt = Statement("test", "test", ["year"])
         stmt.filters = [flt]
 
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), stmt)
+        records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         found = False
         async for record in records:
             assert isinstance(record, Record)

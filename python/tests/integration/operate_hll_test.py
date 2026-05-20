@@ -29,7 +29,7 @@ from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, 
 async def safe_delete(client, key):
     """Delete a key, ignoring errors if key doesn't exist."""
     try:
-        await client.delete(WritePolicy(), key)
+        await client.delete(key, policy=WritePolicy())
     except ServerError:
         pass
 
@@ -42,12 +42,16 @@ class TestHllInit(TestFixtureConnection):
         key = Key("test", "test", "hll_init_basic")
 
         for index_bits in [4, 8, 12, 16]:
-            result = await client.operate(WritePolicy(), key, [
+            result = await client.operate(
+                key,
+                [
                 Operation.delete(),
                 HllOperation.init("hll", index_bits),
                 HllOperation.get_count("hll"),
                 HllOperation.describe("hll")
-            ])
+            ],
+                policy=WritePolicy(),
+            )
             assert result.bins["hll"][0] == 0  # count should be 0
             desc = result.bins["hll"][1]
             assert desc[0] == index_bits  # index_bit_count
@@ -57,11 +61,15 @@ class TestHllInit(TestFixtureConnection):
         """Test HLL init with minhash bits."""
         key = Key("test", "test", "hll_init_minhash")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 8, 16),  # index=8, minhash=16
             HllOperation.describe("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         desc = result.bins["hll"]
         assert desc[0] == 8
         assert desc[1] == 16
@@ -73,16 +81,24 @@ class TestHllInit(TestFixtureConnection):
 
         # Index bits too low (min is 4)
         with pytest.raises(InvalidRequest) as exc_info:
-            await client.operate(WritePolicy(), key, [
+            await client.operate(
+                key,
+                [
                 HllOperation.init("hll", 2)
-            ])
+            ],
+                policy=WritePolicy(),
+            )
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
         # Index bits too high (max is 16)
         with pytest.raises(InvalidRequest) as exc_info:
-            await client.operate(WritePolicy(), key, [
+            await client.operate(
+                key,
+                [
                 HllOperation.init("hll", 20)
-            ])
+            ],
+                policy=WritePolicy(),
+            )
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
 
@@ -93,12 +109,16 @@ class TestHllAdd(TestFixtureConnection):
         """Test basic HLL add."""
         key = Key("test", "test", "hll_add_basic")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 10),
             HllOperation.add("hll", ["a", "b", "c", "d", "e"]),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         # add returns number of updates, count returns estimated count
         add_count = result.bins["hll"][0]
         est_count = result.bins["hll"][1]
@@ -109,17 +129,25 @@ class TestHllAdd(TestFixtureConnection):
         """Test HLL add with duplicates returns 0 for already-seen values."""
         key = Key("test", "test", "hll_add_dups")
 
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 10),
             HllOperation.add("hll", ["a", "b", "c"])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         # Add same values again
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             HllOperation.add("hll", ["a", "b", "c"]),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         add_count = result.bins["hll"][0]
         assert add_count == 0  # No new values
 
@@ -127,11 +155,15 @@ class TestHllAdd(TestFixtureConnection):
         """Test HLL add can create bin if index_bit_count provided."""
         key = Key("test", "test", "hll_add_create")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.add("hll", ["x", "y", "z"], index_bit_count=8),
             HllOperation.describe("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         desc = result.bins["hll"][1]
         assert desc[0] == 8
 
@@ -143,11 +175,15 @@ class TestHllCount(TestFixtureConnection):
         """Test count on empty HLL."""
         key = Key("test", "test", "hll_count_empty")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 8),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         assert result.bins["hll"] == 0
 
     async def test_count_accuracy(self, client):
@@ -158,11 +194,15 @@ class TestHllCount(TestFixtureConnection):
 
         values = [f"key_{i}" for i in range(n_entries)]
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.add("hll", values, index_bit_count=index_bits),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         count = result.bins["hll"][1]
 
         # HLL relative error is approximately 1.04/sqrt(2^index_bits)
@@ -190,11 +230,15 @@ class TestHllDescribe(TestFixtureConnection):
         ]
 
         for index_bits, minhash_bits in test_cases:
-            result = await client.operate(WritePolicy(), key, [
+            result = await client.operate(
+                key,
+                [
                 Operation.delete(),
                 HllOperation.init("hll", index_bits, minhash_bits),
                 HllOperation.describe("hll")
-            ])
+            ],
+                policy=WritePolicy(),
+            )
             desc = result.bins["hll"]
             assert desc[0] == index_bits, f"Expected index_bits={index_bits}, got {desc[0]}"
             assert desc[1] == minhash_bits, f"Expected minhash_bits={minhash_bits}, got {desc[1]}"
@@ -207,13 +251,17 @@ class TestHllRefreshCount(TestFixtureConnection):
         """Test refresh_count updates and returns count."""
         key = Key("test", "test", "hll_refresh")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 8),
             HllOperation.add("hll", ["a", "b", "c"]),
             HllOperation.refresh_count("hll"),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         refresh_count = result.bins["hll"][1]
         get_count = result.bins["hll"][2]
         assert refresh_count == get_count
@@ -228,19 +276,27 @@ class TestHllFold(TestFixtureConnection):
 
         # Create HLL with index_bits=10
         values = [f"key_{i}" for i in range(100)]
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.add("hll", values, index_bit_count=10),
             HllOperation.describe("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         assert result.bins["hll"][1][0] == 10
 
         # Fold down to index_bits=6
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             HllOperation.fold("hll", 6),
             HllOperation.describe("hll"),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         desc = result.bins["hll"][0]
         count = result.bins["hll"][1]
         assert desc[0] == 6
@@ -251,16 +307,24 @@ class TestHllFold(TestFixtureConnection):
         """Test folding HLL to larger index_bit_count fails."""
         key = Key("test", "test", "hll_fold_up")
 
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 6)
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         # Try to fold up to index_bits=10 - should fail
         with pytest.raises(OpNotApplicable) as exc_info:
-            await client.operate(WritePolicy(), key, [
+            await client.operate(
+                key,
+                [
                 HllOperation.fold("hll", 10)
-            ])
+            ],
+                policy=WritePolicy(),
+            )
         assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
 
 
@@ -273,15 +337,23 @@ class TestHllFlags(TestFixtureConnection):
         await safe_delete(client, key)
 
         # First init succeeds
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             HllOperation.init("hll", 8, flags=HLLWriteFlags.CREATE_ONLY)
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         # Second init fails with CREATE_ONLY
         with pytest.raises(ServerError) as exc_info:
-            await client.operate(WritePolicy(), key, [
+            await client.operate(
+                key,
+                [
                 HllOperation.init("hll", 8, flags=HLLWriteFlags.CREATE_ONLY)
-            ])
+            ],
+                policy=WritePolicy(),
+            )
         assert exc_info.value.result_code == ResultCode.BIN_EXISTS_ERROR
 
     async def test_update_only_flag(self, client):
@@ -291,20 +363,32 @@ class TestHllFlags(TestFixtureConnection):
 
         # Init fails on non-existent bin with UPDATE_ONLY
         with pytest.raises(BinNotFound) as exc_info:
-            await client.operate(WritePolicy(), key, [
+            await client.operate(
+                key,
+                [
                 HllOperation.init("hll", 8, flags=HLLWriteFlags.UPDATE_ONLY)
-            ])
+            ],
+                policy=WritePolicy(),
+            )
         assert exc_info.value.result_code == ResultCode.BIN_NOT_FOUND
 
         # Create bin first
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             HllOperation.init("hll", 8)
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         # Now UPDATE_ONLY succeeds
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             HllOperation.init("hll", 8, flags=HLLWriteFlags.UPDATE_ONLY)
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
     async def test_no_fail_flag(self, client):
         """Test NO_FAIL flag suppresses errors."""
@@ -312,16 +396,24 @@ class TestHllFlags(TestFixtureConnection):
         await safe_delete(client, key)
 
         # Create bin first
-        await client.operate(WritePolicy(), key, [
+        await client.operate(
+            key,
+            [
             HllOperation.init("hll", 8)
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         # CREATE_ONLY | NO_FAIL should not raise on existing bin
         flags = HLLWriteFlags.CREATE_ONLY | HLLWriteFlags.NO_FAIL
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             HllOperation.init("hll", 8, flags=flags),
             HllOperation.describe("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         # Should succeed without raising
         assert result is not None
 
@@ -339,28 +431,40 @@ class TestHllUnion(TestFixtureConnection):
         # Create first HLL and get the HLL bin value
         values1 = [f"set1_key_{i}" for i in range(100)]
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", values1, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         # Create second HLL with different values
         values2 = [f"set2_key_{i}" for i in range(100)]
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", values2, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Create main HLL and get union count
         # When only one operation returns a value, result is that value directly
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.init("hll", index_bits),
             HllOperation.get_union_count("hll", [hll1, hll2])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         union_count = result.bins["hll"]
 
         # Union of 100 + 100 disjoint sets should be ~200
@@ -379,26 +483,38 @@ class TestHllUnion(TestFixtureConnection):
         values2 = [f"b_{i}" for i in range(50)]
 
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", values1, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", values2, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Set union and get count - result is directly the count int
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.init("hll", index_bits),
             HllOperation.set_union("hll", [hll1, hll2]),
             HllOperation.get_count("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         count = result.bins["hll"]
         assert count > 80 and count < 120
 
@@ -413,25 +529,37 @@ class TestHllUnion(TestFixtureConnection):
         values2 = ["a", "b", "c"]
 
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", values1, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", values2, index_bit_count=index_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Get union returns an HLL value object
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.init("hll", index_bits),
             HllOperation.get_union("hll", [hll1, hll2])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         union_hll = result.bins["hll"]
         assert union_hll is not None
         # HLL values are returned as HLL objects, check it has the expected type name
@@ -455,25 +583,37 @@ class TestHllSimilarity(TestFixtureConnection):
         unique2 = [f"unique2_{i}" for i in range(50)]
 
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", common + unique1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", common + unique2, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Get intersection count
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.add("hll", common + unique1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             HllOperation.get_intersect_count("hll", [hll2])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         intersect_count = result.bins["hll"][1]
 
         # Intersection should be ~50 (the common elements)
@@ -493,25 +633,37 @@ class TestHllSimilarity(TestFixtureConnection):
         values = [f"value_{i}" for i in range(100)]
 
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", values, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", values, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Get similarity
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.add("hll", values, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             HllOperation.get_similarity("hll", [hll1, hll2])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         similarity = result.bins["hll"][1]
 
         # Identical sets should have similarity close to 1.0
@@ -529,25 +681,37 @@ class TestHllSimilarity(TestFixtureConnection):
         values2 = [f"set2_value_{i}" for i in range(100)]
 
         await safe_delete(client, key1)
-        result1 = await client.operate(WritePolicy(), key1, [
+        result1 = await client.operate(
+            key1,
+            [
             HllOperation.add("hll", values1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
-        result2 = await client.operate(WritePolicy(), key2, [
+        result2 = await client.operate(
+            key2,
+            [
             HllOperation.add("hll", values2, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             Operation.get_bin("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         hll2 = result2.bins["hll"][1]
 
         # Get similarity of disjoint sets
         await safe_delete(client, key_main)
-        result = await client.operate(WritePolicy(), key_main, [
+        result = await client.operate(
+            key_main,
+            [
             HllOperation.add("hll", values1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
             HllOperation.get_similarity("hll", [hll2])
-        ])
+        ],
+            policy=WritePolicy(),
+        )
         similarity = result.bins["hll"][1]
 
         # Disjoint sets should have similarity close to 0
@@ -561,14 +725,18 @@ class TestHllMultipleOperations(TestFixtureConnection):
         """Test multiple operations in single operate call."""
         key = Key("test", "test", "hll_multi_ops")
 
-        result = await client.operate(WritePolicy(), key, [
+        result = await client.operate(
+            key,
+            [
             Operation.delete(),
             HllOperation.init("hll", 10, 0),
             HllOperation.add("hll", ["a", "b", "c", "d", "e"]),
             HllOperation.get_count("hll"),
             HllOperation.refresh_count("hll"),
             HllOperation.describe("hll")
-        ])
+        ],
+            policy=WritePolicy(),
+        )
 
         results = result.bins["hll"]
         # results[0] = init (no return)

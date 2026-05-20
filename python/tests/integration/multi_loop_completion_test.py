@@ -93,8 +93,8 @@ class TestMultiLoopCompletion:
         try:
             async def roundtrip(client, i):
                 key = Key("test", "test", f"multiloop_{i}")
-                await client.put(WritePolicy(), key, {"bin": i})
-                rec = await client.get(ReadPolicy(), key)
+                await client.put(key, {"bin": i}, policy=WritePolicy())
+                rec = await client.get(key, policy=ReadPolicy())
                 return rec.bins["bin"] if rec is not None else None
 
             results = []
@@ -140,7 +140,7 @@ class TestMultiLoopCompletion:
             async def use_client_on_wrong_loop():
                 # The Client was bound to loop_a; calling .get() while running
                 # on loop_b must fail at batched_future_into_py entry.
-                return await client.get(ReadPolicy(), Key("test", "test", "x"))
+                return await client.get(Key("test", "test", "x"), policy=ReadPolicy())
 
             with pytest.raises(RuntimeError, match="different event loop"):
                 _submit(loop_b, use_client_on_wrong_loop())

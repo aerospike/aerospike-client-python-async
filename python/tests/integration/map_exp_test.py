@@ -38,18 +38,22 @@ class TestMapExp(TestFixtureConnection):
         try:
             map_val = {"key1": "e", "key2": "d", "key3": "c", "key4": "b", "key5": "a"}
             mp = MapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE)
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 MapOperation.put_items(bin_name, list(map_val.items()), mp),
-            ])
+            ],
+                policy=wp,
+            )
 
             rp.filter_expression = fe.eq(fe.map_bin(bin_name), fe.map_val(map_val))
-            rec = await client.get(rp, key, [bin_name])
+            rec = await client.get(key, [bin_name], policy=rp)
             assert rec is not None
             assert isinstance(rec.bins[bin_name], dict)
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -61,7 +65,7 @@ class TestMapExp(TestFixtureConnection):
 
         try:
             map_val = {"a": 1, "b": 2, "c": 2, "d": 3}
-            await client.put(wp, key, {bin_name: map_val})
+            await client.put(key, {bin_name: map_val}, policy=wp)
 
             exp = fe.map_remove_by_value(
                 MapReturnType.INVERTED,
@@ -70,9 +74,13 @@ class TestMapExp(TestFixtureConnection):
                 [],
             )
 
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read(bin_name, exp),
-            ])
+            ],
+                policy=wp,
+            )
             assert result is not None
             m = result.bins[bin_name]
             assert isinstance(m, dict)
@@ -82,6 +90,6 @@ class TestMapExp(TestFixtureConnection):
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass

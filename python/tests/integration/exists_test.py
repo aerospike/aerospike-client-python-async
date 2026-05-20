@@ -24,24 +24,24 @@ class TestExists(TestFixtureInsertRecord):
 
     async def test_existing_record(self, client, key):
         """Test checking existence of an existing record."""
-        retval = await client.exists(ReadPolicy(), key)
+        retval = await client.exists(key, policy=ReadPolicy())
         assert retval is True
 
     async def test_nonexistent_record(self, client, key_invalid_primary_key):
         """Test checking existence of a non-existent record."""
-        retval = await client.exists(ReadPolicy(), key_invalid_primary_key)
+        retval = await client.exists(key_invalid_primary_key, policy=ReadPolicy())
         assert retval is False
 
     async def test_exists_with_policy(self, client, key):
         """Test exists operation with read policy."""
         rp = ReadPolicy()
-        retval = await client.exists(rp, key)
+        retval = await client.exists(key, policy=rp)
         assert retval is True
 
     async def test_exists_fail(self, client, key_invalid_namespace):
         """Test exists operation with invalid namespace raises TimeoutError."""
         with pytest.raises(TimeoutError):
-            await client.exists(ReadPolicy(), key_invalid_namespace)
+            await client.exists(key_invalid_namespace, policy=ReadPolicy())
 
 
 class TestExistsLegacy(TestFixtureInsertRecord):
@@ -49,7 +49,7 @@ class TestExistsLegacy(TestFixtureInsertRecord):
 
     async def test_existing_record(self, client, key):
         """Test checking existence of an existing record returns (key, meta) tuple with metadata."""
-        retval = await client.exists_legacy(ReadPolicy(), key)
+        retval = await client.exists_legacy(key, policy=ReadPolicy())
         assert isinstance(retval, tuple)
         assert len(retval) == 2
         assert retval[0] == key
@@ -61,7 +61,7 @@ class TestExistsLegacy(TestFixtureInsertRecord):
 
     async def test_nonexistent_record(self, client, key_invalid_primary_key):
         """Test checking existence of a non-existent record returns (key, None)."""
-        retval = await client.exists_legacy(ReadPolicy(), key_invalid_primary_key)
+        retval = await client.exists_legacy(key_invalid_primary_key, policy=ReadPolicy())
         assert isinstance(retval, tuple)
         assert len(retval) == 2
         assert retval[0] == key_invalid_primary_key
@@ -71,7 +71,7 @@ class TestExistsLegacy(TestFixtureInsertRecord):
     async def test_exists_legacy_with_policy(self, client, key):
         """Test exists_legacy operation with read policy."""
         rp = ReadPolicy()
-        retval = await client.exists_legacy(rp, key)
+        retval = await client.exists_legacy(key, policy=rp)
         assert isinstance(retval, tuple)
         assert len(retval) == 2
         assert retval[0] == key
@@ -79,4 +79,4 @@ class TestExistsLegacy(TestFixtureInsertRecord):
     async def test_exists_legacy_fail(self, client, key_invalid_namespace):
         """Test exists_legacy operation with invalid namespace raises TimeoutError."""
         with pytest.raises(TimeoutError):
-            await client.exists_legacy(ReadPolicy(), key_invalid_namespace)
+            await client.exists_legacy(key_invalid_namespace, policy=ReadPolicy())

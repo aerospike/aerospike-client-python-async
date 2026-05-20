@@ -40,7 +40,7 @@ class TestListExp(TestFixtureConnection):
             list_sub = ["e", "d", "c", "b", "a"]
             list_a = ["a", "b", "c", "d", list_sub]
             list_b = ["x", "y", "z"]
-            await client.put(wp, key, {bin_a: list_a, bin_b: list_b})
+            await client.put(key, {bin_a: list_a, bin_b: list_b}, policy=wp)
 
             ctx = [CTX.list_index(4)]
 
@@ -64,7 +64,7 @@ class TestListExp(TestFixtureConnection):
             )
 
             rp.filter_expression = exp
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
             result = rec.bins[bin_a]
             assert len(result) == 5
@@ -89,14 +89,14 @@ class TestListExp(TestFixtureConnection):
             )
 
             rp.filter_expression = exp2
-            rec = await client.get(rp, key, [bin_a])
+            rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None
             result = rec.bins[bin_a]
             assert len(result) == 5
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -111,20 +111,28 @@ class TestListExp(TestFixtureConnection):
             exp = fe.list_val(values)
 
             # Write the list via expression, then read it back
-            await client.operate(wp, key, [
+            await client.operate(
+                key,
+                [
                 ExpOperation.write(bin_c, exp),
-            ])
+            ],
+                policy=wp,
+            )
 
-            result = await client.operate(wp, key, [
+            result = await client.operate(
+                key,
+                [
                 ExpOperation.read("var", exp),
-            ])
+            ],
+                policy=wp,
+            )
 
             results = result.bins["var"]
             assert len(results) == 4
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass
 
@@ -135,7 +143,7 @@ class TestListExp(TestFixtureConnection):
         rp = ReadPolicy()
 
         try:
-            await client.put(wp, key, {"nums": [1, 2, 3, 4]})
+            await client.put(key, {"nums": [1, 2, 3, 4]}, policy=wp)
 
             # NONE: remove value 3 -> [1, 2, 4], size == 3
             exp_none = fe.eq(
@@ -151,7 +159,7 @@ class TestListExp(TestFixtureConnection):
                 fe.int_val(3),
             )
             rp.filter_expression = exp_none
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec is not None
 
             # INVERTED: remove everything except value 3 -> [3], size == 1
@@ -168,7 +176,7 @@ class TestListExp(TestFixtureConnection):
                 fe.int_val(1),
             )
             rp.filter_expression = exp_inv
-            rec = await client.get(rp, key)
+            rec = await client.get(key, policy=rp)
             assert rec is not None
 
             # Negative: INVERTED with size == 3 should fail (actual size is 1)
@@ -186,11 +194,11 @@ class TestListExp(TestFixtureConnection):
             )
             rp.filter_expression = exp_neg
             with pytest.raises(FilteredOut) as exc_info:
-                await client.get(rp, key)
+                await client.get(key, policy=rp)
             assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
         finally:
             try:
-                await client.delete(wp, key)
+                await client.delete(key, policy=wp)
             except ServerError:
                 pass

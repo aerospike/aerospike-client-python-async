@@ -24,20 +24,20 @@ class TestAppend(TestFixtureInsertRecord):
 
     async def test_append(self, client, key):
         """Test basic append operation."""
-        retval = await client.append(WritePolicy(), key, {"brand": "d"})
+        retval = await client.append(key, {"brand": "d"}, policy=WritePolicy())
         assert retval is None
 
-        rec = await client.get(ReadPolicy(), key)
+        rec = await client.get(key, policy=ReadPolicy())
         assert rec.bins["brand"] == "Fordd"
 
     async def test_append_with_policy(self, client, key):
         """Test append operation with write policy."""
         wp = WritePolicy()
-        retval = await client.append(wp, key, {"brand": "d"})
+        retval = await client.append(key, {"brand": "d"}, policy=wp)
         assert retval is None
 
     async def test_append_unsupported_bin_type(self, client, key):
         """Test append operation with unsupported bin type raises BinTypeError."""
         with pytest.raises(BinTypeError) as exc_info:
-            await client.append(WritePolicy(), key, {"year": "d"})
+            await client.append(key, {"year": "d"}, policy=WritePolicy())
         assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR

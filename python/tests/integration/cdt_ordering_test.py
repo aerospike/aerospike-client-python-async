@@ -38,7 +38,7 @@ async def client_and_key(aerospike_host, use_services_alternate):
     wp = WritePolicy()
     for i in range(1, 25):
         try:
-            await client.delete(wp, Key("test", "test", f"cdt_ord_{i}"))
+            await client.delete(Key("test", "test", f"cdt_ord_{i}"), policy=wp)
         except Exception:
             pass
 
@@ -60,13 +60,17 @@ class TestKOrderedMapOrdering:
         key = _key(1)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "cherry", 3, policy),
             MapOperation.put(BIN, "apple", 1, policy),
             MapOperation.put(BIN, "banana", 2, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert list(m.keys()) == ["apple", "banana", "cherry"]
@@ -79,15 +83,19 @@ class TestKOrderedMapOrdering:
         key = _key(2)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, 50, "fifty", policy),
             MapOperation.put(BIN, 10, "ten", policy),
             MapOperation.put(BIN, 30, "thirty", policy),
             MapOperation.put(BIN, 20, "twenty", policy),
             MapOperation.put(BIN, 40, "forty", policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert list(m.keys()) == [10, 20, 30, 40, 50]
@@ -102,9 +110,9 @@ class TestKOrderedMapOrdering:
 
         keys_reversed = list(range(100, 0, -1))
         ops = [MapOperation.put(BIN, k, k * 10, policy) for k in keys_reversed]
-        await client.operate(wp, key, ops)
+        await client.operate(key, ops, policy=wp)
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert list(m.keys()) == list(range(1, 101))
 
@@ -116,17 +124,25 @@ class TestKOrderedMapOrdering:
         key = _key(4)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "b", 2, policy),
             MapOperation.put(BIN, "d", 4, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "a", 1, policy),
             MapOperation.put(BIN, "c", 3, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert list(m.keys()) == ["a", "b", "c", "d"]
 
@@ -138,18 +154,26 @@ class TestKOrderedMapOrdering:
         key = _key(5)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "a", 1, policy),
             MapOperation.put(BIN, "b", 2, policy),
             MapOperation.put(BIN, "c", 3, policy),
             MapOperation.put(BIN, "d", 4, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.remove_by_key(BIN, "b", MapReturnType.NONE),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert list(m.keys()) == ["a", "c", "d"]
 
@@ -161,19 +185,27 @@ class TestKOrderedMapOrdering:
         key = _key(9)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "a", 100, policy),
             MapOperation.put(BIN, "b", 200, policy),
             MapOperation.put(BIN, "c", 100, policy),
             MapOperation.put(BIN, "d", 300, policy),
             MapOperation.put(BIN, "e", 200, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.remove_by_value(BIN, 200, MapReturnType.NONE),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert list(m.keys()) == ["a", "c", "d"]
         assert list(m.values()) == [100, 100, 300]
@@ -186,23 +218,31 @@ class TestKOrderedMapOrdering:
         key = _key(6)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "z", 26, policy),
             MapOperation.put(BIN, "a", 1, policy),
             MapOperation.put(BIN, "m", 13, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         original = record.bins[BIN]
         assert list(original.keys()) == ["a", "m", "z"]
 
         # Clear and re-insert using MapOperation to preserve K-ordered policy
         items = list(original.items())
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.clear(BIN),
             MapOperation.put_items(BIN, items, policy),
-        ])
-        record2 = await client.get(rp, key, [BIN])
+        ],
+            policy=wp,
+        )
+        record2 = await client.get(key, [BIN], policy=rp)
         assert list(record2.bins[BIN].keys()) == ["a", "m", "z"]
 
 
@@ -217,13 +257,17 @@ class TestKVOrderedMapOrdering:
         key = _key(7)
         policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "cherry", 30, policy),
             MapOperation.put(BIN, "apple", 10, policy),
             MapOperation.put(BIN, "banana", 20, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert list(m.keys()) == ["apple", "banana", "cherry"]
@@ -236,13 +280,17 @@ class TestKVOrderedMapOrdering:
         key = _key(8)
         policy = MapPolicy(MapOrder.KEY_VALUE_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, 50, "fifty", policy),
             MapOperation.put(BIN, 10, "ten", policy),
             MapOperation.put(BIN, 30, "thirty", policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert list(m.keys()) == [10, 30, 50]
@@ -258,8 +306,8 @@ class TestUnorderedMap:
         rp = ReadPolicy()
         key = _key(10)
 
-        await client.put(wp, key, {BIN: {"x": 1, "y": 2, "z": 3}})
-        record = await client.get(rp, key, [BIN])
+        await client.put(key, {BIN: {"x": 1, "y": 2, "z": 3}}, policy=wp)
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert set(m.keys()) == {"x", "y", "z"}
@@ -279,12 +327,16 @@ class TestNestedOrderedMaps:
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
         inner = {"c": 3, "a": 1, "b": 2}
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "z_outer", inner, policy),
             MapOperation.put(BIN, "a_outer", inner, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
 
         # Outer keys are K-ordered → sorted
@@ -308,15 +360,19 @@ class TestEdgeCases:
         key = _key(14)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "banana", "s2", policy),
             MapOperation.put(BIN, 99, "i3", policy),
             MapOperation.put(BIN, "apple", "s1", policy),
             MapOperation.put(BIN, 1, "i1", policy),
             MapOperation.put(BIN, 50, "i2", policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         keys = list(m.keys())
         int_keys = [k for k in keys if isinstance(k, int)]
@@ -334,13 +390,17 @@ class TestEdgeCases:
         key = _key(15)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, b"\x03", "third", policy),
             MapOperation.put(BIN, b"\x01", "first", policy),
             MapOperation.put(BIN, b"\x02", "second", policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert list(m.keys()) == [b"\x01", b"\x02", b"\x03"]
 
@@ -352,14 +412,22 @@ class TestEdgeCases:
         key = _key(17)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "a", 1, policy),
-        ])
-        await client.operate(wp, key, [
+        ],
+            policy=wp,
+        )
+        await client.operate(
+            key,
+            [
             MapOperation.remove_by_key(BIN, "a", MapReturnType.NONE),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.get(rp, key, [BIN])
+        record = await client.get(key, [BIN], policy=rp)
         m = record.bins[BIN]
         assert isinstance(m, dict)
         assert len(m) == 0
@@ -371,17 +439,25 @@ class TestEdgeCases:
         key = _key(18)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "c", 300, policy),
             MapOperation.put(BIN, "a", 100, policy),
             MapOperation.put(BIN, "b", 200, policy),
             MapOperation.put(BIN, "d", 400, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
         # Rank 0 = smallest value (100), get 3 entries by rank
-        record = await client.operate(wp, key, [
+        record = await client.operate(
+            key,
+            [
             MapOperation.get_by_rank_range(BIN, 0, 3, MapReturnType.VALUE),
-        ])
+        ],
+            policy=wp,
+        )
         values = record.bins[BIN]
         assert values == [100, 200, 300]
 
@@ -396,17 +472,25 @@ class TestOrderedMapReturnTypes:
         key = _key(12)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "e", 5, policy),
             MapOperation.put(BIN, "c", 3, policy),
             MapOperation.put(BIN, "a", 1, policy),
             MapOperation.put(BIN, "d", 4, policy),
             MapOperation.put(BIN, "b", 2, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.operate(wp, key, [
+        record = await client.operate(
+            key,
+            [
             MapOperation.get_by_key_range(BIN, "b", "e", MapReturnType.ORDERED_MAP),
-        ])
+        ],
+            policy=wp,
+        )
 
         result = record.bins[BIN]
         assert isinstance(result, dict)
@@ -419,17 +503,25 @@ class TestOrderedMapReturnTypes:
         key = _key(13)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.operate(wp, key, [
+        await client.operate(
+            key,
+            [
             MapOperation.put(BIN, "e", 5, policy),
             MapOperation.put(BIN, "c", 3, policy),
             MapOperation.put(BIN, "a", 1, policy),
             MapOperation.put(BIN, "d", 4, policy),
             MapOperation.put(BIN, "b", 2, policy),
-        ])
+        ],
+            policy=wp,
+        )
 
-        record = await client.operate(wp, key, [
+        record = await client.operate(
+            key,
+            [
             MapOperation.get_by_key_range(BIN, "b", "e", MapReturnType.UNORDERED_MAP),
-        ])
+        ],
+            policy=wp,
+        )
 
         result = record.bins[BIN]
         assert isinstance(result, dict)
@@ -446,11 +538,11 @@ class TestKOrderedMapKeyConstraints:
         key = _key(19)
         policy = MapPolicy(MapOrder.KEY_ORDERED, None)
 
-        await client.delete(wp, key)
+        await client.delete(key, policy=wp)
         with pytest.raises(InvalidRequest) as exc_info:
             await client.operate(
-                wp,
                 key,
                 [MapOperation.put(BIN, [1, 2], "value", policy)],
+                policy=wp,
             )
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR

@@ -60,7 +60,7 @@ def _repro_script(host: str) -> str:
 
             async def do_op(i):
                 try:
-                    return await client.get(rp, Key(NS, SET, f"_repro_{{i}}"))
+                    return await client.get(Key(NS, SET, f"_repro_{{i}}"), policy=rp)
                 except Exception:
                     return None
 

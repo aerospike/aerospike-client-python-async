@@ -58,18 +58,18 @@ async def main():
     key = Key("test", "demo", "user1")
 
     # Write a record (bins are plain dicts)
-    await client.put(WritePolicy(), key, {"name": "Alice", "age": 28})
+    await client.put(key, {"name": "Alice", "age": 28})
 
     # Read it back
-    record = await client.get(ReadPolicy(), key)
+    record = await client.get(key)
     print(record.bins)  # {'name': 'Alice', 'age': 28}
 
     # Read specific bins only
-    record = await client.get(ReadPolicy(), key, ["name"])
+    record = await client.get(key, ["name"])
     print(record.bins)  # {'name': 'Alice'}
 
     # Delete the record
-    await client.delete(WritePolicy(), key)
+    await client.delete(key)
 
     await client.close()
 
@@ -165,8 +165,8 @@ read = ReadPolicy()
 read.set_txn(txn)
 
 try:
-    await client.put(write, key_a, {"balance": 100})
-    await client.put(write, key_b, {"balance": 200})
+    await client.put(key_a, {"balance": 100}, policy=write)
+    await client.put(key_b, {"balance": 200}, policy=write)
     status = await client.commit(txn)
     assert status == CommitStatus.OK_VERIFIED
 except CommitFailedError:

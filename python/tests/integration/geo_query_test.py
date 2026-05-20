@@ -86,20 +86,32 @@ class TestGeoQuery(TestFixtureConnection):
 
         # Records inside the polygon
         key1 = Key(namespace, set_name, "point1")
-        await client.put(wp, key1, {
+        await client.put(
+            key1,
+            {
             LOCBIN: GeoJSON({"type": "Point", "coordinates": [-122.0, 37.5]})
-        })
+        },
+            policy=wp,
+        )
 
         key2 = Key(namespace, set_name, "point2")
-        await client.put(wp, key2, {
+        await client.put(
+            key2,
+            {
             LOCBIN: GeoJSON({"type": "Point", "coordinates": [-121.5, 37.5]})
-        })
+        },
+            policy=wp,
+        )
 
         # Record outside the polygon
         key3 = Key(namespace, set_name, "point3")
-        await client.put(wp, key3, {
+        await client.put(
+            key3,
+            {
             LOCBIN: GeoJSON({"type": "Point", "coordinates": [-120.0, 37.5]})
-        })
+        },
+            policy=wp,
+        )
 
         # Wait for newly written records to be indexed (typically very fast, < 1 second)
         await asyncio.sleep(1.0)
@@ -118,7 +130,7 @@ class TestGeoQuery(TestFixtureConnection):
         statement = Statement(namespace, set_name, bins=None)
         statement.filters = [predicate]
 
-        records = await client.query(QueryPolicy(), PartitionFilter.all(), statement)
+        records = await client.query(statement, PartitionFilter.all(), policy=QueryPolicy())
         records_list = []
 
         async for record in records:

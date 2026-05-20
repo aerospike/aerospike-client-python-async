@@ -24,29 +24,29 @@ class TestPrepend(TestFixtureInsertRecord):
 
     async def test_prepend(self, client, key):
         """Test basic prepend operation."""
-        retval = await client.prepend(WritePolicy(), key, {"brand": "F"})
+        retval = await client.prepend(key, {"brand": "F"}, policy=WritePolicy())
         assert retval is None
 
-        rec = await client.get(ReadPolicy(), key)
+        rec = await client.get(key, policy=ReadPolicy())
         assert rec.bins["brand"] == "FFord"
 
     async def test_prepend_with_policy(self, client, key):
         """Test prepend operation with write policy."""
         wp = WritePolicy()
-        retval = await client.prepend(wp, key, {"brand": "F"})
+        retval = await client.prepend(key, {"brand": "F"}, policy=wp)
         assert retval is None
 
-        rec = await client.get(ReadPolicy(), key)
+        rec = await client.get(key, policy=ReadPolicy())
         assert rec.bins["brand"] == "FFord"
 
     async def test_prepend_nonexistent_bin(self, client, key):
         """Test prepend operation on non-existent bin."""
-        await client.append(WritePolicy(), key, {"brand1": "F"})
-        rec = await client.get(ReadPolicy(), key)
+        await client.append(key, {"brand1": "F"}, policy=WritePolicy())
+        rec = await client.get(key, policy=ReadPolicy())
         assert rec.bins["brand1"] == "F"
 
     async def test_prepend_unsupported_type(self, client, key):
         """Test prepend operation with unsupported type raises BinTypeError."""
         with pytest.raises(BinTypeError) as exc_info:
-            await client.prepend(WritePolicy(), key, {"year": "d"})
+            await client.prepend(key, {"year": "d"}, policy=WritePolicy())
         assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR

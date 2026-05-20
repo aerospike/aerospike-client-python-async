@@ -35,7 +35,7 @@ async def client_and_key():
     # delete the record first
     wp = WritePolicy()
     rp = ReadPolicy()
-    await client.delete(wp, key)
+    await client.delete(key, policy=wp)
 
     return client, rp, key
 
@@ -46,14 +46,14 @@ async def test_put_int(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": 1,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin": 1}
 
@@ -64,14 +64,14 @@ async def test_put_float(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": 1.76123,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin": 1.76123}
 
@@ -82,14 +82,14 @@ async def test_put_string(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": "str1",
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin": "str1"}
 
@@ -100,15 +100,15 @@ async def test_put_bool(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bint": True,
             "binf": False,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bint": True, "binf": False}
 
@@ -122,15 +122,15 @@ async def test_put_blob(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin_b": b,
             "bin_ba": ba,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin_b": b, "bin_ba": ba}
 
@@ -143,14 +143,14 @@ async def test_put_list(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": l,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin": l}
 
@@ -175,14 +175,14 @@ async def test_put_dict(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": d,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
 
     # List and Blob are returned as native Python types
@@ -211,14 +211,14 @@ async def test_put_GeoJSON(client_and_key):
 
     wp = WritePolicy()
     await client.put(
-        wp,
         key,
         {
             "bin": geo,
         },
+        policy=wp,
     )
 
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert rec.bins == {"bin": geo}
 
@@ -229,8 +229,8 @@ async def test_geojson_get_round_trip_preserves_type_and_string(client_and_key):
 
     geo = GeoJSON('{"type":"Point","coordinates":[1.0,2.0]}')
     wp = WritePolicy()
-    await client.put(wp, key, {"geo": geo})
-    record = await client.get(rp, key, ["geo"])
+    await client.put(key, {"geo": geo}, policy=wp)
+    record = await client.get(key, ["geo"], policy=rp)
     assert record is not None
     assert isinstance(record.bins["geo"], GeoJSON)
     assert str(record.bins["geo"]) == str(geo)
@@ -243,17 +243,17 @@ async def test_put_edge_types(client_and_key):
     wp = WritePolicy()
 
     # Create record with a non-Nil value first (Aerospike requires at least one non-Nil bin)
-    await client.put(wp, key, {"placeholder": 1})
+    await client.put(key, {"placeholder": 1}, policy=wp)
 
     # Put None value (adds to existing record)
     # Note: None values are stored but not returned by Aerospike when reading
-    await client.put(wp, key, {"a": None})
+    await client.put(key, {"a": None}, policy=wp)
 
     # Put null() value (adds to existing record)
-    await client.put(wp, key, {"b": null()})
+    await client.put(key, {"b": null()}, policy=wp)
 
     # Verify None/null() were accepted (no errors) and are not returned (Aerospike behavior)
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     assert "a" not in rec.bins  # Nil bins are not returned
     assert "b" not in rec.bins  # Nil bins are not returned
@@ -263,15 +263,15 @@ async def test_put_edge_types(client_and_key):
     # 2^63 = 9223372036854775808, which is > i64::MAX
     # Note: Since Value::UInt was removed, this will overflow to i64::MIN
     large_value = 2 ** 63
-    await client.put(wp, key, {"c": List([large_value])})
+    await client.put(key, {"c": List([large_value])}, policy=wp)
 
     # Put geojson helper result
-    await client.put(wp, key, {"geo": geojson("-122.0, 37.5")})
+    await client.put(key, {"geo": geojson("-122.0, 37.5")}, policy=wp)
     # Put geojson helper result (using JSON string format, like legacy client)
-    await client.put(wp, key, {"geo": geojson('{"type": "Point", "coordinates": [-80.604333, 28.608389]}')})
+    await client.put(key, {"geo": geojson('{"type": "Point", "coordinates": [-80.604333, 28.608389]}')}, policy=wp)
 
     # Verify all values were stored correctly
-    rec = await client.get(rp, key)
+    rec = await client.get(key, policy=rp)
     assert rec is not None
     # Large u64 value overflowed to i64::MIN
     assert rec.bins["c"][0] == -9223372036854775808  # i64::MIN (overflow from 2**63)
@@ -292,11 +292,11 @@ async def test_put_bin_name_int_negative(client_and_key):
     # with a helpful error message
     with pytest.raises(TypeError, match="A bin name must be a string or unicode string"):
         await client.put(
-            wp,
             key,
             {
                 123: "value",  # Using int as bin name - should fail
             },
+            policy=wp,
         )
 
 async def test_put_get_with_integer_key(client_and_key):
@@ -310,10 +310,10 @@ async def test_put_get_with_integer_key(client_and_key):
     assert int_key.value == 99999
     
     # Put with integer key
-    await client.put(wp, int_key, {"bin1": "value1", "bin2": 42})
+    await client.put(int_key, {"bin1": "value1", "bin2": 42}, policy=wp)
     
     # Get with same integer key
-    record = await client.get(rp, int_key)
+    record = await client.get(int_key, policy=rp)
     assert record is not None
     assert record.bins == {"bin1": "value1", "bin2": 42}
     
@@ -321,7 +321,7 @@ async def test_put_get_with_integer_key(client_and_key):
     int_key2 = Key("test", "test", 99999)
     assert int_key2.value == 99999
     assert isinstance(int_key2.value, int)
-    record2 = await client.get(rp, int_key2)
+    record2 = await client.get(int_key2, policy=rp)
     assert record2.bins == {"bin1": "value1", "bin2": 42}
     
     # Verify integer key and string key are different
@@ -330,7 +330,7 @@ async def test_put_get_with_integer_key(client_and_key):
     assert isinstance(str_key.value, str)
     # String key should not find the record (different digest)
     try:
-        record3 = await client.get(rp, str_key)
+        record3 = await client.get(str_key, policy=rp)
         # If it doesn't raise, the record might not exist (which is expected)
         if record3 is None:
             pass  # Expected - different key
@@ -355,5 +355,5 @@ async def test_put_bin_limit(client_and_key):
     # Try to put the record - should fail with too many bins
     # The server will reject this with a PARAMETER_ERROR
     with pytest.raises(InvalidRequest) as exi:
-        await client.put(wp, key, bins)
+        await client.put(key, bins, policy=wp)
     assert exi.value.result_code == ResultCode.PARAMETER_ERROR

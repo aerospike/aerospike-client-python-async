@@ -24,20 +24,20 @@ class TestTouch(TestFixtureInsertRecord):
 
     async def test_existing_record(self, client, key):
         """Test touching an existing record."""
-        retval = await client.touch(WritePolicy(), key)
+        retval = await client.touch(key, policy=WritePolicy())
         assert retval is None
 
-        rec = await client.get(ReadPolicy(), key)
+        rec = await client.get(key, policy=ReadPolicy())
         assert rec.generation == 2
 
     async def test_touch_with_policy(self, client, key):
         """Test touch operation with write policy."""
         wp = WritePolicy()
-        retval = await client.touch(wp, key)
+        retval = await client.touch(key, policy=wp)
         assert retval is None
 
     async def test_nonexistent_record(self, client, key_invalid_primary_key):
         """Test touching a non-existent record raises RecordNotFound."""
         with pytest.raises(RecordNotFound) as exc_info:
-            await client.touch(WritePolicy(), key_invalid_primary_key)
+            await client.touch(key_invalid_primary_key, policy=WritePolicy())
         assert exc_info.value.result_code == ResultCode.KEY_NOT_FOUND_ERROR

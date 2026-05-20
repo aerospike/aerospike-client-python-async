@@ -40,13 +40,13 @@ class TestBatchApply(TestFixtureConnection):
 
         # Clean up any existing UDF first
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
 
         # Register the UDF
-        task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+        task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
         completed = await task.wait_till_complete()
         assert completed, f"UDF registration did not complete. Final status: {await task.query_status()}"
 
@@ -54,7 +54,7 @@ class TestBatchApply(TestFixtureConnection):
 
         # Clean up
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
@@ -71,13 +71,18 @@ class TestBatchApply(TestFixtureConnection):
         # Clean up keys
         for key in keys:
             try:
-                await client_with_udf.delete(wp, key)
+                await client_with_udf.delete(key, policy=wp)
             except Exception:
                 pass
 
         # Execute batch UDF
         results = await client_with_udf.batch_apply(
-            None, None, keys, "record_example", "writeBin", ["B5", "value5"]
+            keys,
+            "record_example",
+            "writeBin",
+            ["B5", "value5"],
+            batch_policy=None,
+            udf_policy=None,
         )
 
         assert len(results) == 2
@@ -86,7 +91,7 @@ class TestBatchApply(TestFixtureConnection):
 
         # Verify records were written
         for key in keys:
-            record = await client_with_udf.get(rp, key, ["B5"])
+            record = await client_with_udf.get(key, ["B5"], policy=rp)
             assert record is not None
             assert record.bins["B5"] == "value5"
 
@@ -104,13 +109,18 @@ class TestBatchApply(TestFixtureConnection):
         # Clean up keys
         for key in keys:
             try:
-                await client_with_udf.delete(wp, key)
+                await client_with_udf.delete(key, policy=wp)
             except Exception:
                 pass
 
         # Execute batch UDF with policies
         results = await client_with_udf.batch_apply(
-            bp, udfp, keys, "record_example", "writeBin", ["B6", "value6"]
+            keys,
+            "record_example",
+            "writeBin",
+            ["B6", "value6"],
+            batch_policy=bp,
+            udf_policy=udfp,
         )
 
         assert len(results) == 2
@@ -119,7 +129,7 @@ class TestBatchApply(TestFixtureConnection):
 
         # Verify records were written
         for key in keys:
-            record = await client_with_udf.get(rp, key, ["B6"])
+            record = await client_with_udf.get(key, ["B6"], policy=rp)
             assert record is not None
             assert record.bins["B6"] == "value6"
 
@@ -134,13 +144,18 @@ class TestBatchApply(TestFixtureConnection):
         # Clean up keys
         for key in keys:
             try:
-                await client_with_udf.delete(wp, key)
+                await client_with_udf.delete(key, policy=wp)
             except Exception:
                 pass
 
         # Execute batch UDF with invalid value (should trigger validation error)
         results = await client_with_udf.batch_apply(
-            None, None, keys, "record_example", "writeWithValidation", ["B5", 999]
+            keys,
+            "record_example",
+            "writeWithValidation",
+            ["B5", 999],
+            batch_policy=None,
+            udf_policy=None,
         )
 
         assert len(results) == 2
@@ -159,13 +174,18 @@ class TestBatchApply(TestFixtureConnection):
         # Clean up keys
         for key in keys:
             try:
-                await client_with_udf.delete(wp, key)
+                await client_with_udf.delete(key, policy=wp)
             except Exception:
                 pass
 
         # Execute batch UDF with no args
         results = await client_with_udf.batch_apply(
-            None, None, keys, "record_example", "getGeneration", None
+            keys,
+            "record_example",
+            "getGeneration",
+            None,
+            batch_policy=None,
+            udf_policy=None,
         )
 
         assert len(results) == 2

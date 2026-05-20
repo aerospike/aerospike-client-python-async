@@ -32,13 +32,13 @@ class TestExecuteUDF(TestFixtureConnection):
 
         # Clean up any existing UDF first
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
 
         # Register the UDF
-        task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+        task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
         completed = await task.wait_till_complete()
         assert completed, f"UDF registration did not complete. Final status: {await task.query_status()}"
 
@@ -46,7 +46,7 @@ class TestExecuteUDF(TestFixtureConnection):
 
         # Clean up
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
@@ -57,14 +57,18 @@ class TestExecuteUDF(TestFixtureConnection):
         wp = WritePolicy()
         rp = ReadPolicy()
 
-        await client_with_udf.delete(wp, key)
+        await client_with_udf.delete(key, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "writeBin", ["udfbin1", "string value"]
+            key,
+            "record_example",
+            "writeBin",
+            ["udfbin1", "string value"],
+            policy=wp,
         )
         assert result is None
 
-        record = await client_with_udf.get(rp, key, ["udfbin1"])
+        record = await client_with_udf.get(key, ["udfbin1"], policy=rp)
         assert record is not None
         assert record.bins["udfbin1"] == "string value"
 
@@ -73,10 +77,14 @@ class TestExecuteUDF(TestFixtureConnection):
         key = Key("test", "test", "udfkey2")
         wp = WritePolicy()
 
-        await client_with_udf.put(wp, key, {"udfbin2": "test value"})
+        await client_with_udf.put(key, {"udfbin2": "test value"}, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "readBin", ["udfbin2"]
+            key,
+            "record_example",
+            "readBin",
+            ["udfbin2"],
+            policy=wp,
         )
         assert result == "test value"
 
@@ -85,9 +93,9 @@ class TestExecuteUDF(TestFixtureConnection):
         key = Key("test", "test", "udfkey3")
         wp = WritePolicy()
 
-        await client_with_udf.put(wp, key, {"bin": "value"})
+        await client_with_udf.put(key, {"bin": "value"}, policy=wp)
 
-        result = await client_with_udf.execute_udf(wp, key, "record_example", "getGeneration", None)
+        result = await client_with_udf.execute_udf(key, "record_example", "getGeneration", None, policy=wp)
         assert isinstance(result, int)
         assert result >= 0
 
@@ -96,10 +104,14 @@ class TestExecuteUDF(TestFixtureConnection):
         key = Key("test", "test", "udfkey4")
         wp = WritePolicy()
 
-        await client_with_udf.delete(wp, key)
+        await client_with_udf.delete(key, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "writeWithValidation", ["udfbin4", 5]
+            key,
+            "record_example",
+            "writeWithValidation",
+            ["udfbin4", 5],
+            policy=wp,
         )
         assert result is None
 
@@ -108,11 +120,15 @@ class TestExecuteUDF(TestFixtureConnection):
         key = Key("test", "test", "udfkey5")
         wp = WritePolicy()
 
-        await client_with_udf.delete(wp, key)
+        await client_with_udf.delete(key, policy=wp)
 
         with pytest.raises(UDFBadResponse):
             await client_with_udf.execute_udf(
-                wp, key, "record_example", "writeWithValidation", ["udfbin5", 11]
+                key,
+                "record_example",
+                "writeWithValidation",
+                ["udfbin5", 11],
+                policy=wp,
             )
 
     async def test_execute_udf_write_unique_success(self, client_with_udf):
@@ -121,14 +137,18 @@ class TestExecuteUDF(TestFixtureConnection):
         wp = WritePolicy()
         rp = ReadPolicy()
 
-        await client_with_udf.delete(wp, key)
+        await client_with_udf.delete(key, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "writeUnique", ["udfbin6", "first"]
+            key,
+            "record_example",
+            "writeUnique",
+            ["udfbin6", "first"],
+            policy=wp,
         )
         assert result is None
 
-        record = await client_with_udf.get(rp, key, ["udfbin6"])
+        record = await client_with_udf.get(key, ["udfbin6"], policy=rp)
         assert record is not None
         assert record.bins["udfbin6"] == "first"
 
@@ -138,15 +158,19 @@ class TestExecuteUDF(TestFixtureConnection):
         wp = WritePolicy()
         rp = ReadPolicy()
 
-        await client_with_udf.delete(wp, key)
-        await client_with_udf.put(wp, key, {"udfbin7": "first"})
+        await client_with_udf.delete(key, policy=wp)
+        await client_with_udf.put(key, {"udfbin7": "first"}, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "writeUnique", ["udfbin7", "second"]
+            key,
+            "record_example",
+            "writeUnique",
+            ["udfbin7", "second"],
+            policy=wp,
         )
         assert result is None
 
-        record = await client_with_udf.get(rp, key, ["udfbin7"])
+        record = await client_with_udf.get(key, ["udfbin7"], policy=rp)
         assert record.bins["udfbin7"] == "first"
 
     async def test_execute_udf_no_args(self, client_with_udf):
@@ -154,10 +178,14 @@ class TestExecuteUDF(TestFixtureConnection):
         key = Key("test", "test", "udfkey8")
         wp = WritePolicy()
 
-        await client_with_udf.delete(wp, key)
+        await client_with_udf.delete(key, policy=wp)
 
         result = await client_with_udf.execute_udf(
-            wp, key, "record_example", "getGeneration", None
+            key,
+            "record_example",
+            "getGeneration",
+            None,
+            policy=wp,
         )
         assert isinstance(result, int)
 
@@ -168,7 +196,11 @@ class TestExecuteUDF(TestFixtureConnection):
 
         with pytest.raises(UDFBadResponse):
             await client_with_udf.execute_udf(
-                wp, key, "record_example", "nonexistentFunction", None
+                key,
+                "record_example",
+                "nonexistentFunction",
+                None,
+                policy=wp,
             )
 
     async def test_execute_udf_nonexistent_module(self, client_with_udf):
@@ -178,7 +210,11 @@ class TestExecuteUDF(TestFixtureConnection):
 
         with pytest.raises(UDFBadResponse):
             await client_with_udf.execute_udf(
-                wp, key, "nonexistent", "writeBin", ["bin", "value"]
+                key,
+                "nonexistent",
+                "writeBin",
+                ["bin", "value"],
+                policy=wp,
             )
 
     @pytest.fixture
@@ -189,13 +225,13 @@ class TestExecuteUDF(TestFixtureConnection):
 
         # Clean up any existing UDF first
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
 
         # Register the UDF
-        task = await client.register_udf_from_file(None, udf_path, server_path, UDFLang.LUA)
+        task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
         completed = await task.wait_till_complete()
         assert completed, f"UDF registration did not complete. Final status: {await task.query_status()}"
 
@@ -203,7 +239,7 @@ class TestExecuteUDF(TestFixtureConnection):
 
         # Clean up
         try:
-            remove_task = await client.remove_udf(None, server_path)
+            remove_task = await client.remove_udf(server_path)
             await remove_task.wait_till_complete()
         except Exception:
             pass
@@ -224,7 +260,11 @@ class TestExecuteUDF(TestFixtureConnection):
         # or client may raise TimeoutError - both indicate timeout enforcement
         with pytest.raises((TimeoutError, UDFBadResponse)):
             await client_with_sleep_udf.execute_udf(
-                wp, key, "sleep_example", "sleep", [2000]
+                key,
+                "sleep_example",
+                "sleep",
+                [2000],
+                policy=wp,
             )
 
     async def test_udf_timeout_not_triggered_on_fast_operation(self, client_with_sleep_udf):
@@ -238,6 +278,10 @@ class TestExecuteUDF(TestFixtureConnection):
         # Execute UDF that sleeps for shorter than the timeout (100ms)
         # This should complete successfully
         result = await client_with_sleep_udf.execute_udf(
-            wp, key, "sleep_example", "sleep", [100]
+            key,
+            "sleep_example",
+            "sleep",
+            [100],
+            policy=wp,
         )
         assert result == "slept"
