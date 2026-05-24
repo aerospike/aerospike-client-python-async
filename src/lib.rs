@@ -43,6 +43,7 @@ mod completion;
 mod enums;
 mod errors;
 mod runtime;
+mod client_runtime;
 mod tasks;
 mod tls;
 mod record;
@@ -89,9 +90,32 @@ use crate::operations::{
         // owning loop and every subsequent op on this Client must run on it.
         let locals = pyo3_asyncio::get_current_locals(py)?;
         let owning_loop: Py<PyAny> = locals.event_loop(py).clone().unbind();
-        let bridge = completion::CompletionBridge::new(py, owning_loop)?;
-
-        Ok(pyo3_asyncio::future_into_py(py, async move {
+        // Per-Client Tokio runtime, opt-in via
+        // `ClientPolicy.per_client_runtime_workers`. When set, ops on this
+        // Client run on a dedicated runtime, eliminating cross-loop scheduler
+        // contention under AsyncPool (which auto-sets this field). Default
+        // None / Some(0) preserves the global-runtime behavior.
+        let client_rt = match policy.per_client_runtime_workers {
+            Some(n) if n >= 1 => Some(Arc::new(
+                crate::client_runtime::ClientRuntime::new(n).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(
+                        format!("failed to start per-Client Tokio runtime: {e}"),
+                    )
+                })?,
+            )),
+            _ => None,
+        };
+        let bridge = completion::CompletionBridge::new(py, owning_loop, client_rt)?;
+        // When per-Client runtime is in use, the aerospike-core Client (and
+        // its TCP sockets) must be constructed on that same runtime so its
+        // reactor owns the socket registrations. Routing the construction
+        // future through batched_future_into_py (which respects
+        // bridge.inner.client_rt) ensures this. Going through the regular
+        // pyo3_asyncio::future_into_py would register sockets with the
+        // global runtime's reactor while ops ran on the per-Client one,
+        // queuing I/O serially behind the global reactor (~5ms latency).
+        let bridge_for_construction = bridge.clone();
+        Ok(completion::batched_future_into_py(&bridge_for_construction, py, async move {
             log::debug!(target: "aerospike_async", "connecting to {}", as_seeds);
             let c = aerospike_core::Client::new(&as_policy, &as_seeds)
                 .await

@@ -1,6 +1,6 @@
 [package]
 name = "aerospike_async"
-version = "0.4.0-alpha.2"
+version = "0.5.0-alpha.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,7 +15,7 @@ tokio = "1.40"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v3", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
-pyo3-stub-gen = "0.22"
+pyo3-stub-gen = "=0.22.0"
 log = "0.4"
 pyo3-log = "0.13"
 futures = "0.3"

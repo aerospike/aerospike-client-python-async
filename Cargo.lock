@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "aerospike_async"
-version = "0.4.0-alpha.2"
+version = "0.5.0-alpha.1"
 dependencies = [
  "aerospike-core",
  "aws-lc-rs",
@@ -1168,9 +1168,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-stub-gen"
-version = "0.22.2"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b695173a33bec37b6acd288efe74f902f123f5891e5ff5ad53ff429e18833c14"
+checksum = "de78bf1239d5284bf9be8efc69636bb3639d1270f074bf090c6cc735fd85d4bc"
 dependencies = [
  "anyhow",
  "chrono",
