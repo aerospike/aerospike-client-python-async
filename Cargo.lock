@@ -57,6 +57,7 @@ dependencies = [
  "pyo3-async-runtimes",
  "pyo3-log",
  "pyo3-stub-gen",
+ "rand 0.8.6",
  "rustls",
  "rustls-pemfile",
  "tokio",

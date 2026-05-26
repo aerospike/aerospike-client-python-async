@@ -26,6 +26,7 @@ webpki-roots = { version = "1.0", optional = true }
 aws-lc-sys = "0.37.0"
 aws-lc-rs = "1.15.4"
 mimalloc = "0.1"
+rand = { version = "0.8", features = ["small_rng"] }
 
 [features]
 default = ["extension-module", "tls"]
