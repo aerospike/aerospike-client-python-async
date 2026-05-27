@@ -322,6 +322,353 @@ use crate::operations::{
         }
     }
 
+    /// Sync-only Aerospike client that owns a per-thread `current_thread`
+    /// Tokio runtime. Eliminates the cross-thread worker hop per op that the
+    /// shared multi-thread runtime imposes on `Client_blocking()`'s sync path.
+    ///
+    /// Construct one per Python OS thread. The runtime + Client are tied
+    /// to the thread that built them — accessing from a different thread
+    /// raises (enforced by `#[pyclass(unsendable)]`). Use `threading.local()`
+    /// in Python to manage thread-bound instances.
+    ///
+    /// Surface mirrors the `Client.*_blocking` / `Client.*_blocking_with_overrides`
+    /// methods PSDK's sync path calls. Each `*_local` method runs on the
+    /// per-thread runtime via `block_on`, so completion returns on the SAME
+    /// thread without any worker-pool hop.
+    /// **Experimental — subject to removal.** Per-thread `current_thread`
+    /// Tokio runtime client. Open caveats: cluster-tend multiplication at
+    /// high thread counts; incomplete `*_with_overrides` method coverage.
+    /// Default users should stick with [`Client`]. Underscore-prefixed name
+    /// signals private / unstable status; opt in via PSDK's
+    /// `SyncClient(current_thread_runtime=True)`.
+    #[pyclass(unsendable, module = "_aerospike_async_native", name = "_LocalClient")]
+    pub struct LocalClient {
+        rt: tokio::runtime::Runtime,
+        client: Arc<aerospike_core::Client>,
+        // Same lazy namespace → is_sc cache as the regular Client. Each
+        // LocalClient has its own (thread-local Clients = thread-local
+        // caches). First op per (thread, namespace) pays one info call.
+        namespace_mode_cache: Arc<std::sync::RwLock<HashMap<String, bool>>>,
+    }
+
+    #[pymethods]
+    impl LocalClient {
+        #[new]
+        pub fn new(policy: ClientPolicy, seeds: String) -> PyResult<Self> {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_io()
+                .enable_time()
+                .build()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(
+                    format!("failed to build current_thread Tokio runtime: {e}")
+                ))?;
+            let as_policy = policy._as.clone();
+            let client = rt.block_on(async move {
+                aerospike_core::Client::new(&as_policy, &seeds).await
+            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            Ok(LocalClient {
+                rt,
+                client: Arc::new(client),
+                namespace_mode_cache: Arc::new(std::sync::RwLock::new(HashMap::new())),
+            })
+        }
+
+        // -- Plain blocking ops (drop-in for Client.*_blocking) -------------
+
+        #[pyo3(signature = (key, bins=None, *, policy=None))]
+        pub fn get_blocking<'a>(
+            &self,
+            key: &Key,
+            bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Record> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let res = py.detach(|| {
+                self.rt.block_on(async move {
+                    client.get(&policy, &key_as, bins_flag(bins)).await
+                })
+            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            Ok(Record { _as: res, cached_bins: None })
+        }
+
+        #[pyo3(signature = (key, bins, *, policy=None))]
+        pub fn put_blocking<'a>(
+            &self,
+            key: &Key,
+            bins: HashMap<String, PythonValue>,
+            policy: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<()> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let core_bins: Vec<aerospike_core::Bin> = bins
+                .into_iter()
+                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
+                .collect();
+            py.detach(|| {
+                self.rt.block_on(async move {
+                    client.put(&policy, &key_as, &core_bins).await
+                })
+            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            Ok(())
+        }
+
+        #[pyo3(signature = (key, *, policy=None))]
+        pub fn delete_blocking<'a>(
+            &self,
+            key: &Key,
+            policy: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<bool> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            py.detach(|| {
+                self.rt.block_on(async move {
+                    client.delete(&policy, &key_as).await
+                })
+            }).map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[pyo3(signature = (key, *, policy=None))]
+        pub fn touch_blocking<'a>(
+            &self,
+            key: &Key,
+            policy: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<()> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            py.detach(|| {
+                self.rt.block_on(async move {
+                    client.touch(&policy, &key_as).await
+                })
+            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            Ok(())
+        }
+
+        #[pyo3(signature = (key, *, policy=None))]
+        pub fn exists_blocking<'a>(
+            &self,
+            key: &Key,
+            policy: Option<ReadPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<bool> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            py.detach(|| {
+                self.rt.block_on(async move {
+                    client.exists(&policy, &key_as).await
+                })
+            }).map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[pyo3(signature = (key, operations, *, policy=None))]
+        pub fn operate_blocking<'a>(
+            &self,
+            key: &Key,
+            operations: Vec<Py<PyAny>>,
+            policy: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Record> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
+            let res = py.detach(|| -> PyResult<aerospike_core::Record> {
+                self.rt.block_on(async move {
+                    let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
+                    client.operate(&policy, &key_as, &core_ops).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))
+                })
+            })?;
+            Ok(Record { _as: res, cached_bins: None })
+        }
+
+        // -- *_with_overrides_local: mode-aware (AP/SC pick in Rust) --------
+
+        #[pyo3(signature = (
+            key,
+            bins,
+            base_policy,
+            *,
+            base_policy_sc = None,
+            filter_expression = None,
+            txn = None,
+        ))]
+        pub fn get_blocking_with_overrides<'a>(
+            &self,
+            key: &Key,
+            bins: Option<Vec<String>>,
+            base_policy: &ReadPolicy,
+            base_policy_sc: Option<&ReadPolicy>,
+            filter_expression: Option<FilterExpression>,
+            txn: Option<Txn>,
+            py: Python<'a>,
+        ) -> PyResult<Record> {
+            let base_ap = base_policy._as.clone();
+            let base_sc = base_policy_sc.map(|p| p._as.clone());
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let cache = self.namespace_mode_cache.clone();
+            let raw = py.detach(|| {
+                self.rt.block_on(async move {
+                    let mut policy = match base_sc {
+                        Some(sc) => {
+                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            if is_sc { sc } else { base_ap }
+                        }
+                        None => base_ap,
+                    };
+                    let has_filter_expression =
+                        filter_expression.is_some()
+                            || policy.base_policy.filter_expression.is_some();
+                    apply_read_overrides(&mut policy, filter_expression, txn);
+                    let res = client
+                        .get(&policy, &key_as, bins_flag(bins))
+                        .await
+                        .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    if res.bins.is_empty() && has_filter_expression {
+                        return Err(PyException::new_err(
+                            "Filter expression did not match any records",
+                        ));
+                    }
+                    Ok(res)
+                })
+            })?;
+            Ok(Record { _as: raw, cached_bins: None })
+        }
+
+        #[pyo3(signature = (
+            key,
+            bins,
+            base_policy,
+            *,
+            base_policy_sc = None,
+            txn = None,
+        ))]
+        pub fn put_blocking_with_overrides<'a>(
+            &self,
+            key: &Key,
+            bins: HashMap<String, PythonValue>,
+            base_policy: &WritePolicy,
+            base_policy_sc: Option<&WritePolicy>,
+            txn: Option<Txn>,
+            py: Python<'a>,
+        ) -> PyResult<()> {
+            let base_ap = base_policy._as.clone();
+            let base_sc = base_policy_sc.map(|p| p._as.clone());
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let cache = self.namespace_mode_cache.clone();
+            let core_bins: Vec<aerospike_core::Bin> = bins
+                .into_iter()
+                .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
+                .collect();
+            py.detach(|| -> PyResult<()> {
+                self.rt.block_on(async move {
+                    let mut policy = match base_sc {
+                        Some(sc) => {
+                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            if is_sc { sc } else { base_ap }
+                        }
+                        None => base_ap,
+                    };
+                    if let Some(t) = txn {
+                        policy.base_policy.txn = Some(t._as);
+                    }
+                    client.put(&policy, &key_as, &core_bins).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    Ok(())
+                })
+            })
+        }
+
+        #[pyo3(signature = (
+            key,
+            operations,
+            base_policy,
+            *,
+            base_policy_sc = None,
+            record_exists_action = None,
+            expiration = None,
+            generation = None,
+            durable_delete = None,
+            filter_expression = None,
+            txn = None,
+        ))]
+        pub fn operate_blocking_with_overrides<'a>(
+            &self,
+            key: &Key,
+            operations: Vec<Py<PyAny>>,
+            base_policy: &WritePolicy,
+            base_policy_sc: Option<&WritePolicy>,
+            record_exists_action: Option<RecordExistsAction>,
+            expiration: Option<Expiration>,
+            generation: Option<u32>,
+            durable_delete: Option<bool>,
+            filter_expression: Option<FilterExpression>,
+            txn: Option<Txn>,
+            py: Python<'a>,
+        ) -> PyResult<Record> {
+            let base_ap = base_policy._as.clone();
+            let base_sc = base_policy_sc.map(|p| p._as.clone());
+            let key_as = key._as.clone();
+            let client = self.client.clone();
+            let cache = self.namespace_mode_cache.clone();
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
+            let raw = py.detach(|| {
+                self.rt.block_on(async move {
+                    let mut policy = match base_sc {
+                        Some(sc) => {
+                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            if is_sc { sc } else { base_ap }
+                        }
+                        None => base_ap,
+                    };
+                    apply_write_overrides(
+                        &mut policy,
+                        record_exists_action,
+                        expiration,
+                        generation,
+                        durable_delete,
+                        filter_expression,
+                        txn,
+                    );
+                    let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
+                    client.operate(&policy, &key_as, &core_ops).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))
+                })
+            })?;
+            Ok(Record { _as: raw, cached_bins: None })
+        }
+
+        // -- Info (needed by PSDK SyncSession namespace-mode resolver) ------
+
+        pub fn info_blocking(
+            &self,
+            command: String,
+            py: Python<'_>,
+        ) -> PyResult<HashMap<String, String>> {
+            let client = self.client.clone();
+            py.detach(|| {
+                self.rt.block_on(async move {
+                    let node = client.cluster.get_random_node()
+                        .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    let policy = aerospike_core::AdminPolicy::default();
+                    node.info(&policy, &[&command]).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))
+                })
+            })
+        }
+    }
+
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1)]
     #[derive(Clone)]
@@ -553,6 +900,60 @@ use crate::operations::{
             })
         }
 
+        /// Mode-aware `put_blocking`: when `base_policy_sc` is provided, PAC
+        /// resolves the namespace mode via its per-Client cache and picks
+        /// AP vs SC. Same shape as `put_blocking` otherwise.
+        #[pyo3(signature = (
+            key,
+            bins,
+            base_policy,
+            *,
+            base_policy_sc = None,
+            txn = None,
+        ))]
+        pub fn put_blocking_with_overrides(
+            &self,
+            key: &Key,
+            bins: &Bound<'_, PyDict>,
+            base_policy: &WritePolicy,
+            base_policy_sc: Option<&WritePolicy>,
+            txn: Option<Txn>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            let base_ap = base_policy._as.clone();
+            let base_sc = base_policy_sc.map(|p| p._as.clone());
+            let key_as = key._as.clone();
+            let client = self._as.clone();
+            let cache = self.namespace_mode_cache.clone();
+
+            // Bin extraction must run while we still hold the GIL.
+            let mut bin_vec = Vec::new();
+            for (py_key, py_val) in bins.iter() {
+                let name = py_key.extract::<String>().map_err(|_| {
+                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                        "A bin name must be a string or unicode string",
+                    )
+                })?;
+                let val: PythonValue = py_val.extract()?;
+                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+            }
+
+            run_blocking(py, async move {
+                let mut policy = match base_sc {
+                    Some(sc) => {
+                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        if is_sc { sc } else { base_ap }
+                    }
+                    None => base_ap,
+                };
+                if let Some(t) = txn {
+                    policy.base_policy.txn = Some(t._as);
+                }
+                client.put(&policy, &key_as, &bin_vec).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })
+        }
+
         /// Synchronously read a record for the specified key.
         #[pyo3(signature = (key, bins=None, *, policy=None))]
         pub fn get_blocking(
@@ -613,13 +1014,12 @@ use crate::operations::{
             let base_ap = base_policy._as.clone();
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
-            let namespace = key_as.namespace.clone();
             let client = self._as.clone();
             let cache = self.namespace_mode_cache.clone();
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &namespace).await;
+                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -850,14 +1250,13 @@ use crate::operations::{
             let base_ap = base_policy._as.clone();
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
-            let namespace = key_as.namespace.clone();
             let client = self._as.clone();
             let cache = self.namespace_mode_cache.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &namespace).await;
+                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1979,14 +2378,13 @@ use crate::operations::{
             let base_ap = base_policy._as.clone();
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
-            let namespace = key_as.namespace.clone();
             let client = self._as.clone();
             let cache = self.namespace_mode_cache.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &namespace).await;
+                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -2040,13 +2438,12 @@ use crate::operations::{
             let base_ap = base_policy._as.clone();
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
-            let namespace = key_as.namespace.clone();
             let client = self._as.clone();
             let cache = self.namespace_mode_cache.clone();
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &namespace).await;
+                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -3866,6 +4263,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     m.add_function(wrap_pyfunction!(new_client, m)?)?;
     m.add_function(wrap_pyfunction!(crate::blocking::new_client_blocking, m)?)?;
+    m.add_class::<LocalClient>()?;
     m.add_class::<completion::CompletionDrainer>()?;
 
     // Create and register the exceptions submodule
