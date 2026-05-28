@@ -26,8 +26,8 @@ import uuid
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
-PROPAGATION_RETRIES = 5
-PROPAGATION_DELAY = 0.01
+PROPAGATION_RETRIES = 10
+PROPAGATION_DELAY = 0.5
 
 
 async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):

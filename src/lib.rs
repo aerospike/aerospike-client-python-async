@@ -126,7 +126,6 @@ use crate::operations::{
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
                 bridge: Some(bridge),
-                namespace_mode_cache: Arc::new(std::sync::RwLock::new(HashMap::new())),
             };
 
             Ok(res)
@@ -345,10 +344,6 @@ use crate::operations::{
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
-        // Same lazy namespace → is_sc cache as the regular Client. Each
-        // LocalClient has its own (thread-local Clients = thread-local
-        // caches). First op per (thread, namespace) pays one info call.
-        namespace_mode_cache: Arc<std::sync::RwLock<HashMap<String, bool>>>,
     }
 
     #[pymethods]
@@ -369,7 +364,6 @@ use crate::operations::{
             Ok(LocalClient {
                 rt,
                 client: Arc::new(client),
-                namespace_mode_cache: Arc::new(std::sync::RwLock::new(HashMap::new())),
             })
         }
 
@@ -516,12 +510,11 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self.client.clone();
-            let cache = self.namespace_mode_cache.clone();
             let raw = py.detach(|| {
                 self.rt.block_on(async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -566,7 +559,6 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self.client.clone();
-            let cache = self.namespace_mode_cache.clone();
             let core_bins: Vec<aerospike_core::Bin> = bins
                 .into_iter()
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
@@ -575,7 +567,7 @@ use crate::operations::{
                 self.rt.block_on(async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -621,13 +613,12 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self.client.clone();
-            let cache = self.namespace_mode_cache.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let raw = py.detach(|| {
                 self.rt.block_on(async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -647,6 +638,13 @@ use crate::operations::{
                 })
             })?;
             Ok(Record { _as: raw, cached_bins: None })
+        }
+
+        /// Returns whether ``namespace`` is configured for strong
+        /// consistency on the cluster.  See :meth:`Client.is_strong_consistency`
+        /// for semantics.
+        pub fn is_strong_consistency(&self, namespace: &str) -> Option<bool> {
+            self.client.cluster.is_strong_consistency(namespace)
         }
 
         // -- Info (needed by PSDK SyncSession namespace-mode resolver) ------
@@ -679,58 +677,16 @@ use crate::operations::{
         // require this to be Some; `require_bridge()` enforces it with a clear
         // PyRuntimeError instead of panicking.
         bridge: Option<completion::CompletionBridge>,
-        // Namespace → is_sc cache populated lazily on first use by
-        // `*_with_overrides` entries that receive both AP and SC base
-        // policies. Eliminates per-op SDK-side namespace-mode resolution.
-        namespace_mode_cache: Arc<std::sync::RwLock<HashMap<String, bool>>>,
     }
 
-    // Parse a `namespace/<name>` info-response body for the strong-consistency
-    // flag. Returns true when the body declares `strong-consistency=true`
-    // (or any of the truthy spellings); false otherwise (including when the
-    // key is absent or the namespace is unknown).
-    fn parse_sc_flag(body: &str) -> bool {
-        for pair in body.split(';') {
-            let pair = pair.trim();
-            if let Some((key, val)) = pair.split_once('=') {
-                let key = key.trim();
-                if key == "strong-consistency" || key == "strong_consistency" {
-                    let v = val.trim().to_ascii_lowercase();
-                    return v == "true" || v == "1" || v == "yes";
-                }
-            }
-        }
-        false
-    }
-
-    // Resolve namespace strong-consistency status with a per-client cache.
-    // Cache hit is a single RwLock read; miss does an info call. Returns
-    // false (AP) on any resolution error — same conservative default PSDK
-    // uses, so behavior matches the prior SDK-side resolver.
-    async fn resolve_namespace_is_sc(
-        client: &Arc<aerospike_core::Client>,
-        cache: &Arc<std::sync::RwLock<HashMap<String, bool>>>,
-        namespace: &str,
-    ) -> bool {
-        if let Some(&is_sc) = cache.read().unwrap().get(namespace) {
-            return is_sc;
-        }
-        let cmd = format!("namespace/{}", namespace);
-        let is_sc = match client.cluster.get_random_node() {
-            Ok(node) => {
-                let policy = aerospike_core::AdminPolicy::default();
-                match node.info(&policy, &[&cmd]).await {
-                    Ok(resp) => resp.get(&cmd)
-                        .map(|s| parse_sc_flag(s.as_str()))
-                        .unwrap_or(false),
-                    Err(_) => false,
-                }
-            }
-            Err(_) => false,
-        };
-        cache.write().unwrap().insert(namespace.to_string(), is_sc);
-        is_sc
-    }
+    // Note: previously this module defined `parse_sc_flag` + an async
+    // `resolve_namespace_is_sc` helper that did `info("namespace/<ns>")` on
+    // first touch and cached the result in `namespace_mode_cache`. As of
+    // 2026-05-28 those are gone — aerospike-core's
+    // `Cluster::is_strong_consistency(&str) -> Option<bool>`
+    // (CLIENT-4858) reads scMode directly from the in-memory partition map
+    // with no network I/O, replacing both the helper and the cache. The
+    // *_with_overrides methods now call it inline at op time.
 
     // Apply per-call overrides to a cloned ReadPolicy in place. Used by the
     // `get_blocking_with_overrides` / `get_with_overrides` entries.
@@ -819,6 +775,22 @@ use crate::operations::{
 
         pub fn seeds(&self) -> &str {
             &self.seeds
+        }
+
+        /// Returns whether ``namespace`` is configured for strong
+        /// consistency on the cluster.
+        ///
+        /// Reads from the in-memory partition map (no network I/O). Used by
+        /// PSDK's :class:`Session` to pick between AP-mode and SC-mode policies
+        /// at op time, replacing the legacy ``namespace_mode_cache`` workaround.
+        ///
+        /// Returns:
+        ///     ``Some(True)``: SC namespace.
+        ///     ``Some(False)``: AP namespace.
+        ///     ``None``: namespace not in the partition map (unknown
+        ///     namespace, or partition map not yet populated for this cluster).
+        pub fn is_strong_consistency(&self, namespace: &str) -> Option<bool> {
+            self._as.cluster.is_strong_consistency(namespace)
         }
 
         /// Closes the connection to the Aerospike cluster.
@@ -924,7 +896,6 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self._as.clone();
-            let cache = self.namespace_mode_cache.clone();
 
             // Bin extraction must run while we still hold the GIL.
             let mut bin_vec = Vec::new();
@@ -941,7 +912,7 @@ use crate::operations::{
             run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1015,11 +986,10 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self._as.clone();
-            let cache = self.namespace_mode_cache.clone();
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1251,12 +1221,11 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self._as.clone();
-            let cache = self.namespace_mode_cache.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -2379,12 +2348,11 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self._as.clone();
-            let cache = self.namespace_mode_cache.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -2439,11 +2407,10 @@ use crate::operations::{
             let base_sc = base_policy_sc.map(|p| p._as.clone());
             let key_as = key._as.clone();
             let client = self._as.clone();
-            let cache = self.namespace_mode_cache.clone();
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = resolve_namespace_is_sc(&client, &cache, &key_as.namespace).await;
+                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
