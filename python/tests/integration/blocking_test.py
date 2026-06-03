@@ -37,9 +37,13 @@ import time
 import pytest
 
 from aerospike_async import (
+    BatchDeleteOp,
     BatchPolicy,
+    BatchReadOp,
+    BatchWriteOp,
     ClientPolicy,
     Key,
+    Operation,
     PartitionFilter,
     QueryPolicy,
     ReadPolicy,
@@ -273,3 +277,132 @@ def test_blocking_latency_smoke(aerospike_host, use_services_alternate):
         client.delete_blocking(key, policy=wp)
     finally:
         client.close_blocking()
+
+
+def test_blocking_batch_stream(aerospike_host, use_services_alternate):
+    """`batch_stream_blocking` yields each input op's BatchRecord on a sync
+    iterator. Items arrive in completion order; we assert set-equality on
+    indices and per-key result codes."""
+    from aerospike_async.exceptions import ResultCode
+
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        ns, set_name = "test", "batchstream_blocking"
+        keys = [Key(ns, set_name, f"sk{i}") for i in range(4)]
+        wp = WritePolicy()
+        for i, k in enumerate(keys):
+            client.put_blocking(k, {"v": i}, policy=wp)
+
+        ops = [
+            BatchReadOp(keys[0], ["v"]),
+            BatchWriteOp(keys[1], [Operation.put("v", 99)]),
+            BatchReadOp(keys[2], ["v"]),
+            BatchDeleteOp(keys[3]),
+        ]
+
+        stream = client.batch_stream_blocking(ops)
+        yielded = list(stream)
+
+        assert len(yielded) == 4
+        by_idx = dict(yielded)
+        assert set(by_idx.keys()) == {0, 1, 2, 3}
+        for br in by_idx.values():
+            assert br.result_code == ResultCode.OK
+
+        # Reads return bins; the write op's record has the post-op bin shape;
+        # the delete returns no bins. Just confirm read[0] sees the seed value.
+        assert by_idx[0].record.bins["v"] == 0
+        assert by_idx[2].record.bins["v"] == 2
+
+        # Cleanup
+        for k in keys[:3]:
+            client.delete_blocking(k, policy=wp)
+    finally:
+        client.close_blocking()
+
+
+def test_blocking_batch_stream_rejects_async_iteration(
+    aerospike_host, use_services_alternate,
+):
+    """A stream built via `batch_stream_blocking` has no CompletionBridge
+    (no owning event loop / no per-Client runtime to route through). Async
+    iteration on it must refuse rather than silently routing through the
+    global Tokio runtime — which would break AsyncPool's per-Client
+    runtime isolation invariant for any caller that opted into it."""
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        k = Key("test", "batchstream_blocking", "no_bridge")
+        client.put_blocking(k, {"v": 1}, policy=WritePolicy())
+
+        # Build the stream sync-side (outside any event loop). Then attempt
+        # async iteration — the stream carries no bridge, so __anext__ must
+        # refuse explicitly.
+        stream = client.batch_stream_blocking([BatchReadOp(k, None)])
+
+        async def misuse():
+            async for _ in stream:
+                pass
+
+        with pytest.raises(RuntimeError, match="batch_stream_blocking"):
+            asyncio.run(misuse())
+
+        client.delete_blocking(k, policy=WritePolicy())
+    finally:
+        client.close_blocking()
+
+
+def test_blocking_batch_stream_async_context_guard(
+    aerospike_host, use_services_alternate,
+):
+    """Iterating a `BatchRecordStream` from inside asyncio.run() raises."""
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        k = Key("test", "batchstream_blocking", "guard")
+        client.put_blocking(k, {"v": 1}, policy=WritePolicy())
+
+        # Construct the stream while NOT in an async context (allowed).
+        stream = client.batch_stream_blocking([BatchReadOp(k, None)])
+
+        async def misuse():
+            # Now iterate from inside an async loop — must refuse.
+            for _ in stream:
+                pass
+
+        with pytest.raises(RuntimeError, match="async context"):
+            asyncio.run(misuse())
+
+        client.delete_blocking(k, policy=WritePolicy())
+    finally:
+        client.close_blocking()
+
+
+def test_blocking_batch_stream_exhausted_stops(
+    aerospike_host, use_services_alternate,
+):
+    """Sync sibling of `test_batch_stream_async_exhausted_stops`.
+
+    After the last record, ``__next__`` raises ``StopIteration`` (the
+    `for ... in stream:` loop ends naturally). A second iteration over
+    the same stream object yields nothing — items already consumed and
+    the underlying channel is closed.
+    """
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        k = Key("test", "batchstream_blocking_exhaust", "k0")
+        client.put_blocking(k, {"v": 1}, policy=WritePolicy())
+
+        stream = client.batch_stream_blocking([BatchReadOp(k, None)])
+
+        count = 0
+        for _idx, _br in stream:
+            count += 1
+        assert count == 1
+
+        # Second pass on the same stream — channel closed; yields nothing.
+        second_pass = list(stream)
+        assert second_pass == []
+
+        client.delete_blocking(k, policy=WritePolicy())
+    finally:
+        client.close_blocking()
+

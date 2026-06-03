@@ -15,7 +15,6 @@
 
 use pyo3::prelude::*;
 
-use pyo3_async_runtimes::tokio as pyo3_asyncio;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
 use crate::blocking::run_blocking;
@@ -103,9 +102,30 @@ use crate::errors::RustClientError;
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
-    #[derive(Clone)]
     pub struct RegisterTask {
         pub(crate) _as: aerospike_core::RegisterTask,
+        // Some when built from an async Client method; None when built from
+        // the sync `*_blocking` sibling. Async polling routes through the
+        // bridge for loop-affinity + per-Client runtime isolation.
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
+    }
+
+    // Manual Clone: CompletionBridge holds a `Py<>` (the drainer) which
+    // requires a Python token to clone (`Py::clone_ref(py)`). `derive(Clone)`
+    // has signature `fn clone(&self) -> Self` — no token — so it can't drive
+    // `clone_ref`. The same constraint holds under GIL (non-atomic refcount
+    // protected by exclusive interpreter access) and free-threading
+    // (interpreter-attachment lifetime, even though refcount itself is now
+    // atomic). Clones drop the bridge; only the original PyClass needs it
+    // for async iteration. `from_py_object` (which Clone serves) doesn't
+    // iterate, so dropping the bridge there is safe.
+    impl Clone for RegisterTask {
+        fn clone(&self) -> Self {
+            RegisterTask {
+                _as: self._as.clone(),
+                bridge: None,
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -113,8 +133,15 @@ use crate::errors::RustClientError;
     impl RegisterTask {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await query_status() on a task returned from a \
+                     `*_blocking` method. Use the `query_status_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 use aerospike_core::task::Task;
                 let status: aerospike_core::task::Status = task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(TaskStatus::from(status))
@@ -137,8 +164,15 @@ use crate::errors::RustClientError;
             max_attempts: u32,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await wait_till_complete() on a task returned from \
+                     a `*_blocking` method. Use the `wait_till_complete_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
@@ -190,9 +224,18 @@ use crate::errors::RustClientError;
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
-    #[derive(Clone)]
     pub struct UdfRemoveTask {
         pub(crate) _as: aerospike_core::UdfRemoveTask,
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
+    }
+
+    impl Clone for UdfRemoveTask {
+        fn clone(&self) -> Self {
+            UdfRemoveTask {
+                _as: self._as.clone(),
+                bridge: None,
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -200,8 +243,15 @@ use crate::errors::RustClientError;
     impl UdfRemoveTask {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await query_status() on a task returned from a \
+                     `*_blocking` method. Use the `query_status_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 use aerospike_core::task::Task;
                 let status: aerospike_core::task::Status = task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(TaskStatus::from(status))
@@ -224,8 +274,15 @@ use crate::errors::RustClientError;
             max_attempts: u32,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await wait_till_complete() on a task returned from \
+                     a `*_blocking` method. Use the `wait_till_complete_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
@@ -277,9 +334,18 @@ use crate::errors::RustClientError;
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
-    #[derive(Clone)]
     pub struct IndexTask {
         pub(crate) _as: aerospike_core::IndexTask,
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
+    }
+
+    impl Clone for IndexTask {
+        fn clone(&self) -> Self {
+            IndexTask {
+                _as: self._as.clone(),
+                bridge: None,
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -287,8 +353,15 @@ use crate::errors::RustClientError;
     impl IndexTask {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await query_status() on a task returned from a \
+                     `*_blocking` method. Use the `query_status_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 use aerospike_core::task::Task;
                 let status: aerospike_core::task::Status =
                     task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -304,8 +377,15 @@ use crate::errors::RustClientError;
             max_attempts: u32,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await wait_till_complete() on a task returned from \
+                     a `*_blocking` method. Use the `wait_till_complete_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
@@ -357,9 +437,18 @@ use crate::errors::RustClientError;
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
-    #[derive(Clone)]
     pub struct DropIndexTask {
         pub(crate) _as: aerospike_core::DropIndexTask,
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
+    }
+
+    impl Clone for DropIndexTask {
+        fn clone(&self) -> Self {
+            DropIndexTask {
+                _as: self._as.clone(),
+                bridge: None,
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -367,8 +456,15 @@ use crate::errors::RustClientError;
     impl DropIndexTask {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await query_status() on a task returned from a \
+                     `*_blocking` method. Use the `query_status_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 use aerospike_core::task::Task;
                 let status: aerospike_core::task::Status =
                     task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -384,8 +480,15 @@ use crate::errors::RustClientError;
             max_attempts: u32,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await wait_till_complete() on a task returned from \
+                     a `*_blocking` method. Use the `wait_till_complete_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }
@@ -437,9 +540,18 @@ use crate::errors::RustClientError;
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
-    #[derive(Clone)]
     pub struct ExecuteTask {
         pub(crate) _as: aerospike_core::ExecuteTask,
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
+    }
+
+    impl Clone for ExecuteTask {
+        fn clone(&self) -> Self {
+            ExecuteTask {
+                _as: self._as.clone(),
+                bridge: None,
+            }
+        }
     }
 
     #[gen_stub_pymethods]
@@ -447,8 +559,15 @@ use crate::errors::RustClientError;
     impl ExecuteTask {
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await query_status() on a task returned from a \
+                     `*_blocking` method. Use the `query_status_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 use aerospike_core::task::Task;
                 let status: aerospike_core::task::Status =
                     task.query_status().await.map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -464,8 +583,15 @@ use crate::errors::RustClientError;
             max_attempts: u32,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await wait_till_complete() on a task returned from \
+                     a `*_blocking` method. Use the `wait_till_complete_blocking()` \
+                     sibling or rebuild via the async Client method.",
+                )
+            })?;
             let task = self._as.clone();
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 wait_till_complete_impl(task, sleep_time, max_attempts).await
             })
         }

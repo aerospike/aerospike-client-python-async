@@ -30,6 +30,7 @@ def test_client_policy_properties():
     cp.use_services_alternate = True
     cp.rack_ids = [1, 2, 3]
     cp.fail_if_not_connected = False
+    cp.seed_only_cluster = True
     cp.buffer_reclaim_threshold = 32768
     cp.tend_interval = 2000
     cp.cluster_name = "test-cluster"
@@ -46,6 +47,7 @@ def test_client_policy_properties():
     assert cp.use_services_alternate is True
     assert set(cp.rack_ids) == {1, 2, 3}  # HashSet doesn't preserve order
     assert cp.fail_if_not_connected is False
+    assert cp.seed_only_cluster is True
     assert cp.buffer_reclaim_threshold == 32768
     assert cp.tend_interval == 2000
     assert cp.cluster_name == "test-cluster"
@@ -72,6 +74,7 @@ def test_client_policy_properties():
     assert cp2.use_services_alternate is False
     assert cp2.rack_ids is None
     assert cp2.fail_if_not_connected is True
+    assert cp2.seed_only_cluster is False
     assert cp2.buffer_reclaim_threshold == 65536
     assert cp2.tend_interval == 1000
     assert cp2.cluster_name is None

@@ -252,10 +252,6 @@ async def test_batch_delete(client_and_keys):
             assert e.result_code == ResultCode.KEY_NOT_FOUND_ERROR
             assert isinstance(e, RecordNotFound)
 
-@pytest.mark.xfail(
-    reason="Core single-key fast path returns OK for delete of nonexistent key",
-    strict=True,
-)
 async def test_batch_delete_key_not_found(client_and_keys):
     """Test batch delete with non-existent key.
 
@@ -404,11 +400,6 @@ async def test_batch_read_with_filter_expression(client_and_keys):
     assert results[0].record.bins[bin_name] == "match"
 
 
-@pytest.mark.xfail(
-    reason="Core single-key fast path propagates PARAMETER_ERROR as exception",
-    strict=True,
-    raises=Exception,
-)
 async def test_batch_read_invalid_filter_expression_bytes_returns_parameter_error():
     """Decodable base64 that is not valid expression wire data yields PARAMETER_ERROR per record.
 
@@ -881,8 +872,14 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
 
 
 @pytest.mark.xfail(
-    reason="Rust core rejects entire batch when any key targets an unknown namespace; "
-           "per-key INVALID_NAMESPACE not yet supported",
+    reason="Rust core's batch executor raises InvalidNamespace at partition routing "
+           "(batch_executor.rs::get_batch_operate_nodes uses `?` on node_for_key) "
+           "instead of recording per-key INVALID_NAMESPACE on a synthetic BatchRecord. "
+           "CLIENT-4881's per-key ServerError absorption doesn't reach here — this is "
+           "a client-side routing bail, not a server response code. Fix needs the "
+           "batch executor to catch Error::InvalidNamespace/InvalidNode at lookup "
+           "time, synthesize a BatchRecord with result_code=INVALID_NAMESPACE, and "
+           "thread it into all_results alongside the per-node groups.",
     raises=InvalidNamespaceError,
     strict=True,
 )
@@ -912,11 +909,6 @@ async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
     assert results[3].result_code == ResultCode.OK
 
 
-@pytest.mark.xfail(
-    reason="Core single-key fast path propagates KEY_EXISTS_ERROR as exception",
-    strict=True,
-    raises=Exception,
-)
 async def test_batch_mixed_with_policy(client_and_keys):
     """Test Client.batch() with per-op policies."""
     client, keys, _, bin_name = client_and_keys
@@ -931,6 +923,64 @@ async def test_batch_mixed_with_policy(client_and_keys):
     results = await client.batch([op], batch_policy=None)
     assert len(results) == 1
     assert results[0].result_code == ResultCode.KEY_EXISTS_ERROR
+
+
+async def test_batch_single_key_fast_path_regression(client_and_keys):
+    """Regression guard for the single-key fast path in core's batch executor.
+
+    When a batch group contains exactly one key destined for a node, core
+    routes that key through a single-key command (in
+    ``aerospike-core/src/batch/batch_executor.rs::execute_single_op``) rather
+    than the multi-key batch wire protocol. The previous CLIENT-2403
+    regression in that path broke the batch contract in two ways:
+
+    1. Per-key errors other than ``KEY_NOT_FOUND_ERROR`` /  ``FILTERED_OUT``
+       (e.g. ``PARAMETER_ERROR``, ``KEY_EXISTS_ERROR``) propagated as a
+       per-CALL exception instead of landing on the ``BatchRecord``.
+    2. Delete-of-nonexistent returned per-record ``OK`` instead of
+       ``KEY_NOT_FOUND_ERROR``.
+
+    Both were fixed in aerospike-core PR #201 (merged into ``v3``).
+    Individual coverage exists in :func:`test_batch_delete_key_not_found`,
+    :func:`test_batch_mixed_with_policy`, and
+    :func:`test_batch_read_invalid_filter_expression_bytes_returns_parameter_error`;
+    this test consolidates all three single-key shapes in one place so a
+    future refactor of the single-op fast path can be easily checked
+    against the contract.
+    """
+    client, keys, _, bin_name = client_and_keys
+
+    # (1) Delete-of-nonexistent must report KEY_NOT_FOUND_ERROR per-record.
+    k_missing = Key("test", "test", "single_key_fast_path_missing")
+    try:
+        await client.delete(k_missing, policy=WritePolicy())
+    except Exception:
+        pass
+    results = await client.batch_delete([k_missing], batch_policy=None, delete_policy=None)
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.KEY_NOT_FOUND_ERROR
+
+    # (2) Per-key KEY_EXISTS_ERROR (CREATE_ONLY on existing key) must land on
+    # the BatchRecord — not propagate as a per-CALL exception.
+    bwp = BatchWritePolicy()
+    bwp.record_exists_action = RecordExistsAction.CREATE_ONLY
+    results = await client.batch(
+        [BatchWriteOp(keys[0], [Operation.put("regression_v", 1)], policy=bwp)],
+        batch_policy=None,
+    )
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.KEY_EXISTS_ERROR
+
+    # (3) Per-key PARAMETER_ERROR (invalid filter expression bytes) must land
+    # on the BatchRecord — not propagate as a per-CALL exception.
+    garbage_b64 = base64.b64encode(b"\xff\x00not-a-valid-expression").decode("ascii")
+    brp = BatchReadPolicy()
+    brp.filter_expression = FilterExpression.from_base64(garbage_b64)
+    results = await client.batch_read(
+        [keys[0]], [bin_name], batch_policy=None, read_policy=brp,
+    )
+    assert len(results) == 1
+    assert results[0].result_code == ResultCode.PARAMETER_ERROR
 
 
 async def test_batch_write_map_put(client_and_keys):
@@ -1051,3 +1101,97 @@ async def test_batch_mixed_cdt_and_scalar(client_and_keys):
     rec = await client.get(k, policy=ReadPolicy())
     assert rec.bins["txt"] == "hello"
     assert rec.bins["mb"]["a"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Streaming batch (Client.batch_stream)
+# ---------------------------------------------------------------------------
+
+async def test_batch_stream_async_yields_all_records(client_and_keys):
+    """`batch_stream` yields one BatchRecord per input op; set-equality on keys."""
+    client, keys, _, bin_name = client_and_keys
+
+    ops = [BatchReadOp(k, [bin_name]) for k in keys]
+    stream = await client.batch_stream(ops)
+
+    yielded = []
+    async for idx, br in stream:
+        yielded.append((idx, br))
+
+    assert len(yielded) == len(keys)
+    assert {idx for idx, _ in yielded} == set(range(len(keys)))
+    # Every input key must appear exactly once across yielded records.
+    yielded_key_values = {br.key.value for _, br in yielded}
+    expected_key_values = {k.value for k in keys}
+    assert yielded_key_values == expected_key_values
+    for _, br in yielded:
+        assert br.result_code == ResultCode.OK
+
+
+async def test_batch_stream_async_per_key_error_inline(client_and_keys):
+    """Per-key errors land on the BatchRecord — the stream does not raise."""
+    client, keys, _, _bin_name = client_and_keys
+
+    bwp = BatchWritePolicy()
+    bwp.record_exists_action = RecordExistsAction.CREATE_ONLY
+
+    # All target keys already exist (set up by fixture). CREATE_ONLY must
+    # produce KEY_EXISTS_ERROR per-key, not raise.
+    ops = [
+        BatchWriteOp(keys[0], [Operation.put("new", 1)], policy=bwp),
+        BatchWriteOp(keys[1], [Operation.put("new", 1)], policy=bwp),
+        BatchReadOp(keys[2], None),
+    ]
+    stream = await client.batch_stream(ops)
+
+    by_idx = {}
+    async for idx, br in stream:
+        by_idx[idx] = br
+
+    assert len(by_idx) == 3
+    assert by_idx[0].result_code == ResultCode.KEY_EXISTS_ERROR
+    assert by_idx[1].result_code == ResultCode.KEY_EXISTS_ERROR
+    assert by_idx[2].result_code == ResultCode.OK
+
+
+async def test_batch_stream_async_mixed_ops(client_and_keys):
+    """Mixed reads / writes / deletes in one stream — all yield without
+    error, each with the right per-op result shape."""
+    client, keys, delete_keys, bin_name = client_and_keys
+
+    ops = [
+        BatchReadOp(keys[0], [bin_name]),
+        BatchWriteOp(keys[1], [Operation.put("stream_w", 42)]),
+        BatchDeleteOp(delete_keys[0]),
+        BatchReadOp(keys[2], None),
+    ]
+    stream = await client.batch_stream(ops)
+
+    by_idx = {}
+    async for idx, br in stream:
+        by_idx[idx] = br
+
+    assert set(by_idx.keys()) == {0, 1, 2, 3}
+    for br in by_idx.values():
+        assert br.result_code == ResultCode.OK
+
+
+async def test_batch_stream_async_exhausted_stops(client_and_keys):
+    """After the last record, `__anext__` raises StopAsyncIteration."""
+    client, keys, _, bin_name = client_and_keys
+
+    ops = [BatchReadOp(keys[0], [bin_name])]
+    stream = await client.batch_stream(ops)
+
+    count = 0
+    async for _idx, _br in stream:
+        count += 1
+    assert count == 1
+
+    # A second iteration over the same stream yields nothing — items already
+    # consumed; the channel is closed.
+    second_pass = []
+    async for item in stream:
+        second_pass.append(item)
+    assert second_pass == []
+

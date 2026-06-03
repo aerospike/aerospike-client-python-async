@@ -121,7 +121,7 @@ impl CompletionBridge {
         Ok(CompletionBridge { inner, drainer })
     }
 
-    fn clone_ref(&self, py: Python<'_>) -> Self {
+    pub(crate) fn clone_ref(&self, py: Python<'_>) -> Self {
         CompletionBridge {
             inner: self.inner.clone(),
             drainer: self.drainer.clone_ref(py),
