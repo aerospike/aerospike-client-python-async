@@ -341,12 +341,14 @@ use crate::operations::{
     /// Default users should stick with [`Client`]. Underscore-prefixed name
     /// signals private / unstable status; opt in via PSDK's
     /// `SyncClient(current_thread_runtime=True)`.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(unsendable, module = "_aerospike_async_native", name = "_LocalClient")]
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl LocalClient {
         #[new]

@@ -46,7 +46,9 @@ pub(crate) struct ClientRuntime {
     // Order matters: `handle` is just a borrow; `_rt` must outlive any
     // spawned tasks. Dropping the runtime stops the worker threads.
     handle: Handle,
-    _rt: Runtime,
+    // `Option` so the manual `Drop` impl can `take()` the runtime out and
+    // dispatch shutdown via `shutdown_background()` — see the Drop comment.
+    _rt: Option<Runtime>,
 }
 
 impl ClientRuntime {
@@ -60,10 +62,27 @@ impl ClientRuntime {
             .thread_name("pac-client-rt")
             .build()?;
         let handle = rt.handle().clone();
-        Ok(ClientRuntime { handle, _rt: rt })
+        Ok(ClientRuntime { handle, _rt: Some(rt) })
     }
 
     pub(crate) fn handle(&self) -> &Handle {
         &self.handle
+    }
+}
+
+impl Drop for ClientRuntime {
+    fn drop(&mut self) {
+        // Tokio's default `Runtime::drop` calls `block_on(shutdown_timeout(0))`
+        // which panics if dropped from inside an async context — exactly what
+        // happens when Python's garbage collector finalizes a `Client`
+        // during another test's `asyncio.run()`. `shutdown_background()`
+        // schedules the cleanup on a separate thread so dropping from any
+        // context is safe. In-flight tasks are abandoned rather than awaited;
+        // PAC's request lifecycle doesn't depend on graceful per-task
+        // shutdown (each op's PyFuture has already resolved by the time the
+        // Client is dropped).
+        if let Some(rt) = self._rt.take() {
+            rt.shutdown_background();
+        }
     }
 }

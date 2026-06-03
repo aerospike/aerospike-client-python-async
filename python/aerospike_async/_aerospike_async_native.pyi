@@ -100,6 +100,7 @@ __all__ = [
     "User",
     "Version",
     "WritePolicy",
+    "_LocalClient",
     "geojson",
     "has_any_write_op",
     "new_client",
@@ -4397,6 +4398,44 @@ class Version:
 
 class WritePolicy(_aerospike_async_native.BasePolicy):
     ...
+
+@typing.final
+class _LocalClient:
+    r"""
+    Sync-only Aerospike client that owns a per-thread `current_thread`
+    Tokio runtime. Eliminates the cross-thread worker hop per op that the
+    shared multi-thread runtime imposes on `Client_blocking()`'s sync path.
+
+    Construct one per Python OS thread. The runtime + Client are tied
+    to the thread that built them — accessing from a different thread
+    raises (enforced by `#[pyclass(unsendable)]`). Use `threading.local()`
+    in Python to manage thread-bound instances.
+
+    Surface mirrors the `Client.*_blocking` methods PSDK's sync path
+    calls. Each `*_local` method runs on the per-thread runtime via
+    `block_on`, so completion returns on the SAME thread without any
+    worker-pool hop.
+    **Experimental — subject to removal.** Per-thread `current_thread`
+    Tokio runtime client. Open caveat: cluster-tend multiplication at
+    high thread counts.
+    Default users should stick with [`Client`]. Underscore-prefixed name
+    signals private / unstable status; opt in via PSDK's
+    `SyncClient(current_thread_runtime=True)`.
+    """
+    def __new__(cls, policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str) -> _aerospike_async_native._LocalClient: ...
+    def get_blocking(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record: ...
+    def put_blocking(self, key: _aerospike_async_native.Key, bins: typing.Mapping[builtins.str, typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> None: ...
+    def delete_blocking(self, key: _aerospike_async_native.Key, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> builtins.bool: ...
+    def touch_blocking(self, key: _aerospike_async_native.Key, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> None: ...
+    def exists_blocking(self, key: _aerospike_async_native.Key, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> builtins.bool: ...
+    def operate_blocking(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record: ...
+    def is_strong_consistency(self, namespace: builtins.str) -> typing.Optional[builtins.bool]:
+        r"""
+        Returns whether ``namespace`` is configured for strong
+        consistency on the cluster.  See :meth:`Client.is_strong_consistency`
+        for semantics.
+        """
+    def info_blocking(self, command: builtins.str) -> builtins.dict[builtins.str, builtins.str]: ...
 
 @typing.final
 class AbortStatus(enum.Enum):
