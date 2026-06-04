@@ -12,7 +12,9 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.29", default-features = false }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v3", package = "aerospike-core", features = ["rt-tokio"] }
+# Use git for CI/releases. For local work with a sibling repo, swap the two lines below.
+# aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v3", package = "aerospike-core", features = ["rt-tokio"] }
+aerospike-core = { path = "../aerospike-client-rust/aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.23"
