@@ -1738,6 +1738,12 @@ use crate::TlsConfig;
     #[derive(Clone)]
     pub struct ClientPolicy {
         pub(crate) _as: aerospike_core::ClientPolicy,
+        /// PAC-specific (not in aerospike_core): when set, every async op
+        /// on this Client runs on a dedicated Tokio runtime with this many
+        /// worker threads instead of the shared global runtime. Eliminates
+        /// cross-loop scheduler contention under AsyncPool. `None` or
+        /// `Some(0)` = use the global runtime (default).
+        pub(crate) per_client_runtime_workers: Option<usize>,
     }
 
     #[gen_stub_pymethods]
@@ -1746,12 +1752,46 @@ use crate::TlsConfig;
         #[new]
         fn new() -> PyResult<Self> {
             let mut cp = aerospike_core::ClientPolicy::default();
-            // Use multiple connection pools per node to reduce mutex
-            // contention when many async tasks share the same client.
+            // Tuned for the primary async use case: a single Tokio runtime
+            // (or per-Client runtime in AsyncPool) serializes pool access
+            // through one or two workers, so contention is naturally low
+            // even at high task concurrency. Sync wrappers that drive PAC
+            // from many caller threads (e.g. PSDK's SyncClient) should
+            // override this on the policy before construction; 8 is a good
+            // value for ~32-thread sync workloads.
             cp.conn_pools_per_node = 4;
-            let res = ClientPolicy { _as: cp };
+            let res = ClientPolicy {
+                _as: cp,
+                per_client_runtime_workers: None,
+            };
 
             Ok(res)
+        }
+
+        /// Get the per-Client Tokio runtime worker count, if set.
+        ///
+        /// See :attr:`set_per_client_runtime_workers` for semantics.
+        #[getter]
+        pub fn get_per_client_runtime_workers(&self) -> Option<usize> {
+            self.per_client_runtime_workers
+        }
+
+        /// Per-Client Tokio runtime (opt-in). With ``Some(N)`` where
+        /// ``N >= 1``, this Client gets a dedicated multi-thread runtime
+        /// with ``N`` workers instead of the shared global one.
+        /// ``None`` or ``Some(0)`` keeps the global runtime (default).
+        ///
+        /// Use this when multiple Clients on multiple async event loops
+        /// coexist in one process: the global runtime's work-stealing
+        /// collapses past ~4 concurrent loops on an 8-CPU host, while a
+        /// dedicated per-Client runtime isolates the scheduling.
+        ///
+        /// Sizing: pick ``workers >= concurrency / 8`` for reasonable
+        /// tail latency. Under-provisioning starves concurrent ops
+        /// (32 in-flight tasks on 2 workers showed ~1000ms p99.9).
+        #[setter]
+        pub fn set_per_client_runtime_workers(&mut self, workers: Option<usize>) {
+            self.per_client_runtime_workers = workers;
         }
 
         #[getter]

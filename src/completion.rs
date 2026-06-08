@@ -40,6 +40,8 @@ use pyo3::IntoPyObjectExt;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
 
+use crate::client_runtime::ClientRuntime;
+
 type Converter = Box<dyn FnOnce(Python<'_>) -> PyResult<Py<PyAny>> + Send>;
 
 struct PendingResult {
@@ -60,6 +62,11 @@ struct CompletionInner {
     /// `batched_future_into_py` entry rather than silently corrupting state
     /// (`set_result` on loop B's future from loop A's thread).
     owning_loop: Py<PyAny>,
+    /// Per-Client runtime: when Some, spawn each future on this dedicated
+    /// Tokio runtime instead of the shared global multi-thread one. Set
+    /// from `ClientPolicy.per_client_runtime_workers`. Held by Arc so the
+    /// runtime outlives any in-flight futures.
+    client_rt: Option<Arc<ClientRuntime>>,
 }
 
 /// Owned by each `Client`.
@@ -98,12 +105,17 @@ impl CompletionDrainer {
 }
 
 impl CompletionBridge {
-    pub(crate) fn new(py: Python<'_>, owning_loop: Py<PyAny>) -> PyResult<Self> {
+    pub(crate) fn new(
+        py: Python<'_>,
+        owning_loop: Py<PyAny>,
+        client_rt: Option<Arc<ClientRuntime>>,
+    ) -> PyResult<Self> {
         let inner = Arc::new(CompletionInner {
             queue: Mutex::new(Vec::new()),
             drain_scheduled: AtomicBool::new(false),
             closed: AtomicBool::new(false),
             owning_loop,
+            client_rt,
         });
         let drainer = Py::new(py, CompletionDrainer { inner: inner.clone() })?;
         Ok(CompletionBridge { inner, drainer })
@@ -238,8 +250,12 @@ where
 
     let future_ref: Py<PyAny> = py_fut.clone().unbind();
     let bridge = bridge.clone_ref(py);
+    // Capture the per-Client runtime handle before moving `bridge` into
+    // the async closure. Arc clone is cheap and keeps the runtime alive
+    // for the lifetime of the spawn.
+    let client_rt = bridge.inner.client_rt.clone();
 
-    pyo3_asyncio::get_runtime().spawn(async move {
+    let spawn_fut = async move {
         let outcome = AssertUnwindSafe(fut).catch_unwind().await;
         // Backstop for the shutdown-race panic: when a user-code exception
         // escapes `asyncio.run()` while Tokio tasks are still airborne, the
@@ -279,7 +295,18 @@ where
             };
             bridge.enqueue(pr);
         }));
-    });
+    };
+
+    // Spawn on the per-Client runtime when set; otherwise fall back to
+    // the global multi-thread runtime (default behavior).
+    match client_rt {
+        Some(rt) => {
+            rt.handle().spawn(spawn_fut);
+        }
+        None => {
+            pyo3_asyncio::get_runtime().spawn(spawn_fut);
+        }
+    }
 
     Ok(py_fut)
 }

@@ -31,12 +31,18 @@ pip install aerospike-async
 Pin to a specific release if you need reproducible builds:
 
 ```bash
-pip install aerospike-async==0.4.0a1
+pip install aerospike-async==0.4.0a1  # latest on PyPI as of this writing
 ```
 
-Pre-built wheels are published for every supported platform/Python combination,
-so no Rust toolchain is required for ordinary use. If pip resolves to an sdist
-on your platform, see [Building from source](#building-from-source) below.
+Pre-built wheels are published for every supported platform/Python combination
+on **regular CPython** (3.10 – 3.14, ABI tags `cp310`–`cp314`), so no Rust
+toolchain is required for ordinary use. If pip resolves to an sdist on your
+platform, see [Building from source](#building-from-source) below.
+
+**Free-threaded Python (3.14t / `cp314t`):** `aerospike-async` does not yet
+publish free-threaded wheels to PyPI. On the FT build,
+`pip install aerospike-async` fails with `"... is not a supported wheel on
+this platform"`. Build from source — see [Building from source](#building-from-source).
 
 ## Quick start
 
@@ -230,8 +236,11 @@ package.
 This project uses [PyO3](https://pyo3.rs/) to build a Rust extension for
 Python. You will need:
 
-- **Python** 3.10 - 3.14 (recommended: [pyenv](https://github.com/pyenv/pyenv) with a dedicated environment)
-- **Rust toolchain** (`rustc` + `cargo`)
+- **Python** 3.10 - 3.14, **or** 3.14t (free-threaded) for high-throughput / PSDK `AsyncPool` work.
+  Recommended installer: [`uv`](https://docs.astral.sh/uv/) (`uv python install 3.14.5+freethreaded`)
+  or [`pyenv`](https://github.com/pyenv/pyenv) with a dedicated environment.
+- **Rust toolchain** (`rustc` + `cargo`) — always required when building from source
+  (mandatory on free-threaded Python until FT wheels ship)
 - **Aerospike server** — required for integration tests
 
 If Rust is not already installed:

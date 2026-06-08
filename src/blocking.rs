@@ -97,5 +97,6 @@ pub(crate) fn new_client_blocking(
         _as: Arc::new(raw),
         seeds,
         bridge: None,
+        namespace_mode_cache: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
     })
 }
