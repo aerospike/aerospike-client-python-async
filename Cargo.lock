@@ -10,8 +10,8 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "aerospike-core"
-version = "2.1.0"
-source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#0b137d6e69052916c276126bf0208eee29f2ea18"
+version = "3.0.0-alpha.1"
+source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#6b7e6849a169f270e30640ec7277f724bf5f5675"
 dependencies = [
  "aerospike-rt",
  "async-channel",
@@ -35,8 +35,8 @@ dependencies = [
 
 [[package]]
 name = "aerospike-rt"
-version = "2.1.0"
-source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#0b137d6e69052916c276126bf0208eee29f2ea18"
+version = "3.0.0-alpha.1"
+source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#6b7e6849a169f270e30640ec7277f724bf5f5675"
 dependencies = [
  "tokio",
 ]

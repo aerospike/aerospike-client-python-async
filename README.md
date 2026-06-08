@@ -2,7 +2,8 @@
 
 Async I/O Python bindings for the Aerospike Rust client core. Built with
 [PyO3](https://pyo3.rs/); ships pre-built wheels for Linux (x86_64, aarch64),
-macOS (x86_64, arm64), and Windows (x86_64) on Python 3.10–3.14.
+macOS (x86_64, arm64), and Windows (x86_64) on Python 3.10–3.14, including
+free-threaded builds (`cp313t` / `cp314t`).
 
 > **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
 > via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-async/issues).
@@ -31,18 +32,14 @@ pip install aerospike-async
 Pin to a specific release if you need reproducible builds:
 
 ```bash
-pip install aerospike-async==0.4.0a1  # latest on PyPI as of this writing
+pip install aerospike-async==0.5.0a1  # latest on PyPI as of this writing
 ```
 
 Pre-built wheels are published for every supported platform/Python combination
-on **regular CPython** (3.10 – 3.14, ABI tags `cp310`–`cp314`), so no Rust
-toolchain is required for ordinary use. If pip resolves to an sdist on your
-platform, see [Building from source](#building-from-source) below.
-
-**Free-threaded Python (3.14t / `cp314t`):** `aerospike-async` does not yet
-publish free-threaded wheels to PyPI. On the FT build,
-`pip install aerospike-async` fails with `"... is not a supported wheel on
-this platform"`. Build from source — see [Building from source](#building-from-source).
+on regular CPython (3.10 – 3.14, ABI tags `cp310`–`cp314`) **and on the
+free-threaded builds** (`cp313t` / `cp314t`), so no Rust toolchain is required
+for ordinary use. If pip resolves to an sdist on your platform, see
+[Building from source](#building-from-source) below.
 
 ## Quick start
 
@@ -240,7 +237,6 @@ Python. You will need:
   Recommended installer: [`uv`](https://docs.astral.sh/uv/) (`uv python install 3.14.5+freethreaded`)
   or [`pyenv`](https://github.com/pyenv/pyenv) with a dedicated environment.
 - **Rust toolchain** (`rustc` + `cargo`) — always required when building from source
-  (mandatory on free-threaded Python until FT wheels ship)
 - **Aerospike server** — required for integration tests
 
 If Rust is not already installed:

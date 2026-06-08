@@ -22,7 +22,6 @@ use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::types::{PyBool, PyList};
 use pyo3::{prelude::*, IntoPyObjectExt};
 
-use pyo3_async_runtimes::tokio as pyo3_asyncio;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use tokio::sync::Mutex;
@@ -817,13 +816,25 @@ use crate::record::{Key, PythonValue, Record};
     pub struct Recordset {
         pub(crate) _as: Arc<aerospike_core::Recordset>,
         pub(crate) _stream: Arc<Mutex<Option<Pin<Box<RecordStream>>>>>,
+        // Some when built from `Client::query` (async); None when built from
+        // `Client::query_blocking`. Async iteration / `partition_filter()`
+        // route through the bridge for loop-affinity + per-Client runtime;
+        // a None bridge surfaces an explicit refusal rather than silently
+        // routing through the global runtime.
+        pub(crate) bridge: Option<crate::completion::CompletionBridge>,
     }
 
     impl Clone for Recordset {
         fn clone(&self) -> Self {
+            // The bridge holds a Py<...> which needs the GIL to bump
+            // refcount; PyO3 from_py_object expects a plain Clone. Drop the
+            // bridge on clone — async paths read bridge from the original
+            // (via PyRef in `__aiter__`), so this only loses bridge access
+            // for from_py_object conversions which don't iterate.
             Recordset {
                 _as: self._as.clone(),
                 _stream: Arc::new(Mutex::new(None)),
+                bridge: None,
             }
         }
     }
@@ -842,9 +853,15 @@ use crate::record::{Key, PythonValue, Record};
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[PartitionFilter]]", imports=("typing", "aerospike_async")))]
         pub fn partition_filter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot await partition_filter() on a Recordset created via \
+                     query_blocking. Use query() in an async context.",
+                )
+            })?;
             let recordset = self._as.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 match recordset.partition_filter().await {
                     Some(pf) => Ok(Some(PartitionFilter { _as: pf })),
                     None => Ok(None),
@@ -852,15 +869,22 @@ use crate::record::{Key, PythonValue, Record};
             })
         }
 
-        fn __aiter__(&self) -> Self {
-            self.clone()
+        fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+            slf
         }
 
         fn __anext__<'a>(&'a mut self, py: Python<'a>) -> PyResult<Py<PyAny>> {
+            let bridge = self.bridge.as_ref().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot async-iterate a Recordset created via query_blocking. \
+                     Use sync iteration (`for record in recordset:`) or recreate \
+                     the recordset via Client.query() in an async context.",
+                )
+            })?;
             let recordset = self._as.clone();
             let stream_mutex = self._stream.clone();
 
-            pyo3_asyncio::future_into_py(py, async move {
+            crate::completion::batched_future_into_py(bridge, py, async move {
                 // Initialize stream if needed, then poll
                 let mut stream_opt = stream_mutex.lock().await;
                 if stream_opt.is_none() {
@@ -871,10 +895,10 @@ use crate::record::{Key, PythonValue, Record};
                     use futures::StreamExt;
                     match stream.as_mut().next().await {
                         Some(Ok(rec)) => {
-                            Python::attach(|py| {
+                            Python::attach(|py| -> PyResult<Py<PyAny>> {
                                 let res = Record { _as: rec, cached_bins: None };
-                                let py_obj: Py<PyAny> = res.into_pyobject(py).unwrap().unbind().into();
-                                Ok(Some(py_obj))
+                                let py_obj: Py<PyAny> = res.into_pyobject(py)?.unbind().into();
+                                Ok(py_obj)
                             })
                         }
                         Some(Err(e)) => {

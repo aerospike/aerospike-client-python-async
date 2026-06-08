@@ -17,45 +17,52 @@ use pyo3_stub_gen::Result;
 use std::path::PathBuf;
 use std::fs;
 
+/// The full dotted module path that pyproject.toml declares as
+/// `tool.maturin.module-name`. pyo3-stub-gen 0.22 validates that every
+/// registered module key matches this prefix; the `#[gen_stub_pyclass]`
+/// annotations use the bare `_aerospike_async_native`, so we remap
+/// the key here before calling `generate()`.
+const FULL_MODULE: &str = "aerospike_async._aerospike_async_native";
+const BARE_MODULE: &str = "_aerospike_async_native";
+
 fn main() -> Result<()> {
-    // `stub_info` is a function defined by `define_stub_info_gatherer!` macro.
     let stub = _aerospike_async_native::stub_info()?;
 
-    // Override the output directory if specified
     let output_path = if let Ok(output_dir) = std::env::var("STUB_OUTPUT_DIR") {
         PathBuf::from(output_dir)
     } else {
         stub.python_root.clone()
     };
 
-    // Generate stubs with the output directory
-    // Clone the gathered `StubInfo` and override `python_root`.  Cloning
-    // is forward-compatible across pyo3-stub-gen version bumps that add new
-    // fields to `StubInfo` (vs. struct-literal init which breaks every bump).
     let mut custom_stub = stub.clone();
     custom_stub.python_root = output_path.clone();
-    custom_stub.generate()?;
 
-    // Move _aerospike_async_native.pyi from python/ to python/aerospike_async/
-    // This is needed because pyo3_stub_gen creates it at the root, but we need it in the package
-    let root_stub = output_path.join("_aerospike_async_native.pyi");
-    let package_stub = output_path.join("aerospike_async").join("_aerospike_async_native.pyi");
-
-    if root_stub.exists() {
-        // Ensure the package directory exists
-        if let Some(parent) = package_stub.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        // Move the file to the package directory
-        fs::rename(&root_stub, &package_stub)?;
-        eprintln!("Moved {} to {}", root_stub.display(), package_stub.display());
+    // Remap the bare module key to the full dotted path so
+    // pyo3-stub-gen's is_pyo3_generated check passes.
+    if let Some(mut module) = custom_stub.modules.remove(BARE_MODULE) {
+        module.name = FULL_MODULE.to_string();
+        module.default_module_name = FULL_MODULE.to_string();
+        custom_stub.modules.insert(FULL_MODULE.to_string(), module);
     }
 
-    // Clean up any incorrectly nested directories (from when STUB_OUTPUT_DIR=python/aerospike_async)
-    let double_nested = output_path.join("aerospike_async").join("aerospike_async");
-    if double_nested.exists() {
-        fs::remove_dir_all(&double_nested)?;
-        eprintln!("Removed incorrectly nested directory: {}", double_nested.display());
+    custom_stub.generate()?;
+
+    // generate() writes to python_root/aerospike_async/_aerospike_async_native/__init__.pyi
+    // but we want python_root/aerospike_async/_aerospike_async_native.pyi (flat file).
+    let init_stub = output_path
+        .join("aerospike_async")
+        .join("_aerospike_async_native")
+        .join("__init__.pyi");
+    let package_stub = output_path
+        .join("aerospike_async")
+        .join("_aerospike_async_native.pyi");
+
+    if init_stub.exists() {
+        fs::rename(&init_stub, &package_stub)?;
+        // Remove the now-empty directory
+        let dir = init_stub.parent().unwrap();
+        let _ = fs::remove_dir(dir);
+        eprintln!("Moved {} to {}", init_stub.display(), package_stub.display());
     }
 
     Ok(())

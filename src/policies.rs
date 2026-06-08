@@ -2022,6 +2022,26 @@ use crate::TlsConfig;
             self._as.fail_if_not_connected = value;
         }
 
+        /// **Testing-only.** When ``True``, the client never performs peer
+        /// discovery or background tend: every op routes through the seed
+        /// addresses given at construction. No tend task is spawned. Useful
+        /// for benchmarking and unit-test setup where eliminating tend
+        /// noise matters more than topology safety.
+        ///
+        /// **Do not enable in production.** With ``seed_only_cluster`` set,
+        /// node restarts, master failover, and rebalances are invisible to
+        /// the client — ops to a stale or down node will fail or hang.
+        /// Default: ``False``.
+        #[getter]
+        pub fn get_seed_only_cluster(&self) -> bool {
+            self._as.seed_only_cluster
+        }
+
+        #[setter]
+        pub fn set_seed_only_cluster(&mut self, value: bool) {
+            self._as.seed_only_cluster = value;
+        }
+
         /// Threshold at which the buffer attached to the connection will be shrunk by deallocating
         /// memory instead of just resetting the size of the underlying vec.
         /// Should be set to a value that covers as large a percentile of payload sizes as possible,
