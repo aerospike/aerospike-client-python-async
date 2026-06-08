@@ -174,8 +174,7 @@ use crate::policies::AdminPolicy;
 
         /// Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
         pub fn supports_server_compiled_ael(&self) -> bool {
-            true
-            // self._as.supports_server_compiled_ael()
+            self._as.supports_server_compiled_ael()
         }
 
         pub fn __str__(&self) -> String {
