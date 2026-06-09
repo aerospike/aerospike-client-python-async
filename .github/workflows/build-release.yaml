@@ -1,0 +1,367 @@
+name: Build and release
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        description: Keep deploy and bundle creation in dry-run mode.
+        required: false
+        type: boolean
+        default: true
+
+env:
+  SHARED_WORKFLOWS_REF: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+
+jobs:
+  extract-version:
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    outputs:
+      version: ${{ steps.extract.outputs.release-version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Extract version
+        id: extract
+        uses: ./.github/actions/get-version
+
+  build-packages:
+    name: build (${{ matrix.name }})
+    needs: extract-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64-py310
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python3.10
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-x86_64-py311
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python3.11
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-x86_64-py312
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python3.12
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-x86_64-py313
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: python3.13
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-x86_64-py314
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python3.14
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-aarch64-py310
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python3.10
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-aarch64-py311
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python3.11
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-aarch64-py312
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python3.12
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-aarch64-py313
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: python3.13
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-aarch64-py314
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python3.14
+            maturin-target: ""
+            manylinux: auto
+            find-interpreter: "false"
+          - name: macos-x86_64-py310
+            runs-on: macos-latest-large
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python3.10
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-x86_64-py311
+            runs-on: macos-latest-large
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python3.11
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-x86_64-py312
+            runs-on: macos-latest-large
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python3.12
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-x86_64-py313
+            runs-on: macos-latest-large
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: python3.13
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-x86_64-py314
+            runs-on: macos-latest-large
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python3.14
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-arm64-py310
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python3.10
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-arm64-py311
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python3.11
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-arm64-py312
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python3.12
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-arm64-py313
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: python3.13
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: macos-arm64-py314
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python3.14
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+          - name: linux-x86_64-py313t
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.13t"
+            python-interpreter: python3.13t
+            maturin-target: ""
+            manylinux: off
+            find-interpreter: "false"
+          - name: linux-x86_64-py314t
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.14t"
+            python-interpreter: python3.14t
+            maturin-target: ""
+            manylinux: off
+            find-interpreter: "false"
+          - name: windows-x64
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: ""
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "true"
+          - name: windows-x86
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: ""
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "true"
+          - name: sdist
+            runs-on: ubuntu-22.04
+            package-kind: sdist
+            python-version: "3.13"
+            python-interpreter: ""
+            maturin-target: ""
+            manylinux: ""
+            find-interpreter: "false"
+    uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    with:
+      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      runs-on: ${{ matrix.runs-on }}
+      jf-project: ${{ vars.JFROG_PROJECT }}
+      jf-build-name: aerospike-client-python-async
+      jf-build-id: ${{ github.run_number }}-buildinfo-${{ matrix.name }}
+      gh-checkout-path: shared-workflows
+      gh-source-path: aerospike-client-python-async
+      working-directory: aerospike-client-python-async
+      setup-python: true
+      python-version: ${{ matrix.python-version }}
+      build-env: PACKAGE_KIND=${{ matrix.package-kind }};PYTHON_INTERPRETER=${{ matrix.python-interpreter }};MATURIN_TARGET=${{ matrix.maturin-target }};MANYLINUX=${{ matrix.manylinux }};FIND_INTERPRETER=${{ matrix.find-interpreter }}
+      build-script: |
+        set -euo pipefail
+
+        python -m pip install --upgrade pip
+        python -m pip install "maturin>=1.9.0,<2.0"
+        rustup toolchain install 1.90.0 --profile minimal
+        rustup default 1.90.0
+
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          choco install nasm -y
+          export PATH="/c/Program Files/NASM:/c/ProgramData/chocolatey/bin:$PATH"
+        fi
+
+        export AWS_LC_SYS_CMAKE_BUILDER=0
+        export AWS_LC_SYS_EXTERNAL_BINDGEN=0
+        export AWS_LC_SYS_NO_PREGENERATED_SRC=0
+
+        rm -rf build
+        mkdir -p build
+
+        if [[ "$PACKAGE_KIND" == "sdist" ]]; then
+          maturin sdist --out build
+          exit 0
+        fi
+
+        args=(build --release --out build)
+        if [[ -n "$MATURIN_TARGET" ]]; then
+          args+=(--target "$MATURIN_TARGET")
+        fi
+        if [[ "$FIND_INTERPRETER" == "true" ]]; then
+          args+=(--find-interpreter)
+        else
+          args+=(--interpreter "$PYTHON_INTERPRETER")
+        fi
+        if [[ -n "$MANYLINUX" && "$MANYLINUX" != "auto" ]]; then
+          args+=(--compatibility "$MANYLINUX")
+        fi
+
+        maturin "${args[@]}"
+      gh-artifact-directory: build
+      gh-artifact-name: build-artifacts-${{ matrix.name }}
+      gh-retention-days: 1
+      publish-build-info: true
+      oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+      oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+
+  collect-artifacts:
+    needs: build-packages
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - name: Checkout shared-workflows actions
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: aerospike/shared-workflows
+          ref: ${{ env.SHARED_WORKFLOWS_REF }}
+          sparse-checkout: .github/actions
+          sparse-checkout-cone-mode: false
+      - name: Collect build artifacts
+        uses: ./.github/actions/collect-build-artifacts
+
+  deploy-artifacts:
+    needs: [extract-version, collect-artifacts]
+    uses: aerospike/shared-workflows/.github/workflows/reusable_deploy-artifacts.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    with:
+      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+      jf-project: ${{ vars.JFROG_PROJECT }}
+      jf-build-name: aerospike-client-python-async
+      jf-metadata-build-id: ${{ github.run_number }}-buildinfo
+      jf-build-id: ${{ github.run_number }}
+      gh-artifact-name: build-artifacts
+      version: ${{ needs.extract-version.outputs.version }}
+      gh-retention-days: 1
+      oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+      oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+      dry-run: ${{ inputs.dry_run }}
+
+  create-release-bundle:
+    needs: [extract-version, deploy-artifacts]
+    uses: aerospike/shared-workflows/.github/workflows/reusable_create-release-bundle.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    with:
+      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+      jf-project: ${{ vars.JFROG_PROJECT }}
+      jf-build-names: aerospike-client-python-async:${{ github.run_number }}
+      jf-bundle-name: aerospike-client-python-async
+      version: ${{ needs.extract-version.outputs.version }}
+      oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+      oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+      dry-run: ${{ inputs.dry_run }}
+
+  promote-release-bundle-dev:
+    needs: [extract-version, create-release-bundle]
+    if: ${{ inputs.dry_run == false }}
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    steps:
+      - name: Setup JFrog CLI
+        uses: step-security/setup-jfrog-cli@3054b554c0fb4915b3d58847fb7730c593dbb934 # v5.0.0
+        env:
+          JF_URL: https://artifact.aerospike.io
+          JF_PROJECT: ${{ vars.JFROG_PROJECT }}
+        with:
+          oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+      - name: Promote release bundle to DEV
+        uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+        with:
+          bundle-name: aerospike-client-python-async
+          version: ${{ needs.extract-version.outputs.version }}
+          environment: DEV
+          jf-project: ${{ vars.JFROG_PROJECT }}

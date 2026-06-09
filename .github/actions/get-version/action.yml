@@ -1,0 +1,22 @@
+name: Get version
+description: Reads the package version from Cargo.toml
+
+runs:
+  using: composite
+  steps:
+    - name: Extract version from Cargo.toml
+      id: extract
+      shell: bash
+      run: |
+        version=$(grep -m1 '^version' Cargo.toml | sed 's/version *= *"\(.*\)"/\1/')
+        if [[ -z "$version" ]]; then
+          echo "::error::Could not extract version from Cargo.toml"
+          exit 1
+        fi
+        echo "release-version=${version}" >> "$GITHUB_OUTPUT"
+        echo "Detected version: ${version}"
+
+outputs:
+  release-version:
+    description: The package version from Cargo.toml
+    value: ${{ steps.extract.outputs.release-version }}
