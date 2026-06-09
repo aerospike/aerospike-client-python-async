@@ -32,7 +32,7 @@ pip install aerospike-async
 Pin to a specific release if you need reproducible builds:
 
 ```bash
-pip install aerospike-async==0.5.0a1  # latest on PyPI as of this writing
+pip install aerospike-async==0.6.0a1  # latest on PyPI as of this writing
 ```
 
 Pre-built wheels are published for every supported platform/Python combination
@@ -318,11 +318,11 @@ Bumps are manual and happen in PRs against `dev`. Promotion workflows
 
 ```bash
 # 1. Edit Cargo.toml [package] version field, then refresh Cargo.lock:
-#    e.g. 0.4.0-alpha.1  →  0.4.0-alpha.2
-cargo check    # or: cargo update -p aerospike_async --precise 0.4.0-alpha.2
+#    e.g. 0.6.0-alpha.1  →  0.6.0-alpha.2
+cargo check    # or: cargo update -p aerospike_async --precise 0.6.0-alpha.2
 
 # 2. Confirm:
-bin/get-version    # prints 0.4.0-alpha.2
+bin/get-version    # prints 0.6.0-alpha.2
 
 # 3. Open a PR against dev with just this change.
 ```
@@ -332,7 +332,7 @@ bin/get-version    # prints 0.4.0-alpha.2
 Anywhere a build script, CI step, or release tool needs the version:
 
 ```bash
-bin/get-version    # → 0.4.0-alpha.1
+bin/get-version    # → 0.6.0-alpha.1
 ```
 
 The script parses the first `version` field inside the `[package]` table of
