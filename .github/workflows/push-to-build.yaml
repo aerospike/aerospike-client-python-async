@@ -1,10 +1,17 @@
 name: PAC Build & Release
 
 on:
-  push:
-    branches:
-      - dev
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.6.0-alpha.2) — must match Cargo.toml'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry-run mode (deploy + bundle creation are no-ops)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -12,9 +19,55 @@ permissions:
   actions: write
 
 jobs:
+  validate:
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Cargo.toml version: $CARGO_VERSION"
+          if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Version mismatch: Cargo.toml has '$CARGO_VERSION' but dispatch requested '${{ inputs.version }}'"
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ inputs.version }} already exists on remote"
+            exit 1
+          fi
+          echo "Tag v${{ inputs.version }} is available"
+
+      - name: Enforce branch gate
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          VERSION="${{ inputs.version }}"
+          case "$VERSION" in
+            *-alpha.*|*-beta.*)
+              if [ "$BRANCH" != "dev" ]; then
+                echo "::error::alpha/beta releases must be dispatched from 'dev' (current: $BRANCH)"
+                exit 1
+              fi ;;
+            *-rc.*)
+              if [ "$BRANCH" != "stage" ]; then
+                echo "::error::RC releases must be dispatched from 'stage' (current: $BRANCH)"
+                exit 1
+              fi ;;
+            *)
+              if [ "$BRANCH" != "main" ]; then
+                echo "::error::Stable releases must be dispatched from 'main' (current: $BRANCH)"
+                exit 1
+              fi ;;
+          esac
+          echo "Version $VERSION from branch $BRANCH — OK"
+
   build-release:
     name: Build release
+    needs: validate
     uses: ./.github/workflows/build-release.yaml
     with:
-      dry_run: false
+      dry_run: ${{ inputs.dry_run }}
     secrets: inherit
