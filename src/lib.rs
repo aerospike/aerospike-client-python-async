@@ -54,6 +54,7 @@ mod filter;
 mod operations;
 mod policies;
 mod cluster;
+mod string_ops;
 
 pub use enums::*;
 pub use errors::*;
@@ -66,6 +67,7 @@ pub use operations::*;
 pub use policies::*;
 pub use cluster::*;
 pub use tls::*;
+pub use string_ops::*;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -4285,6 +4287,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
+    m.add_class::<StringWriteFlags>()?;
+    m.add_class::<StringRegexFlags>()?;
+    m.add_class::<StringNumericType>()?;
+    m.add_class::<StringOperation>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
     m.add_class::<UDFLang>()?;

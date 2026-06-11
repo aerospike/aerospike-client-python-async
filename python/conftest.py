@@ -144,6 +144,36 @@ def aerospike_host_812_required(aerospike_host_8_1_2):
     return aerospike_host_8_1_2
 
 
+@pytest.fixture(scope="session")
+def aerospike_host_8_1_3():
+    """Seed for an 8.1.3+ Aerospike cluster, when one is available locally.
+
+    Mirrors ``aerospike_host_8_1_2`` for the string-ops feature gate
+    (server 8.1.3+). Returns ``None`` when ``AEROSPIKE_HOST_8_1_3`` is
+    unset; tests should accept this via the ``_813_required`` wrapper
+    rather than handling ``None`` themselves.
+    """
+    return os.environ.get('AEROSPIKE_HOST_8_1_3')
+
+
+@pytest.fixture(scope="session")
+def aerospike_host_813_required(aerospike_host_8_1_3):
+    """Returns the 8.1.3+ host or skips the dependent test cleanly.
+
+    Required for string-operations tests (server 8.1.3+ feature, gated
+    server-side via ``Node.version.supports_string_operations()``). Tests
+    that target string ops opt in via the matching ``_813``-suffixed
+    client fixture rather than depending on this directly.
+    """
+    if not aerospike_host_8_1_3:
+        pytest.skip(
+            "AEROSPIKE_HOST_8_1_3 is unset; this test requires an 8.1.3+ "
+            "cluster for string operations. Set AEROSPIKE_HOST_8_1_3 in "
+            "aerospike.env to enable."
+        )
+    return aerospike_host_8_1_3
+
+
 def _parse_build_string(build: str):
     """Parse an Aerospike server build string (e.g. ``8.1.2.1``) into a tuple.
 

@@ -24,6 +24,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 use crate::cdt::*;
 use crate::errors::RustClientError;
 use crate::record::PythonValue;
+use crate::string_ops::StringNumericType;
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -3385,5 +3386,373 @@ use crate::record::PythonValue;
                     &core_ctx,
                 ),
             }
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        //  String expressions (server 8.1.3+)
+        //
+        //  Mirrors aerospike-core/src/expressions/string.rs. Conventions:
+        //    - `src` is the TRAILING argument (matches BitExp / HllExp / JSDK StringExp).
+        //    - No `ctx` parameter — string expressions don't take CdtContext directly.
+        //      To target a string nested inside a list/map, project via
+        //      `list_get_by_index(VALUE, STRING, …)` or
+        //      `map_get_by_key(VALUE, STRING, …)` first.
+        //    - Modify expressions return the modified string as an Exp value;
+        //      they do NOT mutate the bin.
+        //    - Per-op `flags` argument is u8 (StringWriteFlags / StringRegexFlags),
+        //      converted to rust-core's i64-backed tuple structs inline at zero cost.
+        //
+        ////////////////////////////////////////////////////////////////////////////////////////////
+
+        // ---- Read expressions ----
+
+        #[staticmethod]
+        /// Codepoint count of `src` as an INT (NOT byte count — use `string_byte_length`).
+        pub fn string_strlen(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::strlen(src._as) }
+        }
+
+        #[staticmethod]
+        /// Substring of `src` from codepoint `start` to the end.
+        pub fn string_substr(start: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::substr(start._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Substring of `src` over the half-open codepoint range ``[start, end)``.
+        /// The second arg is named ``end`` (exclusive index), per JSDK parity and
+        /// the server's actual decoder behavior — rust-core's parameter name
+        /// "length" in its docstring is misleading.
+        pub fn string_substr_range(start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::substr_range(start._as, end._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Codepoint at `index` (one-codepoint string).
+        pub fn string_char_at(index: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::char_at(index._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// First-match codepoint index of `needle` in `src` (-1 if absent).
+        pub fn string_find(needle: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::find(needle._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// N-th-match codepoint index of `needle` in `src` (1 = first, -1 = last; -1 if absent).
+        pub fn string_find_nth(needle: FilterExpression, occurrence: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::find_nth(needle._as, occurrence._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` contains `needle` as a substring.
+        pub fn string_contains(needle: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::contains(needle._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` starts with `prefix`.
+        pub fn string_starts_with(prefix: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::starts_with(prefix._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` ends with `suffix`.
+        pub fn string_ends_with(suffix: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::ends_with(suffix._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Parse `src` as INT. Returns PARAMETER_ERROR on unparseable input.
+        pub fn string_to_integer(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::to_integer(src._as) }
+        }
+
+        #[staticmethod]
+        /// Parse `src` as FLOAT (f64). Returns PARAMETER_ERROR on unparseable input.
+        pub fn string_to_double(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::to_double(src._as) }
+        }
+
+        #[staticmethod]
+        /// UTF-8 byte length of `src` (differs from `string_strlen` for non-ASCII).
+        pub fn string_byte_length(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::byte_length(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` parses as a number (integer or float).
+        pub fn string_is_numeric(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::is_numeric(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` parses as the requested numeric type.
+        pub fn string_is_numeric_typed(numeric_type: StringNumericType, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::StringNumericType as CoreNT;
+            let core_nt = match numeric_type {
+                StringNumericType::Any => CoreNT::Any,
+                StringNumericType::Int => CoreNT::Int,
+                StringNumericType::Float => CoreNT::Float,
+            };
+            FilterExpression { _as: str_exp::is_numeric_typed(core_nt, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — every cased codepoint in `src` is uppercase.
+        pub fn string_is_upper(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::is_upper(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — every cased codepoint in `src` is lowercase.
+        pub fn string_is_lower(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::is_lower(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BLOB — UTF-8 bytes of `src`.
+        pub fn string_to_blob(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::to_blob(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns LIST — `src` split by codepoint (one element per codepoint).
+        pub fn string_split(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::split(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns LIST — `src` split by `separator`.
+        pub fn string_split_by_separator(separator: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::split_by_separator(separator._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BLOB — `src` treated as base64-encoded text, decoded to bytes.
+        pub fn string_b64_decode(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::b64_decode(src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` matches ICU regex `pattern`. Use
+        /// `string_regex_compare_with_flags` to pass case-insensitive etc.
+        /// flags.
+        ///
+        /// Server-side limitation (spec §4.2): the expression engine does
+        /// NOT honor a literal source via ``Exp.val(...)`` —
+        /// ``string_regex_compare(Exp.val("pat"), Exp.val("text"))`` returns
+        /// OP_NOT_APPLICABLE (26). Only bin-sourced inputs are verified.
+        pub fn string_regex_compare(pattern: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::regex_compare(pattern._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns BOOL — `src` matches ICU regex `pattern` with the given
+        /// `regex_flags` (OR-combined `StringRegexFlags` bitmask).
+        pub fn string_regex_compare_with_flags(pattern: FilterExpression, regex_flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::StringRegexFlags as CoreSRF;
+            FilterExpression {
+                _as: str_exp::regex_compare_with_flags(pattern._as, CoreSRF(regex_flags as i64), src._as),
+            }
+        }
+
+        // ---- Modify expressions (return modified string VALUE; do not persist) ----
+        //
+        // Each takes a u8 `flags` (StringWriteFlags bitmask) wrapped into a
+        // rust-core StringPolicy inline. Cost: one stack StringPolicy +
+        // one stack StringWriteFlags per call — zero heap.
+
+        #[staticmethod]
+        /// Returns STRING — `src` with `value` spliced in at codepoint `index`.
+        pub fn string_insert(flags: u8, index: FilterExpression, value: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::insert(&policy, index._as, value._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with codepoints starting at `index` overwritten by `value`.
+        pub fn string_overwrite(flags: u8, index: FilterExpression, value: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::overwrite(&policy, index._as, value._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` concatenated with the LIST-yielding `values` expression.
+        /// Per spec §3.7 the expression-path `concat` always takes a list source;
+        /// single-string callers must wrap via ``FilterExpression.list_val([s])``.
+        pub fn string_concat(flags: u8, values: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::concat(&policy, values._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
+        /// ``end`` is required (server's snip table has no 1-arg form — see
+        /// the matching ``StringOperation.snip`` note).
+        pub fn string_snip(flags: u8, start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::snip(&policy, start._as, end._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with the first occurrence of `needle` replaced by `replacement`.
+        pub fn string_replace(flags: u8, needle: FilterExpression, replacement: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::replace(&policy, needle._as, replacement._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with every occurrence of `needle` replaced by `replacement`.
+        pub fn string_replace_all(flags: u8, needle: FilterExpression, replacement: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::replace_all(&policy, needle._as, replacement._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` uppercased.
+        pub fn string_upper(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::upper(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` lowercased.
+        pub fn string_lower(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::lower(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with locale-independent case fold applied.
+        pub fn string_case_fold(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::case_fold(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` normalized to Unicode NFC form.
+        pub fn string_normalize_nfc(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::normalize_nfc(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with whitespace stripped from the start.
+        pub fn string_trim_start(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::trim_start(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with whitespace stripped from the end.
+        pub fn string_trim_end(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::trim_end(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with whitespace stripped from both ends.
+        pub fn string_trim(flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            FilterExpression { _as: str_exp::trim(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` left-padded with `pad_string` to `target_length` codepoints.
+        pub fn string_pad_start(flags: u8, target_length: FilterExpression, pad_string: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::pad_start(&policy, target_length._as, pad_string._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` right-padded with `pad_string` to `target_length` codepoints.
+        pub fn string_pad_end(flags: u8, target_length: FilterExpression, pad_string: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::pad_end(&policy, target_length._as, pad_string._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` contents repeated `count` times.
+        pub fn string_repeat(flags: u8, count: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::repeat(&policy, count._as, src._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with the first match of `pattern` replaced by
+        /// `replacement`. Set the `GLOBAL` bit in `regex_flags` to replace every match.
+        ///
+        /// Note: rust-core's signature includes `_policy` for API symmetry; the
+        /// wire payload has no write-flags slot (the server rejects messages
+        /// that pack one). PAC passes the default policy and surfaces only
+        /// `regex_flags` here.
+        pub fn string_regex_replace(pattern: FilterExpression, replacement: FilterExpression, regex_flags: u8, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
+            let policy = StringPolicy::default();
+            FilterExpression {
+                _as: str_exp::regex_replace(&policy, pattern._as, replacement._as, CoreSRF(regex_flags as i64), src._as),
+            }
+        }
+
+        // ---- Type conversion ----
+
+        #[staticmethod]
+        /// Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
+        /// Uses CALL_REPR module (id 4) internally; on the wire path this is a separate dispatcher
+        /// from the other string expressions (CALL_STRING, id 3).
+        pub fn string_to_string(src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            FilterExpression { _as: str_exp::to_string(src._as) }
         }
     }

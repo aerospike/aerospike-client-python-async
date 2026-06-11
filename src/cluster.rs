@@ -172,6 +172,15 @@ use crate::policies::AdminPolicy;
             self._as.supports_mrt()
         }
 
+        /// Returns true if server supports the string-operations module
+        /// (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
+        /// ``TO_STRING`` op-type 19) and the matching string-expression
+        /// dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
+        /// Requires server >= 8.1.3.
+        pub fn supports_string_operations(&self) -> bool {
+            self._as.supports_string_operations()
+        }
+
         pub fn __str__(&self) -> String {
             format!("{}.{}.{}.{}", self._as.major, self._as.minor, self._as.patch, self._as.build)
         }
