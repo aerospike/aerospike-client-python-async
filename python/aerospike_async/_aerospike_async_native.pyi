@@ -1390,6 +1390,22 @@ class ClientPolicy:
     @idle_timeout.setter
     def idle_timeout(self, value: builtins.int) -> None: ...
     @property
+    def min_conns_per_node(self) -> builtins.int:
+        r"""
+        Minimum number of connections allowed per server node. The client
+        periodically allocates new connections if the total count (idle +
+        in-flight) falls below this value.
+
+        Server ``proto-fd-idle-ms`` may also need to be increased
+        substantially if min connections are defined. The default directs
+        the server to close connections idle for 60 seconds which can
+        defeat the purpose of keeping connections in reserve.
+
+        Default: ``0`` (disabled).
+        """
+    @min_conns_per_node.setter
+    def min_conns_per_node(self, value: builtins.int) -> None: ...
+    @property
     def max_conns_per_node(self) -> builtins.int: ...
     @max_conns_per_node.setter
     def max_conns_per_node(self, value: builtins.int) -> None: ...
@@ -1517,6 +1533,24 @@ class ClientPolicy:
         """
     @cluster_name.setter
     def cluster_name(self, value: typing.Optional[builtins.str]) -> None: ...
+    @property
+    def application_id(self) -> typing.Optional[builtins.str]:
+        r"""
+        Identifies the application so that client operations can be
+        correlated with server-side metrics. Default: ``None``.
+        """
+    @application_id.setter
+    def application_id(self, value: typing.Optional[builtins.str]) -> None: ...
+    @property
+    def custom_client_id(self) -> typing.Optional[builtins.str]:
+        r"""
+        Override the ``client_id`` portion of the ``user_agent_id``
+        payload sent to each node on connection validation. Intended for
+        wrapper clients that embed the Rust core; end-user code should
+        leave this as ``None``. Default: ``None``.
+        """
+    @custom_client_id.setter
+    def custom_client_id(self, value: typing.Optional[builtins.str]) -> None: ...
     @property
     def tls_config(self) -> typing.Optional[_aerospike_async_native.TlsConfig]:
         r"""

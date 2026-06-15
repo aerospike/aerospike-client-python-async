@@ -1938,6 +1938,26 @@ use crate::TlsConfig;
             self._as.idle_timeout = timeout_millis as u32;
         }
 
+        /// Minimum number of connections allowed per server node. The client
+        /// periodically allocates new connections if the total count (idle +
+        /// in-flight) falls below this value.
+        ///
+        /// Server ``proto-fd-idle-ms`` may also need to be increased
+        /// substantially if min connections are defined. The default directs
+        /// the server to close connections idle for 60 seconds which can
+        /// defeat the purpose of keeping connections in reserve.
+        ///
+        /// Default: ``0`` (disabled).
+        #[getter]
+        pub fn get_min_conns_per_node(&self) -> usize {
+            self._as.min_conns_per_node
+        }
+
+        #[setter]
+        pub fn set_min_conns_per_node(&mut self, sz: usize) {
+            self._as.min_conns_per_node = sz;
+        }
+
         #[getter]
         pub fn get_max_conns_per_node(&self) -> usize {
             self._as.max_conns_per_node
@@ -2148,6 +2168,32 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_cluster_name(&mut self, value: Option<String>) {
             self._as.cluster_name = value;
+        }
+
+        /// Identifies the application so that client operations can be
+        /// correlated with server-side metrics. Default: ``None``.
+        #[getter]
+        pub fn get_application_id(&self) -> Option<String> {
+            self._as.application_id.clone()
+        }
+
+        #[setter]
+        pub fn set_application_id(&mut self, value: Option<String>) {
+            self._as.application_id = value;
+        }
+
+        /// Override the ``client_id`` portion of the ``user_agent_id``
+        /// payload sent to each node on connection validation. Intended for
+        /// wrapper clients that embed the Rust core; end-user code should
+        /// leave this as ``None``. Default: ``None``.
+        #[getter]
+        pub fn get_custom_client_id(&self) -> Option<String> {
+            self._as.custom_client_id.clone()
+        }
+
+        #[setter]
+        pub fn set_custom_client_id(&mut self, value: Option<String>) {
+            self._as.custom_client_id = value;
         }
 
         /// TLS configuration for secure connections.
