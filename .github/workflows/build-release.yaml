@@ -221,14 +221,6 @@ jobs:
             maturin-target: ""
             manylinux: ""
             find-interpreter: "true"
-          - name: windows-x86
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: ""
-            maturin-target: ""
-            manylinux: ""
-            find-interpreter: "true"
           - name: sdist
             runs-on: ubuntu-22.04
             package-kind: sdist
