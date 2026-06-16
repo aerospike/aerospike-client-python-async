@@ -117,6 +117,46 @@ jobs:
             maturin-target: ""
             manylinux: auto
             find-interpreter: "false"
+          - name: linux-i686-py310
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python3.10
+            maturin-target: i686
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-i686-py311
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python3.11
+            maturin-target: i686
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-i686-py312
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python3.12
+            maturin-target: i686
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-i686-py313
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.13"
+            python-interpreter: python3.13
+            maturin-target: i686
+            manylinux: auto
+            find-interpreter: "false"
+          - name: linux-i686-py314
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python3.14
+            maturin-target: i686
+            manylinux: auto
+            find-interpreter: "false"
           - name: macos-x86_64-py310
             runs-on: macos-latest-large
             package-kind: wheel
@@ -288,8 +328,82 @@ jobs:
       oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
       oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
 
+  build-windows-x86:
+    name: build (windows-x86-py${{ matrix.python-version }})
+    needs: extract-version
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v5
+
+      - name: Set up 32-bit Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x86
+
+      - name: Build win32 wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --upgrade pip
+          python -m pip install "maturin>=1.9.0,<2.0"
+          rustup toolchain install 1.90.0 --profile minimal
+          rustup default 1.90.0
+          rustup target add i686-pc-windows-msvc
+
+          choco install nasm -y
+          export PATH="/c/Program Files/NASM:/c/ProgramData/chocolatey/bin:$PATH"
+
+          export AWS_LC_SYS_CMAKE_BUILDER=0
+          export AWS_LC_SYS_EXTERNAL_BINDGEN=0
+          export AWS_LC_SYS_NO_PREGENERATED_SRC=0
+
+          rm -rf build
+          mkdir -p build
+
+          maturin build --release --out build \
+            --target i686-pc-windows-msvc \
+            --interpreter python
+
+          python - <<'PY'
+          import pathlib
+          import sys
+          import zipfile
+
+          wheels = list(pathlib.Path("build").glob("*-win32.whl"))
+          if len(wheels) != 1:
+              print(f"::error::expected exactly one win32 wheel, found {len(wheels)}")
+              for wheel in pathlib.Path("build").glob("*.whl"):
+                  print(f"found wheel: {wheel}")
+              sys.exit(1)
+
+          with zipfile.ZipFile(wheels[0]) as zf:
+              bad = zf.testzip()
+          if bad:
+              print(f"::error::{wheels[0].name} has corrupt member {bad}")
+              sys.exit(1)
+          print(f"Built and verified {wheels[0].name}")
+          PY
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-artifacts-windows-x86-py${{ matrix.python-version }}
+          path: build
+          retention-days: 1
+
   collect-artifacts:
-    needs: build-packages
+    needs: [build-packages, build-windows-x86]
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -305,6 +419,16 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Collect build artifacts
         uses: ./.github/actions/collect-build-artifacts
+
+      - name: Verify collected Python artifacts
+        run: |
+          set -euo pipefail
+          for wheel in build-artifacts/*.whl; do
+            unzip -t "$wheel" >/dev/null
+          done
+          for sdist in build-artifacts/*.tar.gz; do
+            tar -tzf "$sdist" >/dev/null
+          done
 
   deploy-artifacts:
     needs: [extract-version, collect-artifacts]
