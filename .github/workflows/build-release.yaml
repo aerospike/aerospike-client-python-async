@@ -197,21 +197,13 @@ jobs:
             maturin-target: ""
             manylinux: ""
             find-interpreter: "false"
-          - name: linux-x86_64-py313t
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.13t"
-            python-interpreter: python3.13t
-            maturin-target: ""
-            manylinux: off
-            find-interpreter: "false"
           - name: linux-x86_64-py314t
             runs-on: ubuntu-22.04
             package-kind: wheel
             python-version: "3.14t"
             python-interpreter: python3.14t
             maturin-target: ""
-            manylinux: off
+            manylinux: auto
             find-interpreter: "false"
           - name: windows-x64
             runs-on: windows-2022
