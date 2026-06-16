@@ -396,7 +396,7 @@ jobs:
           AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
         with:
           target: x86
-          args: --release --out build --interpreter python
+          args: --release --out build --interpreter python${{ matrix.python-version }}
           manylinux: auto
 
       - name: Verify Linux i686 wheel
