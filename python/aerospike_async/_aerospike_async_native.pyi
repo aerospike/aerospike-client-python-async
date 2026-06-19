@@ -1449,9 +1449,6 @@ class ClientPolicy:
     @property
     def fail_if_not_connected(self) -> builtins.bool:
         r"""
-        Size of the thread pool used in scan and query commands. These commands are often sent to
-        multiple server nodes in parallel threads. A thread pool improves performance because
-        threads do not have to be created/destroyed for each command.
         Throw exception if host connection fails during addHost().
         """
     @fail_if_not_connected.setter

@@ -1325,7 +1325,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, f),
@@ -1351,7 +1351,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, f),
@@ -1452,7 +1452,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllSetUnion(bin_name, hll_list, f),
@@ -1503,7 +1503,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::expressions::exp_read_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::expressions::exp_read_flags_from_py(obj.bind(py))?,
             };
             Ok(ExpOperation {
                 op: OperationType::ExpRead(name, exp, f),
@@ -1533,7 +1533,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::expressions::exp_write_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::expressions::exp_write_flags_from_py(obj.bind(py))?,
             };
             Ok(ExpOperation {
                 op: OperationType::ExpWrite(bin_name, exp, f),
