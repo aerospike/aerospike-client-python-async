@@ -1071,7 +1071,7 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_result_code(&self) -> Option<ResultCode> {
-            self._as.result_code.map(|rc| ResultCode(rc))
+            self._as.result_code.map(ResultCode)
         }
 
         #[getter]
@@ -1751,7 +1751,6 @@ use crate::TlsConfig;
     impl ClientPolicy {
         #[new]
         fn new() -> PyResult<Self> {
-            let mut cp = aerospike_core::ClientPolicy::default();
             // Tuned for the primary async use case: a single Tokio runtime
             // (or per-Client runtime in AsyncPool) serializes pool access
             // through one or two workers, so contention is naturally low
@@ -1759,9 +1758,11 @@ use crate::TlsConfig;
             // from many caller threads (e.g. PSDK's SyncClient) should
             // override this on the policy before construction; 8 is a good
             // value for ~32-thread sync workloads.
-            cp.conn_pools_per_node = 4;
             let res = ClientPolicy {
-                _as: cp,
+                _as: aerospike_core::ClientPolicy {
+                    conn_pools_per_node: 4,
+                    ..Default::default()
+                },
                 per_client_runtime_workers: None,
             };
 
@@ -1891,13 +1892,13 @@ use crate::TlsConfig;
                     self._as.auth_mode = aerospike_core::AuthMode::None;
                 }
                 AuthMode::Internal => {
-                    let user = user.unwrap_or_else(|| "".to_string());
-                    let password = password.unwrap_or_else(|| "".to_string());
+                    let user = user.unwrap_or_default();
+                    let password = password.unwrap_or_default();
                     self._as.auth_mode = aerospike_core::AuthMode::Internal(user, password);
                 }
                 AuthMode::External => {
-                    let user = user.unwrap_or_else(|| "".to_string());
-                    let password = password.unwrap_or_else(|| "".to_string());
+                    let user = user.unwrap_or_default();
+                    let password = password.unwrap_or_default();
                     self._as.auth_mode = aerospike_core::AuthMode::External(user, password);
                 }
                 AuthMode::PKI => {
@@ -2017,9 +2018,9 @@ use crate::TlsConfig;
             self._as.rack_ids = value.map(|v| v.into_iter().collect());
         }
 
-        /// Size of the thread pool used in scan and query commands. These commands are often sent to
-        /// multiple server nodes in parallel threads. A thread pool improves performance because
-        /// threads do not have to be created/destroyed for each command.
+        // Size of the thread pool used in scan and query commands. These commands are often sent to
+        // multiple server nodes in parallel threads. A thread pool improves performance because
+        // threads do not have to be created/destroyed for each command.
         // thread_pool_size field doesn't exist in TLS branch
         // #[getter]
         // pub fn get_thread_pool_size(&self) -> usize {

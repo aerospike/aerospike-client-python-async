@@ -13,25 +13,48 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-# Install uvloop as the default event loop policy when available.
-# uvloop is a drop-in replacement for asyncio's event loop that provides
-# significantly better throughput and latency for async I/O workloads.
-# Set AEROSPIKE_NO_UVLOOP=1 to disable.
+# Module-level names leak into the package namespace (this is the package
+# root), so anything imported here is `_`-prefixed and `del`-ed after use.
 import os as _os
 
+# Install uvloop as the default event loop policy.
+# uvloop is a drop-in replacement for asyncio's event loop that provides
+# significantly better throughput and latency for async I/O workloads.
+#
+# Free-threaded Python (3.14t) note: uvloop 0.22.x has a documented
+# libuv race on `loop._ready_len` (MagicStack/uvloop issues #720, #721)
+# that triggers when many threads concurrently call
+# `loop.call_soon_threadsafe()`. PAC's drainer thread funnels ALL
+# wake-ups through ONE persistent thread, eliminating the multi-
+# threaded access pattern the race needs. Empirically stable across
+# 20+ minutes of stress (z=128 single-loop + AsyncPool 8×64, 241M ops,
+# zero stalls). uvloop PR #721 is the proper upstream fix; once that
+# releases this comment can be dropped.
+# uvloop is required everywhere except Windows (see pyproject.toml's
+# `sys_platform != 'win32'` marker on the dependency). On Windows we
+# fall back to asyncio's default selector loop.
+#
+# uvloop is installed by default. Set AEROSPIKE_NO_UVLOOP=1 to opt out
+# and keep asyncio's default selector loop — a safety valve for the
+# rare environment that hits a uvloop bug, with no need to uninstall
+# the dependency.
+#
+# uvloop/warnings are imported lazily inside the guard on purpose: skip
+# loading the uvloop C extension entirely when opted out, and tolerate
+# its absence on Windows (the import is genuinely conditional).
 if not _os.environ.get("AEROSPIKE_NO_UVLOOP"):
     try:
         import uvloop as _uvloop
         import warnings as _warnings
-        # uvloop.install() uses set_event_loop_policy which is deprecated
-        # in Python 3.14+.  Suppress the warning until uvloop provides a
+        # uvloop.install() uses set_event_loop_policy which is deprecated in
+        # Python 3.14+.  Suppress the warning until uvloop provides a
         # non-deprecated alternative.
         with _warnings.catch_warnings():
             _warnings.filterwarnings(
                 "ignore", category=DeprecationWarning, module=r"uvloop"
             )
             _uvloop.install()
-        del _warnings
+        del _warnings, _uvloop
     except ImportError:
         pass
 

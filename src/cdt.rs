@@ -988,7 +988,7 @@ use crate::record::PythonValue;
         #[staticmethod]
         pub fn from_base64(b64: &str) -> PyResult<Vec<CTX>> {
             let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_base64(b64)
-                .map_err(|e| crate::errors::RustClientError(e))?;
+                .map_err(crate::errors::RustClientError)?;
             Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
 
@@ -999,7 +999,7 @@ use crate::record::PythonValue;
         #[staticmethod]
         pub fn from_bytes(bytes: Vec<u8>) -> PyResult<Vec<CTX>> {
             let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_bytes(&bytes)
-                .map_err(|e| crate::errors::RustClientError(e))?;
+                .map_err(crate::errors::RustClientError)?;
             Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
     }
@@ -1223,7 +1223,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &write_flags {
                 None => 0u8,
-                Some(obj) => bit_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => bit_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(BitPolicy {
                 _as: aerospike_core::operations::bitwise::BitPolicy::new(f),
@@ -1297,7 +1297,7 @@ use crate::record::PythonValue;
             let order = order.unwrap_or(ListOrderType::Unordered);
             let f = match &write_flags {
                 None => 0u8,
-                Some(obj) => list_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => list_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(ListPolicy {
                 _as: aerospike_core::operations::lists::ListPolicy {
@@ -1489,7 +1489,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f: i64 = match &write_flags {
                 None => 0,
-                Some(obj) => hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HLLPolicy {
                 _as: aerospike_core::operations::hll::HLLPolicy { flags: f },
@@ -1639,7 +1639,7 @@ use crate::record::PythonValue;
             let core_order: aerospike_core::operations::maps::MapOrder = (&order).into();
             let f = match &flags {
                 None => 0u8,
-                Some(obj) => map_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => map_policy_flags_from_py(obj.bind(py))?,
             };
             let _as = if persist_index == Some(true) {
                 aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(

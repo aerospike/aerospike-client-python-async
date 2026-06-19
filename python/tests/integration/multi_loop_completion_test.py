@@ -138,11 +138,19 @@ class TestMultiLoopCompletion:
 
         try:
             async def use_client_on_wrong_loop():
-                # The Client was bound to loop_a; calling .get() while running
-                # on loop_b must fail at batched_future_into_py entry.
+                # The Client was bound to loop_a; calling .get() while
+                # running on loop_b must fail.  In debug builds the failure
+                # is the explicit upfront check in `batched_future_into_py`
+                # ("...different event loop than the one that created it").
+                # In release builds that diagnostic is gated out
+                # (`#[cfg(debug_assertions)]`) and the misuse surfaces
+                # downstream when asyncio tries to resolve a future
+                # attached to the wrong loop ("...attached to a different
+                # loop"). Either is acceptable — both are loud,
+                # raise-immediately failures.
                 return await client.get(Key("test", "test", "x"), policy=ReadPolicy())
 
-            with pytest.raises(RuntimeError, match="different event loop"):
+            with pytest.raises(RuntimeError, match=r"different .*loop"):
                 _submit(loop_b, use_client_on_wrong_loop())
         finally:
             try:

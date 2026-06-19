@@ -102,7 +102,7 @@ use crate::record::{Key, PythonValue, Record};
 
         #[getter]
         pub fn get_digest(&self) -> Option<String> {
-            self._as.digest.map(|d| hex::encode(d))
+            self._as.digest.map(hex::encode)
         }
 
         #[setter]
@@ -139,12 +139,12 @@ use crate::record::{Key, PythonValue, Record};
                 "id" => Ok(self.get_id().into_pyobject(py).unwrap().into_any().into()),
                 "bval" => match self.get_bval() {
                     Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
-                    None => Ok(py.None().into()),
+                    None => Ok(py.None()),
                 },
                 "retry" => Ok(PyBool::new(py, self.get_retry()).into_bound_py_any(py).unwrap().into()),
                 "digest" => match self.get_digest() {
                     Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
-                    None => Ok(py.None().into()),
+                    None => Ok(py.None()),
                 },
                 _ => Err(PyKeyError::new_err(format!("Unknown key: '{}'. Valid keys: 'id', 'bval', 'retry', 'digest'", key_str))),
             }
@@ -264,7 +264,7 @@ use crate::record::{Key, PythonValue, Record};
 
         #[getter]
         pub fn get_digest(&self) -> Option<String> {
-            self._as.digest.map(|d| hex::encode(d))
+            self._as.digest.map(hex::encode)
         }
 
         #[setter]

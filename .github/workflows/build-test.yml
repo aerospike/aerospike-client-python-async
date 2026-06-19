@@ -537,7 +537,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: ['3.13t', '3.14t']
+        python: ['3.14t']
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -561,9 +561,10 @@ jobs:
           sccache: 'true'
           # Build against the host Python installed by setup-python above.
           # The default manylinux Docker container does not include
-          # free-threaded CPython builds (3.13t / 3.14t), so spinning one
-          # up causes maturin to fail with "Couldn't find any python
-          # interpreters".
+          # free-threaded CPython builds (3.14t), so spinning one up causes
+          # maturin to fail with "Couldn't find any python interpreters".
+          # (3.13t was dropped — PyO3 0.29 removed support; FT now starts
+          # at 3.14t.)
           manylinux: off
         env:
           AWS_LC_SYS_CMAKE_BUILDER: "0"

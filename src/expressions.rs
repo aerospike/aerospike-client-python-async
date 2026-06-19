@@ -691,7 +691,7 @@ use crate::record::PythonValue;
             FilterExpression {
                 _as: aerospike_core::expressions::list_val(
                     val.into_iter()
-                        .map(|v| aerospike_core::Value::from(v))
+                        .map(aerospike_core::Value::from)
                         .collect(),
                 ),
             }

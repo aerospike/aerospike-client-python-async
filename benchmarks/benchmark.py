@@ -242,10 +242,10 @@ async def _worker(
             t0 = time.perf_counter()
             try:
                 if is_read:
-                    await client.batch_read(None, None, keys, None)
+                    await client.batch_read(keys, None)
                 else:
                     bins_list = [_random_bins_dict(fields) for _ in range(bsz)]
-                    await client.batch_write(None, None, keys, bins_list)
+                    await client.batch_write(keys, bins_list)
             except Exception:
                 dt = (time.perf_counter() - t0) * 1000.0
                 # Count one op per batch call to match PSDK's accounting
@@ -262,10 +262,10 @@ async def _worker(
         t0 = time.perf_counter()
         try:
             if is_read:
-                await client.get(rp, key, None)
+                await client.get(key, None, policy=rp)
             else:
                 ops = _random_bins(fields)
-                await client.operate(wp, key, ops)
+                await client.operate(key, ops, policy=wp)
         except Exception:
             dt = (time.perf_counter() - t0) * 1000.0
             stats.record(is_read, dt, True)
