@@ -1234,7 +1234,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index(
                     core_return_type,
@@ -1259,7 +1259,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank(
                     core_return_type,
@@ -1283,7 +1283,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value(
                     core_return_type,
@@ -1308,7 +1308,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_range(
                     core_return_type,
@@ -1332,7 +1332,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_list(
                     core_return_type,
@@ -1355,7 +1355,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index_range(
                     core_return_type,
@@ -1379,7 +1379,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index_range_count(
                     core_return_type,
@@ -1403,7 +1403,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank_range(
                     core_return_type,
@@ -1427,7 +1427,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank_range_count(
                     core_return_type,
@@ -1452,7 +1452,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range(
                     core_return_type,
@@ -1478,7 +1478,7 @@ use crate::record::PythonValue;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range_count(
                     core_return_type,
