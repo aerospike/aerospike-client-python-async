@@ -330,24 +330,6 @@ use crate::record::PythonValue;
         }
     }
     
-    // Enum conversion -- only valid for non-inverted base values.
-    impl From<&ListReturnType> for CoreListRT {
-        fn from(input: &ListReturnType) -> Self {
-            let base = input.0 & 0xFFFF;
-            match base {
-                x if x == CoreListRT::None as u32 => CoreListRT::None,
-                x if x == CoreListRT::Index as u32 => CoreListRT::Index,
-                x if x == CoreListRT::ReverseIndex as u32 => CoreListRT::ReverseIndex,
-                x if x == CoreListRT::Rank as u32 => CoreListRT::Rank,
-                x if x == CoreListRT::ReverseRank as u32 => CoreListRT::ReverseRank,
-                x if x == CoreListRT::Count as u32 => CoreListRT::Count,
-                x if x == CoreListRT::Values as u32 => CoreListRT::Values,
-                x if x == CoreListRT::Exists as u32 => CoreListRT::Exists,
-                _ => CoreListRT::None,
-            }
-        }
-    }
-
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ListSortFlags
@@ -768,27 +750,6 @@ use crate::record::PythonValue;
     impl aerospike_core::operations::maps::ToMapReturnTypeBitmask for MapReturnType {
         fn to_bitmask(self) -> i64 {
             self.0 as i64
-        }
-    }
-
-    impl From<&MapReturnType> for CoreMapRT {
-        fn from(input: &MapReturnType) -> Self {
-            let base = input.0 & 0xFFFF;
-            match base {
-                x if x == CoreMapRT::None as u32 => CoreMapRT::None,
-                x if x == CoreMapRT::Index as u32 => CoreMapRT::Index,
-                x if x == CoreMapRT::ReverseIndex as u32 => CoreMapRT::ReverseIndex,
-                x if x == CoreMapRT::Rank as u32 => CoreMapRT::Rank,
-                x if x == CoreMapRT::ReverseRank as u32 => CoreMapRT::ReverseRank,
-                x if x == CoreMapRT::Count as u32 => CoreMapRT::Count,
-                x if x == CoreMapRT::Key as u32 => CoreMapRT::Key,
-                x if x == CoreMapRT::Value as u32 => CoreMapRT::Value,
-                x if x == CoreMapRT::KeyValue as u32 => CoreMapRT::KeyValue,
-                x if x == CoreMapRT::Exists as u32 => CoreMapRT::Exists,
-                x if x == CoreMapRT::UnorderedMap as u32 => CoreMapRT::UnorderedMap,
-                x if x == CoreMapRT::OrderedMap as u32 => CoreMapRT::OrderedMap,
-                _ => CoreMapRT::None,
-            }
         }
     }
 
