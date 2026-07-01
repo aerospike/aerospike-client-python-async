@@ -112,6 +112,10 @@ class NoMoreConnections(AerospikeError):
 class ClientError(AerospikeError):
     """Exception raised for client-side errors."""
     def __init__(self, message: builtins.str) -> None: ...
+
+class MaxErrorRate(AerospikeError):
+    """Per-node circuit breaker tripped; the command was not sent to the server."""
+    def __init__(self, message: builtins.str) -> None: ...
 '''
 
 # ServerError subclasses (Python-defined; used by Rust create_server_error dispatch)
@@ -163,6 +167,7 @@ __all__ = [
     "PasswordHashError",
     "InvalidRustClientArgs",
     "ClientError",
+    "MaxErrorRate",
     "ResultCode",
     "RecordError",
     "IndexError",
@@ -1594,6 +1599,7 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('PasswordHashError = _exceptions.PasswordHashError\n')
         f.write('InvalidRustClientArgs = _exceptions.InvalidRustClientArgs\n')
         f.write('ClientError = _exceptions.ClientError\n')
+        f.write('MaxErrorRate = _exceptions.MaxErrorRate\n')
         f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
         f.write('ResultCode = _aerospike_async_native.ResultCode\n')
         f.write('\n')

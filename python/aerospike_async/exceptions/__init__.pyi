@@ -81,6 +81,10 @@ class ClientError(AerospikeError):
     """Exception raised for client-side errors."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class MaxErrorRate(AerospikeError):
+    """Per-node circuit breaker tripped; the command was not sent to the server."""
+    def __init__(self, message: builtins.str) -> None: ...
+
 
 class RecordError(ServerError):
     """Record-level server errors."""
@@ -131,6 +135,7 @@ __all__ = [
     "PasswordHashError",
     "InvalidRustClientArgs",
     "ClientError",
+    "MaxErrorRate",
     "ResultCode",
     "RecordError",
     "IndexError",

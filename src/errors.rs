@@ -103,6 +103,12 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 // Client-side errors
 create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
 
+// Per-node circuit breaker tripped (client-side, not sent to server). Carries
+// the offending node identifier in the exception message. Raised when a node
+// exceeds the policy's `max_error_rate` over `error_rate_window` ticks, so the
+// client backs off rather than forwarding more commands to that node.
+create_exception!(aerospike_async.exceptions, MaxErrorRate, AerospikeError);
+
 
 // Must define a wrapper type because of the orphan rule
 pub struct RustClientError(pub(crate) Error);
@@ -173,6 +179,10 @@ impl From<RustClientError> for PyErr {
                 }
             },
             Error::ClientError(msg) => ClientError::new_err(msg),
+            Error::MaxErrorRate(node) => MaxErrorRate::new_err(format!(
+                "Max error rate exceeded for node {node}; backing off"
+            )),
+            #[allow(unreachable_patterns)]
             other => AerospikeError::new_err(format!("Unknown error: {:?}", other)),
         }
     }

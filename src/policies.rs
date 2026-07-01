@@ -1663,6 +1663,35 @@ use crate::TlsConfig;
             self._as.buffer_reclaim_threshold = value;
         }
 
+        /// Maximum number of errors (network errors plus server-side ``TIMEOUT``,
+        /// ``DEVICE_OVERLOAD``, ``KEY_BUSY``) tolerated against a single node within
+        /// one ``error_rate_window``. Once exceeded, the client trips a per-node
+        /// circuit breaker and rejects further commands targeted at that node with
+        /// a ``MaxErrorRate`` exception until the next window resets. Set to ``0``
+        /// to disable. Default: ``100``.
+        #[getter]
+        pub fn get_max_error_rate(&self) -> usize {
+            self._as.max_error_rate
+        }
+
+        #[setter]
+        pub fn set_max_error_rate(&mut self, value: usize) {
+            self._as.max_error_rate = value;
+        }
+
+        /// Number of cluster tend iterations after which each node's error counter
+        /// is reset. Smaller values make the circuit breaker more aggressive,
+        /// larger values more lenient. Default: ``1``.
+        #[getter]
+        pub fn get_error_rate_window(&self) -> usize {
+            self._as.error_rate_window
+        }
+
+        #[setter]
+        pub fn set_error_rate_window(&mut self, value: usize) {
+            self._as.error_rate_window = value;
+        }
+
         /// TendInterval determines interval for checking for cluster state changes.
         /// Minimum possible interval is 10 Milliseconds.
         #[getter]

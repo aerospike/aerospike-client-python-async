@@ -429,6 +429,27 @@ class ClientPolicy:
     @buffer_reclaim_threshold.setter
     def buffer_reclaim_threshold(self, value: builtins.int) -> None: ...
     @property
+    def max_error_rate(self) -> builtins.int:
+        r"""
+        Maximum number of errors (network errors plus server-side ``TIMEOUT``,
+        ``DEVICE_OVERLOAD``, ``KEY_BUSY``) tolerated against a single node within
+        one ``error_rate_window``. Once exceeded, the client trips a per-node
+        circuit breaker and rejects further commands targeted at that node with
+        a ``MaxErrorRate`` exception until the next window resets. Set to ``0``
+        to disable. Default: ``100``.
+        """
+    @max_error_rate.setter
+    def max_error_rate(self, value: builtins.int) -> None: ...
+    @property
+    def error_rate_window(self) -> builtins.int:
+        r"""
+        Number of cluster tend iterations after which each node's error counter
+        is reset. Smaller values make the circuit breaker more aggressive,
+        larger values more lenient. Default: ``1``.
+        """
+    @error_rate_window.setter
+    def error_rate_window(self, value: builtins.int) -> None: ...
+    @property
     def tend_interval(self) -> builtins.int:
         r"""
         TendInterval determines interval for checking for cluster state changes.
