@@ -20,15 +20,14 @@
 //! zero per-op cost (the values are class-level constants resolved at module
 //! init).
 //!
-//! Naming matches the JSDK reference (`com.aerospike.client.sdk.operation`
-//! commit `6bb348e`) and the spec at
-//! `wiki/spaces/CLIENTS/pages/5225775105/String+Operations` §3.4–§3.6:
+//! Per the string-ops spec (§3.4–§3.6):
 //!
 //! - `StringWriteFlags::{DEFAULT, NO_FAIL}` — server dropped CREATE_ONLY /
 //!   UPDATE_ONLY in commit `fe5a346e` (2026-04-17); do not add them back.
 //! - `StringRegexFlags::{DEFAULT, CASE_INSENSITIVE, MULTILINE, DOTALL,
-//!   UNIX_LINES, GLOBAL}` — `DOTALL` matches JSDK + `re.DOTALL`, not
-//!   rust-core's `DOT_ALL`.
+//!   UNIX_LINES, GLOBAL}` — flag name `DOTALL` is one word (matching
+//!   Python's stdlib `re.DOTALL`); rust-core spells the same flag
+//!   `DOT_ALL`.
 //! - `StringNumericType::{ANY, INT, FLOAT}` — passed as optional second arg
 //!   to `IS_NUMERIC` (sub-op id 10).
 //!
@@ -200,9 +199,9 @@ pub enum StringRegexFlags {
     /// Multi-line: `^` and `$` match the start and end of any line.
     #[pyo3(name = "MULTILINE")]
     Multiline = 2,
-    /// `.` matches any character including line terminators. Matches
-    /// JSDK's `DOTALL` naming and Python `re.DOTALL`; rust-core spells the
-    /// same flag `DOT_ALL`.
+    /// `.` matches any character including line terminators. Spelled
+    /// `DOTALL` (one word) to match Python's stdlib `re.DOTALL`;
+    /// rust-core spells the same flag `DOT_ALL`.
     #[pyo3(name = "DOTALL")]
     DotAll = 4,
     /// Only `\n` is treated as a line terminator (Unix-style line endings).
@@ -394,11 +393,10 @@ impl StringNumericType {
 //
 //  Server-side string operations (server 8.1.3+). Spec sub-ops 0..16 (read,
 //  STRING_READ op-type 17) and 50..66 (modify, STRING_MODIFY op-type 18),
-//  plus the top-level TO_STRING op-type 19. Mirrors the rust-core surface in
-//  aerospike-core/src/operations/string.rs and the JSDK reference in commit
-//  6bb348e.
+//  plus the top-level TO_STRING op-type 19. Wraps the rust-core surface in
+//  aerospike-core/src/operations/string.rs.
 //
-//  All factories follow the JSDK signature shape (commit 6bb348e):
+//  Signature shape (per spec §3.1 / §3.2):
 //    - Read ops:   (bin, ...op_args, *, ctx=None)
 //    - Modify ops: (bin, ...op_args, *, flags=0, ctx=None)
 //    - to_string:  (bin) — no ctx (top-level wire op, no payload)
@@ -598,6 +596,22 @@ impl StringOperation {
             return Err(PyValueError::new_err("concat value must be str or list[str]"));
         };
         Ok(StringOperation { op: OperationType::StringConcat(bin, values, flags), ctx })
+    }
+
+    /// Append ``value`` to the end of the bin. Single-value form (server sub-op
+    /// 67); use ``concat`` for the list form.
+    #[staticmethod]
+    #[pyo3(signature = (bin, value, *, flags=0, ctx=None))]
+    pub fn append(bin: String, value: String, flags: u8, ctx: Option<Vec<CTX>>) -> Self {
+        StringOperation { op: OperationType::StringAppend(bin, value, flags), ctx }
+    }
+
+    /// Prepend ``value`` to the start of the bin. Distinct from ``insert(0, …)``
+    /// — this is the server's dedicated prepend sub-op (68).
+    #[staticmethod]
+    #[pyo3(signature = (bin, value, *, flags=0, ctx=None))]
+    pub fn prepend(bin: String, value: String, flags: u8, ctx: Option<Vec<CTX>>) -> Self {
+        StringOperation { op: OperationType::StringPrepend(bin, value, flags), ctx }
     }
 
     /// Remove the half-open codepoint range ``[start, end)`` from the bin.

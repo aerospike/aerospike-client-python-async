@@ -327,6 +327,10 @@ use crate::string_ops::{StringNumericType, StringOperation};
         StringOverwrite(String, i64, String, u8),
         /// String concat (bin, values, write_flags) — wire is always list-of-strings.
         StringConcat(String, Vec<String>, u8),
+        /// String append (bin, value, write_flags) — single-value form, sub-op 67.
+        StringAppend(String, String, u8),
+        /// String prepend (bin, value, write_flags) — single-value form, sub-op 68.
+        StringPrepend(String, String, u8),
         /// String snip (bin, start, end, write_flags). ``end`` is REQUIRED — the server's
         /// snip table has no 1-arg form (a 2-int wire is misparsed as start+end with
         /// flags=DEFAULT=0, producing a silent no-op).
@@ -445,7 +449,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             }
         }
 
-        /// Create an Append operation (appends to string bin value).
+        /// Create an Append operation (byte-level append to a string or bytes bin).
         #[staticmethod]
         pub fn append(bin_name: String, value: PythonValue) -> Self {
             Operation {
@@ -453,7 +457,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             }
         }
 
-        /// Create a Prepend operation (prepends to string bin value).
+        /// Create a Prepend operation (byte-level prepend to a string or bytes bin).
         #[staticmethod]
         pub fn prepend(bin_name: String, value: PythonValue) -> Self {
             Operation {
@@ -1408,7 +1412,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, f),
@@ -1434,7 +1438,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, f),
@@ -1535,7 +1539,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllSetUnion(bin_name, hll_list, f),
@@ -1586,7 +1590,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::expressions::exp_read_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::expressions::exp_read_flags_from_py(obj.bind(py))?,
             };
             Ok(ExpOperation {
                 op: OperationType::ExpRead(name, exp, f),
@@ -1616,7 +1620,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ) -> PyResult<Self> {
             let f = match &flags {
                 None => 0i64,
-                Some(obj) => crate::expressions::exp_write_flags_from_py(&obj.bind(py))?,
+                Some(obj) => crate::expressions::exp_write_flags_from_py(obj.bind(py))?,
             };
             Ok(ExpOperation {
                 op: OperationType::ExpWrite(bin_name, exp, f),
@@ -1652,7 +1656,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ///     flag: Controls what is returned. Pass any combination of
         ///         ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
         ///         SelectFlags.NO_FAIL``) — the resulting value is a plain
-        ///         ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
+        ///         ``int`` bitmask.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
         /// Returns:
@@ -1686,7 +1690,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ///     bin_name: Name of the bin containing the top-level CDT.
         ///     flag: Controls error-handling behavior. Pass any combination of
         ///         ``ModifyFlags`` constants — the resulting value is a plain
-        ///         ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
+        ///         ``int`` bitmask.
         ///     exp: Expression that produces the value to write.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
@@ -2076,7 +2080,8 @@ pub(crate) fn record_batch_ops_have_write(rust_ops: &[OpWithCtx]) -> bool {
             // to `true` so batch routing picks the write path. Note: `StringToString`
             // is a READ op (TO_STRING op-type 19) and is intentionally excluded.
             OperationType::StringInsert(_, _, _, _) | OperationType::StringOverwrite(_, _, _, _) |
-            OperationType::StringConcat(_, _, _) | OperationType::StringSnip(_, _, _, _) |
+            OperationType::StringConcat(_, _, _) | OperationType::StringAppend(_, _, _) |
+            OperationType::StringPrepend(_, _, _) | OperationType::StringSnip(_, _, _, _) |
             OperationType::StringReplace(_, _, _, _) | OperationType::StringReplaceAll(_, _, _, _) |
             OperationType::StringUpper(_, _) | OperationType::StringLower(_, _) |
             OperationType::StringCaseFold(_, _) | OperationType::StringNormalizeNfc(_, _) |
@@ -2346,7 +2351,8 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             | OperationType::StringSplit(_, _) | OperationType::StringB64Decode(_)
             | OperationType::StringRegexCompare(_, _, _)
             | OperationType::StringInsert(_, _, _, _) | OperationType::StringOverwrite(_, _, _, _)
-            | OperationType::StringConcat(_, _, _) | OperationType::StringSnip(_, _, _, _)
+            | OperationType::StringConcat(_, _, _) | OperationType::StringAppend(_, _, _)
+            | OperationType::StringPrepend(_, _, _) | OperationType::StringSnip(_, _, _, _)
             | OperationType::StringReplace(_, _, _, _) | OperationType::StringReplaceAll(_, _, _, _)
             | OperationType::StringUpper(_, _) | OperationType::StringLower(_, _)
             | OperationType::StringCaseFold(_, _) | OperationType::StringNormalizeNfc(_, _)
@@ -3297,6 +3303,18 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Rust-core's concat_list takes &[&str]; build the &str view once here.
                 let value_refs: Vec<&str> = values.iter().map(String::as_str).collect();
                 str_op::concat_list(&policy, bin, &value_refs)
+            }
+            OperationType::StringAppend(bin, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::append(&policy, bin, value)
+            }
+            OperationType::StringPrepend(bin, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::prepend(&policy, bin, value)
             }
             OperationType::StringSnip(bin, start, end, flags) => {
                 use aerospike_core::operations::string as str_op;

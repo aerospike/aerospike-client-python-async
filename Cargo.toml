@@ -1,6 +1,6 @@
 [package]
 name = "aerospike_async"
-version = "0.6.0-alpha.2"
+version = "0.6.0-alpha.6"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,13 +9,13 @@ name = "_aerospike_async_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.28", default-features = false }
-pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
+pyo3 = { version = "0.29", default-features = false }
+pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
 aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", branch = "v3", package = "aerospike-core", features = ["rt-tokio"] }
 hex = "0.4"
 ordered-float = { version = "3", default-features = false }
-pyo3-stub-gen = "=0.22.0"
+pyo3-stub-gen = "0.23"
 log = "0.4"
 pyo3-log = "0.13"
 futures = "0.3"
@@ -41,3 +41,10 @@ path = "src/bin/stub_gen.rs"
 strip = "debuginfo"
 lto = "thin"
 codegen-units = 1
+
+# Local development override — point at the working-tree rust-core to pick
+# up the uncommitted fix being staged there. Strip this block before
+# committing to dev.
+[patch."https://github.com/aerospike/aerospike-client-rust"]
+aerospike-core = { path = "/Users/pbrackin/tmp/aerospike-client-rust/aerospike-core" }
+aerospike-rt = { path = "/Users/pbrackin/tmp/aerospike-client-rust/aerospike-rt" }

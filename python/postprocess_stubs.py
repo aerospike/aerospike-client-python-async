@@ -1553,7 +1553,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    Namespace of plain ``int`` constants. Combine with bitwise OR
     (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
     suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
@@ -1578,7 +1578,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    Namespace of plain ``int`` constants. Combine with bitwise OR — the
     result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
@@ -1592,7 +1592,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Namespace of plain ``int`` constants. Bit values match the
     Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.

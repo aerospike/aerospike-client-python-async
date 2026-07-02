@@ -277,7 +277,7 @@ use crate::policies::AdminPolicy;
         ) -> PyResult<Bound<'a, PyAny>> {
             let node = std::sync::Arc::clone(&self._as);
             let admin_policy =
-                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                policy.map(|p| p._as).unwrap_or_default();
 
             pyo3_asyncio::future_into_py(py, async move {
                 let response = node

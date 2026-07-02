@@ -14,6 +14,9 @@
 // the License.
 
 #![deny(warnings)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::too_many_arguments)]
 extern crate pyo3;
 
 #[global_allocator]
@@ -41,6 +44,7 @@ use aerospike_core::errors::Error;
 
 mod blocking;
 mod completion;
+mod waker;
 mod enums;
 mod errors;
 mod runtime;
@@ -277,9 +281,9 @@ use crate::operations::{
     /// that want sub-100 ns random number generation per call. CPython's
     /// stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     /// fine for general use, but a measurable handicap in benchmark hot
-    /// loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    /// and Rust core uses `SmallRng` for the same reason; this exposes the
-    /// equivalent to Python so benchmark methodology stays apples-to-apples.
+    /// loops where every µs counts. Rust core uses `SmallRng` for the
+    /// same reason; this exposes the equivalent to Python so benchmark
+    /// methodology stays consistent across language layers.
     ///
     /// Not thread-safe — construct one per worker thread / task.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -421,7 +425,7 @@ use crate::operations::{
                     Ok(res)
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         #[pyo3(signature = (key, bins, *, policy=None, policy_sc=None, txn=None))]
@@ -568,7 +572,7 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Returns whether ``namespace`` is configured for strong
@@ -686,12 +690,14 @@ use crate::operations::{
                     Some(stream) => stream.as_mut().next().await,
                     None => None,
                 };
+                // Return a plain (Send) Rust value; the CompletionBridge's
+                // converter builds the Python tuple on the drainer/loop thread.
+                // Never `Python::attach` here — this runs on a Tokio worker, and
+                // registering a PyThreadState on a worker segfaults on
+                // free-threaded finalization teardown (see the invariant in
+                // waker.rs and the lazy pattern in errors.rs).
                 match next {
-                    Some((idx, br)) => Python::attach(|py| -> PyResult<Py<PyAny>> {
-                        let py_br = BatchRecord { _as: br }.into_pyobject(py)?.unbind();
-                        let tup = (idx, py_br).into_pyobject(py)?.unbind();
-                        Ok(tup.into())
-                    }),
+                    Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
                     None => Err(PyStopAsyncIteration::new_err(())),
                 }
             })
@@ -1063,7 +1069,7 @@ use crate::operations::{
                 }
                 Ok(res)
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously delete a record for the specified key.
@@ -1265,7 +1271,7 @@ use crate::operations::{
                 client.operate(&policy, &key_as, &core_ops).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously execute a registered UDF on a single record.
@@ -1379,7 +1385,7 @@ use crate::operations::{
         ) -> PyResult<RegisterTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let lang: aerospike_core::UDFLang = language.into();
             let raw = run_blocking(py, async move {
                 client.register_udf(&admin_policy, &udf_body, &server_path, lang).await
@@ -1400,7 +1406,7 @@ use crate::operations::{
         ) -> PyResult<RegisterTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let lang: aerospike_core::UDFLang = language.into();
             let raw = run_blocking(py, async move {
                 client.register_udf_from_file(&admin_policy, &client_path, &server_path, lang).await
@@ -1419,7 +1425,7 @@ use crate::operations::{
         ) -> PyResult<UdfRemoveTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let raw = run_blocking(py, async move {
                 client.remove_udf(&admin_policy, &server_path).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1439,7 +1445,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let before_nanos = before_nanos.unwrap_or_default();
             run_blocking(py, async move {
                 client.truncate(&admin_policy, &namespace, &set_name, before_nanos).await
@@ -1463,7 +1469,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
             let ctx_core = ctx.map(|c| ctx_to_vec(&c));
@@ -1489,7 +1495,7 @@ use crate::operations::{
         ) -> PyResult<DropIndexTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let raw = run_blocking(py, async move {
                 client.drop_index(&admin_policy, &namespace, &set_name, &index_name).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1555,7 +1561,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client.create_user(&admin_policy, &user, &password, &roles).await
@@ -1574,7 +1580,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client.create_pki_user(&admin_policy, &user, &roles).await
@@ -1592,7 +1598,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 client.drop_user(&admin_policy, &user).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1610,7 +1616,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 client.change_password(&admin_policy, &user, &password).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1628,7 +1634,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client.grant_roles(&admin_policy, &user, &roles).await
@@ -1647,7 +1653,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
                 client.revoke_roles(&admin_policy, &user, &roles).await
@@ -1665,7 +1671,7 @@ use crate::operations::{
         ) -> PyResult<Vec<User>> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let raw = run_blocking(py, async move {
                 let user_ref = user.as_deref();
                 client.query_users(&admin_policy, user_ref).await
@@ -1684,7 +1690,7 @@ use crate::operations::{
         ) -> PyResult<Vec<Role>> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let raw = run_blocking(py, async move {
                 let role_ref = role.as_deref();
                 client.query_roles(&admin_policy, role_ref).await
@@ -1707,7 +1713,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let core_privileges: Vec<aerospike_core::Privilege> =
                 privileges.iter().map(|r| r._as.clone()).collect();
             run_blocking(py, async move {
@@ -1730,7 +1736,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 client.drop_role(&admin_policy, &role_name).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1748,7 +1754,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let core_privileges: Vec<aerospike_core::Privilege> =
                 privileges.iter().map(|p| p._as.clone()).collect();
             run_blocking(py, async move {
@@ -1768,7 +1774,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let core_privileges: Vec<aerospike_core::Privilege> =
                 privileges.iter().map(|p| p._as.clone()).collect();
             run_blocking(py, async move {
@@ -1788,7 +1794,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
                 client.set_allowlist(&admin_policy, &role_name, &allowlist).await
@@ -1808,7 +1814,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             run_blocking(py, async move {
                 client.set_quotas(&admin_policy, &role_name, read_quota, write_quota).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1830,7 +1836,7 @@ use crate::operations::{
         ) -> PyResult<IndexTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let expr = expression._as.clone();
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
@@ -1856,7 +1862,7 @@ use crate::operations::{
         ) -> PyResult<()> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
-                .unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                .unwrap_or_default();
             let expr = filter_expression.clone();
             run_blocking(py, async move {
                 client.set_xdr_filter(
@@ -1958,7 +1964,7 @@ use crate::operations::{
                 for (key, bins) in rust_keys.into_iter().zip(bins_vecs.iter()) {
                     let ops: Vec<aerospike_core::operations::Operation> = bins
                         .iter()
-                        .map(|bin| operations::put(bin))
+                        .map(operations::put)
                         .collect();
                     batch_ops.push(BatchOperation::write(&write_policy, key, ops));
                 }
@@ -2089,7 +2095,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(raw.into_iter()
-                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                 .collect())
         }
 
@@ -2355,7 +2361,7 @@ use crate::operations::{
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2422,7 +2428,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2652,7 +2658,7 @@ use crate::operations::{
                 for (key, bins) in rust_keys.into_iter().zip(bins_vecs.iter()) {
                     let ops: Vec<aerospike_core::operations::Operation> = bins
                         .iter()
-                        .map(|bin| operations::put(bin))
+                        .map(operations::put)
                         .collect();
                     batch_ops.push(BatchOperation::write(&write_policy, key, ops));
                 }
@@ -2832,7 +2838,7 @@ use crate::operations::{
 
                 Ok(results
                     .into_iter()
-                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                     .collect::<Vec<Option<Record>>>())
             })
         }
@@ -3023,7 +3029,7 @@ use crate::operations::{
             // route each per-yield future through the same loop + per-Client
             // runtime as the Client itself.
             let bridge = self.require_bridge()?;
-            let stream_bridge = bridge.clone_ref(py);
+            let stream_bridge = bridge.clone();
 
             completion::batched_future_into_py(bridge, py, async move {
                 let batch_ops = build_batch_operations(&extracted)?;
@@ -3072,7 +3078,7 @@ use crate::operations::{
             });
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let rust_args_ref = rust_args.as_ref().map(|a| a.as_slice());
+                let rust_args_ref = rust_args.as_deref();
                 let result = client
                     .execute_udf(&policy, &key, &server_path, &function_name, rust_args_ref)
                     .await
@@ -3115,12 +3121,12 @@ use crate::operations::{
             let (core_ops, _) = convert_scalar_ops_to_core(&rust_ops).map_err(|e| {
                 PyValueError::new_err(format!(
                     "query_operate supports scalar and expression operations (put, add, delete, touch, append, prepend, ExpOperation.write). List/map/bit/HLL operations are not supported for background query. {}",
-                    e.to_string()
+                    e
                 ))
             })?;
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .query_operate(&policy, core_statement, &core_ops)
@@ -3161,7 +3167,7 @@ use crate::operations::{
             core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref());
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let args_ref = rust_args.as_deref();
                 let task = client
@@ -3193,11 +3199,11 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
             let lang: aerospike_core::UDFLang = language.into();
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .register_udf(&admin_policy, &udf_body, &server_path, lang)
@@ -3228,11 +3234,11 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
             let lang: aerospike_core::UDFLang = language.into();
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .register_udf_from_file(&admin_policy, &client_path, &server_path, lang)
@@ -3259,10 +3265,10 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .remove_udf(&admin_policy, &server_path)
@@ -3343,7 +3349,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             let before_nanos = before_nanos.unwrap_or_default();
 
@@ -3374,7 +3380,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
@@ -3411,10 +3417,10 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .drop_index(&admin_policy, &namespace, &set_name, &index_name)
@@ -3440,13 +3446,13 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let admin_policy =
-                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                policy.map(|p| p._as).unwrap_or_default();
             let expr = expression._as.clone();
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
 
             let bridge = self.require_bridge()?;
-            let task_bridge = bridge.clone_ref(py);
+            let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
                     .create_index_using_expression(
@@ -3480,7 +3486,7 @@ use crate::operations::{
             let client = self._as.clone();
             let stmt = statement.clone()._as;
             let bridge = self.require_bridge()?;
-            let recordset_bridge = bridge.clone_ref(py);
+            let recordset_bridge = bridge.clone();
 
             completion::batched_future_into_py(bridge, py, async move {
                 let res = client
@@ -3509,7 +3515,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
@@ -3534,7 +3540,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
@@ -3552,7 +3558,7 @@ use crate::operations::{
         #[pyo3(signature = (user, *, policy = None))]
         pub fn drop_user<'a>(&self, user: String, policy: Option<AdminPolicy>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
@@ -3575,7 +3581,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
@@ -3598,7 +3604,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
@@ -3622,7 +3628,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let roles: Vec<&str> = roles.iter().map(|r| &**r).collect();
@@ -3646,7 +3652,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let user = user.as_deref();
@@ -3671,7 +3677,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let role: Option<&str> = role.as_deref();
@@ -3701,7 +3707,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
@@ -3726,7 +3732,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
@@ -3749,7 +3755,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let privileges: Vec<aerospike_core::Privilege> =
@@ -3774,7 +3780,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let privileges: Vec<aerospike_core::Privilege> =
@@ -3800,7 +3806,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let allowlist: Vec<&str> = allowlist.iter().map(|al| &**al).collect();
@@ -3828,7 +3834,7 @@ use crate::operations::{
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
-            let admin_policy = policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
@@ -4035,7 +4041,7 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let admin_policy =
-                policy.map(|p| p._as).unwrap_or_else(|| aerospike_core::AdminPolicy::default());
+                policy.map(|p| p._as).unwrap_or_default();
             let expr = filter_expression.clone();
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
@@ -4173,7 +4179,13 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
             .map(|s| s.as_str())
             .or_else(|| payload.downcast_ref::<&'static str>().copied());
         if let Some(s) = msg_str {
-            if s.contains("Python interpreter is not initialized") {
+            // Message text differs by pyo3 version: pre-0.29 asserted
+            // "Python interpreter is not initialized"; pyo3 0.29+ rejects the
+            // attach with "Cannot attach to the Python interpreter while it is
+            // finalizing".  Match both so the filter survives pyo3 bumps.
+            if s.contains("Python interpreter is not initialized")
+                || s.contains("Cannot attach to the Python interpreter while it is finalizing")
+            {
                 return;
             }
         }

@@ -102,7 +102,7 @@ use crate::record::{Key, PythonValue, Record};
 
         #[getter]
         pub fn get_digest(&self) -> Option<String> {
-            self._as.digest.map(|d| hex::encode(d))
+            self._as.digest.map(hex::encode)
         }
 
         #[setter]
@@ -139,12 +139,12 @@ use crate::record::{Key, PythonValue, Record};
                 "id" => Ok(self.get_id().into_pyobject(py).unwrap().into_any().into()),
                 "bval" => match self.get_bval() {
                     Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
-                    None => Ok(py.None().into()),
+                    None => Ok(py.None()),
                 },
                 "retry" => Ok(PyBool::new(py, self.get_retry()).into_bound_py_any(py).unwrap().into()),
                 "digest" => match self.get_digest() {
                     Some(v) => Ok(v.into_pyobject(py).unwrap().into_any().into()),
-                    None => Ok(py.None().into()),
+                    None => Ok(py.None()),
                 },
                 _ => Err(PyKeyError::new_err(format!("Unknown key: '{}'. Valid keys: 'id', 'bval', 'retry', 'digest'", key_str))),
             }
@@ -264,7 +264,7 @@ use crate::record::{Key, PythonValue, Record};
 
         #[getter]
         pub fn get_digest(&self) -> Option<String> {
-            self._as.digest.map(|d| hex::encode(d))
+            self._as.digest.map(hex::encode)
         }
 
         #[setter]
@@ -893,20 +893,20 @@ use crate::record::{Key, PythonValue, Record};
 
                 if let Some(ref mut stream) = *stream_opt {
                     use futures::StreamExt;
+                    // Return a plain (Send) Rust value; the CompletionBridge's
+                    // converter builds the Python `Record` on the drainer/loop
+                    // thread. Never `Python::attach` here — this runs on a Tokio
+                    // worker, and registering a PyThreadState on a worker
+                    // segfaults on free-threaded finalization teardown (see the
+                    // invariant in waker.rs and the lazy pattern in errors.rs).
+                    // `PyErr::from(RustClientError(..))` is lazy, so the error
+                    // arm never attaches on the worker either.
                     match stream.as_mut().next().await {
                         Some(Ok(rec)) => {
-                            Python::attach(|py| -> PyResult<Py<PyAny>> {
-                                let res = Record { _as: rec, cached_bins: None };
-                                let py_obj: Py<PyAny> = res.into_pyobject(py)?.unbind().into();
-                                Ok(py_obj)
-                            })
+                            Ok(Record { _as: rec, cached_bins: None, cached_results: None })
                         }
-                        Some(Err(e)) => {
-                            Err(PyErr::from(RustClientError(e)))
-                        }
-                        None => {
-                            Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
-                        }
+                        Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
+                        None => Err(PyStopAsyncIteration::new_err("Recordset iteration complete")),
                     }
                 } else {
                     Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
@@ -960,7 +960,7 @@ use crate::record::{Key, PythonValue, Record};
             })?;
 
             match result {
-                Some(rec) => Ok(Record { _as: rec, cached_bins: None }),
+                Some(rec) => Ok(Record { _as: rec, cached_bins: None, cached_results: None }),
                 None => Err(pyo3::exceptions::PyStopIteration::new_err(())),
             }
         }

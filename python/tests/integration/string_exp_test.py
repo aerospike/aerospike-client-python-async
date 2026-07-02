@@ -15,9 +15,8 @@
 
 """Integration tests for string filter expressions (server 8.1.3+).
 
-Scenarios mirror rust-core's ``tests/src/exp_string.rs`` plus the JSDK
-reference at ``OperateStringTest.stringProjectionViaStringExpOnQuery``
-(commit ``6bb348e``).
+Scenarios mirror rust-core's ``tests/src/exp_string.rs`` and cover the
+filter-expression scenarios called out in the string-ops spec §4.2.
 
 Tests opt in to an 8.1.3+ cluster via the ``aerospike_host_813_required``
 fixture; they skip cleanly when ``AEROSPIKE_HOST_8_1_3`` is unset.

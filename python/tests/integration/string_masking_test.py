@@ -16,8 +16,8 @@
 """TestStringMasking — server-side masking suite (spec §4.3, 20 tests).
 
 End-to-end coverage of ``StringOperation`` against bins protected by a
-server-side masking rule. Mirrors the JSDK reference suite at commit
-``6bb348e``'s `TestStringMasking`. Tests are gated on THREE conditions:
+server-side masking rule. Covers the scenarios called out in the
+string-ops spec §4.3. Tests are gated on THREE conditions:
 
 1. ``AEROSPIKE_HOST_8_1_3`` is set (string ops + masking are 8.1.3+ features)
 2. Security is enabled on the target cluster (`query_users` succeeds)
@@ -262,17 +262,31 @@ async def basic_client(aerospike_host_813_required, masking_setup):
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="module")
 async def reset_record(admin_client, masking_setup):
-    """Reset the test record before every test (admin-credentialed put)."""
+    """Reset the test record before every test (admin-credentialed put).
+
+    Wraps the put in a small retry loop to absorb transient network/server
+    blips against the remote bench host. Three attempts with a short
+    backoff — a real outage still surfaces (final attempt re-raises), but
+    a single hiccup doesn't kill the test.
+    """
     key = Key(_NAMESPACE, _SET, _RECORD_KEY)
-    await admin_client.put(
-        key,
-        {
-            _BIN_MASKED: "hello world",
-            _BIN_CONSTANT: "real-secret",
-            _BIN_UNMASKED: "visible",
-        },
-        policy=WritePolicy(),
-    )
+    record = {
+        _BIN_MASKED: "hello world",
+        _BIN_CONSTANT: "real-secret",
+        _BIN_UNMASKED: "visible",
+    }
+    last_exc = None
+    for attempt in range(3):
+        try:
+            await admin_client.put(key, record, policy=WritePolicy())
+            last_exc = None
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(0.5 * (attempt + 1))
+    if last_exc is not None:
+        raise last_exc
     yield
 
 

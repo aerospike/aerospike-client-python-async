@@ -330,24 +330,6 @@ use crate::record::PythonValue;
         }
     }
     
-    // Enum conversion -- only valid for non-inverted base values.
-    impl From<&ListReturnType> for CoreListRT {
-        fn from(input: &ListReturnType) -> Self {
-            let base = input.0 & 0xFFFF;
-            match base {
-                x if x == CoreListRT::None as u32 => CoreListRT::None,
-                x if x == CoreListRT::Index as u32 => CoreListRT::Index,
-                x if x == CoreListRT::ReverseIndex as u32 => CoreListRT::ReverseIndex,
-                x if x == CoreListRT::Rank as u32 => CoreListRT::Rank,
-                x if x == CoreListRT::ReverseRank as u32 => CoreListRT::ReverseRank,
-                x if x == CoreListRT::Count as u32 => CoreListRT::Count,
-                x if x == CoreListRT::Values as u32 => CoreListRT::Values,
-                x if x == CoreListRT::Exists as u32 => CoreListRT::Exists,
-                _ => CoreListRT::None,
-            }
-        }
-    }
-
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  ListSortFlags
@@ -771,27 +753,6 @@ use crate::record::PythonValue;
         }
     }
 
-    impl From<&MapReturnType> for CoreMapRT {
-        fn from(input: &MapReturnType) -> Self {
-            let base = input.0 & 0xFFFF;
-            match base {
-                x if x == CoreMapRT::None as u32 => CoreMapRT::None,
-                x if x == CoreMapRT::Index as u32 => CoreMapRT::Index,
-                x if x == CoreMapRT::ReverseIndex as u32 => CoreMapRT::ReverseIndex,
-                x if x == CoreMapRT::Rank as u32 => CoreMapRT::Rank,
-                x if x == CoreMapRT::ReverseRank as u32 => CoreMapRT::ReverseRank,
-                x if x == CoreMapRT::Count as u32 => CoreMapRT::Count,
-                x if x == CoreMapRT::Key as u32 => CoreMapRT::Key,
-                x if x == CoreMapRT::Value as u32 => CoreMapRT::Value,
-                x if x == CoreMapRT::KeyValue as u32 => CoreMapRT::KeyValue,
-                x if x == CoreMapRT::Exists as u32 => CoreMapRT::Exists,
-                x if x == CoreMapRT::UnorderedMap as u32 => CoreMapRT::UnorderedMap,
-                x if x == CoreMapRT::OrderedMap as u32 => CoreMapRT::OrderedMap,
-                _ => CoreMapRT::None,
-            }
-        }
-    }
-
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
     //  CTX (Context) for nested CDT operations
@@ -988,7 +949,7 @@ use crate::record::PythonValue;
         #[staticmethod]
         pub fn from_base64(b64: &str) -> PyResult<Vec<CTX>> {
             let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_base64(b64)
-                .map_err(|e| crate::errors::RustClientError(e))?;
+                .map_err(crate::errors::RustClientError)?;
             Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
 
@@ -999,7 +960,7 @@ use crate::record::PythonValue;
         #[staticmethod]
         pub fn from_bytes(bytes: Vec<u8>) -> PyResult<Vec<CTX>> {
             let core_ctxs = aerospike_core::operations::cdt_context::ctx_from_bytes(&bytes)
-                .map_err(|e| crate::errors::RustClientError(e))?;
+                .map_err(crate::errors::RustClientError)?;
             Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
     }
@@ -1223,7 +1184,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f = match &write_flags {
                 None => 0u8,
-                Some(obj) => bit_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => bit_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(BitPolicy {
                 _as: aerospike_core::operations::bitwise::BitPolicy::new(f),
@@ -1297,7 +1258,7 @@ use crate::record::PythonValue;
             let order = order.unwrap_or(ListOrderType::Unordered);
             let f = match &write_flags {
                 None => 0u8,
-                Some(obj) => list_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => list_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(ListPolicy {
                 _as: aerospike_core::operations::lists::ListPolicy {
@@ -1489,7 +1450,7 @@ use crate::record::PythonValue;
         ) -> PyResult<Self> {
             let f: i64 = match &write_flags {
                 None => 0,
-                Some(obj) => hll_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => hll_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(HLLPolicy {
                 _as: aerospike_core::operations::hll::HLLPolicy { flags: f },
@@ -1639,7 +1600,7 @@ use crate::record::PythonValue;
             let core_order: aerospike_core::operations::maps::MapOrder = (&order).into();
             let f = match &flags {
                 None => 0u8,
-                Some(obj) => map_policy_flags_from_py(&obj.bind(py))?,
+                Some(obj) => map_policy_flags_from_py(obj.bind(py))?,
             };
             let _as = if persist_index == Some(true) {
                 aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(

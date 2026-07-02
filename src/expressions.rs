@@ -15,6 +15,7 @@
 
 use std::collections::BTreeMap;
 
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
@@ -358,8 +359,7 @@ use crate::string_ops::StringNumericType;
     /// POSIX regex bit flags for ``FilterExpression.regex_compare``.
     ///
     /// Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
-    /// on glibc), which is the same shape JSDK and the legacy Python C-extension
-    /// client use:
+    /// on glibc):
     ///
     /// - ``NONE = 0`` — use regex defaults.
     /// - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
@@ -369,7 +369,7 @@ use crate::string_ops::StringNumericType;
     ///
     /// Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
     /// The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
-    /// ``RegexFlag`` constant (or combination), matching JSDK shape.
+    /// ``RegexFlag`` constant (or combination).
     // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
     // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -647,6 +647,41 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
+        /// Build a value expression from a Python value, dispatching by type.
+        ///
+        /// Single-entry alternative to the typed accessors (``bool_val``,
+        ///  ``int_val``, ``float_val``, ``string_val``, ``blob_val``,
+        ///  ``list_val``, ``map_val``, ``geo_val``, ``nil``). The Python type of
+        /// *value* selects which underlying constructor is invoked; ``None``
+        /// maps to :meth:`nil`. ``GeoJSON`` strings and HLL bytes should
+        /// continue to use :meth:`geo_val` / typed accessors explicitly when
+        /// the literal form is ambiguous.
+        ///
+        /// Raises ``TypeError`` for values that don't correspond to a
+        /// supported variant (e.g. ``SpecialValue`` sentinels).
+        pub fn val(value: PythonValue) -> PyResult<Self> {
+            Ok(match value {
+                PythonValue::Nil       => Self::nil(),
+                PythonValue::Bool(b)   => Self::bool_val(b),
+                PythonValue::Int(i)    => Self::int_val(i),
+                PythonValue::Float(f)  => Self::float_val(f.into_inner()),
+                PythonValue::String(s) => Self::string_val(s),
+                PythonValue::Blob(b)   => Self::blob_val(b),
+                PythonValue::List(l)   => Self::list_val(l),
+                v @ (PythonValue::HashMap(_) | PythonValue::OrderedMap(_)) => {
+                    Self::map_val(v)
+                }
+                PythonValue::GeoJSON(s) => Self::geo_val(s),
+                other => {
+                    return Err(PyTypeError::new_err(format!(
+                        "Exp.val: unsupported value type for a literal value expression: {:?}",
+                        other,
+                    )));
+                }
+            })
+        }
+
+        #[staticmethod]
         /// Creates 64 bit integer value
         pub fn int_val(val: i64) -> Self {
             FilterExpression {
@@ -692,7 +727,7 @@ use crate::string_ops::StringNumericType;
             FilterExpression {
                 _as: aerospike_core::expressions::list_val(
                     val.into_iter()
-                        .map(|v| aerospike_core::Value::from(v))
+                        .map(aerospike_core::Value::from)
                         .collect(),
                 ),
             }
@@ -1235,7 +1270,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index(
                     core_return_type,
@@ -1260,7 +1295,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank(
                     core_return_type,
@@ -1284,7 +1319,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value(
                     core_return_type,
@@ -1309,7 +1344,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_range(
                     core_return_type,
@@ -1333,7 +1368,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_list(
                     core_return_type,
@@ -1356,7 +1391,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index_range(
                     core_return_type,
@@ -1380,7 +1415,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_index_range_count(
                     core_return_type,
@@ -1404,7 +1439,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank_range(
                     core_return_type,
@@ -1428,7 +1463,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_rank_range_count(
                     core_return_type,
@@ -1453,7 +1488,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range(
                     core_return_type,
@@ -1479,7 +1514,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type: aerospike_core::operations::lists::ListReturnType = (&return_type).into();
+            let core_return_type = return_type;
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range_count(
                     core_return_type,
@@ -3392,8 +3427,10 @@ use crate::string_ops::StringNumericType;
         //
         //  String expressions (server 8.1.3+)
         //
-        //  Mirrors aerospike-core/src/expressions/string.rs. Conventions:
-        //    - `src` is the TRAILING argument (matches BitExp / HllExp / JSDK StringExp).
+        //  Wraps aerospike-core/src/expressions/string.rs. Conventions:
+        //    - `src` is the TRAILING argument (matches the existing `bit_*` /
+        //      `hll_*` expression conventions in this file, and the spec §3.7
+        //      argument-shape rule).
         //    - No `ctx` parameter — string expressions don't take CdtContext directly.
         //      To target a string nested inside a list/map, project via
         //      `list_get_by_index(VALUE, STRING, …)` or
@@ -3423,8 +3460,8 @@ use crate::string_ops::StringNumericType;
 
         #[staticmethod]
         /// Substring of `src` over the half-open codepoint range ``[start, end)``.
-        /// The second arg is named ``end`` (exclusive index), per JSDK parity and
-        /// the server's actual decoder behavior — rust-core's parameter name
+        /// The second arg is named ``end`` (exclusive index) to reflect the
+        /// server's actual decoder behavior — rust-core's parameter name
         /// "length" in its docstring is misleading.
         pub fn string_substr_range(start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;

@@ -15,12 +15,11 @@
 
 """Integration tests for server-side string operations (requires server 8.1.3+).
 
-Scenarios mirror the rust-core suite at
-``tests/src/string.rs`` (canonical wire-behavior coverage) plus the JSDK
-reference at ``OperateStringTest.java`` commit ``6bb348e`` (operate-path
-+ multi-op pipelines). Spec callouts from §4.1 are surfaced as inline
-comments where the test pins a non-obvious behavior (boolean accessor,
-NO_FAIL scope, CTX wrapper).
+Scenarios mirror the rust-core suite at ``tests/src/string.rs``
+(canonical wire-behavior coverage) and cover the operate-path
+scenarios called out in the string-ops spec §4.1. Spec callouts are
+surfaced as inline comments where the test pins a non-obvious behavior
+(boolean accessor, missing-bin two-class behavior, CTX wrapper).
 
 Tests opt in to an 8.1.3+ cluster via the ``aerospike_host_813_required``
 fixture; they skip cleanly when ``AEROSPIKE_HOST_8_1_3`` is unset.
@@ -135,8 +134,8 @@ async def _operate_first_value(client, key, ops, *, wp=None):
 # ---------------------------------------------------------------------------
 #
 # Names mirror rust-core's ``tests/src/string.rs`` scenarios verbatim
-# where they pin a wire-observable behavior; new scenarios fill in
-# JSDK-only coverage (multi-op pipelines, projections).
+# where they pin a wire-observable behavior; additional scenarios cover
+# multi-op pipelines and projections per spec §4.1.
 
 
 class TestStringReads:
@@ -171,8 +170,8 @@ class TestStringReads:
     async def test_substr_range_form(self, string_client_813):
         """Spec §3.1: substr(bin, start, end) is end-exclusive, NOT a length.
 
-        JSDK ``OperateStringTest.binBuilderStringReads`` proved this with
-        substr("s", 1, 4) on "hello" returning "ell" (codepoints [1, 4)).
+        ``substr("s", 1, 4)`` on ``"hello"`` returns ``"ell"`` —
+        codepoints [1, 4) = ``'e','l','l'``.
         """
         key = _key("substr_range")
         await _put_str(string_client_813, key, "s", "hello")
@@ -441,6 +440,20 @@ class TestStringModifies:
         await string_client_813.operate(key, [StringOperation.concat("s", ["b", "c", "d"])])
         assert await _read_str(string_client_813, key, "s") == "abcd"
 
+    async def test_append_adds_to_end(self, string_client_813):
+        """``append`` (sub-op 67) adds a single value to the end of the bin."""
+        key = _key("append")
+        await _put_str(string_client_813, key, "s", "hello")
+        await string_client_813.operate(key, [StringOperation.append("s", " world")])
+        assert await _read_str(string_client_813, key, "s") == "hello world"
+
+    async def test_prepend_adds_to_start(self, string_client_813):
+        """``prepend`` (sub-op 68) adds a single value to the start of the bin."""
+        key = _key("prepend")
+        await _put_str(string_client_813, key, "s", "world")
+        await string_client_813.operate(key, [StringOperation.prepend("s", "hello ")])
+        assert await _read_str(string_client_813, key, "s") == "hello world"
+
     async def test_regex_replace_first_match_default(self, string_client_813):
         key = _key("regex_replace")
         await _put_str(string_client_813, key, "s", "ab ab ab")
@@ -466,20 +479,18 @@ class TestStringModifies:
 
 
 # ---------------------------------------------------------------------------
-# Multi-op pipelines (JSDK OperateStringTest parity)
+# Multi-op pipelines (spec §4.1)
 # ---------------------------------------------------------------------------
 
 
 class TestMultiOpPipelines:
-    """JSDK ``OperateStringTest.stringReadsViaAppendOperations`` shape:
-
-    Single ``client.operate`` carrying multiple ops; verifies that mixed
-    return types decode together and that later read ops observe the
-    state produced by earlier modify ops.
+    """Single ``client.operate`` carrying multiple ops; verifies that
+    mixed return types decode together and that later read ops observe
+    the state produced by earlier modify ops.
     """
 
     async def test_mixed_return_types_decode_correctly(self, string_client_813):
-        """JSDK parity: strlen (int) + isUpper (bool) + find (int) in one call."""
+        """strlen (int) + isUpper (bool) + find (int) in one call."""
         key = _key("mixed_returns")
         await string_client_813.put(
             key, {"text": "hello", "upper_str": "HI"}, policy=WritePolicy()
@@ -636,35 +647,53 @@ class TestStringWithCtx:
 
 
 # ---------------------------------------------------------------------------
-# NO_FAIL scope (spec §4.1)
+# Missing-bin behavior (two op classes)
 # ---------------------------------------------------------------------------
 
 
-class TestNoFailFlag:
-    """NO_FAIL suppresses missing-bin errors ONLY (not type errors, not
-    KEY_NOT_FOUND). Two tests pin the exact scope per spec §4.1.
+class TestMissingBinBehavior:
+    """The missing-bin path is determined by op class, not flag:
+
+    - Transform / subtractive ops (upper, lower, trim*, snip, replace*,
+      regex_replace, case_fold, normalize_nfc) succeed silently and
+      do NOT create the bin.
+    - Additive / create ops (insert, overwrite, append, prepend, concat,
+      pad_start, pad_end, repeat) create the bin from empty.
+
+    Behavior is independent of the NO_FAIL flag: BIN_NOT_FOUND never
+    surfaces on a missing-bin string op. (NO_FAIL now governs only
+    in-op execution failures.)
     """
 
-    async def test_no_fail_suppresses_missing_bin_error(self, string_client_813):
-        """Record exists with a sibling bin; target bin does not. NO_FAIL = no-op success."""
-        key = _key("nofail_missing")
+    async def test_transform_op_silently_noops_on_missing_bin(self, string_client_813):
+        """`upper()` on a missing bin: returns success, bin is not created."""
+        key = _key("transform_noop_missing")
+        # Ensure missing_bin really is missing — prior runs may have left state.
+        await string_client_813.delete(key, policy=WritePolicy())
         await string_client_813.put(key, {"other": "x"}, policy=WritePolicy())
-        # Without NO_FAIL the server returns BIN_NOT_FOUND (26).
-        with pytest.raises(Exception):
-            await string_client_813.operate(
-                key,
-                [StringOperation.upper("missing_bin")],
-                policy=WritePolicy(),
-            )
-        # With NO_FAIL the op succeeds; the bin is not created, sibling untouched.
         await string_client_813.operate(
             key,
-            [StringOperation.upper("missing_bin", flags=int(StringWriteFlags.NO_FAIL))],
+            [StringOperation.upper("missing_bin")],
             policy=WritePolicy(),
         )
         rec = await string_client_813.get(key)
         assert rec.bins.get("other") == "x"
         assert "missing_bin" not in (rec.bins or {})
+
+    async def test_create_op_creates_bin_from_empty_on_missing_bin(self, string_client_813):
+        """`insert(at=0, "hello")` on a missing bin creates it with the inserted value."""
+        key = _key("create_from_missing")
+        # Ensure missing_bin really is missing — prior runs may have left state.
+        await string_client_813.delete(key, policy=WritePolicy())
+        await string_client_813.put(key, {"other": "x"}, policy=WritePolicy())
+        await string_client_813.operate(
+            key,
+            [StringOperation.insert("missing_bin", 0, "hello")],
+            policy=WritePolicy(),
+        )
+        rec = await string_client_813.get(key)
+        assert rec.bins.get("missing_bin") == "hello"
+        assert rec.bins.get("other") == "x"
 
 
 # ---------------------------------------------------------------------------
@@ -678,16 +707,6 @@ class TestServerVersionGate:
     the above tests would have a clean wire path.
     """
 
-    @pytest.mark.xfail(
-        reason=(
-            "Custom-build 8.1.3 servers may report version as 8.1.2.0-start-NNN, "
-            "and rust-core's M.m.p.b parser sees only the leading (8,1,2,0) which "
-            "falls below the (8,1,3,0) gate. Real release-tagged 8.1.3 servers "
-            "will report (8,1,3,0) and pass this assertion. Pinned as xfail so a "
-            "future server tag-up flips this to xpassed without a code change."
-        ),
-        strict=False,
-    )
     async def test_node_self_reports_string_operations_support(self, string_client_813):
         node_names = await string_client_813.node_names()
         node = await string_client_813.get_node(node_names[0])

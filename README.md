@@ -1,9 +1,11 @@
 # Aerospike Python Async Client
 
-Async I/O Python bindings for the Aerospike Rust client core. Built with
-[PyO3](https://pyo3.rs/); ships pre-built wheels for Linux (x86_64, aarch64),
-macOS (x86_64, arm64), and Windows (x86_64) on Python 3.10–3.14, including
-free-threaded builds (`cp313t` / `cp314t`).
+Ultra-high performance Python bindings for the Aerospike Rust client core
+— async and blocking surfaces in one client, with first-class free-threaded
+Python support for parallel-thread throughput well past what GIL-bound
+clients can sustain. Built with [PyO3](https://pyo3.rs/); ships pre-built
+wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
+(x86_64) on Python 3.10–3.14, including the free-threaded build (`cp314t`).
 
 > **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
 > via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-async/issues).
@@ -37,7 +39,7 @@ pip install aerospike-async==0.6.0a1  # latest on PyPI as of this writing
 
 Pre-built wheels are published for every supported platform/Python combination
 on regular CPython (3.10 – 3.14, ABI tags `cp310`–`cp314`) **and on the
-free-threaded builds** (`cp313t` / `cp314t`), so no Rust toolchain is required
+free-threaded build** (`cp314t`), so no Rust toolchain is required
 for ordinary use. If pip resolves to an sdist on your platform, see
 [Building from source](#building-from-source) below.
 
@@ -79,6 +81,44 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Blocking (sync) surface
+
+Every async method has a `*_blocking` counterpart that blocks the calling
+thread instead of returning an awaitable. Use these when you need sync
+semantics without an event loop — particularly useful on free-threaded
+Python, where multiple OS threads can drive blocking calls in parallel
+without the GIL serializing them.
+
+```python
+from aerospike_async import ClientPolicy, Key, new_client_blocking
+
+client = new_client_blocking(ClientPolicy(), "localhost:3000")
+
+key = Key("test", "demo", "user1")
+
+# Write a record
+client.put_blocking(key, {"name": "Alice", "age": 28})
+
+# Read it back
+record = client.get_blocking(key)
+print(record.bins)  # {'name': 'Alice', 'age': 28}
+
+# Delete the record
+client.delete_blocking(key)
+
+client.close_blocking()
+```
+
+Naming follows `<async_method>_blocking` — `get_blocking`, `put_blocking`,
+`operate_blocking`, `batch_read_blocking`, `query_execute_blocking`, etc.
+
+Clients created with `new_client_blocking()` are blocking-only; async
+methods on them raise. If you want a single client that exposes both
+sync and async ergonomics with a friendlier high-level API (sessions,
+behaviors, AEL filters), use the
+[Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/) instead
+— its `SyncClient` is built directly on top of this blocking surface.
 
 ## TLS configuration
 

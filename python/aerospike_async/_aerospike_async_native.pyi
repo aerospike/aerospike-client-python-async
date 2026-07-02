@@ -604,7 +604,7 @@ class CdtOperation:
             flag: Controls what is returned. Pass any combination of
                 ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
                 SelectFlags.NO_FAIL``) — the resulting value is a plain
-                ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
+                ``int`` bitmask.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
         Returns:
@@ -631,7 +631,7 @@ class CdtOperation:
             bin_name: Name of the bin containing the top-level CDT.
             flag: Controls error-handling behavior. Pass any combination of
                 ``ModifyFlags`` constants — the resulting value is a plain
-                ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
+                ``int`` bitmask.
             exp: Expression that produces the value to write.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
@@ -1394,6 +1394,22 @@ class ClientPolicy:
     @idle_timeout.setter
     def idle_timeout(self, value: builtins.int) -> None: ...
     @property
+    def min_conns_per_node(self) -> builtins.int:
+        r"""
+        Minimum number of connections allowed per server node. The client
+        periodically allocates new connections if the total count (idle +
+        in-flight) falls below this value.
+
+        Server ``proto-fd-idle-ms`` may also need to be increased
+        substantially if min connections are defined. The default directs
+        the server to close connections idle for 60 seconds which can
+        defeat the purpose of keeping connections in reserve.
+
+        Default: ``0`` (disabled).
+        """
+    @min_conns_per_node.setter
+    def min_conns_per_node(self, value: builtins.int) -> None: ...
+    @property
     def max_conns_per_node(self) -> builtins.int: ...
     @max_conns_per_node.setter
     def max_conns_per_node(self, value: builtins.int) -> None: ...
@@ -1437,9 +1453,6 @@ class ClientPolicy:
     @property
     def fail_if_not_connected(self) -> builtins.bool:
         r"""
-        Size of the thread pool used in scan and query commands. These commands are often sent to
-        multiple server nodes in parallel threads. A thread pool improves performance because
-        threads do not have to be created/destroyed for each command.
         Throw exception if host connection fails during addHost().
         """
     @fail_if_not_connected.setter
@@ -1521,6 +1534,24 @@ class ClientPolicy:
         """
     @cluster_name.setter
     def cluster_name(self, value: typing.Optional[builtins.str]) -> None: ...
+    @property
+    def application_id(self) -> typing.Optional[builtins.str]:
+        r"""
+        Identifies the application so that client operations can be
+        correlated with server-side metrics. Default: ``None``.
+        """
+    @application_id.setter
+    def application_id(self, value: typing.Optional[builtins.str]) -> None: ...
+    @property
+    def custom_client_id(self) -> typing.Optional[builtins.str]:
+        r"""
+        Override the ``client_id`` portion of the ``user_agent_id``
+        payload sent to each node on connection validation. Intended for
+        wrapper clients that embed the Rust core; end-user code should
+        leave this as ``None``. Default: ``None``.
+        """
+    @custom_client_id.setter
+    def custom_client_id(self, value: typing.Optional[builtins.str]) -> None: ...
     @property
     def tls_config(self) -> typing.Optional[_aerospike_async_native.TlsConfig]:
         r"""
@@ -1657,9 +1688,9 @@ class FastRng:
     that want sub-100 ns random number generation per call. CPython's
     stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     fine for general use, but a measurable handicap in benchmark hot
-    loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    and Rust core uses `SmallRng` for the same reason; this exposes the
-    equivalent to Python so benchmark methodology stays apples-to-apples.
+    loops where every µs counts. Rust core uses `SmallRng` for the
+    same reason; this exposes the equivalent to Python so benchmark
+    methodology stays consistent across language layers.
 
     Not thread-safe — construct one per worker thread / task.
     """
@@ -1876,6 +1907,22 @@ class FilterExpression:
     def geo_compare(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Create compare geospatial operation.
+        """
+    @staticmethod
+    def val(value: typing.Any) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Build a value expression from a Python value, dispatching by type.
+
+        Single-entry alternative to the typed accessors (``bool_val``,
+         ``int_val``, ``float_val``, ``string_val``, ``blob_val``,
+         ``list_val``, ``map_val``, ``geo_val``, ``nil``). The Python type of
+        *value* selects which underlying constructor is invoked; ``None``
+        maps to :meth:`nil`. ``GeoJSON`` strings and HLL bytes should
+        continue to use :meth:`geo_val` / typed accessors explicitly when
+        the literal form is ambiguous.
+
+        Raises ``TypeError`` for values that don't correspond to a
+        supported variant (e.g. ``SpecialValue`` sentinels).
         """
     @staticmethod
     def int_val(val: builtins.int) -> _aerospike_async_native.FilterExpression:
@@ -3004,8 +3051,8 @@ class FilterExpression:
     def string_substr_range(start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Substring of `src` over the half-open codepoint range ``[start, end)``.
-        The second arg is named ``end`` (exclusive index), per JSDK parity and
-        the server's actual decoder behavior — rust-core's parameter name
+        The second arg is named ``end`` (exclusive index) to reflect the
+        server's actual decoder behavior — rust-core's parameter name
         "length" in its docstring is misleading.
         """
     @staticmethod
@@ -3129,14 +3176,11 @@ class FilterExpression:
         single-string callers must wrap via ``FilterExpression.list_val([s])``.
         """
     @staticmethod
-    def string_snip_from(flags: builtins.int, start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
-        r"""
-        Returns STRING — `src` with the suffix from codepoint `start` to end removed.
-        """
-    @staticmethod
     def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
+        ``end`` is required (server's snip table has no 1-arg form — see
+        the matching ``StringOperation.snip`` note).
         """
     @staticmethod
     def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -3401,8 +3445,7 @@ class Key:
 
         Per-op cost drops from ~2 µs (PyO3 PythonValue dispatch +
         Python str()) to ~500 ns (positional PyO3 call + Rust string
-        alloc). JSDK does the equivalent in one Java ``new Key(...)``
-        call at ~50 ns; we close most of the gap.
+        alloc).
         """
     @staticmethod
     def key_with_digest(namespace: builtins.str, set: builtins.str, digest: typing.Any) -> _aerospike_async_native.Key:
@@ -3970,7 +4013,7 @@ class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    Namespace of plain ``int`` constants. Combine with bitwise OR — the
     result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
@@ -4074,12 +4117,12 @@ class Operation:
     @staticmethod
     def append(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create an Append operation (appends to string bin value).
+        Create an Append operation (byte-level append to a string or bytes bin).
         """
     @staticmethod
     def prepend(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create a Prepend operation (prepends to string bin value).
+        Create a Prepend operation (byte-level prepend to a string or bytes bin).
         """
 
 @typing.final
@@ -4168,12 +4211,35 @@ class Record:
     @property
     def bins(self) -> typing.Any: ...
     @property
+    def results(self) -> typing.Optional[typing.Any]:
+        r"""
+        Positional results, one slot per op in request order.
+
+        Use ``record.results`` when the request issued multiple ops and you
+        need to address each result by its op index — e.g. a chain that
+        modifies a bin and reads it back in the same execute. Slots for
+        ops that produced no value carry Python ``None``.
+
+        For by-name access, prefer ``record.bins`` (cheaper for the common
+        case of one op per bin).
+        """
+    @property
     def generation(self) -> typing.Optional[builtins.int]: ...
     @property
     def ttl(self) -> typing.Optional[builtins.int]: ...
     @property
     def key(self) -> typing.Optional[_aerospike_async_native.Key]: ...
     def bin(self, name: builtins.str) -> typing.Optional[typing.Any]: ...
+    def operation_result(self, i: builtins.int) -> typing.Optional[typing.Any]:
+        r"""
+        Return the positional result for the *i*-th op in the request,
+        or ``None`` if *i* is out of range.
+
+        Equivalent to ``record.results[i]`` but without bounds-error noise:
+        out-of-range returns Python ``None`` (matching the in-range
+        nil-result encoding). Use this when the request size is dynamic
+        and the caller wants a uniform optional shape.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -4198,7 +4264,7 @@ class RegexFlag:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Namespace of plain ``int`` constants. Bit values match the
     Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
@@ -4345,7 +4411,7 @@ class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    Namespace of plain ``int`` constants. Combine with bitwise OR
     (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
     suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
@@ -4531,11 +4597,28 @@ class StringOperation:
         list of strings; the list form appends each element in order.
         """
     @staticmethod
-    def snip(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+    def append(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Remove codepoints starting at ``start``. With ``end=None``, removes
-        from ``start`` through the end. With ``end`` set, removes the
-        half-open range ``[start, end)``.
+        Append ``value`` to the end of the bin. Single-value form (server sub-op
+        67); use ``concat`` for the list form.
+        """
+    @staticmethod
+    def prepend(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Prepend ``value`` to the start of the bin. Distinct from ``insert(0, …)``
+        — this is the server's dedicated prepend sub-op (68).
+        """
+    @staticmethod
+    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Remove the half-open codepoint range ``[start, end)`` from the bin.
+
+        Note: ``end`` is required. The server's snip op table cannot dispatch
+        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
+        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
+        producing an empty range and a silent no-op. To snip from ``start``
+        through the end of the bin, the caller must supply the codepoint
+        length explicitly (via a ``strlen`` read).
         """
     @staticmethod
     def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
@@ -5390,9 +5473,9 @@ class StringRegexFlags(enum.Enum):
     """
     DOTALL = ...
     r"""
-    `.` matches any character including line terminators. Matches
-    JSDK's `DOTALL` naming and Python `re.DOTALL`; rust-core spells the
-    same flag `DOT_ALL`.
+    `.` matches any character including line terminators. Spelled
+    `DOTALL` (one word) to match Python's stdlib `re.DOTALL`;
+    rust-core spells the same flag `DOT_ALL`.
     """
     UNIX_LINES = ...
     r"""

@@ -61,9 +61,11 @@ use crate::TlsConfig;
     impl BasePolicy {
         #[new]
         pub fn new() -> Self {
-            BasePolicy {
-                _as: aerospike_core::policy::BasePolicy::default(),
-            }
+            // PAC opts into positional Record.results by default (rust-core
+            // leaves it off so direct Rust users pay nothing).
+            let mut bp = aerospike_core::policy::BasePolicy::default();
+            bp.populate_positional_results = true;
+            BasePolicy { _as: bp }
         }
 
         #[getter]
@@ -252,9 +254,10 @@ use crate::TlsConfig;
     impl ReadPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let read_policy = ReadPolicy {
-                _as: aerospike_core::ReadPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut rp = aerospike_core::ReadPolicy::default();
+            rp.base_policy.populate_positional_results = true;
+            let read_policy = ReadPolicy { _as: rp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(read_policy)
@@ -281,6 +284,7 @@ use crate::TlsConfig;
             compression_threshold: Option<usize>,
         ) -> PyResult<Py<ReadPolicy>> {
             let mut rp = aerospike_core::ReadPolicy::default();
+            rp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { rp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { rp.base_policy.max_retries = v; }
@@ -485,9 +489,10 @@ use crate::TlsConfig;
     impl WritePolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let write_policy = WritePolicy {
-                _as: aerospike_core::WritePolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut wp = aerospike_core::WritePolicy::default();
+            wp.base_policy.populate_positional_results = true;
+            let write_policy = WritePolicy { _as: wp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(write_policy)
@@ -518,6 +523,7 @@ use crate::TlsConfig;
             compression_threshold: Option<usize>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
+            wp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { wp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { wp.base_policy.max_retries = v; }
@@ -816,9 +822,10 @@ use crate::TlsConfig;
     impl QueryPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let query_policy = QueryPolicy {
-                _as: aerospike_core::QueryPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut qp = aerospike_core::QueryPolicy::default();
+            qp.base_policy.populate_positional_results = true;
+            let query_policy = QueryPolicy { _as: qp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(query_policy)
@@ -1066,12 +1073,12 @@ use crate::TlsConfig;
         ///     Optional[Record]: The record if present, None otherwise.
         #[getter]
         pub fn get_record(&self) -> Option<Record> {
-            self._as.record.as_ref().map(|r| Record { _as: r.clone(), cached_bins: None })
+            self._as.record.as_ref().map(|r| Record { _as: r.clone(), cached_bins: None, cached_results: None })
         }
 
         #[getter]
         pub fn get_result_code(&self) -> Option<ResultCode> {
-            self._as.result_code.map(|rc| ResultCode(rc))
+            self._as.result_code.map(ResultCode)
         }
 
         #[getter]
@@ -1103,9 +1110,10 @@ use crate::TlsConfig;
     impl BatchPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let batch_policy = BatchPolicy {
-                _as: aerospike_core::BatchPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut bp = aerospike_core::BatchPolicy::default();
+            bp.base_policy.populate_positional_results = true;
+            let batch_policy = BatchPolicy { _as: bp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(batch_policy)
@@ -1132,6 +1140,7 @@ use crate::TlsConfig;
             compression_threshold: Option<usize>,
         ) -> PyResult<Py<BatchPolicy>> {
             let mut bp = aerospike_core::BatchPolicy::default();
+            bp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { bp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { bp.base_policy.max_retries = v; }
@@ -1751,7 +1760,6 @@ use crate::TlsConfig;
     impl ClientPolicy {
         #[new]
         fn new() -> PyResult<Self> {
-            let mut cp = aerospike_core::ClientPolicy::default();
             // Tuned for the primary async use case: a single Tokio runtime
             // (or per-Client runtime in AsyncPool) serializes pool access
             // through one or two workers, so contention is naturally low
@@ -1759,9 +1767,11 @@ use crate::TlsConfig;
             // from many caller threads (e.g. PSDK's SyncClient) should
             // override this on the policy before construction; 8 is a good
             // value for ~32-thread sync workloads.
-            cp.conn_pools_per_node = 4;
             let res = ClientPolicy {
-                _as: cp,
+                _as: aerospike_core::ClientPolicy {
+                    conn_pools_per_node: 4,
+                    ..Default::default()
+                },
                 per_client_runtime_workers: None,
             };
 
@@ -1891,13 +1901,13 @@ use crate::TlsConfig;
                     self._as.auth_mode = aerospike_core::AuthMode::None;
                 }
                 AuthMode::Internal => {
-                    let user = user.unwrap_or_else(|| "".to_string());
-                    let password = password.unwrap_or_else(|| "".to_string());
+                    let user = user.unwrap_or_default();
+                    let password = password.unwrap_or_default();
                     self._as.auth_mode = aerospike_core::AuthMode::Internal(user, password);
                 }
                 AuthMode::External => {
-                    let user = user.unwrap_or_else(|| "".to_string());
-                    let password = password.unwrap_or_else(|| "".to_string());
+                    let user = user.unwrap_or_default();
+                    let password = password.unwrap_or_default();
                     self._as.auth_mode = aerospike_core::AuthMode::External(user, password);
                 }
                 AuthMode::PKI => {
@@ -1936,6 +1946,26 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_idle_timeout(&mut self, timeout_millis: u64) {
             self._as.idle_timeout = timeout_millis as u32;
+        }
+
+        /// Minimum number of connections allowed per server node. The client
+        /// periodically allocates new connections if the total count (idle +
+        /// in-flight) falls below this value.
+        ///
+        /// Server ``proto-fd-idle-ms`` may also need to be increased
+        /// substantially if min connections are defined. The default directs
+        /// the server to close connections idle for 60 seconds which can
+        /// defeat the purpose of keeping connections in reserve.
+        ///
+        /// Default: ``0`` (disabled).
+        #[getter]
+        pub fn get_min_conns_per_node(&self) -> usize {
+            self._as.min_conns_per_node
+        }
+
+        #[setter]
+        pub fn set_min_conns_per_node(&mut self, sz: usize) {
+            self._as.min_conns_per_node = sz;
         }
 
         #[getter]
@@ -1997,9 +2027,9 @@ use crate::TlsConfig;
             self._as.rack_ids = value.map(|v| v.into_iter().collect());
         }
 
-        /// Size of the thread pool used in scan and query commands. These commands are often sent to
-        /// multiple server nodes in parallel threads. A thread pool improves performance because
-        /// threads do not have to be created/destroyed for each command.
+        // Size of the thread pool used in scan and query commands. These commands are often sent to
+        // multiple server nodes in parallel threads. A thread pool improves performance because
+        // threads do not have to be created/destroyed for each command.
         // thread_pool_size field doesn't exist in TLS branch
         // #[getter]
         // pub fn get_thread_pool_size(&self) -> usize {
@@ -2148,6 +2178,32 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_cluster_name(&mut self, value: Option<String>) {
             self._as.cluster_name = value;
+        }
+
+        /// Identifies the application so that client operations can be
+        /// correlated with server-side metrics. Default: ``None``.
+        #[getter]
+        pub fn get_application_id(&self) -> Option<String> {
+            self._as.application_id.clone()
+        }
+
+        #[setter]
+        pub fn set_application_id(&mut self, value: Option<String>) {
+            self._as.application_id = value;
+        }
+
+        /// Override the ``client_id`` portion of the ``user_agent_id``
+        /// payload sent to each node on connection validation. Intended for
+        /// wrapper clients that embed the Rust core; end-user code should
+        /// leave this as ``None``. Default: ``None``.
+        #[getter]
+        pub fn get_custom_client_id(&self) -> Option<String> {
+            self._as.custom_client_id.clone()
+        }
+
+        #[setter]
+        pub fn set_custom_client_id(&mut self, value: Option<String>) {
+            self._as.custom_client_id = value;
         }
 
         /// TLS configuration for secure connections.
