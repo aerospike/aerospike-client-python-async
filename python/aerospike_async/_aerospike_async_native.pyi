@@ -2,6 +2,7 @@
 # ruff: noqa: E501, F401, F403, F405
 
 import _aerospike_async_native
+import aerospike_async
 import builtins
 import enum
 import typing
@@ -75,7 +76,9 @@ __all__ = [
     "Privilege",
     "PrivilegeCode",
     "QueryDuration",
+    "QueryPlan",
     "QueryPolicy",
+    "QuerySelection",
     "ReadModeAP",
     "ReadModeSC",
     "ReadPolicy",
@@ -100,13 +103,13 @@ __all__ = [
     "User",
     "Version",
     "WritePolicy",
-    "_LocalClient",
     "geojson",
     "has_any_write_op",
     "new_client",
     "new_client_blocking",
     "null",
 ]
+
 class AdminPolicy:
     @property
     def timeout(self) -> builtins.int: ...
@@ -220,11 +223,11 @@ class BatchRecord:
     def record(self) -> typing.Optional[_aerospike_async_native.Record]:
         r"""
         Get the record from this batch result.
-
+        
         **Performance Note:** This method clones the Record data on each call.
         The amount of data cloned depends on the record size (bins, metadata, etc.).
         For optimal performance when accessing the record multiple times, cache the result in Python:
-
+        
         results = await client.batch_read(bp, brp, keys, None)
         for batch_record in results:
             record = batch_record.record  # Clone once
@@ -233,7 +236,7 @@ class BatchRecord:
                 bins = record.bins
                 key = record.key
                 generation = record.generation
-
+        
         Returns:
             Optional[Record]: The record if present, None otherwise.
         """
@@ -245,19 +248,19 @@ class BatchRecord:
 class BatchRecordStream:
     r"""
     Async/sync iterator over a streaming batch result.
-
+    
     Items arrive in **completion order** (the node that responds first
     yields first), not input order — each item is a `(idx, BatchRecord)`
     tuple carrying the position of the originating op in the input list.
     Per-key errors land on the `BatchRecord` (`result_code`); cluster-level
     errors raise from `__anext__` / `__next__`. The stream ends with
     `StopAsyncIteration` / `StopIteration` once every input op has yielded.
-
+    
     **Threading**: the receiver is held behind a single Mutex and
     `__anext__` / `__next__` hold the lock across the await/poll. This
     is intentional — the design assumes a single consumer driving the
     stream end-to-end. Fan-out consumers would serialize at the lock.
-
+    
     **Bridge routing**: an async-constructed stream
     (`Client.batch_stream`) carries the originating Client's
     `CompletionBridge`, so each `__anext__` future is loop-affinity-
@@ -524,7 +527,7 @@ class CTX:
     def all_children() -> _aerospike_async_native.CTX:
         r"""
         Select all children (elements or entries) of the current collection level.
-
+        
         Equivalent to calling ``all_children_with_filter`` with a constant
         ``true`` expression.  Requires Aerospike Server version >= 8.1.1.
         """
@@ -532,7 +535,7 @@ class CTX:
     def all_children_with_filter(exp: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.CTX:
         r"""
         Select all children of the current collection level that satisfy ``exp``.
-
+        
         The expression is evaluated per child element.  Use loop-variable
         expressions (``FilterExpression.int_loop_var``,
         ``FilterExpression.float_loop_var``,
@@ -545,7 +548,7 @@ class CTX:
     def map_keys_in(keys: typing.Sequence[typing.Any]) -> _aerospike_async_native.CTX:
         r"""
         Select map entries whose keys are in ``keys``.
-
+        
         Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
@@ -554,14 +557,14 @@ class CTX:
         AND-combine the previous filter context with ``exp``. Used to
         stack additional predicates onto an ``all_children_with_filter``
         step.
-
+        
         Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
     def to_base64(ctx: typing.Sequence[_aerospike_async_native.CTX]) -> builtins.str:
         r"""
         Encode a context array to base64 — pairs with :meth:`from_base64`.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -569,7 +572,7 @@ class CTX:
         r"""
         Restore a context array from the base64-encoded form produced by
         the matching :meth:`to_base64` helper.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -577,24 +580,24 @@ class CTX:
         r"""
         Restore a context array from the raw byte stream that base64
         encodes.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
 
 class CdtOperation:
     r"""
     CDT path expression operations for reading and writing nested CDT data.
-
+    
     Requires Aerospike Server version >= 8.1.1.
     """
     @staticmethod
     def select_by_path(bin_name: builtins.str, flag: builtins.int, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.CdtOperation:
         r"""
         Create a CDT path select operation.
-
+        
         Reads nested CDT data identified by the given path context, returning
         result elements controlled by ``flag``.
-
+        
         Args:
             bin_name: Name of the bin containing the top-level CDT.
             flag: Controls what is returned. Pass any combination of
@@ -602,12 +605,12 @@ class CdtOperation:
                 SelectFlags.NO_FAIL``) — the resulting value is a plain
                 ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
-
+        
         Returns:
             A ``CdtOperation`` to pass to ``client.operate()``.
-
+        
         Example::
-
+        
             from aerospike_async import CdtOperation, CTX, SelectFlags
             op = CdtOperation.select_by_path(
                 "inventory",
@@ -619,10 +622,10 @@ class CdtOperation:
     def modify_by_path(bin_name: builtins.str, flag: builtins.int, exp: _aerospike_async_native.FilterExpression, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.CdtOperation:
         r"""
         Create a CDT path modify operation.
-
+        
         Writes to nested CDT data identified by the given path context, using
         ``exp`` to compute the new value.
-
+        
         Args:
             bin_name: Name of the bin containing the top-level CDT.
             flag: Controls error-handling behavior. Pass any combination of
@@ -630,12 +633,12 @@ class CdtOperation:
                 ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
             exp: Expression that produces the value to write.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
-
+        
         Returns:
             A ``CdtOperation`` to pass to ``client.operate()``.
-
+        
         Example::
-
+        
             from aerospike_async import CdtOperation, CTX, ModifyFlags, FilterExpression
             price_path = [CTX.map_key("books"), CTX.list_rank(0), CTX.map_key("price")]
             new_price = FilterExpression.float_val(9.99)
@@ -652,21 +655,21 @@ class CdtOperation:
         Select the *values* at every path-resolved location
         (``SelectFlags.VALUE``). Equivalent to
         ``CdtOperation.select_by_path(bin, SelectFlags.VALUE, ctx)``.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def select_map_keys(bin_name: builtins.str, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.CdtOperation:
         r"""
         Select the matching *map keys* (``SelectFlags.MAP_KEY``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def select_map_entries(bin_name: builtins.str, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.CdtOperation:
         r"""
         Select map *key/value pairs* (``SelectFlags.MAP_KEY_VALUE``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -674,7 +677,7 @@ class CdtOperation:
         r"""
         Select the *original tree shape* preserving only matching nodes
         (``SelectFlags.MATCHING_TREE``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -682,7 +685,7 @@ class CdtOperation:
         r"""
         Modify with default flags, failing on type mismatches
         (``ModifyFlags.DEFAULT``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -690,7 +693,7 @@ class CdtOperation:
         r"""
         Modify with ``ModifyFlags.NO_FAIL`` so type-mismatched leaves are
         silently skipped instead of aborting the whole operation.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -698,7 +701,7 @@ class CdtOperation:
         r"""
         Remove the leaves resolved by a path. Equivalent to
         ``CdtOperation.modify_by_path(bin, ModifyFlags.DEFAULT, FilterExpression.remove_result(), ctx)``.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
 
@@ -709,10 +712,10 @@ class Client:
         r"""
         Returns whether ``namespace`` is configured for strong
         consistency on the cluster.
-
+        
         Reads from the in-memory partition map (no network I/O). PSDK's
         :class:`Session` uses this internally; user code rarely needs it.
-
+        
         Returns:
             ``Some(True)``: SC namespace.
             ``Some(False)``: AP namespace.
@@ -734,14 +737,14 @@ class Client:
     def is_connected_blocking(self) -> builtins.bool:
         r"""
         Synchronously check whether the client is connected to any cluster nodes.
-
+        
         The underlying check is non-blocking, so this returns immediately
         without invoking the Tokio runtime.
         """
     def put_blocking(self, key: _aerospike_async_native.Key, bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> None:
         r"""
         Synchronously write record bin(s).
-
+        
         When `policy_sc` is provided, PAC resolves the key's namespace
         mode (AP vs SC) at op time via the cluster accessor and picks
         the matching base policy. The `txn` override is applied after
@@ -751,7 +754,7 @@ class Client:
     def get_blocking(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record:
         r"""
         Synchronously read a record for the specified key.
-
+        
         When `policy_sc` is provided, PAC resolves the namespace mode at
         op time and picks AP vs SC. `filter_expression` / `txn` are
         applied after the mode pick on a cloned policy so the caller's
@@ -760,7 +763,7 @@ class Client:
     def delete_blocking(self, key: _aerospike_async_native.Key, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> builtins.bool:
         r"""
         Synchronously delete a record for the specified key.
-
+        
         Returns ``True`` if the record existed on the server before the
         delete, ``False`` otherwise.
         """
@@ -795,7 +798,7 @@ class Client:
     def operate_blocking(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record:
         r"""
         Synchronously execute multiple operations atomically on a single record.
-
+        
         When `policy_sc` is provided, PAC resolves the namespace mode at
         op time and picks AP vs SC. The full override set is applied
         after the mode pick on a cloned policy so the caller's cached
@@ -809,6 +812,19 @@ class Client:
         r"""
         Synchronously execute a query and return a Recordset that supports
         `for record in recordset:` iteration via `__iter__`/`__next__`.
+        """
+    def supports_query_selection(self) -> builtins.bool:
+        r"""
+        Returns whether the connected cluster supports server-led query selection
+        (field ``44`` WHERE explain → execute on server 8.1.3+).
+        """
+    def query_explain_blocking(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.QueryPlan:
+        r"""
+        Synchronously run phase 1 (explain) of server-led query selection.
+        """
+    def query_with_plan_blocking(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.Recordset:
+        r"""
+        Synchronously execute a partitioned query using a server query plan.
         """
     def query_operate_blocking(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> _aerospike_async_native.ExecuteTask:
         r"""
@@ -961,7 +977,7 @@ class Client:
     def batch_stream_blocking(self, ops: typing.Sequence[typing.Any], *, batch_policy: typing.Optional[_aerospike_async_native.BatchPolicy] = None) -> _aerospike_async_native.BatchRecordStream:
         r"""
         Synchronously execute a streaming batch.
-
+        
         Same shape as :meth:`batch_blocking` but returns a
         :class:`BatchRecordStream` whose items arrive in completion order
         (the node that responds first yields first). Each item is a
@@ -971,7 +987,7 @@ class Client:
     def put(self, key: _aerospike_async_native.Key, bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[typing.Any]:
         r"""
         Write record bin(s).
-
+        
         When `policy_sc` is provided, PAC resolves the key's namespace
         mode at op time and picks AP vs SC. The `txn` override is applied
         after the mode pick on a cloned policy so caller-cached policies
@@ -980,7 +996,7 @@ class Client:
     def get(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[typing.Any]:
         r"""
         Read record for the specified key.
-
+        
         When `policy_sc` is provided, PAC resolves the namespace mode at
         op time and picks AP vs SC. `filter_expression` / `txn` are
         applied after the mode pick on a cloned policy.
@@ -988,7 +1004,7 @@ class Client:
     def operate(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[Record]:
         r"""
         Execute multiple operations atomically on a single record.
-
+        
         When `policy_sc` is provided, PAC resolves the namespace mode at
         op time and picks AP vs SC. The full override set is applied
         after the mode pick on a cloned policy.
@@ -1052,22 +1068,22 @@ class Client:
     def batch(self, ops: typing.Sequence[typing.Any], *, batch_policy: typing.Optional[_aerospike_async_native.BatchPolicy] = None) -> typing.Awaitable[typing.Sequence[BatchRecord]]:
         r"""
         Execute a mixed batch of read, write, and delete operations in a single server call.
-
+        
         Each operation is specified via :class:`BatchReadOp`, :class:`BatchWriteOp`,
         or :class:`BatchDeleteOp`, each carrying its own key and per-record policy.
-
+        
         Args:
             batch_policy: Optional :class:`BatchPolicy` for the entire batch.
             ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`, and/or
                  :class:`BatchDeleteOp` objects.
-
+        
         Returns:
             A list of :class:`BatchRecord` results in the same order as the input ops.
         """
     def batch_stream(self, ops: typing.Sequence[typing.Any], *, batch_policy: typing.Optional[_aerospike_async_native.BatchPolicy] = None) -> typing.Awaitable[BatchRecordStream]:
         r"""
         Asynchronously execute a streaming batch.
-
+        
         Returns an awaitable resolving to a :class:`BatchRecordStream`.
         Items arrive in completion order (the node that responds first
         yields first). Each item is a `(idx, BatchRecord)` tuple where
@@ -1079,14 +1095,14 @@ class Client:
     def execute_udf(self, key: _aerospike_async_native.Key, server_path: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[typing.Optional[typing.Any]]:
         r"""
         Execute a UDF (User Defined Function) on a single record.
-
+        
         Args:
             policy: WritePolicy for the operation.
             key: The key of the record to execute the UDF on.
             server_path: Server path to the UDF module (e.g., "example.lua").
             function_name: Name of the function to execute within the UDF module.
             args: Optional list of arguments to pass to the UDF function.
-
+        
         Returns:
             Optional Value containing the UDF result, or None if the UDF returns no value.
         """
@@ -1096,12 +1112,12 @@ class Client:
         Returns an ExecuteTask to poll for completion. Supports scalar and expression write
         operations (put, add, delete, touch, append, prepend, ExpOperation.write).
         List/map/bit/HLL operations are not supported for background query.
-
+        
         Args:
             write_policy: WritePolicy for the background operation.
             statement: Statement (namespace, set, optional filters).
             operations: List of Operation objects (e.g. Operation.put, Operation.add, Operation.delete, Operation.touch).
-
+        
         Returns:
             ExecuteTask to monitor completion (query_status, wait_till_complete).
         """
@@ -1110,51 +1126,51 @@ class Client:
         Apply a UDF to records matching the statement filter (background job).
         Returns an ExecuteTask to poll for completion. Records are not returned.
         If the statement has no filter, the UDF is applied to all records in the namespace/set.
-
+        
         Args:
             write_policy: WritePolicy for the background operation.
             statement: Statement (namespace, set, optional filters).
             package_name: Server-side UDF package name.
             function_name: UDF function to invoke.
             args: Optional arguments to pass to the UDF.
-
+        
         Returns:
             ExecuteTask to monitor completion (query_status, wait_till_complete).
         """
     def register_udf(self, udf_body: typing.Sequence[builtins.int], server_path: builtins.str, language: _aerospike_async_native.UDFLang, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[RegisterTask]:
         r"""
         Register a UDF (User Defined Function) module on the server from bytes.
-
+        
         Args:
             policy: AdminPolicy for the operation.
             udf_body: The UDF module content as bytes.
             server_path: Server path where the UDF will be stored (e.g., "example.lua").
             language: UDF language (UDFLang.LUA).
-
+        
         Returns:
             RegisterTask that can be used to wait for registration completion.
         """
     def register_udf_from_file(self, client_path: builtins.str, server_path: builtins.str, language: _aerospike_async_native.UDFLang, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[RegisterTask]:
         r"""
         Register a UDF (User Defined Function) module on the server from a file.
-
+        
         Args:
             policy: AdminPolicy for the operation.
             client_path: Local file path to the UDF module.
             server_path: Server path where the UDF will be stored (e.g., "example.lua").
             language: UDF language (UDFLang.LUA).
-
+        
         Returns:
             RegisterTask that can be used to wait for registration completion.
         """
     def remove_udf(self, server_path: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[UdfRemoveTask]:
         r"""
         Remove a UDF (User Defined Function) module from the server.
-
+        
         Args:
             policy: AdminPolicy for the operation.
             server_path: Server path to the UDF module to remove (e.g., "example.lua").
-
+        
         Returns:
             UdfRemoveTask that can be used to wait for removal completion.
         """
@@ -1189,6 +1205,15 @@ class Client:
         Execute a query on all server nodes and return a record iterator. The query executor puts
         records on a queue in separate threads. The calling thread concurrently pops records off
         the queue through the record iterator.
+        """
+    def query_explain(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[QueryPlan]:
+        r"""
+        Run phase 1 (explain) of server-led query selection.
+        """
+    def query_with_plan(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[Recordset]:
+        r"""
+        Execute a partitioned query using a server query plan from
+        :meth:`query_explain`.
         """
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
@@ -1275,61 +1300,61 @@ class Client:
     def commit(self, txn: _aerospike_async_native.Txn) -> typing.Awaitable[CommitStatus]:
         r"""
         Commit a multi-record transaction.
-
+        
         Verifies all transaction record versions, then applies all writes
         atomically. Returns a :class:`CommitStatus` indicating the outcome.
         Raises :exc:`aerospike_async.exceptions.CommitFailedError` if the
         commit fails part-way through.
-
+        
         Args:
             txn: The transaction to commit.
-
+        
         Returns:
             CommitStatus: The outcome of the commit.
-
+        
         Raises:
             CommitFailedError: If the transaction could not be committed.
-
+        
         Example::
-
+        
             status = await client.commit(txn)
             assert status == CommitStatus.OK
         """
     def abort(self, txn: _aerospike_async_native.Txn) -> typing.Awaitable[AbortStatus]:
         r"""
         Abort a multi-record transaction, rolling back all writes.
-
+        
         Args:
             txn: The transaction to abort.
-
+        
         Returns:
             AbortStatus: The outcome of the abort.
-
+        
         Raises:
             AerospikeError: If the abort itself encounters a server error.
-
+        
         Example::
-
+        
             status = await client.abort(txn)
             assert status == AbortStatus.OK
         """
     def info(self, command: builtins.str) -> typing.Awaitable[typing.Dict[str, str]]:
         r"""
         Execute an info command on a random cluster node.
-
+        
         Args:
             command: The info command to execute (e.g., "namespaces", "statistics", "build").
-
+        
         Returns:
             A dictionary containing the info command response as key-value pairs.
         """
     def info_on_all_nodes(self, command: builtins.str) -> typing.Awaitable[typing.Dict[str, typing.Dict[str, str]]]:
         r"""
         Execute an info command on all cluster nodes.
-
+        
         Args:
             command: The info command to execute (e.g., "namespaces", "statistics", "build").
-
+        
         Returns:
             A dictionary mapping node names to their info command responses.
         """
@@ -1343,7 +1368,7 @@ class ClientPolicy:
     def per_client_runtime_workers(self) -> typing.Optional[builtins.int]:
         r"""
         Get the per-Client Tokio runtime worker count, if set.
-
+        
         See :attr:`set_per_client_runtime_workers` for semantics.
         """
     @per_client_runtime_workers.setter
@@ -1353,12 +1378,12 @@ class ClientPolicy:
         ``N >= 1``, this Client gets a dedicated multi-thread runtime
         with ``N`` workers instead of the shared global one.
         ``None`` or ``Some(0)`` keeps the global runtime (default).
-
+        
         Use this when multiple Clients on multiple async event loops
         coexist in one process: the global runtime's work-stealing
         collapses past ~4 concurrent loops on an 8-CPU host, while a
         dedicated per-Client runtime isolates the scheduling.
-
+        
         Sizing: pick ``workers >= concurrency / 8`` for reasonable
         tail latency. Under-provisioning starves concurrent ops
         (32 in-flight tasks on 2 workers showed ~1000ms p99.9).
@@ -1395,12 +1420,12 @@ class ClientPolicy:
         Minimum number of connections allowed per server node. The client
         periodically allocates new connections if the total count (idle +
         in-flight) falls below this value.
-
+        
         Server ``proto-fd-idle-ms`` may also need to be increased
         substantially if min connections are defined. The default directs
         the server to close connections idle for 60 seconds which can
         defeat the purpose of keeping connections in reserve.
-
+        
         Default: ``0`` (disabled).
         """
     @min_conns_per_node.setter
@@ -1428,7 +1453,7 @@ class ClientPolicy:
         uses to talk to nodes.  "services-alternate" can be used in place of
         providing a client "ipMap".
         This feature is recommended instead of using the client-side IpMap above.
-
+        
         "services-alternate" is available with Aerospike Server versions >= 3.7.1.
         """
     @use_services_alternate.setter
@@ -1440,7 +1465,7 @@ class ClientPolicy:
         the server node that contains the key and exists on the same rack as the client.
         This serves to lower cloud provider costs when nodes are distributed across different
         racks/data centers.
-
+        
         Replica.PreferRack and server rack configuration must
         also be set to enable this functionality.
         """
@@ -1461,7 +1486,7 @@ class ClientPolicy:
         addresses given at construction. No tend task is spawned. Useful
         for benchmarking and unit-test setup where eliminating tend
         noise matters more than topology safety.
-
+        
         **Do not enable in production.** With ``seed_only_cluster`` set,
         node restarts, master failover, and rebalances are invisible to
         the client — ops to a stale or down node will fail or hang.
@@ -1560,18 +1585,18 @@ class ClientPolicy:
     def set_auth_mode(self, mode: _aerospike_async_native.AuthMode, user: typing.Optional[builtins.str] = None, password: typing.Optional[builtins.str] = None) -> None:
         r"""
         Set the authentication mode.
-
+        
         Args:
             mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL, or AuthMode.PKI)
             user: Optional username (required for INTERNAL and EXTERNAL modes)
             password: Optional password (required for INTERNAL and EXTERNAL modes)
-
+        
         Note: For PKI mode, user and password are ignored. TLS with client certificate is required.
         """
     def set_pki_auth(self) -> None:
         r"""
         Set authentication mode to PKI (certificate-based authentication).
-
+        
         This requires TLS to be configured with a client certificate.
         Requires server version 5.7.0+.
         """
@@ -1594,11 +1619,11 @@ class DropIndexTask:
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
         Rejects calls made from inside a running asyncio loop.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -1617,11 +1642,11 @@ class ExecuteTask:
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
         Rejects calls made from inside a running asyncio loop.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -1636,17 +1661,17 @@ class ExpOperation:
     def read(name: builtins.str, exp: _aerospike_async_native.FilterExpression, flags: typing.Optional[typing.Any] = None) -> _aerospike_async_native.ExpOperation:
         r"""
         Create expression read operation.
-
+        
         Evaluates the expression and returns the result. The result is returned
         in the record bins with the specified name.
-
+        
         Args:
             name: Name to assign to the expression result in the returned record.
             exp: Expression to evaluate.
             flags: Expression read flags (default: ExpReadFlags.DEFAULT). May
                 be an ``ExpReadFlags`` member, a combined bitmask
                 (``ExpReadFlags.X | ExpReadFlags.Y``), or a raw ``int``.
-
+        
         Returns:
             An ExpOperation to use with client.operate().
         """
@@ -1654,16 +1679,16 @@ class ExpOperation:
     def write(bin_name: builtins.str, exp: _aerospike_async_native.FilterExpression, flags: typing.Optional[typing.Any] = None) -> _aerospike_async_native.ExpOperation:
         r"""
         Create expression write operation.
-
+        
         Evaluates the expression and writes the result to the specified bin.
-
+        
         Args:
             bin_name: Name of bin to store expression result.
             exp: Expression to evaluate.
             flags: Expression write flags (default: ExpWriteFlags.DEFAULT). May
                 be an ``ExpWriteFlags`` member, a combined bitmask
                 (``ExpWriteFlags.X | ExpWriteFlags.Y``), or a raw ``int``.
-
+        
         Returns:
             An ExpOperation to use with client.operate().
         """
@@ -1687,7 +1712,7 @@ class FastRng:
     loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
     and Rust core uses `SmallRng` for the same reason; this exposes the
     equivalent to Python so benchmark methodology stays apples-to-apples.
-
+    
     Not thread-safe — construct one per worker thread / task.
     """
     def __new__(cls, seed: typing.Optional[builtins.int] = None) -> _aerospike_async_native.FastRng:
@@ -1713,12 +1738,12 @@ class Filter:
     r"""
     Query filter definition. Currently, only one filter is allowed in a Statement, and must target a
     bin that has a secondary index (or use `*_by_index` with the index name).
-
+    
     Build filters from the class static methods, for example `equal`, `range`, `contains`,
     `contains_range`, `within_region`, `within_radius`, `regions_containing_point`, and the
     corresponding `equal_by_index`, `range_by_index`, `contains_by_index`, `contains_range_by_index`,
     `within_region_by_index`, `within_radius_by_index`, and `regions_containing_point_by_index`.
-
+    
     Use instance methods `context` and `expression` to attach a CDT path or expression-based index
     to a filter (for example `Filter.equal("bin", 1).context([CTX.list_index(0)])`).
     """
@@ -2824,10 +2849,10 @@ class FilterExpression:
     def bool_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a boolean loop variable expression for use in path expressions.
-
+        
         Args:
             part: Which element of the loop variable to access (``LoopVarPart``).
-
+        
         Returns:
             A ``FilterExpression`` representing the boolean loop variable.
         """
@@ -2835,10 +2860,10 @@ class FilterExpression:
     def int_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create an integer loop variable expression for use in path expressions.
-
+        
         Args:
             part: Which element of the loop variable to access (``LoopVarPart``).
-
+        
         Returns:
             A ``FilterExpression`` representing the integer loop variable.
         """
@@ -2846,10 +2871,10 @@ class FilterExpression:
     def float_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a float loop variable expression for use in path expressions.
-
+        
         Args:
             part: Which element of the loop variable to access (``LoopVarPart``).
-
+        
         Returns:
             A ``FilterExpression`` representing the float loop variable.
         """
@@ -2857,10 +2882,10 @@ class FilterExpression:
     def string_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a string loop variable expression for use in path expressions.
-
+        
         Args:
             part: Which element of the loop variable to access (``LoopVarPart``).
-
+        
         Returns:
             A ``FilterExpression`` representing the string loop variable.
         """
@@ -2868,10 +2893,10 @@ class FilterExpression:
     def list_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a list loop variable expression for use in path expressions.
-
+        
         Args:
             part: Which element of the loop variable to access (``LoopVarPart``).
-
+        
         Returns:
             A ``FilterExpression`` representing the list loop variable.
         """
@@ -2879,45 +2904,45 @@ class FilterExpression:
     def map_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a map loop variable expression for use in path expressions.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def blob_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Retrieve the blob part of the current loop variable.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def hll_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Retrieve the HLL part of the current loop variable.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def nil_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Retrieve the nil part of the current loop variable.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def geo_json_loop_var(part: _aerospike_async_native.LoopVarPart) -> _aerospike_async_native.FilterExpression:
         r"""
         Retrieve the GeoJSON part of the current loop variable.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
     def remove_result() -> _aerospike_async_native.FilterExpression:
         r"""
         Signal that the current loop element should be removed from the result.
-
+        
         Used as the modify expression in :meth:`CdtOperation.modify_by_path` to
         delete matched elements rather than replace them.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2925,7 +2950,7 @@ class FilterExpression:
         r"""
         ``value`` exists in ``list``. Native ExpOp on server 8.1.2+ —
         returns a boolean expression equivalent to ``value IN list``.
-
+        
         Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
@@ -2933,7 +2958,7 @@ class FilterExpression:
         r"""
         All keys of a map expression as a list expression. Native ExpOp on
         server 8.1.2+ (cheaper than ``map_get_by_index_range(KEY, 0, ...)``).
-
+        
         Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
@@ -2941,7 +2966,7 @@ class FilterExpression:
         r"""
         All values of a map expression as a list expression. Native ExpOp
         on server 8.1.2+ (cheaper than ``map_get_by_index_range(VALUE, 0, ...)``).
-
+        
         Requires Aerospike Server version >= 8.1.2.
         """
     @staticmethod
@@ -2949,7 +2974,7 @@ class FilterExpression:
         r"""
         Select from a CDT bin expression using a path context. The
         ``flag`` is a bitwise combination of ``SelectFlags`` constants.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2957,7 +2982,7 @@ class FilterExpression:
         r"""
         Modify a CDT bin expression using a path context. The ``flag`` is
         a bitwise combination of ``ModifyFlags`` constants.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2965,7 +2990,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: select the *values* at every path-resolved
         location (``SelectFlags.VALUE``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2973,7 +2998,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: select map *keys* at every path-resolved
         location (``SelectFlags.MAP_KEY``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2981,7 +3006,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: select map *key/value pairs*
         (``SelectFlags.MAP_KEY_VALUE``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2989,7 +3014,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: select the *original tree shape* preserving
         only matching nodes (``SelectFlags.MATCHING_TREE``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -2997,7 +3022,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: modify with default flags, failing on type
         mismatches (``ModifyFlags.DEFAULT``).
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -3006,7 +3031,7 @@ class FilterExpression:
         Convenience wrapper: modify with ``ModifyFlags.NO_FAIL`` so
         type-mismatched leaves are silently skipped instead of aborting
         the whole expression.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
@@ -3014,7 +3039,7 @@ class FilterExpression:
         r"""
         Convenience wrapper: remove the leaves resolved by a path.
         Equivalent to ``exp_modify_by_path(t, ModifyFlags.DEFAULT, bin, FilterExpression.remove_result(), ctx)``.
-
+        
         Requires Aerospike Server version >= 8.1.1.
         """
 
@@ -3054,7 +3079,7 @@ class HLLPolicy:
         Get the write flags as an int bitmask.
         """
     @write_flags.setter
-    def write_flags(self, value: typing.Union[ListWriteFlags, int]) -> None:
+    def write_flags(self, value: typing.Any) -> None:
         r"""
         Set the write flags.
         flags may be HLLWriteFlags or int (bitmask).
@@ -3076,7 +3101,7 @@ class HllOperation:
         Create HLL init operation.
         Server creates a new HLL or resets an existing HLL.
         Server does not return a value.
-
+        
         ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
         (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         """
@@ -3087,7 +3112,7 @@ class HllOperation:
         Server adds values to HLL set. If HLL bin does not exist and index_bit_count is set,
         a new HLL bin will be created.
         Server returns number of entries that caused HLL to update a register.
-
+        
         ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
         (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         """
@@ -3151,7 +3176,7 @@ class HllOperation:
         Create HLL set_union operation.
         Server sets union of specified HLL objects with HLL bin.
         Server does not return a value.
-
+        
         ``flags`` may be an ``HLLWriteFlags`` member, a combined bitmask
         (``HLLWriteFlags.X | HLLWriteFlags.Y``), or a raw ``int``.
         """
@@ -3170,11 +3195,11 @@ class IndexTask:
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
         Rejects calls made from inside a running asyncio loop.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -3199,7 +3224,7 @@ class Key:
         existing-cluster on-disk representation (string-typed user keys)
         — switch to ``from_int`` instead if you want int-typed user
         keys (a different on-server keyspace).
-
+        
         Per-op cost drops from ~2 µs (PyO3 PythonValue dispatch +
         Python str()) to ~500 ns (positional PyO3 call + Rust string
         alloc). JSDK does the equivalent in one Java ``new Key(...)``
@@ -3484,62 +3509,39 @@ class ListPolicy:
 @typing.final
 class ListReturnType:
     r"""
-    List return type for CDT operations.
-
-    Supports bitwise OR for combining with INVERTED flag:
+    ListReturnType - supports bitwise OR for combining with INVERTED flag.
+    
+    Example:
         combined = ListReturnType.VALUE | ListReturnType.INVERTED
     """
-    NONE: ListReturnType
-    """Do not return a result."""
-    INDEX: ListReturnType
-    """Return index offset order."""
-    REVERSE_INDEX: ListReturnType
-    """Return reverse index offset order."""
-    RANK: ListReturnType
-    """Return value order."""
-    REVERSE_RANK: ListReturnType
-    """Return reverse value order."""
-    COUNT: ListReturnType
-    """Return count of items selected."""
-    VALUE: ListReturnType
-    """Return value for single key read and value list for range read."""
-    EXISTS: ListReturnType
-    """Return true if count > 0."""
-    INVERTED: ListReturnType
-    """Invert meaning of list command and return values. Can be OR'd with other return types."""
-
-    def __or__(self, other: ListReturnType) -> ListReturnType:
-        """Bitwise OR - allows combining return type with INVERTED flag."""
-        ...
-    def __and__(self, other: ListReturnType) -> ListReturnType:
-        """Bitwise AND."""
-        ...
-    def __int__(self) -> builtins.int:
-        """Convert to integer."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...
+    ...
 
 @typing.final
 class LoopVarPart:
     r"""
     Identifies which element of a loop variable to access in path expressions.
-
+    
+    Used with loop-variable expression constructors such as
+    ``FilterExpression.int_loop_var``, ``FilterExpression.map_loop_var``, etc.
+    
     Requires Aerospike Server version >= 8.1.1.
     """
-    MAP_KEY: LoopVarPart
-    """Map key part of the loop variable."""
-    VALUE: LoopVarPart
-    """Value part of the loop variable (list element or map value)."""
-    INDEX: LoopVarPart
-    """Index part of the loop variable (parent list index)."""
-
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
+    MAP_KEY: _aerospike_async_native.LoopVarPart = LoopVarPart.MAP_KEY
+    r"""
+    Map key part of the loop variable.
+    """
+    VALUE: _aerospike_async_native.LoopVarPart = LoopVarPart.VALUE
+    r"""
+    Value part of the loop variable (list element or map value).
+    """
+    INDEX: _aerospike_async_native.LoopVarPart = LoopVarPart.INDEX
+    r"""
+    Index part of the loop variable (parent list index).
+    """
+    def __richcmp__(self, other: _aerospike_async_native.LoopVarPart, op: int) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
+
 class Map:
     @property
     def value(self) -> builtins.dict[typing.Any, typing.Any]: ...
@@ -3679,7 +3681,7 @@ class MapPolicy:
     def flags(self) -> _aerospike_async_native.MapWriteFlags:
         r"""
         Get the write flags as a MapWriteFlags variant.
-
+        
         Note: this getter is lossy for combined bitmasks — if the underlying
         raw byte is a composite (e.g. ``CREATE_ONLY | NO_FAIL == 5``), the
         returned variant collapses to ``MapWriteFlags.DEFAULT``. Use
@@ -3720,66 +3722,26 @@ class MapPolicy:
 @typing.final
 class MapReturnType:
     r"""
-    Map return type for CDT operations.
-
-    Supports bitwise OR for combining with INVERTED flag:
+    MapReturnType - supports bitwise OR for combining with INVERTED flag.
+    
+    Example:
         combined = MapReturnType.VALUE | MapReturnType.INVERTED
     """
-    NONE: MapReturnType
-    """Do not return a result."""
-    INDEX: MapReturnType
-    """Return key index order."""
-    REVERSE_INDEX: MapReturnType
-    """Return reverse key order."""
-    RANK: MapReturnType
-    """Return value order."""
-    REVERSE_RANK: MapReturnType
-    """Return reverse value order."""
-    COUNT: MapReturnType
-    """Return count of items selected."""
-    KEY: MapReturnType
-    """Return key for single key read and key list for range read."""
-    VALUE: MapReturnType
-    """Return value for single key read and value list for range read."""
-    KEY_VALUE: MapReturnType
-    """Return key/value items."""
-    EXISTS: MapReturnType
-    """Returns true if count > 0."""
-    UNORDERED_MAP: MapReturnType
-    """Returns an unordered map."""
-    ORDERED_MAP: MapReturnType
-    """Returns an ordered map."""
-    INVERTED: MapReturnType
-    """Invert meaning of map command and return values. Can be OR'd with other return types."""
-
-    def __or__(self, other: MapReturnType) -> MapReturnType:
-        """Bitwise OR - allows combining return type with INVERTED flag."""
-        ...
-    def __and__(self, other: MapReturnType) -> MapReturnType:
-        """Bitwise AND."""
-        ...
-    def __int__(self) -> builtins.int:
-        """Convert to integer."""
-        ...
-    def __eq__(self, other: object) -> builtins.bool: ...
-    def __ne__(self, other: object) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
-    def __repr__(self) -> builtins.str: ...
+    ...
 
 @typing.final
 class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
-
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
-    result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
-
+    
+    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    (``ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL``) — the result is a regular
+    ``int`` and can be passed directly to ``CdtOperation.modify_by_path(..., flag=...)``.
+    
     Requires Aerospike Server version >= 8.1.1.
     """
-    DEFAULT: builtins.int
-    """Default behavior — fails on type mismatches."""
-    NO_FAIL: builtins.int
-    """Ignore type errors instead of failing."""
+    ...
+
 class Node:
     @property
     def name(self) -> builtins.str:
@@ -3931,7 +3893,7 @@ class PartitionStatus:
     def __new__(cls, id: builtins.int) -> _aerospike_async_native.PartitionStatus:
         r"""
         Create a new PartitionStatus with the specified partition ID.
-
+        
         The `retry` field defaults to `true`, and other fields can be set via setters.
         """
     def __getitem__(self, key: typing.Any) -> typing.Any:
@@ -3953,11 +3915,39 @@ class Privilege:
     @property
     def namespace(self) -> typing.Optional[builtins.str]: ...
     @property
-    def set_name(self) -> typing.Optional[str]: ...
+    def set_name(self) -> typing.Optional[builtins.str]: ...
     def __new__(cls, code: _aerospike_async_native.PrivilegeCode, namespace: typing.Optional[builtins.str], set_name: typing.Optional[builtins.str]) -> _aerospike_async_native.Privilege: ...
     def as_string(self) -> builtins.str: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class QueryPlan:
+    r"""
+    Result of a server query explain (phase 1).
+    """
+    @property
+    def selection(self) -> _aerospike_async_native.QuerySelection: ...
+    @property
+    def namespace(self) -> builtins.str: ...
+    @property
+    def set_name(self) -> typing.Optional[builtins.str]: ...
+    @property
+    def ael(self) -> builtins.str: ...
+    @property
+    def index_name(self) -> typing.Optional[builtins.str]: ...
+    @property
+    def index_type(self) -> _aerospike_async_native.CollectionIndexType: ...
+    @property
+    def is_primary_index(self) -> builtins.bool: ...
+    @property
+    def is_secondary_index(self) -> builtins.bool: ...
+    @property
+    def is_filtered_out(self) -> builtins.bool: ...
+    def filter_for_execute(self) -> typing.Optional[_aerospike_async_native.Filter]:
+        r"""
+        Build the execute ``Filter`` for a secondary-index plan.
+        """
 
 class QueryPolicy(_aerospike_async_native.BasePolicy):
     ...
@@ -3998,32 +3988,33 @@ class Recordset:
 class RegexFlag:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
-
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
-    Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
-
+    
+    Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
+    on glibc), which is the same shape JSDK and the legacy Python C-extension
+    client use:
+    
+    - ``NONE = 0`` — use regex defaults.
+    - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
+    - ``ICASE = 2`` — case-insensitive matching.
+    - ``NOSUB = 4`` — do not report position of matches.
+    - ``NEWLINE = 8`` — match-any-character operators don't match newline.
+    
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
+    ``RegexFlag`` constant (or combination), matching JSDK shape.
     """
-    NONE: builtins.int
-    """Use regex defaults."""
-    EXTENDED: builtins.int
-    """Use POSIX Extended Regular Expression syntax when interpreting regex."""
-    ICASE: builtins.int
-    """Do not differentiate case."""
-    NOSUB: builtins.int
-    """Do not report position of matches."""
-    NEWLINE: builtins.int
-    """Match-any-character operators don't match a newline."""
+    ...
+
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]:
         r"""
         Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -4038,11 +4029,11 @@ class RegisterTask:
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
         Rejects calls made from inside a running asyncio loop.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -4145,27 +4136,15 @@ class Role:
 class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
-
+    
     JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
-    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
-    suitable for ``CdtOperation.select_by_path(..., flag=...)``.
-
+    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular
+    ``int`` and can be passed directly to ``CdtOperation.select_by_path(..., flag=...)``.
+    
     Requires Aerospike Server version >= 8.1.1.
     """
-    MATCHING_TREE: builtins.int
-    """Return the full matching subtree (root to leaf), keeping only matched nodes."""
-    VALUE: builtins.int
-    """Return the values of the finally-selected nodes."""
-    LIST_VALUE: builtins.int
-    """Synonym for ``VALUE`` — clarifies list element expectations."""
-    MAP_VALUE: builtins.int
-    """Synonym for ``VALUE`` — clarifies map value expectations."""
-    MAP_KEY: builtins.int
-    """Return only the map keys of the finally-selected nodes."""
-    MAP_KEY_VALUE: builtins.int
-    """Return map key-value pairs of the finally-selected nodes."""
-    NO_FAIL: builtins.int
-    """Ignore type mismatches instead of failing."""
+    ...
+
 class ServerError(builtins.Exception):
     @property
     def result_code(self) -> _aerospike_async_native.ResultCode: ...
@@ -4182,14 +4161,14 @@ class Statement:
     @filters.setter
     def filters(self, value: typing.Optional[typing.Sequence[_aerospike_async_native.Filter]]) -> None: ...
     @property
-    def set_name(self) -> typing.Optional[str]: ...
+    def set_name(self) -> typing.Optional[builtins.str]: ...
     @set_name.setter
-    def set_name(self, value: typing.Optional[str]) -> None: ...
+    def set_name(self, value: typing.Optional[builtins.str]) -> None: ...
     def __new__(cls, namespace: builtins.str, set_name: typing.Optional[builtins.str] = None, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.Statement: ...
     def set_aggregate_function(self, package_name: builtins.str, function_name: builtins.str, function_args: typing.Optional[typing.Sequence[typing.Any]] = None) -> None:
         r"""
         Set Lua aggregation function parameters for query aggregation.
-
+        
         Args:
             package_name: Name of the Lua package/module containing the aggregation function.
             function_name: Name of the Lua aggregation function.
@@ -4201,7 +4180,7 @@ class Statement:
         operations for each matching record instead of the bin set
         configured via ``bins``. Mutually exclusive with ``bins`` (the
         server uses ``operations`` if both are set).
-
+        
         Foreground queries accept only read ops. Server versions before
         8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
         CDT, expression, bit, and HLL reads.
@@ -4211,10 +4190,10 @@ class TlsConfig:
     def __new__(cls, cafile: builtins.str) -> _aerospike_async_native.TlsConfig:
         r"""
         Create a new TlsConfig from CA certificate file.
-
+        
         Args:
             cafile: Path to the CA certificate file (PEM format)
-
+        
         Returns:
             TlsConfig instance configured with the CA certificate
         """
@@ -4222,12 +4201,12 @@ class TlsConfig:
     def with_client_auth(cafile: builtins.str, certfile: builtins.str, keyfile: builtins.str) -> _aerospike_async_native.TlsConfig:
         r"""
         Create a TlsConfig with client authentication from certificate and key files.
-
+        
         Args:
             cafile: Path to the CA certificate file (PEM format)
             certfile: Path to the client certificate file (PEM format)
             keyfile: Path to the client private key file (PEM format)
-
+        
         Returns:
             TlsConfig instance configured with CA and client certificates
         """
@@ -4236,13 +4215,13 @@ class TlsConfig:
 class Txn:
     r"""
     Multi-Record Transaction handle.
-
+    
     Pass a `Txn` instance to record operations to group them into a single
     atomic transaction. Call :meth:`Client.commit` or :meth:`Client.abort`
     to finalize the transaction.
-
+    
     Example::
-
+    
         txn = aerospike_async.Txn()
         # use txn in put/get policy.txn field
         status = await client.commit(txn)
@@ -4261,7 +4240,7 @@ class Txn:
     def state(self, value: _aerospike_async_native.TxnState) -> None:
         r"""
         Force the transaction into a given state.
-
+        
         Primarily useful for testing error paths that depend on a
         non-``OPEN`` transaction (commands must be issued against an
         ``OPEN`` transaction). Production code should let
@@ -4277,7 +4256,7 @@ class Txn:
     def timeout(self, value: builtins.int) -> None:
         r"""
         Set the transaction timeout in seconds.
-
+        
         Must be set before the transaction is shared with a policy or
         operation. After the underlying ``Arc<Txn>`` has been cloned into
         a policy / builder the timeout is frozen and this raises
@@ -4301,11 +4280,11 @@ class UdfRemoveTask:
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]:
         r"""
         Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -4320,11 +4299,11 @@ class UdfRemoveTask:
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
         Rejects calls made from inside a running asyncio loop.
-
+        
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
             max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
-
+        
         Returns:
             True if task completed, False if max attempts reached
         """
@@ -4345,12 +4324,12 @@ class User:
         r"""
         List of read statistics. List may be nil.
         Current statistics by offset are:
-
+        
         0: read quota in records per second
         1: single record read command rate (TPS)
         2: read scan/query record per second rate (RPS)
         3: number of limitless read scans/queries
-
+        
         Future server releases may add additional statistics.
         """
     @property
@@ -4358,12 +4337,12 @@ class User:
         r"""
         List of write statistics. List may be nil.
         Current statistics by offset are:
-
+        
         0: write quota in records per second
         1: single record write command rate (TPS)
         2: write scan/query record per second rate (RPS)
         3: number of limitless write scans/queries
-
+        
         Future server releases may add additional statistics.
         """
     @property
@@ -4436,12 +4415,12 @@ class _LocalClient:
     Sync-only Aerospike client that owns a per-thread `current_thread`
     Tokio runtime. Eliminates the cross-thread worker hop per op that the
     shared multi-thread runtime imposes on `Client_blocking()`'s sync path.
-
+    
     Construct one per Python OS thread. The runtime + Client are tied
     to the thread that built them — accessing from a different thread
     raises (enforced by `#[pyclass(unsendable)]`). Use `threading.local()`
     in Python to manage thread-bound instances.
-
+    
     Surface mirrors the `Client.*_blocking` methods PSDK's sync path
     calls. Each `*_local` method runs on the per-thread runtime via
     `block_on`, so completion returns on the SAME thread without any
@@ -4841,6 +4820,15 @@ class QueryDuration(enum.Enum):
     """
 
 @typing.final
+class QuerySelection(enum.Enum):
+    r"""
+    Server query plan selection inferred from an explain response.
+    """
+    PRIMARY_INDEX = ...
+    SECONDARY_INDEX = ...
+    FILTERED_OUT = ...
+
+@typing.final
 class ReadModeAP(enum.Enum):
     r"""
     Read policy for AP (availability) namespaces.
@@ -4951,7 +4939,7 @@ def geojson(geo_str: builtins.str) -> _aerospike_async_native.GeoJSON:
     r"""
     Convert a GeoJSON string or coordinate pair to a GeoJSON object.
     This matches the legacy client's aerospike.geojson() function.
-
+    
     Accepts:
     - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
     - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
@@ -4963,7 +4951,7 @@ def has_any_write_op(operations: typing.Sequence[typing.Any]) -> builtins.bool:
     report whether any are *writes* (so the caller can choose between
     :class:`BatchReadOp` and :class:`BatchWriteOp` for the heterogeneous
     :meth:`Client.batch_stream` ops list).
-
+    
     PSDK uses this from its streaming-batch builder to match the wire
     dispatch that the buffered :meth:`Client.batch_operate` does internally
     — a key-op-list with only reads (e.g. an AEL `select_from` expression)
@@ -4976,7 +4964,7 @@ def new_client(policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str
 def new_client_blocking(policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str) -> _aerospike_async_native.Client:
     r"""
     Synchronously create and connect a Client.
-
+    
     Unlike :func:`new_client`, this function does not require a running
     asyncio event loop. The returned :class:`Client` can only be used with
     the ``_blocking`` method variants — calling an async method on a client

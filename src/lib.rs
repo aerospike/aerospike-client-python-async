@@ -57,6 +57,7 @@ mod expressions;
 mod filter;
 mod operations;
 mod policies;
+mod query_plan;
 mod cluster;
 
 pub use enums::*;
@@ -68,6 +69,7 @@ pub use expressions::*;
 pub use filter::*;
 pub use operations::*;
 pub use policies::*;
+pub use query_plan::*;
 pub use cluster::*;
 pub use tls::*;
 
@@ -1309,6 +1311,63 @@ use crate::operations::{
             let stmt = statement.clone()._as;
             let raw = run_blocking(py, async move {
                 client.query(&policy, partition_filter._as, stmt).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(Recordset {
+                _as: raw,
+                _stream: Arc::new(Mutex::new(None)),
+                bridge: None,
+            })
+        }
+
+        /// Returns whether the connected cluster supports server-led query selection
+        /// (field ``44`` WHERE explain → execute on server 8.1.3+).
+        pub fn supports_query_selection(&self) -> bool {
+            self._as.supports_query_selection()
+        }
+
+        /// Synchronously run phase 1 (explain) of server-led query selection.
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, policy=None))]
+        pub fn query_explain_blocking(
+            &self,
+            namespace: String,
+            ael: String,
+            set_name: Option<String>,
+            index_name_hint: Option<String>,
+            policy: Option<QueryPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<QueryPlan> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let set_ref = set_name.as_deref();
+            let hint_ref = index_name_hint.as_deref();
+            let plan = run_blocking(py, async move {
+                client
+                    .query_explain(&policy, &namespace, set_ref, &ael, hint_ref)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(QueryPlan { _as: plan })
+        }
+
+        /// Synchronously execute a partitioned query using a server query plan.
+        #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
+        pub fn query_with_plan_blocking(
+            &self,
+            statement: &Statement,
+            partition_filter: PartitionFilter,
+            plan: &QueryPlan,
+            policy: Option<QueryPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<Recordset> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let stmt = statement.clone()._as;
+            let core_plan = plan._as.clone();
+            let raw = run_blocking(py, async move {
+                client
+                    .query_with_plan(&policy, partition_filter._as, stmt, core_plan)
+                    .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(Recordset {
@@ -3498,6 +3557,70 @@ use crate::operations::{
             })
         }
 
+        /// Run phase 1 (explain) of server-led query selection.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[QueryPlan]", imports=("typing")))]
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, policy=None))]
+        pub fn query_explain<'a>(
+            &self,
+            namespace: String,
+            ael: String,
+            set_name: Option<String>,
+            index_name_hint: Option<String>,
+            policy: Option<QueryPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let set_ref = set_name.clone();
+            let hint_ref = index_name_hint.clone();
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let plan = client
+                    .query_explain(
+                        &policy,
+                        &namespace,
+                        set_ref.as_deref(),
+                        &ael,
+                        hint_ref.as_deref(),
+                    )
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                Ok(QueryPlan { _as: plan })
+            })
+        }
+
+        /// Execute a partitioned query using a server query plan from
+        /// :meth:`query_explain`.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Recordset]", imports=("typing")))]
+        #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
+        pub fn query_with_plan<'a>(
+            &self,
+            statement: &Statement,
+            partition_filter: PartitionFilter,
+            plan: &QueryPlan,
+            policy: Option<QueryPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let stmt = statement.clone()._as;
+            let core_plan = plan._as.clone();
+            let bridge = self.require_bridge()?;
+            let recordset_bridge = bridge.clone();
+
+            completion::batched_future_into_py(bridge, py, async move {
+                let res = client
+                    .query_with_plan(&policy, partition_filter._as, stmt, core_plan)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Ok(Recordset {
+                    _as: res,
+                    _stream: Arc::new(Mutex::new(None)),
+                    bridge: Some(recordset_bridge),
+                })
+            })
+        }
+
         /// Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
         /// before sending to server.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
@@ -4291,6 +4414,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitPolicy>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
+    m.add_class::<QueryPlan>()?;
+    m.add_class::<QuerySelection>()?;
     m.add_class::<UDFLang>()?;
     m.add_class::<TaskStatus>()?;
     m.add_class::<RegisterTask>()?;
