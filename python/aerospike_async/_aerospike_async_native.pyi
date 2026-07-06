@@ -272,6 +272,26 @@ class BatchRecordStream:
     def __anext__(self) -> typing.Awaitable[typing.Tuple[builtins.int, BatchRecord]]: ...
     def __iter__(self) -> _aerospike_async_native.BatchRecordStream: ...
     def __next__(self) -> tuple[builtins.int, _aerospike_async_native.BatchRecord]: ...
+    def close(self) -> None:
+        r"""
+        Release the batch stream early.
+
+        Latches the stream closed so any subsequent iteration terminates
+        with ``StopAsyncIteration`` / ``StopIteration``, and eagerly drops
+        the receiver together with any buffered-but-unconsumed results —
+        deterministically, rather than waiting for garbage collection.
+
+        **Scope**: this does *not* cancel per-node batch requests already
+        in flight. Those complete in the background and release their
+        connections as they finish; ``close()`` only reclaims the consumer
+        side (receiver + buffer). Idempotent, and safe to call from either
+        an async or a blocking context.
+
+        If a yield is in progress at the instant of the call (an internal
+        lock is held), the eager receiver-drop is skipped and cleanup falls
+        back to normal drop semantics once that yield settles; the closed
+        latch still takes effect immediately.
+        """
 
 class BatchUDFPolicy:
     @property

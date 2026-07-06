@@ -24,6 +24,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use pyo3::exceptions::{PyException, PyStopAsyncIteration, PyValueError};
@@ -653,6 +654,12 @@ use crate::operations::{
         // Some when built from the async path (`Client::batch_stream`);
         // None when built from `Client::batch_stream_blocking`.
         bridge: Option<completion::CompletionBridge>,
+        // Latched by `close()` so iteration terminates even when the eager
+        // receiver-drop can't take the lock (a yield future holds it).
+        // `Arc` so `__anext__` can clone it into the per-yield future and
+        // observe the latch from inside the async block, matching the path
+        // the `None` receiver takes to `StopAsyncIteration`.
+        closed: Arc<AtomicBool>,
     }
 
     #[gen_stub_pymethods]
@@ -681,8 +688,12 @@ use crate::operations::{
                 )
             })?;
             let inner = self.inner.clone();
+            let closed = self.closed.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 use futures::StreamExt;
+                if closed.load(Ordering::Acquire) {
+                    return Err(PyStopAsyncIteration::new_err(()));
+                }
                 let mut guard = inner.lock().await;
                 let next = match guard.as_mut() {
                     Some(stream) => stream.as_mut().next().await,
@@ -705,6 +716,9 @@ use crate::operations::{
         }
 
         fn __next__(&mut self, py: Python<'_>) -> PyResult<(usize, BatchRecord)> {
+            if self.closed.load(Ordering::Acquire) {
+                return Err(pyo3::exceptions::PyStopIteration::new_err(()));
+            }
             // Match Recordset's guard: blocking iteration from inside an
             // async event loop would block the loop. Tell the user clearly.
             let asyncio = py.import("asyncio")?;
@@ -729,6 +743,32 @@ use crate::operations::{
             match next {
                 Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
                 None => Err(pyo3::exceptions::PyStopIteration::new_err(())),
+            }
+        }
+
+        /// Release the batch stream early.
+        ///
+        /// Latches the stream closed so any subsequent iteration terminates
+        /// with ``StopAsyncIteration`` / ``StopIteration``, and eagerly drops
+        /// the receiver together with any buffered-but-unconsumed results —
+        /// deterministically, rather than waiting for garbage collection.
+        ///
+        /// **Scope**: this does *not* cancel per-node batch requests already
+        /// in flight. Those complete in the background and release their
+        /// connections as they finish; ``close()`` only reclaims the consumer
+        /// side (receiver + buffer). Idempotent, and safe to call from either
+        /// an async or a blocking context.
+        ///
+        /// If a yield is in progress at the instant of the call (an internal
+        /// lock is held), the eager receiver-drop is skipped and cleanup falls
+        /// back to normal drop semantics once that yield settles; the closed
+        /// latch still takes effect immediately.
+        fn close(&self) {
+            self.closed.store(true, Ordering::Release);
+            // Non-blocking: never stall the caller's thread (asyncio loop
+            // thread for the async stream) waiting on an in-flight yield.
+            if let Ok(mut guard) = self.inner.try_lock() {
+                *guard = None;
             }
         }
     }
@@ -2250,6 +2290,7 @@ use crate::operations::{
             Ok(BatchRecordStream {
                 inner: Arc::new(Mutex::new(Some(Box::pin(stream)))),
                 bridge: None,
+                closed: Arc::new(AtomicBool::new(false)),
             })
         }
 
@@ -3036,6 +3077,7 @@ use crate::operations::{
                 Ok(BatchRecordStream {
                     inner: Arc::new(Mutex::new(Some(Box::pin(stream)))),
                     bridge: Some(stream_bridge),
+                    closed: Arc::new(AtomicBool::new(false)),
                 })
             })
         }
