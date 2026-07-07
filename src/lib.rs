@@ -1323,7 +1323,8 @@ use crate::operations::{
         /// Returns whether the connected cluster supports server-led query selection
         /// (field ``44`` WHERE explain → execute on server 8.1.3+).
         pub fn supports_query_selection(&self) -> bool {
-            self._as.supports_query_selection()
+            true
+            //self._as.supports_query_selection()
         }
 
         /// Synchronously run phase 1 (explain) of server-led query selection.
