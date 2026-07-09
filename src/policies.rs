@@ -187,7 +187,7 @@ use crate::TlsConfig;
                 -1 => aerospike_core::ReadTouchTTL::DontReset,
                 0 => aerospike_core::ReadTouchTTL::ServerDefault,
                 pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
-                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
             };
@@ -297,7 +297,7 @@ use crate::TlsConfig;
                     pct if (1..=100).contains(&pct) => {
                         aerospike_core::ReadTouchTTL::Percent(pct as u8)
                     }
-                    _ => return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    _ => return Err(crate::errors::ValueError::new_err(format!(
                         "read_touch_ttl must be -1, 0, or 1-100, got {v}"
                     ))),
                 };
@@ -457,7 +457,7 @@ use crate::TlsConfig;
                 -1 => aerospike_core::ReadTouchTTL::DontReset,
                 0 => aerospike_core::ReadTouchTTL::ServerDefault,
                 pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
-                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
             };
@@ -784,7 +784,7 @@ use crate::TlsConfig;
                 -1 => aerospike_core::ReadTouchTTL::DontReset,
                 0 => aerospike_core::ReadTouchTTL::ServerDefault,
                 pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
-                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
             };
@@ -1369,7 +1369,7 @@ use crate::TlsConfig;
                 -1 => aerospike_core::ReadTouchTTL::DontReset,
                 0 => aerospike_core::ReadTouchTTL::ServerDefault,
                 pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
-                _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
             };
