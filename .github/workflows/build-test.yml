@@ -347,9 +347,17 @@ jobs:
               echo "NASM installed but path verification skipped (will be available in next step)"
             }
           }
+      # Install every target interpreter (for this arch) so --find-interpreter
+      # builds a deterministic 3.10-3.14 set and the smoke step below can import
+      # each built wheel with its matching interpreter.
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
+            3.14
           architecture: ${{ matrix.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -362,9 +370,32 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
       
-      # Note: Tests are skipped on Windows because the Windows runner uses Windows containers
-      # and cannot run Linux containers (Aerospike server requires Linux).
-      # Windows wheels are built and uploaded, but tests run on Linux/macOS only.
+      # Windows can't run the Linux Aerospike server container, so there are no
+      # integration tests here (same as macOS). We still install + import the
+      # built wheel as a smoke check; full integration coverage is on the Linux
+      # jobs, which exercise the same Rust/Python logic.
+      - name: Import smoke test (every built wheel)
+        shell: bash
+        run: |
+          set -e
+          shopt -s nullglob
+          arch='${{ matrix.target }}'
+          tested=0
+          for whl in aerospike_async/*.whl; do
+            tag=$(basename "$whl" | grep -oE 'cp3[0-9]+' | head -1)   # e.g. cp313
+            ver="3.${tag#cp3}"                                        # e.g. 3.13
+            pyexe=$(ls /c/hostedtoolcache/windows/Python/${ver}.*/${arch}/python.exe 2>/dev/null | head -1)
+            if [ -z "$pyexe" ]; then
+              echo "::warning title=Smoke skipped::no ${ver}/${arch} interpreter for $(basename "$whl")"; continue
+            fi
+            echo "== $(basename "$whl") via $ver ($arch) =="
+            "$pyexe" -m pip install --quiet "$whl"
+            "$pyexe" -c "import aerospike_async"
+            echo "  $tag import OK"
+            tested=$((tested+1))
+          done
+          if [ "$tested" = 0 ]; then echo "no wheels smoke-tested:"; ls aerospike_async/; exit 1; fi
+          echo "smoke-tested $tested wheel(s)"
       
       - name: Upload wheels
         uses: actions/upload-artifact@v4
