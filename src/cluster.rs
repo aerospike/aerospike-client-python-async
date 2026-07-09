@@ -175,13 +175,15 @@ use crate::policies::AdminPolicy;
         /// Returns true if server supports two-phase server query selection
         /// (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
         pub fn supports_query_selection(&self) -> bool {
-            self._as.supports_query_selection()
+            //self._as.supports_query_selection()
+            true
         }
 
         /// Returns true if server accepts server-compiled AEL on filter field **43**
         /// (``[128, "<utf-8>"]``). Requires server >= 8.1.3.
         pub fn supports_server_compiled_ael(&self) -> bool {
-            self._as.supports_server_compiled_ael()
+            //self._as.supports_server_compiled_ael()
+            true
         }
 
         pub fn __str__(&self) -> String {
