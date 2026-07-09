@@ -59,6 +59,7 @@ mod filter;
 mod operations;
 mod policies;
 mod query_plan;
+mod query_where;
 mod cluster;
 
 pub use enums::*;
@@ -71,6 +72,7 @@ pub use filter::*;
 pub use operations::*;
 pub use policies::*;
 pub use query_plan::*;
+pub use query_where::*;
 pub use cluster::*;
 pub use tls::*;
 
@@ -1360,21 +1362,19 @@ use crate::operations::{
             })
         }
 
-        /// Returns whether the connected cluster supports server-led query selection
-        /// (field ``44`` WHERE explain → execute on server 8.1.3+).
-        pub fn supports_query_selection(&self) -> bool {
-            true
-            //self._as.supports_query_selection()
-        }
-
         /// Synchronously run phase 1 (explain) of server-led query selection.
-        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, policy=None))]
+        ///
+        /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
+        /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        /// ``HARD_HINT``). Omit for default explain.
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
         pub fn query_explain_blocking(
             &self,
             namespace: String,
             ael: String,
             set_name: Option<String>,
             index_name_hint: Option<String>,
+            explain_where_flags: Option<u8>,
             policy: Option<QueryPolicy>,
             py: Python<'_>,
         ) -> PyResult<QueryPlan> {
@@ -1384,7 +1384,14 @@ use crate::operations::{
             let hint_ref = index_name_hint.as_deref();
             let plan = run_blocking(py, async move {
                 client
-                    .query_explain(&policy, &namespace, set_ref, &ael, hint_ref)
+                    .query_explain(
+                        &policy,
+                        &namespace,
+                        set_ref,
+                        &ael,
+                        hint_ref,
+                        explain_where_flags,
+                    )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
@@ -3601,14 +3608,19 @@ use crate::operations::{
         }
 
         /// Run phase 1 (explain) of server-led query selection.
+        ///
+        /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
+        /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        /// ``HARD_HINT``). Omit for default explain.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[QueryPlan]", imports=("typing")))]
-        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, policy=None))]
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
         pub fn query_explain<'a>(
             &self,
             namespace: String,
             ael: String,
             set_name: Option<String>,
             index_name_hint: Option<String>,
+            explain_where_flags: Option<u8>,
             policy: Option<QueryPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
@@ -3624,6 +3636,7 @@ use crate::operations::{
                         set_ref.as_deref(),
                         &ael,
                         hint_ref.as_deref(),
+                        explain_where_flags,
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
@@ -4459,6 +4472,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<PartitionFilter>()?;
     m.add_class::<QueryPlan>()?;
     m.add_class::<QuerySelection>()?;
+    m.add_class::<QueryWhereFlags>()?;
     m.add_class::<UDFLang>()?;
     m.add_class::<TaskStatus>()?;
     m.add_class::<RegisterTask>()?;

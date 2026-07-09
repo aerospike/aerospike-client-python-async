@@ -12,7 +12,7 @@
 
 """Unit tests for server query selection bindings."""
 
-from aerospike_async import Client, QueryPlan, QuerySelection
+from aerospike_async import Client, QueryPlan, QuerySelection, QueryWhereFlags, Version
 
 
 class TestQuerySelectionExports:
@@ -24,12 +24,25 @@ class TestQuerySelectionExports:
         assert QuerySelection.SECONDARY_INDEX != QuerySelection.FILTERED_OUT
         assert QuerySelection.PRIMARY_INDEX != QuerySelection.FILTERED_OUT
 
-    def test_client_supports_query_selection_method(self):
-        assert hasattr(Client, "supports_query_selection")
+    def test_query_plan_api_on_client(self):
         assert hasattr(Client, "query_explain")
         assert hasattr(Client, "query_with_plan")
         assert hasattr(Client, "query_explain_blocking")
         assert hasattr(Client, "query_with_plan_blocking")
+
+    def test_version_supports_query_selection_method(self):
+        assert hasattr(Version, "supports_query_selection")
+
+    def test_query_where_flags_exported(self):
+        assert QueryWhereFlags.EXPLAIN == 2
+        assert QueryWhereFlags.REQUIRE_INDEX == 4
+        assert QueryWhereFlags.HARD_HINT == 8
+        combined = (
+            QueryWhereFlags.EXPLAIN
+            | QueryWhereFlags.REQUIRE_INDEX
+            | QueryWhereFlags.HARD_HINT
+        )
+        assert combined == 14
 
     def test_query_plan_type_exported(self):
         assert QueryPlan.__name__ == "QueryPlan"

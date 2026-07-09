@@ -213,6 +213,14 @@ class TestVersion(TestFixtureConnection):
         result = version.supports_app_id()
         assert isinstance(result, bool)
 
+    async def test_version_supports_query_selection(self, client):
+        """Test Version.supports_query_selection() method."""
+        nodes = await client.nodes()
+        version = nodes[0].version
+
+        result = version.supports_query_selection()
+        assert isinstance(result, bool)
+
 
 class TestNodeMonitoring(TestFixtureConnection):
     """Test Node monitoring properties: failures, partition_generation, rebalance_generation, aliases."""
