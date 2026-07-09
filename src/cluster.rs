@@ -178,6 +178,12 @@ use crate::policies::AdminPolicy;
             self._as.supports_query_selection()
         }
 
+        /// Returns true if server accepts server-compiled AEL on filter field **43**
+        /// (``[128, "<utf-8>"]``). Requires server >= 8.1.3.
+        pub fn supports_server_compiled_ael(&self) -> bool {
+            self._as.supports_server_compiled_ael()
+        }
+
         pub fn __str__(&self) -> String {
             format!("{}.{}.{}.{}", self._as.major, self._as.minor, self._as.patch, self._as.build)
         }
@@ -454,7 +460,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "Privilege",
         module = "_aerospike_async_native",
         subclass,

@@ -1810,6 +1810,11 @@ class FilterExpression:
     Filter expression, which can be applied to most commands, to control which records are
     affected by the command.
     """
+    SERVER_COMPILED_AEL_EXPRESSION_OP: builtins.int = 128
+    r"""
+    First element of the server-compiled AEL MessagePack array (`[128, "<dsl>"]`).
+    Matches the Java fluent client's ``Expression.SERVER_COMPILED_AEL_EXPRESSION_OP``.
+    """
     @staticmethod
     def key(exp_type: _aerospike_async_native.ExpType) -> _aerospike_async_native.FilterExpression:
         r"""
@@ -2272,6 +2277,14 @@ class FilterExpression:
     def from_base64(b64: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
         Create an expression from a base64-encoded expression string.
+        """
+    @staticmethod
+    def from_server_compiled_ael(ael:builtins.str) -> FilterExpression:
+        r"""
+        Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
+        server (8.1.3+) parses and compiles the Aerospike Expression Language string.
+
+        See also ``SERVER_COMPILED_AEL_EXPRESSION_OP``.
         """
     @staticmethod
     def unknown() -> _aerospike_async_native.FilterExpression:
@@ -4516,6 +4529,11 @@ class Version:
         r"""
         Returns true if server supports two-phase server query selection
         (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        """
+    def supports_server_compiled_ael(self) -> builtins.bool:
+        r"""
+        Returns true if server accepts server-compiled AEL on filter field **43**
+        (``[128, "<utf-8>"]``). Requires server >= 8.1.3.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

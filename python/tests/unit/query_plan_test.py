@@ -12,7 +12,14 @@
 
 """Unit tests for server query selection bindings."""
 
-from aerospike_async import Client, QueryPlan, QuerySelection, QueryWhereFlags, Version
+from aerospike_async import (
+    Client,
+    FilterExpression,
+    QueryPlan,
+    QuerySelection,
+    QueryWhereFlags,
+    Version,
+)
 
 
 class TestQuerySelectionExports:
@@ -32,6 +39,15 @@ class TestQuerySelectionExports:
 
     def test_version_supports_query_selection_method(self):
         assert hasattr(Version, "supports_query_selection")
+
+    def test_version_supports_server_compiled_ael_method(self):
+        assert hasattr(Version, "supports_server_compiled_ael")
+
+    def test_filter_expression_from_server_compiled_ael(self):
+        expr = FilterExpression.from_server_compiled_ael("$.age == 1")
+        b64 = expr.base64()
+        assert isinstance(b64, str)
+        assert len(b64) > 0
 
     def test_query_where_flags_exported(self):
         assert QueryWhereFlags.EXPLAIN == 2
