@@ -113,13 +113,17 @@ class TestBatchReadPolicy:
 
     def test_read_touch_ttl_invalid_raises(self):
         import pytest
+        from aerospike_async.exceptions import AerospikeError
+        from aerospike_async.exceptions import ValueError as AsValueError
+
         p = BatchReadPolicy()
-        with pytest.raises(ValueError):
-            p.read_touch_ttl = -2
-        with pytest.raises(ValueError):
-            p.read_touch_ttl = 101
-        with pytest.raises(ValueError):
-            p.read_touch_ttl = 3600
+        # Out-of-range values are rejected client-side. The error is an
+        # aerospike_async.exceptions.ValueError (an AerospikeError subclass),
+        # NOT Python's built-in ValueError, so `except AerospikeError` catches it.
+        for bad in (-2, 101, 3600):
+            with pytest.raises(AsValueError) as exc_info:
+                p.read_touch_ttl = bad
+            assert isinstance(exc_info.value, AerospikeError)
 
 
 class TestBatchUDFPolicy:
