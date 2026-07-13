@@ -79,3 +79,14 @@ def test_client_policy_properties():
     assert cp2.tend_interval == 1000
     assert cp2.cluster_name is None
     assert cp2.ip_map is None
+
+
+def test_default_custom_client_id_identifies_this_client():
+    """The default policy stamps a client-specific user-agent id.
+
+    This lets bare-client usage be distinguished on the wire from the bare
+    Rust core; wrapper layers override it with their own id.
+    """
+    cp = ClientPolicy()
+    assert cp.custom_client_id is not None
+    assert cp.custom_client_id.startswith("python-async-")
