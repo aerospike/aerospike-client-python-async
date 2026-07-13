@@ -106,6 +106,7 @@ __all__ = [
     "new_client",
     "new_client_blocking",
     "null",
+    "refresh_log_levels",
 ]
 class AdminPolicy:
     @property
@@ -723,6 +724,16 @@ class CdtOperation:
         """
 
 class Client:
+    @property
+    def cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Configured cluster name from the ``ClientPolicy`` used to build this
+        client, or ``None`` when cluster-name validation was not requested.
+
+        This is the client-side *expected* name (set via cluster-name
+        validation), not a server-reported value; it reads a cached field
+        with no network or lock cost.
+        """
     def __new__(cls) -> _aerospike_async_native.Client: ...
     def seeds(self) -> builtins.str: ...
     def is_strong_consistency(self, namespace: builtins.str) -> typing.Optional[builtins.bool]:
@@ -4473,6 +4484,11 @@ class _LocalClient:
     signals private / unstable status; opt in via PSDK's
     `SyncClient(current_thread_runtime=True)`.
     """
+    @property
+    def cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Configured cluster name (see :attr:`Client.cluster_name`).
+        """
     def __new__(cls, policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str) -> _aerospike_async_native._LocalClient: ...
     def get_blocking(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record: ...
     def put_blocking(self, key: _aerospike_async_native.Key, bins: typing.Mapping[builtins.str, typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> None: ...
@@ -5009,5 +5025,17 @@ def null() -> typing.Any:
     Return a null value for use in Aerospike operations.
     This is equivalent to Python None but represents an Aerospike null value.
     Matches the legacy client's aerospike.null() function.
+    """
+
+def refresh_log_levels() -> None:
+    r"""
+    Re-sync Rust-emitted log levels with the Python `logging` hierarchy.
+
+    The bridge that forwards Rust log records to Python's `logging` module
+    caches each logger's effective level the first time that logger emits.
+    Calling `logging.getLogger("aerospike_core.cluster").setLevel(...)` at
+    runtime therefore has no effect on Rust-emitted records for
+    already-cached loggers until this function is called to drop the cache.
+    Cheap; safe to call from any thread.
     """
 
