@@ -1761,6 +1761,10 @@ use crate::TlsConfig;
             let res = ClientPolicy {
                 _as: aerospike_core::ClientPolicy {
                     conn_pools_per_node: 4,
+                    // Identify this client on the wire (user-agent) so bare-PAC
+                    // usage is distinguishable from the bare Rust core. A higher
+                    // wrapper layer overrides this with its own identifier.
+                    custom_client_id: Some(format!("python-async-{}", env!("CARGO_PKG_VERSION"))),
                     ..Default::default()
                 },
                 per_client_runtime_workers: None,
