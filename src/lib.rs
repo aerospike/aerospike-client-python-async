@@ -92,6 +92,7 @@ use crate::operations::{
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
         let as_policy = policy._as.clone();
         let as_seeds = seeds.clone();
+        let cluster_name = as_policy.cluster_name.clone();
         // Capture the loop the caller is awaiting on; this becomes the bridge's
         // owning loop and every subsequent op on this Client must run on it.
         let locals = pyo3_asyncio::get_current_locals(py)?;
@@ -131,6 +132,7 @@ use crate::operations::{
             let res = Client {
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
+                cluster_name,
                 bridge: Some(bridge),
             };
 
@@ -351,6 +353,8 @@ use crate::operations::{
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
+        // See `Client.cluster_name`: configured validation name, captured once.
+        cluster_name: Option<String>,
     }
 
     #[gen_stub_pymethods]
@@ -366,13 +370,21 @@ use crate::operations::{
                     format!("failed to build current_thread Tokio runtime: {e}")
                 ))?;
             let as_policy = policy._as.clone();
+            let cluster_name = as_policy.cluster_name.clone();
             let client = rt.block_on(async move {
                 aerospike_core::Client::new(&as_policy, &seeds).await
             }).map_err(|e| PyErr::from(RustClientError(e)))?;
             Ok(LocalClient {
                 rt,
                 client: Arc::new(client),
+                cluster_name,
             })
+        }
+
+        /// Configured cluster name (see :attr:`Client.cluster_name`).
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
         }
 
         // -- Plain blocking ops (drop-in for Client.*_blocking) -------------
@@ -607,6 +619,11 @@ use crate::operations::{
     pub struct Client {
         _as: Arc<aerospike_core::Client>,
         seeds: String,
+        // Configured cluster-name from ClientPolicy (the validation name), or
+        // None when cluster-name validation was not requested. Captured once at
+        // construction so callers can tag diagnostics without a per-call clone
+        // of the whole policy through the core.
+        cluster_name: Option<String>,
         // None for clients created via `new_client_blocking` — async methods
         // require this to be Some; `require_bridge()` enforces it with a clear
         // PyRuntimeError instead of panicking.
@@ -939,6 +956,17 @@ use crate::operations::{
 
         pub fn seeds(&self) -> &str {
             &self.seeds
+        }
+
+        /// Configured cluster name from the ``ClientPolicy`` used to build this
+        /// client, or ``None`` when cluster-name validation was not requested.
+        ///
+        /// This is the client-side *expected* name (set via cluster-name
+        /// validation), not a server-reported value; it reads a cached field
+        /// with no network or lock cost.
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
         }
 
         /// Returns whether ``namespace`` is configured for strong
@@ -4197,6 +4225,28 @@ impl log::Log for ResilientPyLogger {
     }
 }
 
+/// Cache-reset handle for the pyo3-log bridge. `Caching::LoggersAndLevels`
+/// snapshots each logger's effective level on first use; Python-side
+/// `setLevel()` calls made after that are invisible to Rust-emitted records
+/// until the cache is cleared through this handle.
+static LOG_RESET_HANDLE: std::sync::OnceLock<pyo3_log::ResetHandle> = std::sync::OnceLock::new();
+
+/// Re-sync Rust-emitted log levels with the Python `logging` hierarchy.
+///
+/// The bridge that forwards Rust log records to Python's `logging` module
+/// caches each logger's effective level the first time that logger emits.
+/// Calling `logging.getLogger("aerospike_core.cluster").setLevel(...)` at
+/// runtime therefore has no effect on Rust-emitted records for
+/// already-cached loggers until this function is called to drop the cache.
+/// Cheap; safe to call from any thread.
+#[pyfunction]
+#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+pub fn refresh_log_levels() {
+    if let Some(handle) = LOG_RESET_HANDLE.get() {
+        handle.reset();
+    }
+}
+
 #[pymodule(gil_used = false)]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Filter the noisy default panic-hook output for a specific class of
@@ -4237,6 +4287,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     //   aerospike_core::cluster -> logging.getLogger("aerospike_core.cluster")
     // Uses ResilientPyLogger to avoid panics on background threads during shutdown.
     let inner = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?;
+    let _ = LOG_RESET_HANDLE.set(inner.reset_handle());
     let logger = ResilientPyLogger { inner };
     log::set_max_level(log::LevelFilter::Debug);
     let _ = log::set_logger(Box::leak(Box::new(logger)));
@@ -4304,6 +4355,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_function(wrap_pyfunction!(null, m)?)?;
     m.add_function(wrap_pyfunction!(has_any_write_op, m)?)?;
     m.add_function(wrap_pyfunction!(geojson, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_log_levels, m)?)?;
     m.add_class::<AuthMode>()?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
