@@ -416,13 +416,9 @@ class TestSecurityFeatures:
         assert custom_policy.timeout == 10000
 
         roles = await client.query_roles(None, policy=custom_policy)
-        roles_default = await client.query_roles(None)
         assert isinstance(roles, list)
-        assert isinstance(roles_default, list)
-        # Role membership can change between two independent queries (async
-        # security propagation), so assert both queries succeeded and returned
-        # the built-in roles rather than requiring exact-count parity.
-        assert len(roles) >= 1 and len(roles_default) >= 1
+        assert roles, "query_roles with a custom AdminPolicy should return the built-in roles"
+        assert all(hasattr(r, "name") for r in roles)
 
     async def test_query_roles_nonexistent(self, client):
         """Test querying non-existent role."""
