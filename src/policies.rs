@@ -985,6 +985,16 @@ use crate::TlsConfig;
         }
 
         #[getter]
+        pub fn get_include_bin_data(&self) -> bool {
+            self._as.include_bin_data
+        }
+
+        #[setter]
+        pub fn set_include_bin_data(&mut self, include_bin_data: bool) {
+            self._as.include_bin_data = include_bin_data;
+        }
+
+        #[getter]
         pub fn get_expected_duration(&self) -> QueryDuration {
             QueryDuration::from(self._as.expected_duration.clone())
         }
