@@ -193,10 +193,24 @@ use crate::TlsConfig;
             };
             Ok(())
         }
+
+        /// Extended server-error detail requested per command: 0 none,
+        /// 1 subcode, 2 +message, 3 +expression trace on expression build
+        /// failures. Default: 0 (disabled). Requires server 8.1.3+; older
+        /// servers ignore it.
+        #[getter]
+        pub fn get_error_detail_verbosity(&self) -> u8 {
+            self._as.error_detail_verbosity
+        }
+
+        #[setter]
+        pub fn set_error_detail_verbosity(&mut self, verbosity: u8) {
+            self._as.error_detail_verbosity = verbosity;
+        }
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "AdminPolicy",
         freelist = 1000,
         module = "_aerospike_async_native",
@@ -266,7 +280,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None, compression_threshold=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -279,6 +293,7 @@ use crate::TlsConfig;
             read_touch_ttl: Option<i32>,
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
+            error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<ReadPolicy>> {
             let mut rp = aerospike_core::ReadPolicy::default();
             if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
@@ -304,6 +319,7 @@ use crate::TlsConfig;
             }
             if let Some(v) = use_compression { rp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { rp.base_policy.compression_threshold = v; }
+            if let Some(v) = error_detail_verbosity { rp.base_policy.error_detail_verbosity = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -334,6 +350,16 @@ use crate::TlsConfig;
         }
 
         // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_error_detail_verbosity(&self) -> u8 {
+            self._as.base_policy.error_detail_verbosity
+        }
+
+        #[setter]
+        pub fn set_error_detail_verbosity(&mut self, verbosity: u8) {
+            self._as.base_policy.error_detail_verbosity = verbosity;
+        }
+
         #[getter]
         pub fn get_total_timeout(&self) -> u64 {
             self._as.base_policy.total_timeout as u64
@@ -499,7 +525,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -516,6 +542,7 @@ use crate::TlsConfig;
             durable_delete: Option<bool>,
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
+            error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
             if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
@@ -548,6 +575,7 @@ use crate::TlsConfig;
             if let Some(v) = durable_delete { wp.durable_delete = v; }
             if let Some(v) = use_compression { wp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { wp.base_policy.compression_threshold = v; }
+            if let Some(v) = error_detail_verbosity { wp.base_policy.error_detail_verbosity = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -662,6 +690,16 @@ use crate::TlsConfig;
         }
 
         // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_error_detail_verbosity(&self) -> u8 {
+            self._as.base_policy.error_detail_verbosity
+        }
+
+        #[setter]
+        pub fn set_error_detail_verbosity(&mut self, verbosity: u8) {
+            self._as.base_policy.error_detail_verbosity = verbosity;
+        }
+
         #[getter]
         pub fn get_total_timeout(&self) -> u64 {
             self._as.base_policy.total_timeout as u64
@@ -837,6 +875,16 @@ use crate::TlsConfig;
         }
 
         // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_error_detail_verbosity(&self) -> u8 {
+            self._as.base_policy.error_detail_verbosity
+        }
+
+        #[setter]
+        pub fn set_error_detail_verbosity(&mut self, verbosity: u8) {
+            self._as.base_policy.error_detail_verbosity = verbosity;
+        }
+
         #[getter]
         pub fn get_total_timeout(&self) -> u64 {
             self._as.base_policy.total_timeout as u64
@@ -1127,7 +1175,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -1140,6 +1188,7 @@ use crate::TlsConfig;
             replica: Option<Replica>,
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
+            error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<BatchPolicy>> {
             let mut bp = aerospike_core::BatchPolicy::default();
             if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
@@ -1154,6 +1203,7 @@ use crate::TlsConfig;
             if let Some(v) = replica { bp.replica = (&v).into(); }
             if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { bp.base_policy.compression_threshold = v; }
+            if let Some(v) = error_detail_verbosity { bp.base_policy.error_detail_verbosity = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -1174,6 +1224,16 @@ use crate::TlsConfig;
         }
 
         // Override BasePolicy methods to sync with internal base_policy
+        #[getter]
+        pub fn get_error_detail_verbosity(&self) -> u8 {
+            self._as.base_policy.error_detail_verbosity
+        }
+
+        #[setter]
+        pub fn set_error_detail_verbosity(&mut self, verbosity: u8) {
+            self._as.base_policy.error_detail_verbosity = verbosity;
+        }
+
         #[getter]
         pub fn get_total_timeout(&self) -> u64 {
             self._as.base_policy.total_timeout as u64
@@ -1995,6 +2055,24 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_conn_pools_per_node(&mut self, sz: usize) {
             self._as.conn_pools_per_node = sz as u8;
+        }
+
+        /// Cluster-wide cap on the number of connections that may be in the
+        /// middle of being opened (TCP connect + TLS + login) at the same
+        /// time. When a command finds its node's pool empty, the connection
+        /// is opened by a background task while the command retries; this
+        /// threshold bounds how many such opens can run concurrently across
+        /// all nodes, protecting the cluster from a thundering herd after a
+        /// cold start or mass disconnect. ``0`` (the default) means
+        /// unlimited.
+        #[getter]
+        pub fn get_opening_connection_threshold(&self) -> usize {
+            self._as.opening_connection_threshold
+        }
+
+        #[setter]
+        pub fn set_opening_connection_threshold(&mut self, threshold: usize) {
+            self._as.opening_connection_threshold = threshold;
         }
 
         /// UseServicesAlternate determines if the client should use "services-alternate"

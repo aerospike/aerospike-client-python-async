@@ -34,12 +34,14 @@ __all__ = [
     "CommitLevel",
     "CommitStatus",
     "DropIndexTask",
+    "ErrorDetailVerbosity",
     "ExecuteTask",
     "ExpOperation",
     "ExpReadFlags",
     "ExpType",
     "ExpWriteFlags",
     "Expiration",
+    "ExpressionTrace",
     "FastRng",
     "Filter",
     "FilterExpression",
@@ -91,6 +93,7 @@ __all__ = [
     "ServerError",
     "SpecialValue",
     "Statement",
+    "SubCode",
     "TaskStatus",
     "TlsConfig",
     "Txn",
@@ -165,6 +168,16 @@ class BasePolicy:
     def read_touch_ttl(self) -> builtins.int: ...
     @read_touch_ttl.setter
     def read_touch_ttl(self, value: builtins.int) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int:
+        r"""
+        Extended server-error detail requested per command: 0 none,
+        1 subcode, 2 +message, 3 +expression trace on expression build
+        failures. Default: 0 (disabled). Requires server 8.1.3+; older
+        servers ignore it.
+        """
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
     def __new__(cls) -> _aerospike_async_native.BasePolicy: ...
 
 @typing.final
@@ -1451,6 +1464,20 @@ class ClientPolicy:
     @conn_pools_per_node.setter
     def conn_pools_per_node(self, value: builtins.int) -> None: ...
     @property
+    def opening_connection_threshold(self) -> builtins.int:
+        r"""
+        Cluster-wide cap on the number of connections that may be in the
+        middle of being opened (TCP connect + TLS + login) at the same
+        time. When a command finds its node's pool empty, the connection
+        is opened by a background task while the command retries; this
+        threshold bounds how many such opens can run concurrently across
+        all nodes, protecting the cluster from a thundering herd after a
+        cold start or mass disconnect. ``0`` (the default) means
+        unlimited.
+        """
+    @opening_connection_threshold.setter
+    def opening_connection_threshold(self, value: builtins.int) -> None: ...
+    @property
     def use_services_alternate(self) -> builtins.bool:
         r"""
         UseServicesAlternate determines if the client should use "services-alternate"
@@ -1634,6 +1661,23 @@ class DropIndexTask:
             True if task completed, False if max attempts reached
         """
 
+@typing.final
+class ErrorDetailVerbosity:
+    r"""
+    Verbosity levels for error_detail_verbosity on a policy.
+
+    NONE (0) requests no extended detail (default). SUBCODE (1)
+    requests the numeric subcode; MESSAGE (2) adds the server message;
+    EXPRESSION_TRACE (3) adds an expression trace on expression build
+    failures.
+    Higher levels are supersets. Requires server 8.1.3+; older servers
+    ignore the request.
+    """
+    NONE: builtins.int = 0
+    SUBCODE: builtins.int = 1
+    MESSAGE: builtins.int = 2
+    EXPRESSION_TRACE: builtins.int = 3
+
 class ExecuteTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]: ...
@@ -1707,6 +1751,89 @@ class Expiration:
     def seconds(s: builtins.int) -> _aerospike_async_native.Expiration: ...
     def __richcmp__(self, other: _aerospike_async_native.Expiration, op: int) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
+
+@typing.final
+class ExpressionTrace:
+    r"""
+    A structured expression build trace, surfaced on ServerError.exp_trace
+    at error_detail_verbosity 3 when the server fails to build an expression
+    (a filter_expression, or an exp_read / exp_write operation).
+
+    Every field is optional: the server caps the detail payload and drops
+    snippet first, then path, under a tight byte budget, so treat any field
+    as possibly absent. Expression build failures carry
+    ResultCode.PARAMETER_ERROR and no subcode; this trace is purely additive
+    diagnostic detail and never changes the result code, subcode, or message.
+    byte_offset indexes the msgpack expression payload the client sent;
+    ael_offset / ael_span index AEL source text (a different coordinate
+    space, reserved for a future server branch). Requires a server build that
+    emits the trace.
+    """
+    PHASE_BUILD: builtins.int = 1
+    r"""
+    The expression build failed.
+    """
+    PHASE_EVAL: builtins.int = 2
+    r"""
+    Expression evaluation failed (reserved for a future server branch).
+    """
+    LANG_MSGPACK: builtins.int = 1
+    r"""
+    The msgpack source language (the implied default).
+    """
+    LANG_AEL: builtins.int = 2
+    r"""
+    The AEL DSL source language (reserved for a future server branch).
+    """
+    @property
+    def phase(self) -> typing.Optional[builtins.int]:
+        r"""
+        Phase that failed: PHASE_BUILD or PHASE_EVAL; None when absent.
+        """
+    @property
+    def byte_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        Byte offset into the msgpack expression payload of the failing element.
+        """
+    @property
+    def op(self) -> typing.Optional[builtins.str]:
+        r"""
+        The failing op name (pre-rendered server-side).
+        """
+    @property
+    def depth(self) -> typing.Optional[builtins.int]:
+        r"""
+        True nesting depth of the fault (accurate even when path was truncated).
+        """
+    @property
+    def path(self) -> typing.Optional[builtins.list[builtins.str]]:
+        r"""
+        Op-name chain from root to fault; may contain a "..." truncation
+        sentinel when nesting exceeded the server's path-frame cap.
+        """
+    @property
+    def snippet(self) -> typing.Optional[builtins.str]:
+        r"""
+        Human-only rendered snippet of the failing element (dropped first
+        under a tight byte budget).
+        """
+    @property
+    def lang(self) -> typing.Optional[builtins.int]:
+        r"""
+        Source language: LANG_MSGPACK (the default) or LANG_AEL.
+        """
+    @property
+    def ael_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        Char offset into AEL source text (reserved for the AEL branch).
+        """
+    @property
+    def ael_span(self) -> typing.Optional[builtins.int]:
+        r"""
+        Byte width of the offending AEL source region (reserved for the AEL branch).
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class FastRng:
@@ -4202,7 +4329,28 @@ class ServerError(builtins.Exception):
     def result_code(self) -> _aerospike_async_native.ResultCode: ...
     @property
     def in_doubt(self) -> builtins.bool: ...
-    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False) -> _aerospike_async_native.ServerError: ...
+    @property
+    def sub_code(self) -> typing.Optional[builtins.int]:
+        r"""
+        Server-supplied error subcode, present when the request asked for
+        extended error detail (``error_detail_verbosity`` >= 1) and the
+        server (>= 8.1.3) attached one. Subcode values are scoped to their
+        parent result code — interpret the (result_code, sub_code) pair.
+        """
+    @property
+    def server_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        Server-supplied error detail message, present at
+        ``error_detail_verbosity`` >= 2 when the server attached one.
+        """
+    @property
+    def exp_trace(self) -> typing.Optional[_aerospike_async_native.ExpressionTrace]:
+        r"""
+        Structured server-supplied expression build trace, present only at
+        ``error_detail_verbosity`` 3 on an expression build failure and when the
+        server build emits one.
+        """
+    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None) -> _aerospike_async_native.ServerError: ...
 
 class Statement:
     r"""
@@ -4237,6 +4385,184 @@ class Statement:
         8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
         CDT, expression, bit, and HLL reads.
         """
+
+@typing.final
+class SubCode:
+    r"""
+    Server-error detail subcodes, re-exported from the client core.
+
+    When extended error detail is requested via
+    error_detail_verbosity on a policy, the server may attach a numeric
+    subcode to a failure, surfaced as ServerError.sub_code. Match on the
+    (result code, subcode) pair: subcode values are scoped to their parent
+    result code and are not globally unique. NONE (0) means no subcode.
+    The catalog is append-only and server-version-specific; treat an
+    unknown value as an opaque integer. Requires server 8.1.3+.
+    """
+    NONE: builtins.int = 0
+    r"""
+    Returned when the server did not supply a subcode.
+    """
+    PARAM_TTL_INVALID: builtins.int = 1
+    r"""
+    Per-record TTL exceeds the namespace's max-ttl.
+    """
+    PARAM_BITS_OFFSET_OUT_OF_RANGE: builtins.int = 2
+    r"""
+    Bit op offset lands past the blob (or above the proto cap).
+    """
+    PARAM_BITS_SIZE_OUT_OF_RANGE: builtins.int = 3
+    r"""
+    Bit op size is out of range (e.g. zero, or too large).
+    """
+    PARAM_BITS_RESIZE_EXCEEDED: builtins.int = 4
+    r"""
+    Blob resize would exceed the maximum blob size.
+    """
+    PARAM_BIN_COUNT_TOO_LARGE: builtins.int = 5
+    r"""
+    Write would exceed the per-record bin-count limit (write path).
+    """
+    PARAM_STRING_OP_PARAMS_INVALID: builtins.int = 6
+    r"""
+    String op wire/expression args malformed or out of range.
+    """
+    PARAM_STRING_OP_INVALID: builtins.int = 7
+    r"""
+    String op code or modifier/read class mismatch on the wire path.
+    """
+    PARAM_STRING_CTX_NOT_APPLICABLE: builtins.int = 8
+    r"""
+    String context-eval path malformed.
+    """
+    PARAM_STRING_INDEX_OUT_OF_BOUNDS: builtins.int = 9
+    r"""
+    String modify/read index or code-point range out of bounds.
+    """
+    PARAM_STRING_REGEX_INVALID: builtins.int = 10
+    r"""
+    String regex pattern invalid (compile / ICU failure).
+    """
+    PARAM_STRING_UTF8_INVALID: builtins.int = 11
+    r"""
+    String or string op argument is not valid UTF-8.
+    """
+    UNAVAIL_INITIAL_BALANCE_UNRESOLVED: builtins.int = 1
+    r"""
+    Cluster is still resolving initial partition balance at startup.
+    """
+    UNAVAIL_REPLICA_UNAVAILABLE: builtins.int = 2
+    r"""
+    A needed replica is unavailable (likely a partition split).
+    """
+    UNSUPP_FEAT_MRT_REQUIRES_STRONG_CONSISTENCY: builtins.int = 1
+    r"""
+    MRT attempted against a non-SC (AP) namespace.
+    """
+    UNSUPP_FEAT_GENERIC: builtins.int = 2
+    r"""
+    Requested feature is unsupported in this context (generic).
+    """
+    BIN_NOT_FOUND_HLL_CANNOT_CREATE_WITH_OP: builtins.int = 1
+    r"""
+    HLL op needs an existing bin and can't auto-create one.
+    """
+    BIN_NOT_FOUND_STRING_VALUE_NOT_FOUND: builtins.int = 2
+    r"""
+    String modify on a missing bin (non-NO_FAIL path).
+    """
+    BIN_NAME_COUNT_TOO_LARGE: builtins.int = 1
+    r"""
+    Write would exceed the per-record bin-count limit (UDF path).
+    """
+    FORBID_XDR_FILTER_BLOCKED: builtins.int = 1
+    r"""
+    Write bounced by an XDR ship filter at the destination.
+    """
+    FORBID_SET_COUNT_STOP_WRITES: builtins.int = 2
+    r"""
+    Set-level record-count stop-writes limit reached.
+    """
+    FORBID_SET_SIZE_STOP_WRITES: builtins.int = 3
+    r"""
+    Set-level size stop-writes limit reached.
+    """
+    FORBID_CLOCK_SKEW_STOP_WRITES: builtins.int = 4
+    r"""
+    Writes stopped due to cluster clock skew.
+    """
+    FORBID_REPLACE_CONFLICT_RESOLVING: builtins.int = 5
+    r"""
+    `REPLACE` / `CREATE_OR_REPLACE` forbidden while resolving conflicts.
+    """
+    FORBID_TRUNCATED: builtins.int = 6
+    r"""
+    Write forbidden because the set/namespace is mid-truncate.
+    """
+    FORBID_DURABILITY_VIOLATION: builtins.int = 8
+    r"""
+    Non-durable delete forbidden (would violate durability).
+    """
+    OPNOT_CDT_INDEX_OUT_OF_BOUNDS: builtins.int = 1
+    r"""
+    List index is outside the current element range.
+    """
+    OPNOT_CDT_RANK_OUT_OF_BOUNDS: builtins.int = 2
+    r"""
+    Requested rank is past the current population.
+    """
+    OPNOT_CDT_BOUNDED_LIST_OVERFLOW: builtins.int = 3
+    r"""
+    Insert would exceed an ordered+bounded list's cap.
+    """
+    OPNOT_HLL_INDEX_BITS_UNSET: builtins.int = 4
+    r"""
+    HLL op needs `index_bits` but the sketch has none set.
+    """
+    OPNOT_HLL_CANNOT_REDUCE_INDEX_BITS: builtins.int = 5
+    r"""
+    Union needs to reduce `index_bits` but folding isn't allowed.
+    """
+    OPNOT_HLL_CANNOT_REDUCE_MINHASH_BITS: builtins.int = 6
+    r"""
+    As above, for the minhash dimension.
+    """
+    OPNOT_HLL_CANNOT_FOLD_MINHASH: builtins.int = 7
+    r"""
+    Fold blocked because the sketch carries minhash bits.
+    """
+    OPNOT_HLL_FOLD_INDEX_BITS_TOO_LARGE: builtins.int = 8
+    r"""
+    Fold target `index_bits` >= current (fold can only reduce).
+    """
+    OPNOT_HLL_INTERSECT_MINHASH_MISMATCH: builtins.int = 9
+    r"""
+    Intersect inputs have mismatched minhash parameters.
+    """
+    OPNOT_STRING_CONVERSION_FAILED: builtins.int = 10
+    r"""
+    String to numeric conversion failed.
+    """
+    OPNOT_STRING_UTF8_INVALID: builtins.int = 11
+    r"""
+    Source blob/string is not valid UTF-8 for an `OpNotApplicable` path.
+    """
+    FILTERED_META: builtins.int = 1
+    r"""
+    Record filtered out by a metadata-only filter expression.
+    """
+    FILTERED_BINS: builtins.int = 2
+    r"""
+    Record filtered out by a bin-reading filter expression.
+    """
+    MRT_BLOCKED_RECORD_LOCKED: builtins.int = 1
+    r"""
+    Record is provisionally locked by another MRT.
+    """
+    MRT_BLOCKED_ID_MISMATCH: builtins.int = 2
+    r"""
+    Op belongs to a different MRT than the one holding the lock.
+    """
 
 class TlsConfig:
     def __new__(cls, cafile: builtins.str) -> _aerospike_async_native.TlsConfig:
