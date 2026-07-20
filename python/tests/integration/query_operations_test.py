@@ -138,23 +138,17 @@ async def tqo_client(aerospike_host, use_services_alternate):
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="session")
-async def tqo_client_812(aerospike_host_8_1_2, use_services_alternate):
-    """Module-scoped client + populated dataset on the 8.1.2+ seed.
+async def tqo_client_812(aerospike_host_812_required, use_services_alternate):
+    """Module-scoped client + populated dataset on the default 8.1.2+ seed.
 
-    Mirrors ``tqo_client`` but connects to ``AEROSPIKE_HOST_8_1_2``. We
-    skip at module scope when the env var is unset (rather than going
-    through ``aerospike_host_812_required``, which is function-scoped) so
-    the dataset isn't seeded against the wrong cluster.
+    Single-host model: connects to the default ``AEROSPIKE_HOST`` via
+    ``aerospike_host_812_required`` (now session-scoped), which skips the
+    module unless the seed is 8.1.2+ (or is unreachable). Point
+    ``AEROSPIKE_HOST`` at an 8.1.2+ build to run these.
     """
-    if not aerospike_host_8_1_2:
-        pytest.skip(
-            "AEROSPIKE_HOST_8_1_2 is unset; tests in this module that need "
-            "an 8.1.2+ cluster require it. Set the env var in aerospike.env "
-            "to enable."
-        )
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate
-    client = await new_client(cp, aerospike_host_8_1_2)
+    client = await new_client(cp, aerospike_host_812_required)
     await _seed_query_dataset(client)
     yield client
     await _drop_query_index(client)

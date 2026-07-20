@@ -59,6 +59,7 @@ mod filter;
 mod operations;
 mod policies;
 mod cluster;
+mod server_error;
 
 pub use enums::*;
 pub use errors::*;
@@ -70,6 +71,7 @@ pub use filter::*;
 pub use operations::*;
 pub use policies::*;
 pub use cluster::*;
+pub use server_error::*;
 pub use tls::*;
 
 define_stub_info_gatherer!(stub_info);
@@ -4316,6 +4318,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<PrivilegeCode>()?;
     m.add_class::<Privilege>()?;
     m.add_class::<ResultCode>()?;
+    m.add_class::<SubCode>()?;
+    m.add_class::<ErrorDetailVerbosity>()?;
+    m.add_class::<ExpressionTrace>()?;
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;

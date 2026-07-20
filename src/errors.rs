@@ -21,6 +21,7 @@ use aerospike_core::errors::Error;
 use aerospike_core::ResultCode as CoreResultCode;
 
 use crate::enums::ResultCode;
+use crate::server_error::ExpressionTrace;
 
 create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::PyException);
 
@@ -32,16 +33,33 @@ create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::
 pub struct ServerError {
     result_code: CoreResultCode,
     in_doubt: bool,
+    sub_code: Option<u32>,
+    server_message: Option<String>,
+    exp_trace: Option<ExpressionTrace>,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl ServerError {
     #[new]
-    #[pyo3(signature = (_message, result_code, in_doubt=false))]
-    fn new(_message: String, result_code: ResultCode, in_doubt: bool) -> PyResult<Self> {
-        // Note: message is handled by the base PyException, we only store result_code and in_doubt
-        Ok(ServerError { result_code: result_code.0, in_doubt })
+    #[pyo3(signature = (_message, result_code, in_doubt=false, sub_code=None, server_message=None, exp_trace=None))]
+    fn new(
+        _message: String,
+        result_code: ResultCode,
+        in_doubt: bool,
+        sub_code: Option<u32>,
+        server_message: Option<String>,
+        exp_trace: Option<ExpressionTrace>,
+    ) -> PyResult<Self> {
+        // Note: message is handled by the base PyException; the fields here
+        // are the structured accessors.
+        Ok(ServerError {
+            result_code: result_code.0,
+            in_doubt,
+            sub_code,
+            server_message,
+            exp_trace,
+        })
     }
 
     #[getter]
@@ -52,6 +70,30 @@ impl ServerError {
     #[getter]
     fn in_doubt(&self) -> bool {
         self.in_doubt
+    }
+
+    /// Server-supplied error subcode, present when the request asked for
+    /// extended error detail (``error_detail_verbosity`` >= 1) and the
+    /// server (>= 8.1.3) attached one. Subcode values are scoped to their
+    /// parent result code — interpret the (result_code, sub_code) pair.
+    #[getter]
+    fn sub_code(&self) -> Option<u32> {
+        self.sub_code
+    }
+
+    /// Server-supplied error detail message, present at
+    /// ``error_detail_verbosity`` >= 2 when the server attached one.
+    #[getter]
+    fn server_message(&self) -> Option<String> {
+        self.server_message.clone()
+    }
+
+    /// Structured server-supplied expression build trace, present only at
+    /// ``error_detail_verbosity`` 3 on an expression build failure and when the
+    /// server build emits one.
+    #[getter]
+    fn exp_trace(&self) -> Option<ExpressionTrace> {
+        self.exp_trace.clone()
     }
 }
 
@@ -65,12 +107,20 @@ fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> Py
 }
 
 // Helper function to create ServerError (or subclass) as a PyErr
-fn create_server_error(message: String, result_code: CoreResultCode, in_doubt: bool) -> PyErr {
+fn create_server_error(
+    message: String,
+    result_code: CoreResultCode,
+    in_doubt: bool,
+    detail: Option<&aerospike_core::ServerErrorDetail>,
+) -> PyErr {
     Python::attach(|py| -> PyErr {
         let exc_cls = resolve_server_error_class(py, result_code)
             .unwrap_or_else(|_| py.get_type::<ServerError>().into_any());
         let rc = ResultCode(result_code);
-        match exc_cls.call1((message.clone(), rc, in_doubt)) {
+        let sub_code = detail.map(|d| d.sub_code);
+        let server_message = detail.map(|d| d.message.clone());
+        let exp_trace = detail.and_then(|d| d.exp_trace.as_ref().map(ExpressionTrace::from_core));
+        match exc_cls.call1((message.clone(), rc, in_doubt, sub_code, server_message, exp_trace)) {
             Ok(obj) => PyErr::from_value(obj),
             Err(e) => e,
         }
@@ -133,9 +183,15 @@ impl From<RustClientError> for PyErr {
             Error::InvalidNode(string) => InvalidNodeError::new_err(string),
             Error::InvalidNamespace(string) => InvalidNamespaceError::new_err(string),
             Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
-            Error::ServerError(result_code, in_doubt, node) => {
-                let message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                create_server_error(message, result_code, in_doubt)
+            Error::ServerError(result_code, in_doubt, node, detail) => {
+                let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+                if let Some(detail) = &detail {
+                    // Extended server error detail (subcode / message / exp
+                    // trace), present when error_detail_verbosity > 0 and the
+                    // server (>= 8.1.3) attached one.
+                    message.push_str(&format!(", Detail: {detail}"));
+                }
+                create_server_error(message, result_code, in_doubt, detail.as_deref())
             },
             Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
             Error::Timeout(string) => TimeoutError::new_err(string),
@@ -167,12 +223,17 @@ impl From<RustClientError> for PyErr {
 
                 // ServerError carries result code + in_doubt + node, so it
                 // wins over transport-level promotions when both are present.
-                if let Some((rc, id, node)) = leaves.iter().find_map(|n| match n {
-                    Error::ServerError(rc, id, node) => Some((*rc, *id, node.as_str())),
+                if let Some((rc, id, node, detail)) = leaves.iter().find_map(|n| match n {
+                    Error::ServerError(rc, id, node, detail) => {
+                        Some((*rc, *id, node.as_str(), detail.as_deref()))
+                    }
                     _ => None,
                 }) {
-                    let message = format!("Code: {:?}, In Doubt: {}, Node: {}", rc, id, node);
-                    return create_server_error(message, rc, id);
+                    let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", rc, id, node);
+                    if let Some(detail) = detail {
+                        message.push_str(&format!(", Detail: {detail}"));
+                    }
+                    return create_server_error(message, rc, id, detail);
                 }
 
                 // Transport-level promotions, in priority order. Timeout and
