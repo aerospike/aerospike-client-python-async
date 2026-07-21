@@ -140,34 +140,20 @@ SERVER_8_1_2 = (8, 1, 2, 0)
 SERVER_8_1_3 = (8, 1, 3, 0)
 
 
-@pytest.fixture(scope="session")
-def aerospike_host_8_1_3():
-    """Seed for an 8.1.3+ Aerospike cluster, when one is available locally.
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_string_operations(server_version):
+    """``True`` when the (default-host) cluster supports server-side string ops.
 
-    Mirrors ``aerospike_host_8_1_2`` for the string-ops feature gate
-    (server 8.1.3+). Returns ``None`` when ``AEROSPIKE_HOST_8_1_3`` is
-    unset; tests should accept this via the ``_813_required`` wrapper
-    rather than handling ``None`` themselves.
+    Covers ``StringOperation`` (strlen / substr / find / concat / upper /
+    replace / pad / to_string / masking) and the string filter expressions,
+    gated server-side via the Rust core's
+    ``Node.version.supports_string_operations()`` (server >= 8.1.3). Single-host
+    model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these; CI
+    covers the version spread via a server matrix rather than a dedicated host
+    var. Tests that need string ops should ``pytest.skip`` when this is
+    ``False``.
     """
-    return os.environ.get('AEROSPIKE_HOST_8_1_3')
-
-
-@pytest.fixture(scope="session")
-def aerospike_host_813_required(aerospike_host_8_1_3):
-    """Returns the 8.1.3+ host or skips the dependent test cleanly.
-
-    Required for string-operations tests (server 8.1.3+ feature, gated
-    server-side via ``Node.version.supports_string_operations()``). Tests
-    that target string ops opt in via the matching ``_813``-suffixed
-    client fixture rather than depending on this directly.
-    """
-    if not aerospike_host_8_1_3:
-        pytest.skip(
-            "AEROSPIKE_HOST_8_1_3 is unset; this test requires an 8.1.3+ "
-            "cluster for string operations. Set AEROSPIKE_HOST_8_1_3 in "
-            "aerospike.env to enable."
-        )
-    return aerospike_host_8_1_3
+    return server_version is not None and server_version >= SERVER_8_1_3
 
 
 def _parse_build_string(build: str):

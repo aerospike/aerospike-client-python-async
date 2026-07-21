@@ -17,13 +17,16 @@
 
 End-to-end coverage of ``StringOperation`` against bins protected by a
 server-side masking rule. Covers the scenarios called out in the
-string-ops spec §4.3. Tests are gated on THREE conditions:
+string-ops spec §4.3. Masking is a security feature, so it targets the
+security-enabled host (``AEROSPIKE_HOST_SEC``), not the default seed. Tests
+are gated on THREE conditions:
 
-1. ``AEROSPIKE_HOST_8_1_3`` is set (string ops + masking are 8.1.3+ features)
-2. Security is enabled on the target cluster (`query_users` succeeds)
-3. Admin credentials are supplied via ``AEROSPIKE_HOST_8_1_3_USER`` /
-   ``AEROSPIKE_HOST_8_1_3_PASSWORD`` (or the test cluster accepts the
-   default `admin/admin`)
+1. ``AEROSPIKE_HOST_SEC`` is set and the cluster is server >= 8.1.3
+   (string ops + masking are 8.1.3+ features)
+2. Security is enabled on that cluster (`query_users` succeeds)
+3. Admin credentials are supplied via ``AEROSPIKE_AUTH_USER`` /
+   ``AEROSPIKE_AUTH_PASSWORD`` (or the cluster accepts the default
+   `admin/admin`)
 
 The suite creates two per-class test users (``stringops_reader`` with
 ``[ReadWrite, ReadMasked]`` and ``stringops_user`` with ``[ReadWrite]``)
@@ -78,9 +81,6 @@ _PROPAGATION_DELAY = 0.5
 
 
 def _services_alternate() -> bool:
-    sa_override = os.environ.get("AEROSPIKE_HOST_8_1_3_USE_SERVICES_ALTERNATE")
-    if sa_override is not None:
-        return sa_override.lower() == "true"
     return os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() == "true"
 
 
@@ -133,23 +133,51 @@ async def _remove_masking(admin_client, *, ns, set_name, bin_name):
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def admin_client(aerospike_host_813_required):
-    """Admin-credentialed client; gates on the cluster having security enabled.
+async def admin_client(aerospike_host_sec):
+    """Admin-credentialed client on the security host; gates on 8.1.3 + security.
 
-    Skips the entire module cleanly if (a) ``AEROSPIKE_HOST_8_1_3`` is unset,
-    (b) security is not enabled, or (c) the credentials don't auth.
+    Masking is both an 8.1.3+ feature and a security feature, so it targets
+    ``AEROSPIKE_HOST_SEC`` rather than the default seed. Skips the entire
+    module cleanly if (a) ``AEROSPIKE_HOST_SEC`` is unset, (b) the cluster is
+    < 8.1.3, (c) security is not enabled, or (d) the credentials don't auth.
+    CI points ``AEROSPIKE_HOST_SEC`` at a security-enabled 8.1.3+ build.
     """
-    user = os.environ.get("AEROSPIKE_HOST_8_1_3_USER", "admin")
-    password = os.environ.get("AEROSPIKE_HOST_8_1_3_PASSWORD", "admin")
+    if not aerospike_host_sec:
+        pytest.skip(
+            "AEROSPIKE_HOST_SEC is unset; masking needs a security-enabled "
+            "8.1.3+ cluster"
+        )
+    user = os.environ.get("AEROSPIKE_AUTH_USER", "admin")
+    password = os.environ.get("AEROSPIKE_AUTH_PASSWORD", "admin")
     cp = ClientPolicy()
     cp.use_services_alternate = _services_alternate()
     cp.user = user
     cp.password = password
     try:
-        client = await new_client(cp, aerospike_host_813_required)
+        client = await new_client(cp, aerospike_host_sec)
     except Exception as exc:
-        pytest.skip(f"Could not connect to {aerospike_host_813_required} as admin: {exc}")
+        pytest.skip(f"Could not connect to {aerospike_host_sec} as admin: {exc}")
     await asyncio.sleep(2)  # tend
+    # Gate on server >= 8.1.3 (string ops + masking feature).
+    def _ver_prefix(part: str) -> int:
+        digits = ""
+        for ch in part:
+            if not ch.isdigit():
+                break
+            digits += ch
+        return int(digits) if digits else 0
+    build = ""
+    try:
+        info = await client.info("build")
+        raw = next((v for v in info.values() if v), "")
+        build = raw.partition("=")[2].strip() if "=" in raw else raw.strip()
+        parts = (build.split(".") + ["0", "0", "0"])[:3]
+        version = tuple(_ver_prefix(p) for p in parts)
+    except Exception:
+        version = (0, 0, 0)
+    if version < (8, 1, 3):
+        await client.close()
+        pytest.skip(f"masking requires server >= 8.1.3; AEROSPIKE_HOST_SEC is {build!r}")
     # Confirm security is enabled by issuing a privilege query
     try:
         await client.query_users(None)
@@ -241,20 +269,20 @@ async def _make_user_client(aerospike_host, user, password):
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def reader_client(aerospike_host_813_required, masking_setup):
+async def reader_client(aerospike_host_sec, masking_setup):
     """Client authenticated as ``stringops_reader`` ([ReadWrite, ReadMasked])."""
     client = await _make_user_client(
-        aerospike_host_813_required, _USER_READER, _USER_PASSWORD
+        aerospike_host_sec, _USER_READER, _USER_PASSWORD
     )
     yield client
     await client.close()
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def basic_client(aerospike_host_813_required, masking_setup):
+async def basic_client(aerospike_host_sec, masking_setup):
     """Client authenticated as ``stringops_user`` ([ReadWrite])."""
     client = await _make_user_client(
-        aerospike_host_813_required, _USER_BASIC, _USER_PASSWORD
+        aerospike_host_sec, _USER_BASIC, _USER_PASSWORD
     )
     yield client
     await client.close()

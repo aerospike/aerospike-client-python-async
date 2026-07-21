@@ -21,8 +21,10 @@ scenarios called out in the string-ops spec §4.1. Spec callouts are
 surfaced as inline comments where the test pins a non-obvious behavior
 (boolean accessor, missing-bin two-class behavior, CTX wrapper).
 
-Tests opt in to an 8.1.3+ cluster via the ``aerospike_host_813_required``
-fixture; they skip cleanly when ``AEROSPIKE_HOST_8_1_3`` is unset.
+Tests target the default ``AEROSPIKE_HOST`` and skip cleanly via the
+``supports_string_operations`` capability gate unless it is server >= 8.1.3.
+Point ``AEROSPIKE_HOST`` at an 8.1.3+ build to run them; CI covers the
+version spread via a server matrix.
 """
 
 import pytest
@@ -61,39 +63,23 @@ _SET = "tstrop"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def string_client_813(aerospike_host_813_required, use_services_alternate):
-    """Function-scoped client connected to the 8.1.3+ seed.
+async def string_client_813(aerospike_host, supports_string_operations, use_services_alternate):
+    """Module-scoped client for server-side string ops (server >= 8.1.3).
 
-    Used by tests that exercise server-side string ops. The dependent
-    ``aerospike_host_813_required`` fixture skips the test cleanly when
-    ``AEROSPIKE_HOST_8_1_3`` is unset.
-
-    Services-alternate handling: defaults to the global
-    ``AEROSPIKE_USE_SERVICES_ALTERNATE`` env value (consistent with all
-    other PAC test clients). A per-host override
-    ``AEROSPIKE_HOST_8_1_3_USE_SERVICES_ALTERNATE`` is honored when set —
-    useful when the 8.1.3+ cluster sits at a different network topology
-    from the broad-surface seed (e.g. external bench host at a public IP
-    vs containerized localhost).
-
-    Reads ``AEROSPIKE_HOST_8_1_3_USER`` / ``AEROSPIKE_HOST_8_1_3_PASSWORD``
-    when present; falls back to no auth otherwise.
+    Single-host model: connects to the default ``AEROSPIKE_HOST`` and skips
+    cleanly via ``supports_string_operations`` unless that cluster is 8.1.3+.
+    Point ``AEROSPIKE_HOST`` at an 8.1.3+ build to run these; CI covers the
+    version spread via a server matrix rather than a dedicated host var.
     """
+    if not supports_string_operations:
+        pytest.skip(
+            "string operations require server >= 8.1.3; point AEROSPIKE_HOST "
+            "at an 8.1.3+ build to run these"
+        )
     import asyncio as _asyncio
-    import os as _os
     cp = ClientPolicy()
-    sa_override = _os.environ.get("AEROSPIKE_HOST_8_1_3_USE_SERVICES_ALTERNATE")
-    if sa_override is not None:
-        cp.use_services_alternate = sa_override.lower() == "true"
-    else:
-        cp.use_services_alternate = use_services_alternate
-    user = _os.environ.get("AEROSPIKE_HOST_8_1_3_USER")
-    password = _os.environ.get("AEROSPIKE_HOST_8_1_3_PASSWORD")
-    if user:
-        cp.user = user
-    if password:
-        cp.password = password
-    client = await new_client(cp, aerospike_host_813_required)
+    cp.use_services_alternate = use_services_alternate
+    client = await new_client(cp, aerospike_host)
     # ``new_client`` returns once the seed handshake succeeds; the first
     # cluster-tend cycle that populates per-namespace partition maps may
     # not have completed yet. Without this delay, the first op against the
@@ -711,7 +697,7 @@ class TestServerVersionGate:
         node_names = await string_client_813.node_names()
         node = await string_client_813.get_node(node_names[0])
         assert node.version.supports_string_operations() is True, (
-            f"AEROSPIKE_HOST_8_1_3 cluster reports server "
+            f"AEROSPIKE_HOST cluster reports server "
             f"{node.version} which does NOT advertise string-op support. "
             "Server-side string ops require >= 8.1.3."
         )

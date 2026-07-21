@@ -18,8 +18,8 @@
 Scenarios mirror rust-core's ``tests/src/exp_string.rs`` and cover the
 filter-expression scenarios called out in the string-ops spec §4.2.
 
-Tests opt in to an 8.1.3+ cluster via the ``aerospike_host_813_required``
-fixture; they skip cleanly when ``AEROSPIKE_HOST_8_1_3`` is unset.
+Tests target the default ``AEROSPIKE_HOST`` and skip cleanly via the
+``supports_string_operations`` capability gate unless it is server >= 8.1.3.
 
 NOT exercised (per spec §4.2): the literal-source regex form
 ``string_regex_compare(Exp.val(pattern), Exp.val(literal))`` — the server
@@ -55,24 +55,20 @@ _SET = "tstrexp"
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def string_client_813(aerospike_host_813_required, use_services_alternate):
-    """8.1.3+ client. See ``operate_string_test.py:string_client_813`` for
-    the rationale on services-alternate handling + env-var-driven creds."""
+async def string_client_813(aerospike_host, supports_string_operations, use_services_alternate):
+    """8.1.3+ client. See ``operate_string_test.py:string_client_813``.
+
+    Single-host model: default ``AEROSPIKE_HOST`` + ``supports_string_operations``
+    capability gate (server >= 8.1.3)."""
+    if not supports_string_operations:
+        pytest.skip(
+            "string operations require server >= 8.1.3; point AEROSPIKE_HOST "
+            "at an 8.1.3+ build to run these"
+        )
     import asyncio as _asyncio
-    import os as _os
     cp = ClientPolicy()
-    sa_override = _os.environ.get("AEROSPIKE_HOST_8_1_3_USE_SERVICES_ALTERNATE")
-    if sa_override is not None:
-        cp.use_services_alternate = sa_override.lower() == "true"
-    else:
-        cp.use_services_alternate = use_services_alternate
-    user = _os.environ.get("AEROSPIKE_HOST_8_1_3_USER")
-    password = _os.environ.get("AEROSPIKE_HOST_8_1_3_PASSWORD")
-    if user:
-        cp.user = user
-    if password:
-        cp.password = password
-    client = await new_client(cp, aerospike_host_813_required)
+    cp.use_services_alternate = use_services_alternate
+    client = await new_client(cp, aerospike_host)
     await _asyncio.sleep(2)  # let first tend populate partition map
     yield client
     await client.close()

@@ -24,10 +24,10 @@ Covers a focused subset mirroring the reference CDT-expression suite:
   ``CTX.map_keys_in`` (the latter is a new server-8.1.2 helper).
 - ``ExpReadFlags.DEFAULT`` and ``ExpWriteFlags.UPDATE_ONLY`` flag plumbing.
 
-Server-8.1.2-only tests consume ``cdt_client_812``, which auto-routes to
-``AEROSPIKE_HOST_8_1_2`` when the env var is set and skips cleanly
-otherwise. 8.1.1+ path-form tests stay on ``cdt_client`` (the broad-surface
-seed) so they continue to pass on a pre-8.1.2 cluster running 8.1.1+.
+Server-8.1.2-only tests consume ``cdt_client_812``, which uses the default
+``AEROSPIKE_HOST`` and skips cleanly unless that cluster is 8.1.2+. 8.1.1+
+path-form tests stay on ``cdt_client`` (the same default seed). Point
+``AEROSPIKE_HOST`` at an 8.1.2+ build to run the 8.1.2 subset.
 """
 
 import pytest
@@ -81,9 +81,9 @@ async def cdt_client_812(aerospike_host_812_required, use_services_alternate):
     """Function-scoped client connected to the 8.1.2+ seed.
 
     Used by tests that exercise server-8.1.2-only features. The dependent
-    fixture ``aerospike_host_812_required`` skips the test cleanly when
-    ``AEROSPIKE_HOST_8_1_2`` is unset, so individual tests can drop their
-    inline ``pytest.skip(...)`` boilerplate.
+    fixture ``aerospike_host_812_required`` connects to the default
+    ``AEROSPIKE_HOST`` and skips the test cleanly unless it is 8.1.2+, so
+    individual tests can drop their inline ``pytest.skip(...)`` boilerplate.
     """
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate

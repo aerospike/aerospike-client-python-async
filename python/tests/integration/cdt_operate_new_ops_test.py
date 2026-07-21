@@ -75,11 +75,12 @@ async def cdt_op_client(aerospike_host, use_services_alternate):
 
 @pytest_asyncio.fixture(scope="function", loop_scope="session")
 async def cdt_op_client_812(aerospike_host_812_required, use_services_alternate):
-    """Function-scoped client connected to the 8.1.2+ seed.
+    """Function-scoped client on the default seed, required to be 8.1.2+.
 
-    The dependent ``aerospike_host_812_required`` fixture skips the test
-    cleanly when ``AEROSPIKE_HOST_8_1_2`` is unset, so individual tests
-    can drop their inline ``pytest.skip(...)`` boilerplate.
+    The dependent ``aerospike_host_812_required`` fixture connects to the
+    default ``AEROSPIKE_HOST`` and skips the test cleanly unless it is
+    8.1.2+, so individual tests can drop their inline ``pytest.skip(...)``
+    boilerplate.
     """
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate
