@@ -140,6 +140,16 @@ impl CompletionInner {
         if pending.is_empty() {
             return;
         }
+        // Shutdown-safety guard: never `Python::attach` from a Tokio worker
+        // while the interpreter is finalizing.  On a free-threaded build,
+        // attaching here creates a fresh `PyThreadState` for this worker whose
+        // biased-refcount teardown (`_Py_brc_remove_thread`) then null-derefs
+        // during finalization (EXC_BAD_ACCESS).  The futures are unreachable
+        // during process teardown, so drop `pending` — its `Py` refs release
+        // via pyo3's deferred mechanism, no attach required.
+        if interpreter_unavailable() {
+            return;
+        }
         Python::attach(|py| {
             for pr in pending {
                 let future = pr.future.bind(py);
@@ -175,7 +185,37 @@ impl CompletionBridge {
     }
 }
 
+/// True when the interpreter cannot be safely attached to from a non-Python
+/// thread — either not yet initialized or already finalizing.  On free-threaded
+/// builds, `Python::attach` from a Tokio worker during finalization registers a
+/// `PyThreadState` whose biased-refcount teardown crashes; guard every
+/// worker-side cold path with this.
+pub(crate) fn interpreter_unavailable() -> bool {
+    unsafe {
+        if pyo3::ffi::Py_IsInitialized() == 0 {
+            return true;
+        }
+        // `Py_IsFinalizing` is Python 3.13+ (pyo3-ffi gates it on `Py_3_13`).
+        // The teardown crash it guards against is a free-threaded (3.13t+)
+        // hazard, so on older ABIs the initialized check alone suffices.
+        #[cfg(Py_3_13)]
+        {
+            pyo3::ffi::Py_IsFinalizing() != 0
+        }
+        #[cfg(not(Py_3_13))]
+        {
+            false
+        }
+    }
+}
+
 fn fail_pr(pr: PendingResult, msg: &'static str) {
+    // Shutdown-safety guard (see `fail_all_pending`): don't attach during
+    // finalization.  Dropping `pr` releases its `Py` ref via pyo3's deferred
+    // drop; the future is unreachable during teardown anyway.
+    if interpreter_unavailable() {
+        return;
+    }
     Python::attach(|py| {
         let future = pr.future.bind(py);
         let err = pyo3::exceptions::PyRuntimeError::new_err(msg);

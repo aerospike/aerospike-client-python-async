@@ -893,20 +893,20 @@ use crate::record::{Key, PythonValue, Record};
 
                 if let Some(ref mut stream) = *stream_opt {
                     use futures::StreamExt;
+                    // Return a plain (Send) Rust value; the CompletionBridge's
+                    // converter builds the Python `Record` on the drainer/loop
+                    // thread. Never `Python::attach` here — this runs on a Tokio
+                    // worker, and registering a PyThreadState on a worker
+                    // segfaults on free-threaded finalization teardown (see the
+                    // invariant in waker.rs and the lazy pattern in errors.rs).
+                    // `PyErr::from(RustClientError(..))` is lazy, so the error
+                    // arm never attaches on the worker either.
                     match stream.as_mut().next().await {
                         Some(Ok(rec)) => {
-                            Python::attach(|py| -> PyResult<Py<PyAny>> {
-                                let res = Record { _as: rec, cached_bins: None };
-                                let py_obj: Py<PyAny> = res.into_pyobject(py)?.unbind().into();
-                                Ok(py_obj)
-                            })
+                            Ok(Record { _as: rec, cached_bins: None, cached_results: None })
                         }
-                        Some(Err(e)) => {
-                            Err(PyErr::from(RustClientError(e)))
-                        }
-                        None => {
-                            Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
-                        }
+                        Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
+                        None => Err(PyStopAsyncIteration::new_err("Recordset iteration complete")),
                     }
                 } else {
                     Err(PyStopAsyncIteration::new_err("Recordset iteration complete"))
@@ -960,7 +960,7 @@ use crate::record::{Key, PythonValue, Record};
             })?;
 
             match result {
-                Some(rec) => Ok(Record { _as: rec, cached_bins: None }),
+                Some(rec) => Ok(Record { _as: rec, cached_bins: None, cached_results: None }),
                 None => Err(pyo3::exceptions::PyStopIteration::new_err(())),
             }
         }

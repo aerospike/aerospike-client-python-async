@@ -93,6 +93,10 @@ __all__ = [
     "ServerError",
     "SpecialValue",
     "Statement",
+    "StringNumericType",
+    "StringOperation",
+    "StringRegexFlags",
+    "StringWriteFlags",
     "SubCode",
     "TaskStatus",
     "TlsConfig",
@@ -634,7 +638,7 @@ class CdtOperation:
             flag: Controls what is returned. Pass any combination of
                 ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
                 SelectFlags.NO_FAIL``) — the resulting value is a plain
-                ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
+                ``int`` bitmask.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
         Returns:
@@ -661,7 +665,7 @@ class CdtOperation:
             bin_name: Name of the bin containing the top-level CDT.
             flag: Controls error-handling behavior. Pass any combination of
                 ``ModifyFlags`` constants — the resulting value is a plain
-                ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
+                ``int`` bitmask.
             exp: Expression that produces the value to write.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
@@ -1842,9 +1846,9 @@ class FastRng:
     that want sub-100 ns random number generation per call. CPython's
     stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     fine for general use, but a measurable handicap in benchmark hot
-    loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    and Rust core uses `SmallRng` for the same reason; this exposes the
-    equivalent to Python so benchmark methodology stays apples-to-apples.
+    loops where every µs counts. Rust core uses `SmallRng` for the
+    same reason; this exposes the equivalent to Python so benchmark
+    methodology stays consistent across language layers.
 
     Not thread-safe — construct one per worker thread / task.
     """
@@ -2061,6 +2065,22 @@ class FilterExpression:
     def geo_compare(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Create compare geospatial operation.
+        """
+    @staticmethod
+    def val(value: typing.Any) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Build a value expression from a Python value, dispatching by type.
+
+        Single-entry alternative to the typed accessors (``bool_val``,
+         ``int_val``, ``float_val``, ``string_val``, ``blob_val``,
+         ``list_val``, ``map_val``, ``geo_val``, ``nil``). The Python type of
+        *value* selects which underlying constructor is invoked; ``None``
+        maps to :meth:`nil`. ``GeoJSON`` strings and HLL bytes should
+        continue to use :meth:`geo_val` / typed accessors explicitly when
+        the literal form is ambiguous.
+
+        Raises ``TypeError`` for values that don't correspond to a
+        supported variant (e.g. ``SpecialValue`` sentinels).
         """
     @staticmethod
     def int_val(val: builtins.int) -> _aerospike_async_native.FilterExpression:
@@ -3175,6 +3195,229 @@ class FilterExpression:
 
         Requires Aerospike Server version >= 8.1.1.
         """
+    @staticmethod
+    def string_strlen(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Codepoint count of `src` as an INT (NOT byte count — use `string_byte_length`).
+        """
+    @staticmethod
+    def string_substr(start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Substring of `src` from codepoint `start` to the end.
+        """
+    @staticmethod
+    def string_substr_range(start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Substring of `src` over the half-open codepoint range ``[start, end)``.
+        The second arg is named ``end`` (exclusive index) to reflect the
+        server's actual decoder behavior — rust-core's parameter name
+        "length" in its docstring is misleading.
+        """
+    @staticmethod
+    def string_char_at(index: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Codepoint at `index` (one-codepoint string).
+        """
+    @staticmethod
+    def string_find(needle: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        First-match codepoint index of `needle` in `src` (-1 if absent).
+        """
+    @staticmethod
+    def string_find_nth(needle: _aerospike_async_native.FilterExpression, occurrence: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        N-th-match codepoint index of `needle` in `src` (1 = first, -1 = last; -1 if absent).
+        """
+    @staticmethod
+    def string_contains(needle: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` contains `needle` as a substring.
+        """
+    @staticmethod
+    def string_starts_with(prefix: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` starts with `prefix`.
+        """
+    @staticmethod
+    def string_ends_with(suffix: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` ends with `suffix`.
+        """
+    @staticmethod
+    def string_to_integer(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Parse `src` as INT. Returns PARAMETER_ERROR on unparseable input.
+        """
+    @staticmethod
+    def string_to_double(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Parse `src` as FLOAT (f64). Returns PARAMETER_ERROR on unparseable input.
+        """
+    @staticmethod
+    def string_byte_length(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        UTF-8 byte length of `src` (differs from `string_strlen` for non-ASCII).
+        """
+    @staticmethod
+    def string_is_numeric(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` parses as a number (integer or float).
+        """
+    @staticmethod
+    def string_is_numeric_typed(numeric_type: _aerospike_async_native.StringNumericType, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` parses as the requested numeric type.
+        """
+    @staticmethod
+    def string_is_upper(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — every cased codepoint in `src` is uppercase.
+        """
+    @staticmethod
+    def string_is_lower(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — every cased codepoint in `src` is lowercase.
+        """
+    @staticmethod
+    def string_to_blob(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BLOB — UTF-8 bytes of `src`.
+        """
+    @staticmethod
+    def string_split(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns LIST — `src` split by codepoint (one element per codepoint).
+        """
+    @staticmethod
+    def string_split_by_separator(separator: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns LIST — `src` split by `separator`.
+        """
+    @staticmethod
+    def string_b64_decode(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BLOB — `src` treated as base64-encoded text, decoded to bytes.
+        """
+    @staticmethod
+    def string_regex_compare(pattern: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` matches ICU regex `pattern`. Use
+        `string_regex_compare_with_flags` to pass case-insensitive etc.
+        flags.
+
+        Server-side limitation (spec §4.2): the expression engine does
+        NOT honor a literal source via ``Exp.val(...)`` —
+        ``string_regex_compare(Exp.val("pat"), Exp.val("text"))`` returns
+        OP_NOT_APPLICABLE (26). Only bin-sourced inputs are verified.
+        """
+    @staticmethod
+    def string_regex_compare_with_flags(pattern: _aerospike_async_native.FilterExpression, regex_flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` matches ICU regex `pattern` with the given
+        `regex_flags` (OR-combined `StringRegexFlags` bitmask).
+        """
+    @staticmethod
+    def string_insert(flags: builtins.int, index: _aerospike_async_native.FilterExpression, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` spliced in at codepoint `index`.
+        """
+    @staticmethod
+    def string_overwrite(flags: builtins.int, index: _aerospike_async_native.FilterExpression, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with codepoints starting at `index` overwritten by `value`.
+        """
+    @staticmethod
+    def string_concat(flags: builtins.int, values: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` concatenated with the LIST-yielding `values` expression.
+        Per spec §3.7 the expression-path `concat` always takes a list source;
+        single-string callers must wrap via ``FilterExpression.list_val([s])``.
+        """
+    @staticmethod
+    def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
+        ``end`` is required (server's snip table has no 1-arg form — see
+        the matching ``StringOperation.snip`` note).
+        """
+    @staticmethod
+    def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the first occurrence of `needle` replaced by `replacement`.
+        """
+    @staticmethod
+    def string_replace_all(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with every occurrence of `needle` replaced by `replacement`.
+        """
+    @staticmethod
+    def string_upper(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` uppercased.
+        """
+    @staticmethod
+    def string_lower(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` lowercased.
+        """
+    @staticmethod
+    def string_case_fold(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with locale-independent case fold applied.
+        """
+    @staticmethod
+    def string_normalize_nfc(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` normalized to Unicode NFC form.
+        """
+    @staticmethod
+    def string_trim_start(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from the start.
+        """
+    @staticmethod
+    def string_trim_end(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from the end.
+        """
+    @staticmethod
+    def string_trim(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from both ends.
+        """
+    @staticmethod
+    def string_pad_start(flags: builtins.int, target_length: _aerospike_async_native.FilterExpression, pad_string: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` left-padded with `pad_string` to `target_length` codepoints.
+        """
+    @staticmethod
+    def string_pad_end(flags: builtins.int, target_length: _aerospike_async_native.FilterExpression, pad_string: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` right-padded with `pad_string` to `target_length` codepoints.
+        """
+    @staticmethod
+    def string_repeat(flags: builtins.int, count: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` contents repeated `count` times.
+        """
+    @staticmethod
+    def string_regex_replace(pattern: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, regex_flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the first match of `pattern` replaced by
+        `replacement`. Set the `GLOBAL` bit in `regex_flags` to replace every match.
+
+        Note: rust-core's signature includes `_policy` for API symmetry; the
+        wire payload has no write-flags slot (the server rejects messages
+        that pack one). PAC passes the default policy and surfaces only
+        `regex_flags` here.
+        """
+    @staticmethod
+    def string_to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
+        Uses CALL_REPR module (id 4) internally; on the wire path this is a separate dispatcher
+        from the other string expressions (CALL_STRING, id 3).
+        """
 
 class GeoJSON:
     @property
@@ -3360,8 +3603,7 @@ class Key:
 
         Per-op cost drops from ~2 µs (PyO3 PythonValue dispatch +
         Python str()) to ~500 ns (positional PyO3 call + Rust string
-        alloc). JSDK does the equivalent in one Java ``new Key(...)``
-        call at ~50 ns; we close most of the gap.
+        alloc).
         """
     @staticmethod
     def key_with_digest(namespace: builtins.str, set: builtins.str, digest: typing.Any) -> _aerospike_async_native.Key:
@@ -3929,7 +4171,7 @@ class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    Namespace of plain ``int`` constants. Combine with bitwise OR — the
     result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
@@ -4033,12 +4275,12 @@ class Operation:
     @staticmethod
     def append(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create an Append operation (appends to string bin value).
+        Create an Append operation (byte-level append to a string or bytes bin).
         """
     @staticmethod
     def prepend(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create a Prepend operation (prepends to string bin value).
+        Create a Prepend operation (byte-level prepend to a string or bytes bin).
         """
 
 @typing.final
@@ -4127,12 +4369,35 @@ class Record:
     @property
     def bins(self) -> typing.Any: ...
     @property
+    def results(self) -> typing.Optional[typing.Any]:
+        r"""
+        Positional results, one slot per op in request order.
+
+        Use ``record.results`` when the request issued multiple ops and you
+        need to address each result by its op index — e.g. a chain that
+        modifies a bin and reads it back in the same execute. Slots for
+        ops that produced no value carry Python ``None``.
+
+        For by-name access, prefer ``record.bins`` (cheaper for the common
+        case of one op per bin).
+        """
+    @property
     def generation(self) -> typing.Optional[builtins.int]: ...
     @property
     def ttl(self) -> typing.Optional[builtins.int]: ...
     @property
     def key(self) -> typing.Optional[_aerospike_async_native.Key]: ...
     def bin(self, name: builtins.str) -> typing.Optional[typing.Any]: ...
+    def operation_result(self, i: builtins.int) -> typing.Optional[typing.Any]:
+        r"""
+        Return the positional result for the *i*-th op in the request,
+        or ``None`` if *i* is out of range.
+
+        Equivalent to ``record.results[i]`` but without bounds-error noise:
+        out-of-range returns Python ``None`` (matching the in-range
+        nil-result encoding). Use this when the request size is dynamic
+        and the caller wants a uniform optional shape.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -4157,7 +4422,7 @@ class RegexFlag:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Namespace of plain ``int`` constants. Bit values match the
     Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
@@ -4304,7 +4569,7 @@ class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    Namespace of plain ``int`` constants. Combine with bitwise OR
     (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
     suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
@@ -4384,6 +4649,242 @@ class Statement:
         Foreground queries accept only read ops. Server versions before
         8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
         CDT, expression, bit, and HLL reads.
+        """
+
+class StringOperation:
+    r"""
+    String bin operations (server 8.1.3+). Use these to inspect or modify
+    string bins via the client's ``operate()`` method.
+
+    Index orientation is left-to-right with codepoint addressing. Negative
+    indexes count from the end of the string (-1 = last codepoint).
+    Out-of-bounds indexes are clamped to the valid range.
+
+    CTX navigation: every factory (except ``to_string``) accepts an optional
+    trailing ``ctx`` argument selecting a string element nested inside a
+    list/map bin. With ``ctx=None`` the op targets the bin itself.
+    """
+    @staticmethod
+    def strlen(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Codepoint count (NOT byte count — use ``byte_length`` for bytes).
+        """
+    @staticmethod
+    def substr(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Substring from codepoint ``start`` to the end (when ``end`` is None),
+        or the half-open range ``[start, end)`` (when ``end`` is given).
+        Negative indexes count from the end; out-of-bounds clamp.
+        """
+    @staticmethod
+    def char_at(bin: builtins.str, index: builtins.int, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Codepoint at ``index`` as a one-codepoint string. Negative = from end.
+        """
+    @staticmethod
+    def find(bin: builtins.str, needle: builtins.str, occurrence: typing.Optional[builtins.int] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        First-match codepoint index of ``needle`` (returns -1 if absent), or
+        the N-th-match index when ``occurrence`` is given (1 = first match,
+        -1 = last match).
+        """
+    @staticmethod
+    def contains(bin: builtins.str, needle: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin contains ``needle`` as a substring.
+        """
+    @staticmethod
+    def starts_with(bin: builtins.str, prefix: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin starts with ``prefix``.
+        """
+    @staticmethod
+    def ends_with(bin: builtins.str, suffix: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin ends with ``suffix``.
+        """
+    @staticmethod
+    def to_integer(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Parse the bin as an integer. Returns PARAMETER_ERROR if unparseable.
+        """
+    @staticmethod
+    def to_double(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Parse the bin as a float (f64). Returns PARAMETER_ERROR if unparseable.
+        """
+    @staticmethod
+    def byte_length(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        UTF-8 byte length (differs from ``strlen`` for non-ASCII content).
+        """
+    @staticmethod
+    def is_numeric(bin: builtins.str, numeric_type: typing.Optional[_aerospike_async_native.StringNumericType] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin contains a valid number. Pass ``numeric_type`` to
+        restrict to integer-only (``StringNumericType.INT``) or float-only
+        (``StringNumericType.FLOAT``).
+        """
+    @staticmethod
+    def is_upper(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if every cased codepoint is uppercase.
+        """
+    @staticmethod
+    def is_lower(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if every cased codepoint is lowercase.
+        """
+    @staticmethod
+    def to_blob(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Return the UTF-8 bytes of the string as a blob.
+        """
+    @staticmethod
+    def split(bin: builtins.str, separator: typing.Optional[builtins.str] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Split the bin into a list of strings. With ``separator=None`` returns
+        one element per codepoint.
+        """
+    @staticmethod
+    def b64_decode(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Treat the bin as base64-encoded text and return the decoded bytes.
+        """
+    @staticmethod
+    def regex_compare(bin: builtins.str, pattern: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the ICU regex ``pattern`` matches the bin. ``flags`` is an
+        OR-combined ``StringRegexFlags`` bitmask (or 0 for no flags).
+        """
+    @staticmethod
+    def insert(bin: builtins.str, index: builtins.int, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Splice ``value`` into the bin at codepoint ``index``. Negative index
+        counts from the end.
+        """
+    @staticmethod
+    def overwrite(bin: builtins.str, index: builtins.int, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Overwrite codepoints starting at ``index`` with ``value``. May extend
+        past the original length.
+        """
+    @staticmethod
+    def concat(bin: builtins.str, value: typing.Any, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``value`` to the bin. Accepts either a single string or a
+        list of strings; the list form appends each element in order.
+        """
+    @staticmethod
+    def append(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``value`` to the end of the bin. Single-value form (server sub-op
+        67); use ``concat`` for the list form.
+        """
+    @staticmethod
+    def prepend(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Prepend ``value`` to the start of the bin. Distinct from ``insert(0, …)``
+        — this is the server's dedicated prepend sub-op (68).
+        """
+    @staticmethod
+    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Remove the half-open codepoint range ``[start, end)`` from the bin.
+
+        Note: ``end`` is required. The server's snip op table cannot dispatch
+        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
+        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
+        producing an empty range and a silent no-op. To snip from ``start``
+        through the end of the bin, the caller must supply the codepoint
+        length explicitly (via a ``strlen`` read).
+        """
+    @staticmethod
+    def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace the first occurrence of ``needle`` with ``replacement``.
+        """
+    @staticmethod
+    def replace_all(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace every occurrence of ``needle`` with ``replacement``.
+        """
+    @staticmethod
+    def upper(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Uppercase the bin in place.
+        """
+    @staticmethod
+    def lower(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Lowercase the bin in place.
+        """
+    @staticmethod
+    def case_fold(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Apply a locale-independent case fold (lowercase). Useful for
+        normalized comparison keys.
+        """
+    @staticmethod
+    def normalize_nfc(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Normalize the bin to Unicode NFC form. Already-normalized strings
+        are unchanged.
+        """
+    @staticmethod
+    def trim_start(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from the start of the bin.
+        """
+    @staticmethod
+    def trim_end(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from the end of the bin.
+        """
+    @staticmethod
+    def trim(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from both ends of the bin.
+        """
+    @staticmethod
+    def pad_start(bin: builtins.str, target_length: builtins.int, pad_string: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Prepend ``pad_string`` repeatedly until the bin reaches
+        ``target_length`` codepoints. No-op if already at or above target.
+        """
+    @staticmethod
+    def pad_end(bin: builtins.str, target_length: builtins.int, pad_string: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``pad_string`` repeatedly until the bin reaches
+        ``target_length`` codepoints. No-op if already at or above target.
+        """
+    @staticmethod
+    def repeat(bin: builtins.str, count: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Repeat the bin contents ``count`` times. ``count`` must be non-negative.
+        """
+    @staticmethod
+    def regex_replace(bin: builtins.str, pattern: builtins.str, replacement: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace the first match of ``pattern`` (ICU regex) with
+        ``replacement``. Pass ``StringRegexFlags.GLOBAL`` in ``flags`` to
+        replace every match.
+
+        Note: ``flags`` here carries regex flags, NOT write flags. The wire
+        payload for ``regex_replace`` has no slot for write flags — the
+        server rejects messages that include one. This method accepts only
+        the regex-flags bitmask for that reason.
+        """
+    @staticmethod
+    def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:
+        r"""
+        Convert a non-string bin (integer, float, string, or blob) to its
+        string representation. Returns BIN_TYPE_ERROR for any other bin type.
+
+        Note: ``to_string`` does NOT accept a CTX argument — the wire format
+        is a top-level op with no payload, so there is no place to put a
+        CTX path. To convert a value nested inside a list or map, extract
+        the leaf with ``ListOperation`` / ``MapOperation`` first.
         """
 
 @typing.final
@@ -4780,6 +5281,14 @@ class Version:
         r"""
         Returns true if server supports Multi-Record Transactions
         (MRT). Requires server >= 8.0.0.
+        """
+    def supports_string_operations(self) -> builtins.bool:
+        r"""
+        Returns true if server supports the string-operations module
+        (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
+        ``TO_STRING`` op-type 19) and the matching string-expression
+        dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
+        Requires server >= 8.1.3.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
@@ -5284,6 +5793,80 @@ class SpecialValue(enum.Enum):
     WILDCARD = ...
     r"""
     Wildcard particle for value matching.
+    """
+
+@typing.final
+class StringNumericType(enum.Enum):
+    r"""
+    Numeric-type filter for `StringOperation.is_numeric`. Default `ANY`
+    matches integers or floats; restrict to one or the other with `INT` /
+    `FLOAT`.
+    """
+    ANY = ...
+    r"""
+    Match either an integer or a floating-point number.
+    """
+    INT = ...
+    r"""
+    Match only integers.
+    """
+    FLOAT = ...
+    r"""
+    Match only floating-point numbers.
+    """
+
+@typing.final
+class StringRegexFlags(enum.Enum):
+    r"""
+    ICU regex flags for `regex_compare` and `regex_replace`. Combine with
+    bitwise OR. Default is no flags.
+    """
+    DEFAULT = ...
+    r"""
+    No flags.
+    """
+    CASE_INSENSITIVE = ...
+    r"""
+    Case-insensitive matching.
+    """
+    MULTILINE = ...
+    r"""
+    Multi-line: `^` and `$` match the start and end of any line.
+    """
+    DOTALL = ...
+    r"""
+    `.` matches any character including line terminators. Spelled
+    `DOTALL` (one word) to match Python's stdlib `re.DOTALL`;
+    rust-core spells the same flag `DOT_ALL`.
+    """
+    UNIX_LINES = ...
+    r"""
+    Only `\n` is treated as a line terminator (Unix-style line endings).
+    """
+    GLOBAL = ...
+    r"""
+    `regex_replace` only — replace every match (default replaces only
+    the first match).
+    """
+
+@typing.final
+class StringWriteFlags(enum.Enum):
+    r"""
+    Per-operation write flags for string modify ops.
+
+    Two values are valid; the server-side enumeration was trimmed in commit
+    `fe5a346e` (2026-04-17). `CREATE_ONLY` and `UPDATE_ONLY` previously
+    existed but are no longer recognized.
+    """
+    DEFAULT = ...
+    r"""
+    Default. Allow create or update.
+    """
+    NO_FAIL = ...
+    r"""
+    Do not raise an error if the operation cannot be applied (e.g. wrong
+    bin type). The bin is left unchanged and the op result is the
+    canonical null value.
     """
 
 @typing.final

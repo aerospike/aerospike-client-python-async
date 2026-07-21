@@ -270,6 +270,7 @@ async def test_wildcard_cannot_be_stored_in_list(client_and_key):
 # 3. Known core bug: xfail
 # ---------------------------------------------------------------------------
 
+@pytest.mark.slow
 @pytest.mark.xfail(
     reason="Rust core panics at value.rs:254 when serializing SpecialValue "
            "as a top-level bin value; should return an error instead",
@@ -277,6 +278,12 @@ async def test_wildcard_cannot_be_stored_in_list(client_and_key):
     strict=True,
 )
 async def test_put_special_value_as_bin_panics(client_and_key):
-    """Storing a SpecialValue sentinel as a top-level bin value triggers a core panic."""
+    """Storing a SpecialValue sentinel as a top-level bin value triggers a core panic.
+
+    Marked ``slow`` because the panic surfaces only after the client's
+    full retry/backoff cycle completes — the wall-clock can run to tens
+    of seconds depending on policy timeouts. Skip with ``-m "not slow"``
+    during normal dev iteration.
+    """
     client, key, wp = client_and_key
     await client.put(key, {"bad": SpecialValue.INFINITY}, policy=wp)

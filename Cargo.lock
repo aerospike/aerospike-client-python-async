@@ -69,6 +69,7 @@ dependencies = [
  "ordered-float 3.9.2",
  "pyo3",
  "pyo3-async-runtimes",
+ "pyo3-build-config",
  "pyo3-log",
  "pyo3-stub-gen",
  "rand 0.8.6",

@@ -18,15 +18,15 @@
 Backward-compat cases (``Operation.get_bin``) run against any 8.1.x server
 via ``tqo_client``. Cases that attach non-basic-read ops
 (``ExpOperation.read``, CDT reads) require server >= 8.1.2 and consume
-``tqo_client_812``, which auto-routes to ``AEROSPIKE_HOST_8_1_2`` when the
-env var is set and skips the dependent test cleanly when it isn't.
-Negative cases (write/touch/delete in foreground queries, read-only in
-background execute, etc.) are version-agnostic and run on
-``AEROSPIKE_HOST``. The pre-8.1.2 client-side gate test inverts the
-version check so it only runs when ``AEROSPIKE_HOST`` itself is < 8.1.2.
+``tqo_client_812``, which uses the default ``AEROSPIKE_HOST`` and skips the
+dependent test cleanly unless that cluster is 8.1.2+. Negative cases
+(write/touch/delete in foreground queries, read-only in background execute,
+etc.) are version-agnostic and run on ``AEROSPIKE_HOST``. The pre-8.1.2
+client-side gate test inverts the version check so it only runs when
+``AEROSPIKE_HOST`` itself is < 8.1.2.
 
-Setting both ``AEROSPIKE_HOST`` (pre-8.1.2) and ``AEROSPIKE_HOST_8_1_2``
-exercises every branch in a single ``pytest`` invocation.
+Point ``AEROSPIKE_HOST`` at an 8.1.2+ build to exercise the 8.1.2 branches;
+CI covers the version spread via a server matrix.
 """
 
 import pytest

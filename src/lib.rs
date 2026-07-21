@@ -59,6 +59,7 @@ mod filter;
 mod operations;
 mod policies;
 mod cluster;
+mod string_ops;
 mod server_error;
 
 pub use enums::*;
@@ -73,6 +74,7 @@ pub use policies::*;
 pub use cluster::*;
 pub use server_error::*;
 pub use tls::*;
+pub use string_ops::*;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -284,9 +286,9 @@ use crate::operations::{
     /// that want sub-100 ns random number generation per call. CPython's
     /// stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     /// fine for general use, but a measurable handicap in benchmark hot
-    /// loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    /// and Rust core uses `SmallRng` for the same reason; this exposes the
-    /// equivalent to Python so benchmark methodology stays apples-to-apples.
+    /// loops where every µs counts. Rust core uses `SmallRng` for the
+    /// same reason; this exposes the equivalent to Python so benchmark
+    /// methodology stays consistent across language layers.
     ///
     /// Not thread-safe — construct one per worker thread / task.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -438,7 +440,7 @@ use crate::operations::{
                     Ok(res)
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         #[pyo3(signature = (key, bins, *, policy=None, policy_sc=None, txn=None))]
@@ -585,7 +587,7 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Returns whether ``namespace`` is configured for strong
@@ -718,12 +720,14 @@ use crate::operations::{
                     Some(stream) => stream.as_mut().next().await,
                     None => None,
                 };
+                // Return a plain (Send) Rust value; the CompletionBridge's
+                // converter builds the Python tuple on the drainer/loop thread.
+                // Never `Python::attach` here — this runs on a Tokio worker, and
+                // registering a PyThreadState on a worker segfaults on
+                // free-threaded finalization teardown (see the invariant in
+                // waker.rs and the lazy pattern in errors.rs).
                 match next {
-                    Some((idx, br)) => Python::attach(|py| -> PyResult<Py<PyAny>> {
-                        let py_br = BatchRecord { _as: br }.into_pyobject(py)?.unbind();
-                        let tup = (idx, py_br).into_pyobject(py)?.unbind();
-                        Ok(tup.into())
-                    }),
+                    Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
                     None => Err(PyStopAsyncIteration::new_err(())),
                 }
             })
@@ -1135,7 +1139,7 @@ use crate::operations::{
                 }
                 Ok(res)
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously delete a record for the specified key.
@@ -1337,7 +1341,7 @@ use crate::operations::{
                 client.operate(&policy, &key_as, &core_ops).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously execute a registered UDF on a single record.
@@ -2161,7 +2165,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(raw.into_iter()
-                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                 .collect())
         }
 
@@ -2428,7 +2432,7 @@ use crate::operations::{
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2495,7 +2499,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2905,7 +2909,7 @@ use crate::operations::{
 
                 Ok(results
                     .into_iter()
-                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                     .collect::<Vec<Option<Record>>>())
             })
         }
@@ -4269,7 +4273,13 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
             .map(|s| s.as_str())
             .or_else(|| payload.downcast_ref::<&'static str>().copied());
         if let Some(s) = msg_str {
-            if s.contains("Python interpreter is not initialized") {
+            // Message text differs by pyo3 version: pre-0.29 asserted
+            // "Python interpreter is not initialized"; pyo3 0.29+ rejects the
+            // attach with "Cannot attach to the Python interpreter while it is
+            // finalizing".  Match both so the filter survives pyo3 bumps.
+            if s.contains("Python interpreter is not initialized")
+                || s.contains("Cannot attach to the Python interpreter while it is finalizing")
+            {
                 return;
             }
         }
@@ -4388,6 +4398,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
+    m.add_class::<StringWriteFlags>()?;
+    m.add_class::<StringRegexFlags>()?;
+    m.add_class::<StringNumericType>()?;
+    m.add_class::<StringOperation>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
     m.add_class::<UDFLang>()?;

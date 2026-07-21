@@ -16,6 +16,7 @@
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
+use pyo3::PyErrArguments;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use aerospike_core::errors::Error;
 use aerospike_core::ResultCode as CoreResultCode;
@@ -106,24 +107,63 @@ fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> Py
     func.call1((py_rc,))
 }
 
-// Helper function to create ServerError (or subclass) as a PyErr
+// Deferred arguments for a ServerError (or subclass) PyErr.  Holds only plain
+// data (Send + Sync + 'static) so it can be carried across threads without
+// touching Python.  `detail` carries the extended server error detail
+// (subcode / message / expression trace) when the server attached one.
+struct ServerErrorArgs {
+    message: String,
+    result_code: CoreResultCode,
+    in_doubt: bool,
+    detail: Option<aerospike_core::ServerErrorDetail>,
+}
+
+impl PyErrArguments for ServerErrorArgs {
+    // Runs when the PyErr is first materialized — for async completions that is
+    // on the event-loop/drainer thread inside `set_exception`, never on a Tokio
+    // worker.  Builds the concrete subclass *instance* (with any extended error
+    // detail) and hands it back as the exception value.
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        let exc_cls = resolve_server_error_class(py, self.result_code)
+            .unwrap_or_else(|_| py.get_type::<ServerError>().into_any());
+        let rc = ResultCode(self.result_code);
+        let detail = self.detail.as_ref();
+        let sub_code = detail.map(|d| d.sub_code);
+        let server_message = detail.map(|d| d.message.clone());
+        let exp_trace = detail.and_then(|d| d.exp_trace.as_ref().map(ExpressionTrace::from_core));
+        match exc_cls.call1((self.message, rc, self.in_doubt, sub_code, server_message, exp_trace)) {
+            Ok(obj) => obj.unbind(),
+            // Construction failed — surface that failure's own exception value.
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
+// Helper function to create ServerError (or subclass) as a PyErr.
+//
+// The conversion is *lazy*: `PyErr::new` stores `ServerErrorArgs` and only
+// materializes the exception when it is first inspected.  For async completions
+// that happens on the event-loop/drainer thread (`set_exception`), NOT on the
+// Tokio worker that produced the error.  This keeps `Python::attach` off Tokio
+// workers (see the invariant in waker.rs): a worker that attaches registers a
+// PyThreadState whose free-threaded finalization teardown
+// (`_Py_brc_remove_thread`) segfaults, and attaching mid-finalization panics.
+//
+// The subclass instance is built in `arguments()` and passed as the exception
+// *value* under the base `ServerError` type; CPython's exception normalization
+// narrows the reported type to that subclass, so `except RecordNotFound` (etc.)
+// still matches.
 fn create_server_error(
     message: String,
     result_code: CoreResultCode,
     in_doubt: bool,
     detail: Option<&aerospike_core::ServerErrorDetail>,
 ) -> PyErr {
-    Python::attach(|py| -> PyErr {
-        let exc_cls = resolve_server_error_class(py, result_code)
-            .unwrap_or_else(|_| py.get_type::<ServerError>().into_any());
-        let rc = ResultCode(result_code);
-        let sub_code = detail.map(|d| d.sub_code);
-        let server_message = detail.map(|d| d.message.clone());
-        let exp_trace = detail.and_then(|d| d.exp_trace.as_ref().map(ExpressionTrace::from_core));
-        match exc_cls.call1((message.clone(), rc, in_doubt, sub_code, server_message, exp_trace)) {
-            Ok(obj) => PyErr::from_value(obj),
-            Err(e) => e,
-        }
+    PyErr::new::<ServerError, _>(ServerErrorArgs {
+        message,
+        result_code,
+        in_doubt,
+        detail: detail.cloned(),
     })
 }
 create_exception!(aerospike_async.exceptions, UDFBadResponse, AerospikeError);

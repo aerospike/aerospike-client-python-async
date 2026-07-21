@@ -140,6 +140,22 @@ SERVER_8_1_2 = (8, 1, 2, 0)
 SERVER_8_1_3 = (8, 1, 3, 0)
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_string_operations(server_version):
+    """``True`` when the (default-host) cluster supports server-side string ops.
+
+    Covers ``StringOperation`` (strlen / substr / find / concat / upper /
+    replace / pad / to_string / masking) and the string filter expressions,
+    gated server-side via the Rust core's
+    ``Node.version.supports_string_operations()`` (server >= 8.1.3). Single-host
+    model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these; CI
+    covers the version spread via a server matrix rather than a dedicated host
+    var. Tests that need string ops should ``pytest.skip`` when this is
+    ``False``.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
+
+
 def _parse_build_string(build: str):
     """Parse an Aerospike server build string (e.g. ``8.1.2.1``) into a tuple.
 

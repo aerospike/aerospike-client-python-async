@@ -61,9 +61,11 @@ use crate::TlsConfig;
     impl BasePolicy {
         #[new]
         pub fn new() -> Self {
-            BasePolicy {
-                _as: aerospike_core::policy::BasePolicy::default(),
-            }
+            // PAC opts into positional Record.results by default (rust-core
+            // leaves it off so direct Rust users pay nothing).
+            let mut bp = aerospike_core::policy::BasePolicy::default();
+            bp.populate_positional_results = true;
+            BasePolicy { _as: bp }
         }
 
         #[getter]
@@ -266,9 +268,10 @@ use crate::TlsConfig;
     impl ReadPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let read_policy = ReadPolicy {
-                _as: aerospike_core::ReadPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut rp = aerospike_core::ReadPolicy::default();
+            rp.base_policy.populate_positional_results = true;
+            let read_policy = ReadPolicy { _as: rp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(read_policy)
@@ -296,6 +299,7 @@ use crate::TlsConfig;
             error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<ReadPolicy>> {
             let mut rp = aerospike_core::ReadPolicy::default();
+            rp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { rp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { rp.base_policy.max_retries = v; }
@@ -511,9 +515,10 @@ use crate::TlsConfig;
     impl WritePolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let write_policy = WritePolicy {
-                _as: aerospike_core::WritePolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut wp = aerospike_core::WritePolicy::default();
+            wp.base_policy.populate_positional_results = true;
+            let write_policy = WritePolicy { _as: wp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(write_policy)
@@ -545,6 +550,7 @@ use crate::TlsConfig;
             error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
+            wp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { wp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { wp.base_policy.max_retries = v; }
@@ -854,9 +860,10 @@ use crate::TlsConfig;
     impl QueryPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let query_policy = QueryPolicy {
-                _as: aerospike_core::QueryPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut qp = aerospike_core::QueryPolicy::default();
+            qp.base_policy.populate_positional_results = true;
+            let query_policy = QueryPolicy { _as: qp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(query_policy)
@@ -1124,7 +1131,7 @@ use crate::TlsConfig;
         ///     Optional[Record]: The record if present, None otherwise.
         #[getter]
         pub fn get_record(&self) -> Option<Record> {
-            self._as.record.as_ref().map(|r| Record { _as: r.clone(), cached_bins: None })
+            self._as.record.as_ref().map(|r| Record { _as: r.clone(), cached_bins: None, cached_results: None })
         }
 
         #[getter]
@@ -1161,9 +1168,10 @@ use crate::TlsConfig;
     impl BatchPolicy {
         #[new]
         pub fn new() -> PyClassInitializer<Self> {
-            let batch_policy = BatchPolicy {
-                _as: aerospike_core::BatchPolicy::default(),
-            };
+            // PAC opts into positional Record.results by default.
+            let mut bp = aerospike_core::BatchPolicy::default();
+            bp.base_policy.populate_positional_results = true;
+            let batch_policy = BatchPolicy { _as: bp };
             let base_policy = BasePolicy::new();
 
             PyClassInitializer::from(base_policy).add_subclass(batch_policy)
@@ -1191,6 +1199,7 @@ use crate::TlsConfig;
             error_detail_verbosity: Option<u8>,
         ) -> PyResult<Py<BatchPolicy>> {
             let mut bp = aerospike_core::BatchPolicy::default();
+            bp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { bp.base_policy.socket_timeout = v; }
             if let Some(v) = max_retries { bp.base_policy.max_retries = v; }
