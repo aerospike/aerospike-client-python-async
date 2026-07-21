@@ -191,7 +191,22 @@ impl CompletionBridge {
 /// `PyThreadState` whose biased-refcount teardown crashes; guard every
 /// worker-side cold path with this.
 pub(crate) fn interpreter_unavailable() -> bool {
-    unsafe { pyo3::ffi::Py_IsInitialized() == 0 || pyo3::ffi::Py_IsFinalizing() != 0 }
+    unsafe {
+        if pyo3::ffi::Py_IsInitialized() == 0 {
+            return true;
+        }
+        // `Py_IsFinalizing` is Python 3.13+ (pyo3-ffi gates it on `Py_3_13`).
+        // The teardown crash it guards against is a free-threaded (3.13t+)
+        // hazard, so on older ABIs the initialized check alone suffices.
+        #[cfg(Py_3_13)]
+        {
+            pyo3::ffi::Py_IsFinalizing() != 0
+        }
+        #[cfg(not(Py_3_13))]
+        {
+            false
+        }
+    }
 }
 
 fn fail_pr(pr: PendingResult, msg: &'static str) {
