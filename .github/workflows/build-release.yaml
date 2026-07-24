@@ -53,7 +53,6 @@ jobs:
             python-interpreter: python3.10
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-x86_64-py311
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -61,7 +60,6 @@ jobs:
             python-interpreter: python3.11
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-x86_64-py312
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -69,7 +67,6 @@ jobs:
             python-interpreter: python3.12
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-x86_64-py313
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -77,7 +74,6 @@ jobs:
             python-interpreter: python3.13
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-x86_64-py314
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -85,7 +81,6 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-aarch64-py310
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -93,7 +88,6 @@ jobs:
             python-interpreter: python3.10
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-aarch64-py311
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -101,7 +95,6 @@ jobs:
             python-interpreter: python3.11
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-aarch64-py312
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -109,7 +102,6 @@ jobs:
             python-interpreter: python3.12
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-aarch64-py313
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -117,7 +109,6 @@ jobs:
             python-interpreter: python3.13
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: linux-aarch64-py314
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -125,7 +116,6 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
           - name: macos-x86_64-py310
             runs-on: macos-latest-large
             package-kind: wheel
@@ -133,7 +123,6 @@ jobs:
             python-interpreter: python3.10
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-x86_64-py311
             runs-on: macos-latest-large
             package-kind: wheel
@@ -141,7 +130,6 @@ jobs:
             python-interpreter: python3.11
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-x86_64-py312
             runs-on: macos-latest-large
             package-kind: wheel
@@ -149,7 +137,6 @@ jobs:
             python-interpreter: python3.12
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-x86_64-py313
             runs-on: macos-latest-large
             package-kind: wheel
@@ -157,7 +144,6 @@ jobs:
             python-interpreter: python3.13
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-x86_64-py314
             runs-on: macos-latest-large
             package-kind: wheel
@@ -165,7 +151,6 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-arm64-py310
             runs-on: macos-latest
             package-kind: wheel
@@ -173,7 +158,6 @@ jobs:
             python-interpreter: python3.10
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-arm64-py311
             runs-on: macos-latest
             package-kind: wheel
@@ -181,7 +165,6 @@ jobs:
             python-interpreter: python3.11
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-arm64-py312
             runs-on: macos-latest
             package-kind: wheel
@@ -189,7 +172,6 @@ jobs:
             python-interpreter: python3.12
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-arm64-py313
             runs-on: macos-latest
             package-kind: wheel
@@ -197,7 +179,6 @@ jobs:
             python-interpreter: python3.13
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
           - name: macos-arm64-py314
             runs-on: macos-latest
             package-kind: wheel
@@ -205,7 +186,13 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
+          - name: macos-arm64-py314t
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.14t"
+            python-interpreter: python3.14t
+            maturin-target: ""
+            manylinux: ""
           - name: linux-x86_64-py314t
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -213,15 +200,51 @@ jobs:
             python-interpreter: python3.14t
             maturin-target: ""
             manylinux: auto
-            find-interpreter: "false"
-          - name: windows-x64
+          - name: linux-aarch64-py314t
+            runs-on: ubuntu-24.04-arm
+            package-kind: wheel
+            python-version: "3.14t"
+            python-interpreter: python3.14t
+            maturin-target: ""
+            manylinux: auto
+          # One leg per interpreter, like every other platform. Building the whole
+          # 3.10-3.14 set in a single job serialized five release compiles and made
+          # this the longest job in the pipeline by a factor of three.
+          - name: windows-x64-py310
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.10"
+            python-interpreter: python
+            maturin-target: ""
+            manylinux: ""
+          - name: windows-x64-py311
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.11"
+            python-interpreter: python
+            maturin-target: ""
+            manylinux: ""
+          - name: windows-x64-py312
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.12"
+            python-interpreter: python
+            maturin-target: ""
+            manylinux: ""
+          - name: windows-x64-py313
             runs-on: windows-2022
             package-kind: wheel
             python-version: "3.13"
-            python-interpreter: ""
+            python-interpreter: python
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "true"
+          - name: windows-x64-py314
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.14"
+            python-interpreter: python
+            maturin-target: ""
+            manylinux: ""
           - name: sdist
             runs-on: ubuntu-22.04
             package-kind: sdist
@@ -229,7 +252,6 @@ jobs:
             python-interpreter: ""
             maturin-target: ""
             manylinux: ""
-            find-interpreter: "false"
     uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
     with:
       gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
@@ -242,7 +264,7 @@ jobs:
       working-directory: aerospike-client-python-async
       setup-python: true
       python-version: ${{ matrix.python-version }}
-      build-env: PACKAGE_KIND=${{ matrix.package-kind }};PYTHON_INTERPRETER=${{ matrix.python-interpreter }};MATURIN_TARGET=${{ matrix.maturin-target }};MANYLINUX=${{ matrix.manylinux }};FIND_INTERPRETER=${{ matrix.find-interpreter }};VERSION_OVERRIDE=${{ inputs.version-override }}
+      build-env: PACKAGE_KIND=${{ matrix.package-kind }};PYTHON_INTERPRETER=${{ matrix.python-interpreter }};MATURIN_TARGET=${{ matrix.maturin-target }};MANYLINUX=${{ matrix.manylinux }};VERSION_OVERRIDE=${{ inputs.version-override }}
       build-script: |
         set -euo pipefail
 
@@ -272,14 +294,9 @@ jobs:
           exit 0
         fi
 
-        args=(build --release --out build)
+        args=(build --release --out build --interpreter "$PYTHON_INTERPRETER")
         if [[ -n "$MATURIN_TARGET" ]]; then
           args+=(--target "$MATURIN_TARGET")
-        fi
-        if [[ "$FIND_INTERPRETER" == "true" ]]; then
-          args+=(--find-interpreter)
-        else
-          args+=(--interpreter "$PYTHON_INTERPRETER")
         fi
         if [[ -n "$MANYLINUX" && "$MANYLINUX" != "auto" ]]; then
           args+=(--compatibility "$MANYLINUX")
