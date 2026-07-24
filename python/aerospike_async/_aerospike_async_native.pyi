@@ -753,6 +753,46 @@ class Client:
         """
     def __new__(cls) -> _aerospike_async_native.Client: ...
     def seeds(self) -> builtins.str: ...
+    @staticmethod
+    def client_version() -> builtins.str:
+        r"""
+        Returns this client library's own version string
+        (e.g. ``"0.6.0-alpha.6"``).
+
+        This is the version of the installed native client extension you are
+        running — the same identifier stamped into the wire user-agent — not
+        the embedded engine core. The value is baked in at build time, so no
+        cluster connection is required; call it directly on the class without
+        a live instance. For the embedded engine version, see
+        :meth:`core_version`.
+
+        Example::
+
+            from aerospike_async import Client
+            print(Client.client_version())
+
+        Returns:
+            str: This client library's version.
+        """
+    @staticmethod
+    def core_version() -> builtins.str:
+        r"""
+        Returns the embedded engine core version string
+        (e.g. ``"3.0.0-alpha.1"``).
+
+        This is the version of the underlying core the client is built
+        against — useful for support and diagnostics. It is independent of
+        this client library's own version (see :meth:`client_version`) and,
+        like it, is baked in at build time and needs no live instance.
+
+        Example::
+
+            from aerospike_async import Client
+            print(Client.core_version())
+
+        Returns:
+            str: The embedded engine core version.
+        """
     def is_strong_consistency(self, namespace: builtins.str) -> typing.Optional[builtins.bool]:
         r"""
         Returns whether ``namespace`` is configured for strong
@@ -1428,6 +1468,25 @@ class ClientPolicy:
     def timeout(self) -> builtins.int: ...
     @timeout.setter
     def timeout(self, value: builtins.int) -> None: ...
+    @property
+    def connect_timeout(self) -> builtins.int:
+        r"""
+        Initial connection timeout in milliseconds for opening (and, when
+        security is enabled, authenticating) a socket to a node. Applied
+        per connection attempt during cluster tend and on-demand pool
+        growth. ``0`` (the default) falls back to :attr:`timeout`.
+        """
+    @connect_timeout.setter
+    def connect_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def login_timeout(self) -> builtins.int:
+        r"""
+        Login timeout in milliseconds for the authentication handshake
+        when security is enabled. ``0`` falls back to
+        :attr:`connect_timeout`. Defaults to 5000 ms.
+        """
+    @login_timeout.setter
+    def login_timeout(self, value: builtins.int) -> None: ...
     @property
     def idle_timeout(self) -> builtins.int:
         r"""

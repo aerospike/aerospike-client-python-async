@@ -964,6 +964,48 @@ use crate::operations::{
             &self.seeds
         }
 
+        /// Returns this client library's own version string
+        /// (e.g. ``"0.6.0-alpha.6"``).
+        ///
+        /// This is the version of the installed native client extension you are
+        /// running — the same identifier stamped into the wire user-agent — not
+        /// the embedded engine core. The value is baked in at build time, so no
+        /// cluster connection is required; call it directly on the class without
+        /// a live instance. For the embedded engine version, see
+        /// :meth:`core_version`.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.client_version())
+        ///
+        /// Returns:
+        ///     str: This client library's version.
+        #[staticmethod]
+        pub fn client_version() -> &'static str {
+            env!("CARGO_PKG_VERSION")
+        }
+
+        /// Returns the embedded engine core version string
+        /// (e.g. ``"3.0.0-alpha.1"``).
+        ///
+        /// This is the version of the underlying core the client is built
+        /// against — useful for support and diagnostics. It is independent of
+        /// this client library's own version (see :meth:`client_version`) and,
+        /// like it, is baked in at build time and needs no live instance.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.core_version())
+        ///
+        /// Returns:
+        ///     str: The embedded engine core version.
+        #[staticmethod]
+        pub fn core_version() -> &'static str {
+            aerospike_core::Client::client_version()
+        }
+
         /// Configured cluster name from the ``ClientPolicy`` used to build this
         /// client, or ``None`` when cluster-name validation was not requested.
         ///

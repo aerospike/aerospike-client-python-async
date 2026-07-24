@@ -14,7 +14,7 @@
 // the License.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -1305,11 +1305,14 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     aerospike_core::Value::HashMap(arr)
                 }
                 PythonValue::OrderedMap(pairs) => {
-                    let mut btree = BTreeMap::new();
+                    // Insertion-ordered on the Python side maps to the core
+                    // insertion-ordered map (IndexMap), preserving pair order
+                    // on the wire.
+                    let mut map = aerospike_core::IndexMap::with_capacity(pairs.len());
                     for (k, v) in pairs {
-                        btree.insert(k.into(), v.into());
+                        map.insert(k.into(), v.into());
                     }
-                    aerospike_core::Value::OrderedMap(btree)
+                    aerospike_core::Value::OrderedMap(map)
                 }
                 PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
                 PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
@@ -1358,6 +1361,21 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                         .map(|(k, v)| (k.into(), v.into()))
                         .collect();
                     PythonValue::OrderedMap(pairs)
+                }
+                aerospike_core::Value::SortedMap(sm) => {
+                    // K-ordered server return: surface as an ordered map,
+                    // preserving the server's canonical key order.
+                    let pairs: Vec<(PythonValue, PythonValue)> = sm
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect();
+                    PythonValue::OrderedMap(pairs)
+                }
+                aerospike_core::Value::Unknown(_code, bytes) => {
+                    // Particle types this client does not interpret (legacy
+                    // language-specific serializations, retired types). Surface
+                    // the raw payload so the data is still accessible.
+                    PythonValue::Blob(bytes)
                 }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),

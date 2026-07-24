@@ -18,7 +18,7 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::PyErrArguments;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-use aerospike_core::errors::Error;
+use aerospike_core::errors::{Error, ErrorKind};
 use aerospike_core::ResultCode as CoreResultCode;
 
 use crate::enums::ResultCode;
@@ -207,106 +207,62 @@ pub struct RustClientError(pub(crate) Error);
 
 impl From<RustClientError> for PyErr {
     fn from(value: RustClientError) -> Self {
-        // RustClientError -> Error -> Custom Exception Classes
-        match value.0 {
-            Error::Base64(e) => Base64DecodeError::new_err(e.to_string()),
-            Error::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
-            Error::Io(e) => IoError::new_err(e.to_string()),
-            // MpscRecv error variant doesn't exist in TLS branch
-            // Error::MpscRecv(_) => RecvError::new_err("The sending half of a channel has been closed, so no messages can be received"),
-            Error::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
-            Error::ParseInt(e) => ParseIntError::new_err(e.to_string()),
-            Error::PwHash(e) => PasswordHashError::new_err(e.to_string()),
-            Error::BadResponse(string) => BadResponse::new_err(string),
-            Error::Connection(string) => ConnectionError::new_err(string),
-            Error::InvalidArgument(string) => ValueError::new_err(string),
-            Error::InvalidNode(string) => InvalidNodeError::new_err(string),
-            Error::InvalidNamespace(string) => InvalidNamespaceError::new_err(string),
-            Error::NoMoreConnections => NoMoreConnections::new_err("Exceeded max. number of connections per node."),
-            Error::ServerError(result_code, in_doubt, node, detail) => {
-                let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-                if let Some(detail) = &detail {
-                    // Extended server error detail (subcode / message / exp
-                    // trace), present when error_detail_verbosity > 0 and the
-                    // server (>= 8.1.3) attached one.
-                    message.push_str(&format!(", Detail: {detail}"));
-                }
-                create_server_error(message, result_code, in_doubt, detail.as_deref())
-            },
-            Error::UdfBadResponse(string) => UDFBadResponse::new_err(string),
-            Error::Timeout(string) => TimeoutError::new_err(string),
-            Error::Chain(first, second) => {
-                // v3's `Error::with_retry_context` wraps retried errors as
-                // `Chain(ClientError("iterations=…"), <inner>)`, where
-                // `<inner>` may itself be another Chain holding the prior
-                // sub-errors. The outer-first slot is therefore no longer
-                // reliably the "interesting" variant — we have to walk the
-                // whole chain and promote the most specific reachable
-                // typed leaf so callers can still `except TimeoutError` /
-                // `except ConnectionError` against retried failures.
-                fn flatten<'a>(e: &'a Error, out: &mut Vec<&'a Error>) {
-                    if let Error::Chain(a, b) = e {
-                        flatten(a, out);
-                        flatten(b, out);
-                    } else {
-                        out.push(e);
-                    }
-                }
-                let mut leaves: Vec<&Error> = Vec::with_capacity(4);
-                flatten(&first, &mut leaves);
-                flatten(&second, &mut leaves);
+        // RustClientError -> Error -> Custom Exception Classes.
+        //
+        // The core `Error` is now an opaque struct carrying an `ErrorKind`
+        // plus metadata that drills through the retry cause chain (server
+        // result code, in-doubt, node, extended detail). Retry wrapping is
+        // handled entirely by core, so we no longer walk a `Chain` variant
+        // by hand: the accessors already surface the most specific reachable
+        // server code, and `Display` renders the full context (iteration,
+        // node, sub-errors, cause) for the message.
+        let err = value.0;
 
-                // Combined Display string preserves the iteration / last-node /
-                // sub-error context that `with_retry_context` attaches at the
-                // front of the chain — matches `Display for Error::Chain`.
-                let combined_msg = format!("{}\n\t{}", first, second);
+        // A server result code reachable anywhere in the cause chain wins: it
+        // carries the typed ResultCode + extended detail + in-doubt + node,
+        // and maps to the concrete ServerError subclass (RecordNotFound, etc.).
+        if let Some(result_code) = err.server_result_code() {
+            let in_doubt = err.in_doubt();
+            let detail = err.server_error_detail();
+            let node = err.node().unwrap_or("");
+            let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
+            if let Some(detail) = detail {
+                // Extended server error detail (subcode / message / exp trace),
+                // present when error_detail_verbosity > 0 and the server
+                // (>= 8.1.3) attached one.
+                message.push_str(&format!(", Detail: {detail}"));
+            }
+            return create_server_error(message, result_code, in_doubt, detail);
+        }
 
-                // ServerError carries result code + in_doubt + node, so it
-                // wins over transport-level promotions when both are present.
-                if let Some((rc, id, node, detail)) = leaves.iter().find_map(|n| match n {
-                    Error::ServerError(rc, id, node, detail) => {
-                        Some((*rc, *id, node.as_str(), detail.as_deref()))
-                    }
-                    _ => None,
-                }) {
-                    let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", rc, id, node);
-                    if let Some(detail) = detail {
-                        message.push_str(&format!(", Detail: {detail}"));
-                    }
-                    return create_server_error(message, rc, id, detail);
-                }
-
-                // Transport-level promotions, in priority order. Timeout and
-                // Connection are the common retried cases; InvalidNode /
-                // InvalidNamespace can show up in handshake retries.
-                if leaves.iter().any(|n| matches!(n, Error::Timeout(_))) {
-                    return TimeoutError::new_err(combined_msg);
-                }
-                if leaves.iter().any(|n| matches!(n, Error::Connection(_))) {
-                    return ConnectionError::new_err(combined_msg);
-                }
-                if leaves.iter().any(|n| matches!(n, Error::InvalidNode(_))) {
-                    return InvalidNodeError::new_err(combined_msg);
-                }
-                if leaves.iter().any(|n| matches!(n, Error::InvalidNamespace(_))) {
-                    return InvalidNamespaceError::new_err(combined_msg);
-                }
-
-                // Nothing typed reachable — surface the joined chain text on
-                // the generic AerospikeError. Avoids the recursive-conversion
-                // path of the previous implementation (which could swallow
-                // the cause when the outer-first was itself a Chain).
-                AerospikeError::new_err(combined_msg)
-            },
-            Error::ClientError(msg) => ClientError::new_err(msg),
-            Error::CommitFailed { error_type, in_doubt, .. } => {
-                CommitFailedError::new_err(format!("{error_type} (in_doubt={in_doubt})"))
-            },
-            Error::MaxErrorRate(node) => MaxErrorRate::new_err(format!(
-                "Max error rate exceeded for node {node}; backing off"
-            )),
-            #[allow(unreachable_patterns)]
-            other => AerospikeError::new_err(format!("Unknown error: {:?}", other)),
+        // Otherwise dispatch on the specific client-side failure. `Display`
+        // carries the full retry context, so `except TimeoutError` /
+        // `except ConnectionError` still match retried failures.
+        let msg = err.to_string();
+        match err.kind() {
+            ErrorKind::Timeout => TimeoutError::new_err(msg),
+            ErrorKind::Connection | ErrorKind::ConnectionPoolEmpty => ConnectionError::new_err(msg),
+            ErrorKind::NoMoreConnections => NoMoreConnections::new_err(msg),
+            ErrorKind::MaxErrorRate => MaxErrorRate::new_err(msg),
+            ErrorKind::InvalidNode => InvalidNodeError::new_err(msg),
+            ErrorKind::InvalidNamespace => InvalidNamespaceError::new_err(msg),
+            ErrorKind::InvalidArgument => ValueError::new_err(msg),
+            ErrorKind::BadResponse | ErrorKind::ParsePeers => BadResponse::new_err(msg),
+            ErrorKind::UdfBadResponse => UDFBadResponse::new_err(msg),
+            ErrorKind::Commit { error_type, .. } => {
+                CommitFailedError::new_err(format!("{error_type} (in_doubt={})", err.in_doubt()))
+            }
+            ErrorKind::Base64(e) => Base64DecodeError::new_err(e.to_string()),
+            ErrorKind::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
+            ErrorKind::Io(e) => IoError::new_err(e.to_string()),
+            ErrorKind::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
+            ErrorKind::ParseInt(e) => ParseIntError::new_err(e.to_string()),
+            ErrorKind::PwHash(e) => PasswordHashError::new_err(e.to_string()),
+            // Client / StreamTerminated / BatchFailed / BatchRow / Async and
+            // any future kinds fall back to the generic client error, keeping
+            // the full context from `Display`. (Server / Timeout / Connection
+            // etc. are handled above.)
+            _ => ClientError::new_err(msg),
         }
     }
 }

@@ -63,8 +63,10 @@ use crate::TlsConfig;
         pub fn new() -> Self {
             // PAC opts into positional Record.results by default (rust-core
             // leaves it off so direct Rust users pay nothing).
-            let mut bp = aerospike_core::policy::BasePolicy::default();
-            bp.populate_positional_results = true;
+            let bp = aerospike_core::policy::BasePolicy {
+                populate_positional_results: true,
+                ..aerospike_core::policy::BasePolicy::default()
+            };
             BasePolicy { _as: bp }
         }
 
@@ -2009,6 +2011,33 @@ use crate::TlsConfig;
             self._as.timeout = timeout_millis as u32;
         }
 
+        /// Initial connection timeout in milliseconds for opening (and, when
+        /// security is enabled, authenticating) a socket to a node. Applied
+        /// per connection attempt during cluster tend and on-demand pool
+        /// growth. ``0`` (the default) falls back to :attr:`timeout`.
+        #[getter]
+        pub fn get_connect_timeout(&self) -> u64 {
+            self._as.connect_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_connect_timeout(&mut self, timeout_millis: u64) {
+            self._as.connect_timeout = timeout_millis as u32;
+        }
+
+        /// Login timeout in milliseconds for the authentication handshake
+        /// when security is enabled. ``0`` falls back to
+        /// :attr:`connect_timeout`. Defaults to 5000 ms.
+        #[getter]
+        pub fn get_login_timeout(&self) -> u64 {
+            self._as.login_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_login_timeout(&mut self, timeout_millis: u64) {
+            self._as.login_timeout = timeout_millis as u32;
+        }
+
         /// Connection idle timeout. Every time a connection is used, its idle
         /// deadline will be extended by this duration. When this deadline is reached,
         /// the connection will be closed and discarded from the connection pool.
@@ -2111,12 +2140,14 @@ use crate::TlsConfig;
         /// also be set to enable this functionality.
         #[getter]
         pub fn get_rack_ids(&self) -> Option<Vec<usize>> {
-            self._as.rack_ids.as_ref().map(|set| set.iter().cloned().collect())
+            // Core now stores rack_ids as an ordered Vec (preference order),
+            // matching the Python-facing list — a direct clone suffices.
+            self._as.rack_ids.clone()
         }
 
         #[setter]
         pub fn set_rack_ids(&mut self, value: Option<Vec<usize>>) {
-            self._as.rack_ids = value.map(|v| v.into_iter().collect());
+            self._as.rack_ids = value;
         }
 
         // Size of the thread pool used in scan and query commands. These commands are often sent to
