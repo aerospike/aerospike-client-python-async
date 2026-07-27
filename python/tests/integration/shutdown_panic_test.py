@@ -97,10 +97,17 @@ def test_no_panic_on_interpreter_finalization(
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
 
-    # The simulated abort raises out of asyncio.run() — non-zero exit is
-    # expected and correct.
-    assert result.returncode != 0, (
-        f"expected non-zero exit from simulated abort, got 0"
+    # The simulated abort raises an unhandled RuntimeError out of
+    # asyncio.run(), so a clean process exits with code 1.  We assert on
+    # exactly 1 (not merely non-zero) because a shutdown-race *crash* makes
+    # subprocess report a negative returncode (killed by signal — e.g. -11
+    # SIGSEGV, -6 SIGABRT).  A bare `!= 0` check would treat that crash as a
+    # pass, and the panic-hook stderr filter would hide the accompanying
+    # panic text, so the exit code is the only signal that survives.
+    assert result.returncode == 1, (
+        f"expected clean abort (exit 1), got returncode={result.returncode} "
+        f"(negative => killed by signal, i.e. the shutdown-race crash "
+        f"regressed).\n--- stderr ---\n{result.stderr}\n--- end stderr ---"
     )
 
     # The thing this test exists to catch: the shutdown-race panic must

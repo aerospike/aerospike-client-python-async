@@ -59,6 +59,8 @@ mod filter;
 mod operations;
 mod policies;
 mod cluster;
+mod string_ops;
+mod server_error;
 
 pub use enums::*;
 pub use errors::*;
@@ -70,7 +72,9 @@ pub use filter::*;
 pub use operations::*;
 pub use policies::*;
 pub use cluster::*;
+pub use server_error::*;
 pub use tls::*;
+pub use string_ops::*;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -92,6 +96,7 @@ use crate::operations::{
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
         let as_policy = policy._as.clone();
         let as_seeds = seeds.clone();
+        let cluster_name = as_policy.cluster_name.clone();
         // Capture the loop the caller is awaiting on; this becomes the bridge's
         // owning loop and every subsequent op on this Client must run on it.
         let locals = pyo3_asyncio::get_current_locals(py)?;
@@ -131,6 +136,7 @@ use crate::operations::{
             let res = Client {
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
+                cluster_name,
                 bridge: Some(bridge),
             };
 
@@ -280,9 +286,9 @@ use crate::operations::{
     /// that want sub-100 ns random number generation per call. CPython's
     /// stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     /// fine for general use, but a measurable handicap in benchmark hot
-    /// loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    /// and Rust core uses `SmallRng` for the same reason; this exposes the
-    /// equivalent to Python so benchmark methodology stays apples-to-apples.
+    /// loops where every µs counts. Rust core uses `SmallRng` for the
+    /// same reason; this exposes the equivalent to Python so benchmark
+    /// methodology stays consistent across language layers.
     ///
     /// Not thread-safe — construct one per worker thread / task.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -351,6 +357,8 @@ use crate::operations::{
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
+        // See `Client.cluster_name`: configured validation name, captured once.
+        cluster_name: Option<String>,
     }
 
     #[gen_stub_pymethods]
@@ -366,13 +374,21 @@ use crate::operations::{
                     format!("failed to build current_thread Tokio runtime: {e}")
                 ))?;
             let as_policy = policy._as.clone();
+            let cluster_name = as_policy.cluster_name.clone();
             let client = rt.block_on(async move {
                 aerospike_core::Client::new(&as_policy, &seeds).await
             }).map_err(|e| PyErr::from(RustClientError(e)))?;
             Ok(LocalClient {
                 rt,
                 client: Arc::new(client),
+                cluster_name,
             })
+        }
+
+        /// Configured cluster name (see :attr:`Client.cluster_name`).
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
         }
 
         // -- Plain blocking ops (drop-in for Client.*_blocking) -------------
@@ -424,7 +440,7 @@ use crate::operations::{
                     Ok(res)
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         #[pyo3(signature = (key, bins, *, policy=None, policy_sc=None, txn=None))]
@@ -571,7 +587,7 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Returns whether ``namespace`` is configured for strong
@@ -607,6 +623,11 @@ use crate::operations::{
     pub struct Client {
         _as: Arc<aerospike_core::Client>,
         seeds: String,
+        // Configured cluster-name from ClientPolicy (the validation name), or
+        // None when cluster-name validation was not requested. Captured once at
+        // construction so callers can tag diagnostics without a per-call clone
+        // of the whole policy through the core.
+        cluster_name: Option<String>,
         // None for clients created via `new_client_blocking` — async methods
         // require this to be Some; `require_bridge()` enforces it with a clear
         // PyRuntimeError instead of panicking.
@@ -699,12 +720,14 @@ use crate::operations::{
                     Some(stream) => stream.as_mut().next().await,
                     None => None,
                 };
+                // Return a plain (Send) Rust value; the CompletionBridge's
+                // converter builds the Python tuple on the drainer/loop thread.
+                // Never `Python::attach` here — this runs on a Tokio worker, and
+                // registering a PyThreadState on a worker segfaults on
+                // free-threaded finalization teardown (see the invariant in
+                // waker.rs and the lazy pattern in errors.rs).
                 match next {
-                    Some((idx, br)) => Python::attach(|py| -> PyResult<Py<PyAny>> {
-                        let py_br = BatchRecord { _as: br }.into_pyobject(py)?.unbind();
-                        let tup = (idx, py_br).into_pyobject(py)?.unbind();
-                        Ok(tup.into())
-                    }),
+                    Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
                     None => Err(PyStopAsyncIteration::new_err(())),
                 }
             })
@@ -941,6 +964,59 @@ use crate::operations::{
             &self.seeds
         }
 
+        /// Returns this client library's own version string
+        /// (e.g. ``"0.6.0-alpha.6"``).
+        ///
+        /// This is the version of the installed native client extension you are
+        /// running — the same identifier stamped into the wire user-agent — not
+        /// the embedded engine core. The value is baked in at build time, so no
+        /// cluster connection is required; call it directly on the class without
+        /// a live instance. For the embedded engine version, see
+        /// :meth:`core_version`.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.client_version())
+        ///
+        /// Returns:
+        ///     str: This client library's version.
+        #[staticmethod]
+        pub fn client_version() -> &'static str {
+            env!("CARGO_PKG_VERSION")
+        }
+
+        /// Returns the embedded engine core version string
+        /// (e.g. ``"3.0.0-alpha.1"``).
+        ///
+        /// This is the version of the underlying core the client is built
+        /// against — useful for support and diagnostics. It is independent of
+        /// this client library's own version (see :meth:`client_version`) and,
+        /// like it, is baked in at build time and needs no live instance.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.core_version())
+        ///
+        /// Returns:
+        ///     str: The embedded engine core version.
+        #[staticmethod]
+        pub fn core_version() -> &'static str {
+            aerospike_core::Client::client_version()
+        }
+
+        /// Configured cluster name from the ``ClientPolicy`` used to build this
+        /// client, or ``None`` when cluster-name validation was not requested.
+        ///
+        /// This is the client-side *expected* name (set via cluster-name
+        /// validation), not a server-reported value; it reads a cached field
+        /// with no network or lock cost.
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
+        }
+
         /// Returns whether ``namespace`` is configured for strong
         /// consistency on the cluster.
         ///
@@ -1105,7 +1181,7 @@ use crate::operations::{
                 }
                 Ok(res)
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously delete a record for the specified key.
@@ -1307,7 +1383,7 @@ use crate::operations::{
                 client.operate(&policy, &key_as, &core_ops).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously execute a registered UDF on a single record.
@@ -2131,7 +2207,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(raw.into_iter()
-                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                 .collect())
         }
 
@@ -2398,7 +2474,7 @@ use crate::operations::{
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2465,7 +2541,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2875,7 +2951,7 @@ use crate::operations::{
 
                 Ok(results
                     .into_iter()
-                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                     .collect::<Vec<Option<Record>>>())
             })
         }
@@ -4197,6 +4273,28 @@ impl log::Log for ResilientPyLogger {
     }
 }
 
+/// Cache-reset handle for the pyo3-log bridge. `Caching::LoggersAndLevels`
+/// snapshots each logger's effective level on first use; Python-side
+/// `setLevel()` calls made after that are invisible to Rust-emitted records
+/// until the cache is cleared through this handle.
+static LOG_RESET_HANDLE: std::sync::OnceLock<pyo3_log::ResetHandle> = std::sync::OnceLock::new();
+
+/// Re-sync Rust-emitted log levels with the Python `logging` hierarchy.
+///
+/// The bridge that forwards Rust log records to Python's `logging` module
+/// caches each logger's effective level the first time that logger emits.
+/// Calling `logging.getLogger("aerospike_core.cluster").setLevel(...)` at
+/// runtime therefore has no effect on Rust-emitted records for
+/// already-cached loggers until this function is called to drop the cache.
+/// Cheap; safe to call from any thread.
+#[pyfunction]
+#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+pub fn refresh_log_levels() {
+    if let Some(handle) = LOG_RESET_HANDLE.get() {
+        handle.reset();
+    }
+}
+
 #[pymodule(gil_used = false)]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Filter the noisy default panic-hook output for a specific class of
@@ -4217,7 +4315,13 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
             .map(|s| s.as_str())
             .or_else(|| payload.downcast_ref::<&'static str>().copied());
         if let Some(s) = msg_str {
-            if s.contains("Python interpreter is not initialized") {
+            // Message text differs by pyo3 version: pre-0.29 asserted
+            // "Python interpreter is not initialized"; pyo3 0.29+ rejects the
+            // attach with "Cannot attach to the Python interpreter while it is
+            // finalizing".  Match both so the filter survives pyo3 bumps.
+            if s.contains("Python interpreter is not initialized")
+                || s.contains("Cannot attach to the Python interpreter while it is finalizing")
+            {
                 return;
             }
         }
@@ -4237,6 +4341,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     //   aerospike_core::cluster -> logging.getLogger("aerospike_core.cluster")
     // Uses ResilientPyLogger to avoid panics on background threads during shutdown.
     let inner = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?;
+    let _ = LOG_RESET_HANDLE.set(inner.reset_handle());
     let logger = ResilientPyLogger { inner };
     log::set_max_level(log::LevelFilter::Debug);
     let _ = log::set_logger(Box::leak(Box::new(logger)));
@@ -4265,6 +4370,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<PrivilegeCode>()?;
     m.add_class::<Privilege>()?;
     m.add_class::<ResultCode>()?;
+    m.add_class::<SubCode>()?;
+    m.add_class::<ErrorDetailVerbosity>()?;
+    m.add_class::<ExpressionTrace>()?;
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;
@@ -4304,6 +4412,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_function(wrap_pyfunction!(null, m)?)?;
     m.add_function(wrap_pyfunction!(has_any_write_op, m)?)?;
     m.add_function(wrap_pyfunction!(geojson, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_log_levels, m)?)?;
     m.add_class::<AuthMode>()?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
@@ -4331,6 +4440,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
+    m.add_class::<StringWriteFlags>()?;
+    m.add_class::<StringRegexFlags>()?;
+    m.add_class::<StringNumericType>()?;
+    m.add_class::<StringOperation>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
     m.add_class::<UDFLang>()?;

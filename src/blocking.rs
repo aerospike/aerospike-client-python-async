@@ -86,6 +86,7 @@ pub(crate) fn new_client_blocking(
 ) -> PyResult<Client> {
     let as_policy = policy._as.clone();
     let as_seeds = seeds.clone();
+    let cluster_name = as_policy.cluster_name.clone();
     let raw = run_blocking(py, async move {
         log::debug!(target: "aerospike_async", "connecting (blocking) to {}", as_seeds);
         aerospike_core::Client::new(&as_policy, &as_seeds)
@@ -96,6 +97,7 @@ pub(crate) fn new_client_blocking(
     Ok(Client {
         _as: Arc::new(raw),
         seeds,
+        cluster_name,
         bridge: None,
     })
 }

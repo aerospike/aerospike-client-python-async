@@ -14,7 +14,7 @@
 // the License.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -42,15 +42,18 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         /// Lazily-cached Python dict for the ``bins`` property.
         /// Avoids re-cloning and re-converting on every access.
         pub(crate) cached_bins: Option<Py<PyAny>>,
+        /// Lazily-cached Python list for the ``results`` property.
+        pub(crate) cached_results: Option<Py<PyAny>>,
     }
 
     impl Clone for Record {
         fn clone(&self) -> Self {
             Record {
                 _as: self._as.clone(),
-                // Don't carry the cache across clones; the new owner
-                // will lazily rebuild it if needed.
+                // Don't carry caches across clones; the new owner
+                // will lazily rebuild them if needed.
                 cached_bins: None,
+                cached_results: None,
             }
         }
     }
@@ -80,6 +83,46 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             let py_obj: Py<PyAny> = dict.into_any().unbind();
             self.cached_bins = Some(py_obj.clone_ref(py));
             py_obj
+        }
+
+        /// Positional results, one slot per op in request order.
+        ///
+        /// Use ``record.results`` when the request issued multiple ops and you
+        /// need to address each result by its op index — e.g. a chain that
+        /// modifies a bin and reads it back in the same execute. Slots for
+        /// ops that produced no value carry Python ``None``.
+        ///
+        /// For by-name access, prefer ``record.bins`` (cheaper for the common
+        /// case of one op per bin).
+        #[getter]
+        pub fn get_results(&mut self, py: Python<'_>) -> Option<Py<PyAny>> {
+            if let Some(ref cached) = self.cached_results {
+                return Some(cached.clone_ref(py));
+            }
+            let results = self._as.results.as_ref()?;
+            let list = PyList::empty(py);
+            for v in results {
+                let pv: PythonValue = v.clone().into();
+                let py_val = pv.into_pyobject(py).unwrap();
+                list.append(py_val).unwrap();
+            }
+            let py_obj: Py<PyAny> = list.into_any().unbind();
+            self.cached_results = Some(py_obj.clone_ref(py));
+            Some(py_obj)
+        }
+
+        /// Return the positional result for the *i*-th op in the request,
+        /// or ``None`` if *i* is out of range.
+        ///
+        /// Equivalent to ``record.results[i]`` but without bounds-error noise:
+        /// out-of-range returns Python ``None`` (matching the in-range
+        /// nil-result encoding). Use this when the request size is dynamic
+        /// and the caller wants a uniform optional shape.
+        pub fn operation_result(&self, i: usize) -> Option<Py<PyAny>> {
+            self._as.operation_result(i).map(|v| {
+                let pv: PythonValue = v.to_owned().into();
+                Python::attach(|py| pv.into_pyobject(py).unwrap().unbind())
+            })
         }
 
         #[getter]
@@ -161,8 +204,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         ///
         /// Per-op cost drops from ~2 µs (PyO3 PythonValue dispatch +
         /// Python str()) to ~500 ns (positional PyO3 call + Rust string
-        /// alloc). JSDK does the equivalent in one Java ``new Key(...)``
-        /// call at ~50 ns; we close most of the gap.
+        /// alloc).
         #[staticmethod]
         pub fn from_int_user_key(namespace: &str, set: &str, key: i64) -> Self {
             let value = aerospike_core::Value::String(key.to_string());
@@ -1263,11 +1305,14 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     aerospike_core::Value::HashMap(arr)
                 }
                 PythonValue::OrderedMap(pairs) => {
-                    let mut btree = BTreeMap::new();
+                    // Insertion-ordered on the Python side maps to the core
+                    // insertion-ordered map (IndexMap), preserving pair order
+                    // on the wire.
+                    let mut map = aerospike_core::IndexMap::with_capacity(pairs.len());
                     for (k, v) in pairs {
-                        btree.insert(k.into(), v.into());
+                        map.insert(k.into(), v.into());
                     }
-                    aerospike_core::Value::OrderedMap(btree)
+                    aerospike_core::Value::OrderedMap(map)
                 }
                 PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
                 PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
@@ -1317,6 +1362,21 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                         .collect();
                     PythonValue::OrderedMap(pairs)
                 }
+                aerospike_core::Value::SortedMap(sm) => {
+                    // K-ordered server return: surface as an ordered map,
+                    // preserving the server's canonical key order.
+                    let pairs: Vec<(PythonValue, PythonValue)> = sm
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect();
+                    PythonValue::OrderedMap(pairs)
+                }
+                aerospike_core::Value::Unknown(_code, bytes) => {
+                    // Particle types this client does not interpret (legacy
+                    // language-specific serializations, retired types). Surface
+                    // the raw payload so the data is still accessible.
+                    PythonValue::Blob(bytes)
+                }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
                 aerospike_core::Value::Infinity => PythonValue::CdtSpecial(SpecialValue::Infinity),
@@ -1352,6 +1412,6 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
     impl From<aerospike_core::Record> for Record {
         fn from(other: aerospike_core::Record) -> Self {
-            Record { _as: other, cached_bins: None }
+            Record { _as: other, cached_bins: None, cached_results: None }
         }
     }

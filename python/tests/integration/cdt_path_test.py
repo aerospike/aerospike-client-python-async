@@ -872,7 +872,7 @@ class TestRemoveByPath:
 
 
 # ---------------------------------------------------------------------------
-# Additional select/modify coverage for remaining JSDK test equivalents
+# Additional select/modify coverage — edge cases
 # ---------------------------------------------------------------------------
 
 class TestSelectModifyAdditional:

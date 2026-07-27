@@ -172,6 +172,15 @@ use crate::policies::AdminPolicy;
             self._as.supports_mrt()
         }
 
+        /// Returns true if server supports the string-operations module
+        /// (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
+        /// ``TO_STRING`` op-type 19) and the matching string-expression
+        /// dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
+        /// Requires server >= 8.1.3.
+        pub fn supports_string_operations(&self) -> bool {
+            self._as.supports_string_operations()
+        }
+
         /// Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
         pub fn supports_server_compiled_ael(&self) -> bool {
             true
@@ -455,7 +464,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object,
+    #[pyclass(from_py_object, 
         name = "Privilege",
         module = "_aerospike_async_native",
         subclass,

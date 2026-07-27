@@ -136,9 +136,11 @@ fn waker_loop_py(py: Python<'_>) {
             Err(_) => return,
         };
 
-        // Finalization guard: if the interpreter is being torn down,
-        // Python::attach itself would assert.
-        if unsafe { pyo3::ffi::Py_IsInitialized() } == 0 {
+        // Finalization guard: if the interpreter is not initialized or is
+        // being torn down, touching Python would crash (pyo3 0.29 rejects
+        // attach during finalization; on FT builds the thread-state teardown
+        // null-derefs).
+        if crate::completion::interpreter_unavailable() {
             return;
         }
 

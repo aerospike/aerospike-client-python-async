@@ -1091,7 +1091,7 @@ pub enum Replica {
 
     /// Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
     ///
-    /// JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    /// Namespace of plain ``int`` constants. Combine with bitwise OR
     /// (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular
     /// ``int`` and can be passed directly to ``CdtOperation.select_by_path(..., flag=...)``.
     ///
@@ -1135,7 +1135,7 @@ pub enum Replica {
 
     /// Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
     ///
-    /// JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    /// Namespace of plain ``int`` constants. Combine with bitwise OR
     /// (``ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL``) — the result is a regular
     /// ``int`` and can be passed directly to ``CdtOperation.modify_by_path(..., flag=...)``.
     ///

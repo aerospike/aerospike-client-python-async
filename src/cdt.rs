@@ -870,7 +870,7 @@ use crate::record::PythonValue;
                     for (k, v) in h {
                         btree_map.insert(aerospike_core::Value::from(k), aerospike_core::Value::from(v));
                     }
-                    aerospike_core::Value::OrderedMap(btree_map)
+                    aerospike_core::Value::SortedMap(btree_map)
                 }
                 _ => aerospike_core::Value::from(value),
             };

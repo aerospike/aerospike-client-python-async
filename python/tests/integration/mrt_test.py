@@ -23,6 +23,9 @@ Requires a strong-consistency namespace. Point the suite at it via the
     AEROSPIKE_SC_USER          auth user (default: AEROSPIKE_AUTH_USER)
     AEROSPIKE_SC_PASSWORD      auth password (default: AEROSPIKE_AUTH_PASSWORD)
     AEROSPIKE_SC_AUTH_MODE     auth mode (default: AEROSPIKE_AUTH_MODE, else INTERNAL)
+    AEROSPIKE_SC_USE_SERVICES_ALTERNATE
+                               "true" to reach the SC cluster via alternate
+                               access addresses (default: AEROSPIKE_USE_SERVICES_ALTERNATE)
 
 When the cluster isn't reachable, the namespace isn't configured, or it
 isn't strong-consistency, every test skips cleanly with a clear reason.
@@ -30,7 +33,9 @@ isn't strong-consistency, every test skips cleanly with a clear reason.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 import uuid
 
 import pytest
@@ -63,8 +68,9 @@ _AUTH_MODES = {
 def _sc_client_policy() -> ClientPolicy:
     cp = ClientPolicy()
     cp.use_services_alternate = (
-        os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() == "true"
-    )
+        os.environ.get("AEROSPIKE_SC_USE_SERVICES_ALTERNATE")
+        or os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "")
+    ).lower() == "true"
     user = os.environ.get("AEROSPIKE_SC_USER") or os.environ.get("AEROSPIKE_AUTH_USER")
     password = (
         os.environ.get("AEROSPIKE_SC_PASSWORD")
@@ -92,6 +98,36 @@ def _sc_namespace() -> str:
 @pytest.fixture(scope="module")
 def sc_namespace() -> str:
     return _sc_namespace()
+
+
+# Substrings that mean "the client hasn't finished learning the cluster yet"
+# rather than "the request reached a node and got a real answer".
+_NOT_READY_MARKERS = ("Partition map empty", "appropriate node", "Timeout after")
+
+
+async def _await_partition_map(client, namespace: str, timeout_s: float = 15.0) -> bool:
+    """Wait until the client has a routable partition map for ``namespace``.
+
+    A freshly connected client on a multi-node cluster needs a tend cycle to
+    fetch the full partition map; a command issued in that window fails with
+    "partition map empty" / no-appropriate-node before tend catches up. Poll a
+    lightweight read until node selection succeeds, so the tests exercise MRT
+    semantics rather than the connect race.
+    """
+    probe = Key(namespace, "mrt", "pac-mrt-readiness-probe")
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            await client.get(probe, policy=ReadPolicy())
+            return True
+        except Exception as exc:  # noqa: BLE001
+            # A real server response (e.g. record absent) means the partition
+            # map is routable — only keep waiting on the not-ready markers.
+            if not any(m in str(exc) for m in _NOT_READY_MARKERS):
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            await asyncio.sleep(0.1)
 
 
 @pytest_asyncio.fixture
@@ -134,6 +170,15 @@ async def sc_client(sc_namespace):
         pytest.skip(
             f"namespace {sc_namespace!r} on {host!r} is not strong-consistency; "
             "MRT tests require SC"
+        )
+
+    # A just-connected client on a multi-node cluster may not have tended the
+    # full partition map yet; wait for it so writes don't race that window.
+    if not await _await_partition_map(client, sc_namespace):
+        await client.close()
+        pytest.skip(
+            f"cluster at {host!r} did not produce a routable partition map for "
+            f"{sc_namespace!r} within the readiness timeout"
         )
 
     yield client
