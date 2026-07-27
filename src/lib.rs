@@ -612,6 +612,7 @@ use crate::operations::{
                     let policy = aerospike_core::AdminPolicy::default();
                     node.info(&policy, &[&command]).await
                         .map_err(|e| PyErr::from(RustClientError(e)))
+                        .map(|m| m.into_iter().collect())
                 })
             })
         }
@@ -1628,6 +1629,7 @@ use crate::operations::{
                 let policy = aerospike_core::AdminPolicy::default();
                 node.info(&policy, &[&command]).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
+                    .map(|m| m.into_iter().collect())
             })
         }
 
@@ -1643,8 +1645,10 @@ use crate::operations::{
                 let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
                 let policy = aerospike_core::AdminPolicy::default();
                 for node in nodes {
-                    let response = node.info(&policy, &[&command]).await
-                        .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    let response: HashMap<String, String> = node.info(&policy, &[&command]).await
+                        .map_err(|e| PyErr::from(RustClientError(e)))?
+                        .into_iter()
+                        .collect();
                     results.insert(node.name().to_string(), response);
                 }
                 Ok(results)
@@ -4097,10 +4101,12 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 let policy = aerospike_core::AdminPolicy::default();
-                let response = node
+                let response: HashMap<String, String> = node
                     .info(&policy, &[&command])
                     .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                    .map_err(|e| PyErr::from(RustClientError(e)))?
+                    .into_iter()
+                    .collect();
 
                 Ok(response)
             })
@@ -4128,6 +4134,8 @@ use crate::operations::{
                     let policy = aerospike_core::AdminPolicy::default();
                     match node.info(&policy, &[&command]).await {
                         Ok(response) => {
+                            let response: HashMap<String, String> =
+                                response.into_iter().collect();
                             results.insert(node_name, response);
                         }
                         Err(e) => {
