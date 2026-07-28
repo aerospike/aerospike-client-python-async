@@ -1849,6 +1849,37 @@ pub(crate) fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     }
 }
 
+/// Convert a Python ``{bin_name: value}`` mapping into core bins, rejecting
+/// non-string bin names.
+///
+/// Every write entry point converts its payload up front like this because the
+/// conversion needs the GIL, while the op it feeds runs on a Tokio worker.
+pub(crate) fn bins_from_dict(
+    bins: &Bound<'_, pyo3::types::PyDict>,
+) -> PyResult<Vec<aerospike_core::Bin>> {
+    let mut bin_vec = Vec::with_capacity(bins.len());
+    for (py_key, py_val) in bins.iter() {
+        let name = py_key.extract::<String>().map_err(|_| {
+            PyTypeError::new_err("A bin name must be a string or unicode string")
+        })?;
+        let val: PythonValue = py_val.extract()?;
+        bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+    }
+    Ok(bin_vec)
+}
+
+/// Positional [`bins_from_dict`] for the per-key-payload entry points: each
+/// object must be a mapping, and slot *i* becomes the payload for key *i*.
+pub(crate) fn bins_from_dict_list(
+    py: Python<'_>,
+    bins_list: &[Py<PyAny>],
+) -> PyResult<Vec<Vec<aerospike_core::Bin>>> {
+    bins_list
+        .iter()
+        .map(|obj| bins_from_dict(obj.bind(py).cast::<pyo3::types::PyDict>()?))
+        .collect()
+}
+
 /// Extract a list of Python operation objects into the internal `OperationType` representation.
 pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<Vec<OperationType>> {
     let mut rust_ops = Vec::with_capacity(py_ops.len());

@@ -82,8 +82,8 @@ define_stub_info_gatherer!(stub_info);
 use crate::blocking::run_blocking;
 use crate::cdt::ctx_to_vec;
 use crate::operations::{
-    bins_flag, convert_ops_with_ctx_to_core, convert_scalar_ops_to_core, extract_py_ops,
-    extract_py_ops_with_ctx,
+    bins_flag, bins_from_dict, bins_from_dict_list, convert_ops_with_ctx_to_core,
+    convert_scalar_ops_to_core, extract_py_ops, extract_py_ops_with_ctx,
 };
 
     /**********************************************************************************
@@ -1133,17 +1133,7 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self._as.clone();
 
-            // Same bin extraction as `put` — must run with the GIL.
-            let mut bin_vec = Vec::new();
-            for (py_key, py_val) in bins.iter() {
-                let name = py_key.extract::<String>().map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                        "A bin name must be a string or unicode string",
-                    )
-                })?;
-                let val: PythonValue = py_val.extract()?;
-                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-            }
+            let bin_vec = bins_from_dict(bins)?;
 
             run_blocking(py, async move {
                 let mut policy = match base_sc {
@@ -2085,21 +2075,7 @@ use crate::operations::{
             let client = self._as.clone();
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
-            let mut bins_vecs = Vec::with_capacity(bins_list.len());
-            for bins_obj in &bins_list {
-                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
-                let mut bin_vec = Vec::new();
-                for (py_key, py_val) in bins_dict.iter() {
-                    let name = py_key.extract::<String>().map_err(|_| {
-                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                            "A bin name must be a string or unicode string",
-                        )
-                    })?;
-                    let val: PythonValue = py_val.extract()?;
-                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-                }
-                bins_vecs.push(bin_vec);
-            }
+            let bins_vecs = bins_from_dict_list(py, &bins_list)?;
             let raw = run_blocking(py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::operations;
@@ -2423,17 +2399,7 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self._as.clone();
 
-            // Convert PyDict to Vec<Bin>, validating that all keys are strings
-            let mut bin_vec = Vec::new();
-            for (py_key, py_val) in bins.iter() {
-                let name = py_key.extract::<String>().map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                        "A bin name must be a string or unicode string"
-                    )
-                })?;
-                let val: PythonValue = py_val.extract()?;
-                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-            }
+            let bin_vec = bins_from_dict(bins)?;
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
@@ -2696,17 +2662,7 @@ use crate::operations::{
                 keys.iter().map(|k| k._as.clone()).collect();
             let client = self._as.clone();
 
-            let mut bin_vec: Vec<aerospike_core::Bin> = Vec::with_capacity(bins.len());
-            for (py_key, py_val) in bins.iter() {
-                let name: String = py_key.extract().map_err(|_| {
-                    PyException::new_err(
-                        "A bin name must be a string or unicode string"
-                    )
-                })?;
-                let val: PythonValue = py_val.extract()?;
-                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-            }
-            let bin_vec = std::sync::Arc::new(bin_vec);
+            let bin_vec = std::sync::Arc::new(bins_from_dict(bins)?);
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let slots = keys_as.into_iter().map(|key_as| {
@@ -2736,6 +2692,97 @@ use crate::operations::{
                 });
                 Ok(futures::future::join_all(slots).await)
             })
+        }
+
+        /// Per-op-delivery coalesced write: one crossing submits N independent
+        /// writes, each carrying its OWN bin payload, and resolves each
+        /// caller's pre-created future the moment that key completes.
+        ///
+        /// Write-side counterpart of :meth:`_submit_coalesced_read`. The
+        /// distinction from :meth:`_submit_many_write` is per-key payloads:
+        /// that method broadcasts ONE ``bins`` dict to every key and resolves a
+        /// single batched future, so it cannot carry writes that differ per
+        /// key; here ``bins_list[i]`` is the payload for ``keys[i]``. That is
+        /// what lets a caller-side buffer of unrelated writes fuse into one
+        /// crossing. As with the read side, no op waits on its window-mates —
+        /// there is no intra-batch head-of-line.
+        ///
+        /// Fire-and-forget: returns ``None``. ``futures[i]`` receives ``None``
+        /// on success, or key ``keys[i]``'s exception (byte-identical to a
+        /// direct :meth:`put`). `policy_sc`, when set, picks AP vs SC per key.
+        #[pyo3(name = "_submit_coalesced_write", signature = (
+            keys,
+            futures,
+            bins_list,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_coalesced_write(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            futures: Vec<Py<PyAny>>,
+            bins_list: Vec<Py<PyAny>>,
+            policy: Option<WritePolicy>,
+            policy_sc: Option<WritePolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            if keys.len() != futures.len() || keys.len() != bins_list.len() {
+                return Err(PyValueError::new_err(
+                    "keys, futures, and bins_list must have the same length",
+                ));
+            }
+            let bridge = self.require_bridge()?;
+            let inner = bridge.inner_arc();
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let client = self._as.clone();
+
+            let ops: Vec<(aerospike_core::Key, Py<PyAny>, Vec<aerospike_core::Bin>)> = keys
+                .iter()
+                .map(|k| k._as.clone())
+                .zip(futures)
+                .zip(bins_from_dict_list(py, &bins_list)?)
+                .map(|((key_as, fut), bin_vec)| (key_as, fut, bin_vec))
+                .collect();
+
+            // One spawn drives all N ops concurrently; each delivers its own
+            // future as it finishes (FuturesUnordered yields in completion
+            // order), so the FFI crossing and Tokio spawn are amortized while
+            // delivery stays per-op.
+            bridge.spawn(async move {
+                use futures::stream::{FuturesUnordered, StreamExt};
+                let mut pending = FuturesUnordered::new();
+                for (key_as, fut, bin_vec) in ops {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    pending.push(async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        // `None` so the future resolves to Python `None`, matching
+                        // a direct `put`; a Rust unit would cross as `()`.
+                        let result = client
+                            .put(&policy, &key_as, &bin_vec)
+                            .await
+                            .map(|_| Option::<Record>::None)
+                            .map_err(|e| PyErr::from(RustClientError(e)));
+                        (fut, result)
+                    });
+                }
+                while let Some((fut, result)) = pending.next().await {
+                    completion::deliver_one(&inner, fut, result);
+                }
+            });
+            Ok(())
         }
 
         /// Execute multiple operations atomically on a single record.
@@ -3007,21 +3054,7 @@ use crate::operations::{
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
 
-            let mut bins_vecs = Vec::with_capacity(bins_list.len());
-            for bins_obj in &bins_list {
-                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
-                let mut bin_vec = Vec::new();
-                for (py_key, py_val) in bins_dict.iter() {
-                    let name = py_key.extract::<String>().map_err(|_| {
-                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                            "A bin name must be a string or unicode string"
-                        )
-                    })?;
-                    let val: PythonValue = py_val.extract()?;
-                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-                }
-                bins_vecs.push(bin_vec);
-            }
+            let bins_vecs = bins_from_dict_list(py, &bins_list)?;
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;

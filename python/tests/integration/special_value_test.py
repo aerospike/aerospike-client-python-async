@@ -272,8 +272,10 @@ async def test_wildcard_cannot_be_stored_in_list(client_and_key):
 
 @pytest.mark.slow
 @pytest.mark.xfail(
-    reason="Rust core panics at value.rs:254 when serializing SpecialValue "
-           "as a top-level bin value; should return an error instead",
+    reason="Rust core panics at value.rs:411 (unreachable! in particle_type) when "
+           "writing a SpecialValue as a top-level bin value; should return an error "
+           "instead. estimate_size() and write_to() already handle these variants, so "
+           "only particle_type() needs the fix.",
     raises=Exception,
     strict=True,
 )
