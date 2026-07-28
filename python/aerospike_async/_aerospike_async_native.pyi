@@ -1117,6 +1117,25 @@ class Client:
         Each result slot is ``None`` on success or the exception instance
         for that key.
         """
+    def _submit_coalesced_write(self, keys: typing.Sequence[_aerospike_async_native.Key], futures: typing.Sequence[typing.Any], bins_list: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> None:
+        r"""
+        Per-op-delivery coalesced write: one crossing submits N independent
+        writes, each carrying its OWN bin payload, and resolves each
+        caller's pre-created future the moment that key completes.
+
+        Write-side counterpart of :meth:`_submit_coalesced_read`. The
+        distinction from :meth:`_submit_many_write` is per-key payloads:
+        that method broadcasts ONE ``bins`` dict to every key and resolves a
+        single batched future, so it cannot carry writes that differ per
+        key; here ``bins_list[i]`` is the payload for ``keys[i]``. That is
+        what lets a caller-side buffer of unrelated writes fuse into one
+        crossing. As with the read side, no op waits on its window-mates —
+        there is no intra-batch head-of-line.
+
+        Fire-and-forget: returns ``None``. ``futures[i]`` receives ``None``
+        on success, or key ``keys[i]``'s exception (byte-identical to a
+        direct :meth:`put`). `policy_sc`, when set, picks AP vs SC per key.
+        """
     def operate(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[Record]:
         r"""
         Execute multiple operations atomically on a single record.

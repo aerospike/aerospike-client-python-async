@@ -30,11 +30,13 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (
+    BatchPolicy,
     ClientPolicy,
     ErrorDetailVerbosity,
     Key,
     ListOperation,
     ListReturnType,
+    Operation,
     ResultCode,
     ServerError,
     WritePolicy,
@@ -139,3 +141,46 @@ class TestErrorDetail:
         assert rank_exc.result_code == ResultCode.OP_NOT_APPLICABLE
         assert index_exc.sub_code == _SUB_CDT_INDEX_OUT_OF_BOUNDS
         assert rank_exc.sub_code == _SUB_CDT_RANK_OUT_OF_BOUNDS
+
+
+class TestBatchErrorDetail:
+    """Per-record error detail on batch results.
+
+    A batch reports failures per record rather than raising, so the subcode the
+    single-key path puts on the exception has to travel on the record instead.
+    """
+
+    @pytest.mark.xfail(
+        reason="Rust core does not plumb sub_code through batch records — BatchRecord "
+               "carries only (key, record, result_code, in_doubt) and the batch executor "
+               "discards the server error detail, so there is nowhere for a per-record "
+               "subcode to live. The single-key path above already has it. Un-xfail once "
+               "BatchRecord exposes sub_code.",
+        raises=AttributeError,
+        strict=True,
+    )
+    async def test_batch_per_record_carries_subcode(self, edv_client):
+        """A failing record in a batch should carry the subcode the equivalent
+        single-key failure raises."""
+        bad = Key("test", "test", "error-detail-batch-bad")
+        good = Key("test", "test", "error-detail-batch-good")
+        for k in (bad, good):
+            await edv_client.put(k, {"nums": [1, 2, 3]})
+
+        bp = BatchPolicy()
+        bp.error_detail_verbosity = ErrorDetailVerbosity.MESSAGE
+        results = await edv_client.batch_operate(
+            [bad, good],
+            [
+                [ListOperation.get_by_index("nums", 99, ListReturnType.VALUE)],
+                [Operation.get_bin("nums")],
+            ],
+            batch_policy=bp,
+            write_policy=None,
+        )
+
+        # Precondition: the failure is reported per record, not raised.
+        assert results[0].result_code == ResultCode.OP_NOT_APPLICABLE
+        assert results[1].result_code == ResultCode.OK
+
+        assert results[0].sub_code == _SUB_CDT_INDEX_OUT_OF_BOUNDS
