@@ -11,7 +11,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 [[package]]
 name = "aerospike-core"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=724d69ca887653a402f1cf0d6394495ad64ef61e#724d69ca887653a402f1cf0d6394495ad64ef61e"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=4dd1a932267d2051a3f0f5c41f537b8a360c0cc6#4dd1a932267d2051a3f0f5c41f537b8a360c0cc6"
 dependencies = [
  "aerospike-macro",
  "aerospike-rt",
@@ -40,7 +40,7 @@ dependencies = [
 [[package]]
 name = "aerospike-macro"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=724d69ca887653a402f1cf0d6394495ad64ef61e#724d69ca887653a402f1cf0d6394495ad64ef61e"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=4dd1a932267d2051a3f0f5c41f537b8a360c0cc6#4dd1a932267d2051a3f0f5c41f537b8a360c0cc6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -50,7 +50,7 @@ dependencies = [
 [[package]]
 name = "aerospike-rt"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=724d69ca887653a402f1cf0d6394495ad64ef61e#724d69ca887653a402f1cf0d6394495ad64ef61e"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=4dd1a932267d2051a3f0f5c41f537b8a360c0cc6#4dd1a932267d2051a3f0f5c41f537b8a360c0cc6"
 dependencies = [
  "tokio",
 ]
@@ -62,6 +62,7 @@ dependencies = [
  "aerospike-core",
  "futures",
  "hex",
+ "indexmap",
  "log",
  "mimalloc",
  "ordered-float 3.9.2",
@@ -1054,6 +1055,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd274650b21d4bfc26a0a47587962c1edb425f69287324355cd040c3ea66071c"
 dependencies = [
+ "indexmap",
  "libc",
  "once_cell",
  "portable-atomic",

@@ -144,6 +144,23 @@ fn waker_loop_py(py: Python<'_>) {
             return;
         }
 
+        // Pipe-wake transport (uvloop + FT): write one byte to the loop's
+        // self-pipe instead of `call_soon_threadsafe`. No Python touched — the
+        // foreign thread only writes a kernel fd — so uvloop's #720 ready-queue
+        // race cannot fire. `pipe_wake` returns `None` for the default path.
+        #[cfg(unix)]
+        {
+            if let Some(res) = crate::completion::pipe_wake(&inner) {
+                if res.is_err() {
+                    // Write end broke (loop's read end closed): latch + fail so
+                    // callers don't hang, mirroring the call_soon-failure path.
+                    inner.closed.store(true, Ordering::Release);
+                    inner.fail_all_pending();
+                }
+                continue;
+            }
+        }
+
         // We're back attached after detach(); call_soon_threadsafe runs
         // here on our persistent PyThreadState — no churn per token.
         let result: PyResult<()> = (|| {

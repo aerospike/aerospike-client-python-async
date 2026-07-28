@@ -1073,6 +1073,50 @@ class Client:
         op time and picks AP vs SC. `filter_expression` / `txn` are
         applied after the mode pick on a cloned policy.
         """
+    def _submit_many_read(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> typing.Awaitable[typing.Any]:
+        r"""
+        Submit a window of independent single-record reads in one call.
+
+        One crossing spawns all reads and one completion delivers all
+        results, so per-op submission and wakeup overhead is amortized
+        across the window. These stay independent wire ops — this is
+        client-side fusion, not a server batch request. Results are
+        positional: each slot is either a :class:`Record` or the
+        exception instance for that key (check with
+        ``isinstance(slot, Exception)``), so a missing record never
+        fails its window-mates.
+
+        When `policy_sc` is provided, the namespace mode is resolved at
+        op time per key and AP vs SC is picked, mirroring `get`.
+        """
+    def _submit_coalesced_read(self, keys: typing.Sequence[_aerospike_async_native.Key], futures: typing.Sequence[typing.Any], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> None:
+        r"""
+        Per-op-delivery coalesced read: one crossing submits N independent
+        reads and resolves each caller's OWN pre-created future the moment
+        that key completes, via the bridge's drainer.
+
+        Unlike :meth:`_submit_many_read`'s single batched future (which
+        resolves only when the slowest key returns), no op waits on its
+        window-mates — a task awaiting a fast key resumes immediately and
+        can issue its next op, so there is no intra-batch head-of-line. This
+        is the backend for PSDK's transparent same-tick read coalescer.
+
+        Fire-and-forget: returns ``None``. ``futures[i]`` receives key
+        ``keys[i]``'s :class:`Record`, or its exception (byte-identical to a
+        direct :meth:`get`, including ``KEY_NOT_FOUND`` raising). `bins` is a
+        shared projection; `policy_sc`, when set, picks AP vs SC per key.
+        """
+    def _submit_many_write(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[typing.Any]:
+        r"""
+        Submit a window of independent single-record writes in one call.
+
+        Write-side counterpart of :meth:`_submit_many_read`: one crossing
+        spawns all writes and one completion delivers all results. The
+        bin payload is converted once and shared across the window (the
+        common benchmark/app shape writes the same record spec per key).
+        Each result slot is ``None`` on success or the exception instance
+        for that key.
+        """
     def operate(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[Record]:
         r"""
         Execute multiple operations atomically on a single record.

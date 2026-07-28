@@ -9,11 +9,15 @@ name = "_aerospike_async_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.29", default-features = false }
+pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "724d69ca887653a402f1cf0d6394495ad64ef61e", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "4dd1a932267d2051a3f0f5c41f537b8a360c0cc6", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
 hex = "0.4"
+# Match aerospike-core's info/bins return type (order-preserving). The `indexmap`
+# feature on pyo3 provides the IntoPyObject conversion so these map straight to
+# ordered Python dicts.
+indexmap = "2"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.23"
 log = "0.4"
