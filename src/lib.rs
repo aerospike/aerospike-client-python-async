@@ -23,6 +23,7 @@ extern crate pyo3;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -245,6 +246,28 @@ use crate::operations::{
 
         fn __repr__(&self) -> String {
             format!("Txn(id={}, state={:?}, namespace={:?})", self._as.id(), self._as.state(), self._as.namespace())
+        }
+    }
+
+    // Per-slot carrier for `Client._submit_many_read` / `_submit_many_write`.
+    // Holds the record (reads), nothing (writes), or the op's exception so
+    // one failed key cannot poison its window-mates; converts on the drainer
+    // thread to the `Record` object, `None`, or the exception INSTANCE (not
+    // raised) so callers can distinguish slots with
+    // `isinstance(slot, Exception)`.
+    struct SlotOutcome(Result<Option<Record>, PyErr>);
+
+    impl<'py> IntoPyObject<'py> for SlotOutcome {
+        type Target = PyAny;
+        type Output = Bound<'py, PyAny>;
+        type Error = PyErr;
+
+        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+            match self.0 {
+                Ok(Some(record)) => Ok(record.into_pyobject(py)?.into_any()),
+                Ok(None) => Ok(py.None().into_bound(py)),
+                Err(e) => Ok(e.into_value(py).into_bound(py).into_any()),
+            }
         }
     }
 
@@ -603,7 +626,7 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, String>> {
+        ) -> PyResult<IndexMap<String, String>> {
             let client = self.client.clone();
             py.detach(|| {
                 self.rt.block_on(async move {
@@ -1038,6 +1061,14 @@ use crate::operations::{
         pub fn close<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
+            // NB: close() does NOT tear down the pipe-wake reader. A closed
+            // client is still usable (e.g. `is_connected()` returning False),
+            // and those calls still deliver completions through the reader —
+            // removing it here would leave them writing to an unwatched pipe
+            // and hang. The reader is released when the owning loop closes
+            // (asyncio drops readers on `loop.close()`), matching the
+            // `call_soon_threadsafe` path, which likewise relies on the loop
+            // staying alive after client close.
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .close()
@@ -1621,7 +1652,7 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, String>> {
+        ) -> PyResult<IndexMap<String, String>> {
             let client = self._as.clone();
             run_blocking(py, async move {
                 let node = client.cluster.get_random_node()
@@ -1638,11 +1669,11 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, HashMap<String, String>>> {
+        ) -> PyResult<HashMap<String, IndexMap<String, String>>> {
             let client = self._as.clone();
             run_blocking(py, async move {
                 let nodes = client.nodes();
-                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut results: HashMap<String, IndexMap<String, String>> = HashMap::new();
                 let policy = aerospike_core::AdminPolicy::default();
                 for node in nodes {
                     let response: HashMap<String, String> = node.info(&policy, &[&command]).await
@@ -2479,6 +2510,235 @@ use crate::operations::{
                 }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
+            })
+        }
+
+        /// Submit a window of independent single-record reads in one call.
+        ///
+        /// One crossing spawns all reads and one completion delivers all
+        /// results, so per-op submission and wakeup overhead is amortized
+        /// across the window. These stay independent wire ops — this is
+        /// client-side fusion, not a server batch request. Results are
+        /// positional: each slot is either a :class:`Record` or the
+        /// exception instance for that key (check with
+        /// ``isinstance(slot, Exception)``), so a missing record never
+        /// fails its window-mates.
+        ///
+        /// When `policy_sc` is provided, the namespace mode is resolved at
+        /// op time per key and AP vs SC is picked, mirroring `get`.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(name = "_submit_many_read", signature = (
+            keys,
+            bins=None,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_many_read<'a>(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
+            policy_sc: Option<ReadPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let keys_as: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let client = self._as.clone();
+
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let slots = keys_as.into_iter().map(|key_as| {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bins = bins.clone();
+                    async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        SlotOutcome(
+                            client
+                                .get(&policy, &key_as, bins_flag(bins))
+                                .await
+                                .map(|res| Some(Record {
+                                    _as: res,
+                                    cached_bins: None,
+                                    cached_results: None,
+                                }))
+                                .map_err(|e| PyErr::from(RustClientError(e))),
+                        )
+                    }
+                });
+                Ok(futures::future::join_all(slots).await)
+            })
+        }
+
+        /// Per-op-delivery coalesced read: one crossing submits N independent
+        /// reads and resolves each caller's OWN pre-created future the moment
+        /// that key completes, via the bridge's drainer.
+        ///
+        /// Unlike :meth:`_submit_many_read`'s single batched future (which
+        /// resolves only when the slowest key returns), no op waits on its
+        /// window-mates — a task awaiting a fast key resumes immediately and
+        /// can issue its next op, so there is no intra-batch head-of-line. This
+        /// is the backend for PSDK's transparent same-tick read coalescer.
+        ///
+        /// Fire-and-forget: returns ``None``. ``futures[i]`` receives key
+        /// ``keys[i]``'s :class:`Record`, or its exception (byte-identical to a
+        /// direct :meth:`get`, including ``KEY_NOT_FOUND`` raising). `bins` is a
+        /// shared projection; `policy_sc`, when set, picks AP vs SC per key.
+        #[pyo3(name = "_submit_coalesced_read", signature = (
+            keys,
+            futures,
+            bins=None,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_coalesced_read(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            futures: Vec<Py<PyAny>>,
+            bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
+            policy_sc: Option<ReadPolicy>,
+        ) -> PyResult<()> {
+            if keys.len() != futures.len() {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "keys and futures must have the same length",
+                ));
+            }
+            let bridge = self.require_bridge()?;
+            let inner = bridge.inner_arc();
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let client = self._as.clone();
+            let pairs: Vec<(aerospike_core::Key, Py<PyAny>)> = keys
+                .iter()
+                .map(|k| k._as.clone())
+                .zip(futures)
+                .collect();
+
+            // One spawn drives all N ops concurrently; each delivers its own
+            // future as it finishes (FuturesUnordered yields in completion
+            // order), so the FFI crossing and Tokio spawn are amortized while
+            // delivery stays per-op.
+            bridge.spawn(async move {
+                use futures::stream::{FuturesUnordered, StreamExt};
+                let mut ops = FuturesUnordered::new();
+                for (key_as, fut) in pairs {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bins = bins.clone();
+                    ops.push(async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        let result = client
+                            .get(&policy, &key_as, bins_flag(bins))
+                            .await
+                            .map(|res| Record {
+                                _as: res,
+                                cached_bins: None,
+                                cached_results: None,
+                            })
+                            .map_err(|e| PyErr::from(RustClientError(e)));
+                        (fut, result)
+                    });
+                }
+                while let Some((fut, result)) = ops.next().await {
+                    completion::deliver_one(&inner, fut, result);
+                }
+            });
+            Ok(())
+        }
+
+        /// Submit a window of independent single-record writes in one call.
+        ///
+        /// Write-side counterpart of :meth:`_submit_many_read`: one crossing
+        /// spawns all writes and one completion delivers all results. The
+        /// bin payload is converted once and shared across the window (the
+        /// common benchmark/app shape writes the same record spec per key).
+        /// Each result slot is ``None`` on success or the exception instance
+        /// for that key.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(name = "_submit_many_write", signature = (
+            keys,
+            bins,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_many_write<'a>(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            bins: &Bound<'a, PyDict>,
+            policy: Option<WritePolicy>,
+            policy_sc: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let keys_as: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let client = self._as.clone();
+
+            let mut bin_vec: Vec<aerospike_core::Bin> = Vec::with_capacity(bins.len());
+            for (py_key, py_val) in bins.iter() {
+                let name: String = py_key.extract().map_err(|_| {
+                    PyException::new_err(
+                        "A bin name must be a string or unicode string"
+                    )
+                })?;
+                let val: PythonValue = py_val.extract()?;
+                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+            }
+            let bin_vec = std::sync::Arc::new(bin_vec);
+
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let slots = keys_as.into_iter().map(|key_as| {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bin_vec = bin_vec.clone();
+                    async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        SlotOutcome(
+                            client
+                                .put(&policy, &key_as, &bin_vec)
+                                .await
+                                .map(|_| None)
+                                .map_err(|e| PyErr::from(RustClientError(e))),
+                        )
+                    }
+                });
+                Ok(futures::future::join_all(slots).await)
             })
         }
 
@@ -4127,7 +4387,7 @@ use crate::operations::{
                 let nodes = client
                     .nodes();
 
-                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut results: HashMap<String, IndexMap<String, String>> = HashMap::new();
 
                 for node in nodes {
                     let node_name = node.name().to_string();
