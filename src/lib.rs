@@ -1676,7 +1676,7 @@ use crate::operations::{
                 let mut results: HashMap<String, IndexMap<String, String>> = HashMap::new();
                 let policy = aerospike_core::AdminPolicy::default();
                 for node in nodes {
-                    let response: HashMap<String, String> = node.info(&policy, &[&command]).await
+                    let response: IndexMap<String, String> = node.info(&policy, &[&command]).await
                         .map_err(|e| PyErr::from(RustClientError(e)))?
                         .into_iter()
                         .collect();
@@ -4394,7 +4394,7 @@ use crate::operations::{
                     let policy = aerospike_core::AdminPolicy::default();
                     match node.info(&policy, &[&command]).await {
                         Ok(response) => {
-                            let response: HashMap<String, String> =
+                            let response: IndexMap<String, String> =
                                 response.into_iter().collect();
                             results.insert(node_name, response);
                         }
