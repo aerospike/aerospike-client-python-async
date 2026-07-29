@@ -34,6 +34,11 @@ MaxErrorRate = _exceptions.MaxErrorRate
 # ResultCode is in the main native module, not in exceptions submodule
 ResultCode = _aerospike_async_native.ResultCode
 
+# Typed in-doubt lives on the base so every error answers it; the native
+# layer sets the instance attribute only when core reports the write may
+# have landed.
+AerospikeError.in_doubt = False
+
 # ServerError subclasses for specific result codes (grouping bases first)
 class RecordError(ServerError):
     """Record-level server errors."""
