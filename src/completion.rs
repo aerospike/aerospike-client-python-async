@@ -169,7 +169,7 @@ impl PipeDrainer {
 pub(crate) fn pipe_wake(inner: &CompletionInner) -> Option<std::io::Result<()>> {
     inner.pipe.as_ref().map(|p| {
         let mut writer: &UnixStream = &p.tx;
-        match writer.write(&[b'x']) {
+        match writer.write(b"x") {
             Ok(_) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(()),
             Err(e) => Err(e),

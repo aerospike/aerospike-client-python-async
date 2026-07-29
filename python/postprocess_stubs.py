@@ -39,6 +39,8 @@ import re
 # Exception class stub definitions (defined once, reused everywhere)
 EXCEPTION_STUB_CLASSES = '''class AerospikeError(builtins.Exception):
     """Base exception class for all Aerospike-specific errors."""
+    @property
+    def in_doubt(self) -> builtins.bool: ...
     def __init__(self, message: builtins.str) -> None: ...
 
 class ServerError(AerospikeError):
@@ -1784,6 +1786,11 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('MaxErrorRate = _exceptions.MaxErrorRate\n')
         f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
         f.write('ResultCode = _aerospike_async_native.ResultCode\n')
+        f.write('\n')
+        f.write('# Typed in-doubt lives on the base so every error answers it; the native\n')
+        f.write('# layer sets the instance attribute only when core reports the write may\n')
+        f.write('# have landed.\n')
+        f.write('AerospikeError.in_doubt = False\n')
         f.write('\n')
         f.write('# ServerError subclasses for specific result codes (grouping bases first)\n')
         f.write('class RecordError(ServerError):\n')

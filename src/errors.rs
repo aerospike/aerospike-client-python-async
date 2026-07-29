@@ -13,10 +13,13 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
+use std::marker::PhantomData;
+
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::PyErrArguments;
+use pyo3::PyTypeInfo;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use aerospike_core::errors::{Error, ErrorKind};
 use aerospike_core::ResultCode as CoreResultCode;
@@ -166,6 +169,48 @@ fn create_server_error(
         detail: detail.cloned(),
     })
 }
+
+// Deferred arguments for a client-side error whose core cause chain is marked
+// in-doubt.  Lazy for the same reason as `ServerErrorArgs` above: `arguments()`
+// runs when the PyErr is first materialized, on the event-loop/drainer thread,
+// never on a Tokio worker.  Builds the exception instance and sets the
+// `in_doubt` instance attribute, overriding the `False` class default that
+// `AerospikeError` declares on the Python side.
+struct InDoubtArgs<T> {
+    message: String,
+    // `fn() -> T` keeps this Send + Sync regardless of T: the generated
+    // exception types wrap `PyAny`, which is not Sync.
+    _cls: PhantomData<fn() -> T>,
+}
+
+impl<T: PyTypeInfo + 'static> PyErrArguments for InDoubtArgs<T> {
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        match py.get_type::<T>().call1((self.message,)) {
+            Ok(obj) => {
+                // Best effort: a failed setattr falls back to the class
+                // default False rather than masking the original error.
+                let _ = obj.setattr("in_doubt", true);
+                obj.unbind()
+            }
+            // Construction failed — surface that failure's own exception value.
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
+// Not-in-doubt is the overwhelmingly common case and stays on the existing
+// fast path: no setattr, no extra allocation, identical to `T::new_err(msg)`.
+fn client_err<T>(message: String, in_doubt: bool) -> PyErr
+where
+    T: PyTypeInfo + 'static,
+{
+    if in_doubt {
+        PyErr::new::<T, _>(InDoubtArgs::<T> { message, _cls: PhantomData })
+    } else {
+        PyErr::new::<T, _>(message)
+    }
+}
+
 create_exception!(aerospike_async.exceptions, UDFBadResponse, AerospikeError);
 create_exception!(aerospike_async.exceptions, TimeoutError, AerospikeError);
 create_exception!(aerospike_async.exceptions, BadResponse, AerospikeError);
@@ -239,18 +284,28 @@ impl From<RustClientError> for PyErr {
         // carries the full retry context, so `except TimeoutError` /
         // `except ConnectionError` still match retried failures.
         let msg = err.to_string();
+        // Typed in-doubt from core; `in_doubt()` walks the cause chain, so a
+        // wrapper (retry decoration, BatchFailed, NoMoreConnections over an
+        // in-doubt failure) inherits it.  Every kind that can carry a cause
+        // chain routes through `client_err`; the pure conversion failures
+        // (Base64 .. PwHash) never do and stay on `new_err`.
+        let in_doubt = err.in_doubt();
         match err.kind() {
-            ErrorKind::Timeout => TimeoutError::new_err(msg),
-            ErrorKind::Connection | ErrorKind::ConnectionPoolEmpty => ConnectionError::new_err(msg),
-            ErrorKind::NoMoreConnections => NoMoreConnections::new_err(msg),
-            ErrorKind::MaxErrorRate => MaxErrorRate::new_err(msg),
-            ErrorKind::InvalidNode => InvalidNodeError::new_err(msg),
-            ErrorKind::InvalidNamespace => InvalidNamespaceError::new_err(msg),
-            ErrorKind::InvalidArgument => ValueError::new_err(msg),
-            ErrorKind::BadResponse | ErrorKind::ParsePeers => BadResponse::new_err(msg),
-            ErrorKind::UdfBadResponse => UDFBadResponse::new_err(msg),
+            ErrorKind::Timeout => client_err::<TimeoutError>(msg, in_doubt),
+            ErrorKind::Connection | ErrorKind::ConnectionPoolEmpty => {
+                client_err::<ConnectionError>(msg, in_doubt)
+            }
+            ErrorKind::NoMoreConnections => client_err::<NoMoreConnections>(msg, in_doubt),
+            ErrorKind::MaxErrorRate => client_err::<MaxErrorRate>(msg, in_doubt),
+            ErrorKind::InvalidNode => client_err::<InvalidNodeError>(msg, in_doubt),
+            ErrorKind::InvalidNamespace => client_err::<InvalidNamespaceError>(msg, in_doubt),
+            ErrorKind::InvalidArgument => client_err::<ValueError>(msg, in_doubt),
+            ErrorKind::BadResponse | ErrorKind::ParsePeers => {
+                client_err::<BadResponse>(msg, in_doubt)
+            }
+            ErrorKind::UdfBadResponse => client_err::<UDFBadResponse>(msg, in_doubt),
             ErrorKind::Commit { error_type, .. } => {
-                CommitFailedError::new_err(format!("{error_type} (in_doubt={})", err.in_doubt()))
+                client_err::<CommitFailedError>(format!("{error_type} (in_doubt={in_doubt})"), in_doubt)
             }
             ErrorKind::Base64(e) => Base64DecodeError::new_err(e.to_string()),
             ErrorKind::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
@@ -262,7 +317,7 @@ impl From<RustClientError> for PyErr {
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection
             // etc. are handled above.)
-            _ => ClientError::new_err(msg),
+            _ => client_err::<ClientError>(msg, in_doubt),
         }
     }
 }

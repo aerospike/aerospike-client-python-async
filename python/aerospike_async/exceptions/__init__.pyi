@@ -7,6 +7,8 @@ from .._aerospike_async_native import ResultCode
 # Exception classes
 class AerospikeError(builtins.Exception):
     """Base exception class for all Aerospike-specific errors."""
+    @property
+    def in_doubt(self) -> builtins.bool: ...
     def __init__(self, message: builtins.str) -> None: ...
 
 class ServerError(AerospikeError):

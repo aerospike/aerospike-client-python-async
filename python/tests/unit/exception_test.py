@@ -13,6 +13,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import subprocess
+import sys
+
 from aerospike_async.exceptions import (
     AerospikeError,
     ServerError,
@@ -85,6 +88,44 @@ class TestException:
         # but is still an Aerospike-related exception
         assert issubclass(ServerError, Exception)
         # Note: ServerError does not extend AerospikeError due to Rust implementation constraints
+
+
+class TestClientSideInDoubt:
+    """Test the in_doubt attribute on AerospikeError and its subclasses."""
+
+    def test_default_false(self):
+        """in_doubt defaults to False on the base and inherited subclasses."""
+        for exception in (AerospikeError, TimeoutError, ConnectionError, ClientError):
+            assert exception("boom").in_doubt is False
+
+    def test_instance_override(self):
+        """A per-instance in_doubt=True reads back without touching the class default."""
+        err = TimeoutError("timed out")
+        err.in_doubt = True
+        assert err.in_doubt is True
+        assert TimeoutError("timed out").in_doubt is False
+
+    def test_str_unaffected(self):
+        """Setting in_doubt leaves str() as the plain message, not an args tuple."""
+        err = ConnectionError("connection reset")
+        err.in_doubt = True
+        assert str(err) == "connection reset"
+        assert err.args == ("connection reset",)
+
+    def test_package_attribute_applies_class_default(self):
+        """A bare package import loads the wrapper module and applies class defaults.
+
+        Runs in a fresh interpreter: any in-process import of
+        aerospike_async.exceptions rebinds the package attribute to the wrapper
+        as an import side effect, which would mask a missing package-level
+        import.
+        """
+        code = (
+            "import aerospike_async; "
+            "assert aerospike_async.exceptions.TimeoutError('x').in_doubt is False; "
+            "assert hasattr(aerospike_async.exceptions, 'RecordNotFound')"
+        )
+        subprocess.run([sys.executable, "-c", code], check=True)
 
 
 class TestServerError:

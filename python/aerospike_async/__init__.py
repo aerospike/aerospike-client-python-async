@@ -63,6 +63,17 @@ del _os
 # Import all classes and functions from the compiled module
 from ._aerospike_async_native import *
 
+# Load the exceptions wrapper module with the package: it applies Python-side
+# class defaults (e.g. AerospikeError.in_doubt) that must exist even for
+# callers that never import aerospike_async.exceptions themselves. The star
+# import above already bound `exceptions` to the raw PyO3 submodule, which
+# would make `from . import exceptions` a no-op attribute lookup — import the
+# wrapper explicitly and rebind the package attribute to it (it also carries
+# the ServerError subclass hierarchy the native submodule lacks).
+import importlib as _importlib
+exceptions = _importlib.import_module(".exceptions", __name__)
+del _importlib
+
 try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("aerospike_async")
