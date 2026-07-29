@@ -289,7 +289,7 @@ use crate::policies::AdminPolicy;
                     .info(&admin_policy, &[&command])
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(response.into_iter().collect::<std::collections::HashMap<_, _>>())
+                Ok(response)
             })
         }
 

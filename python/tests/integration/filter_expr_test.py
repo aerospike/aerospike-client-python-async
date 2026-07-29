@@ -26,7 +26,7 @@ from aerospike_async import (
     PartitionFilter,
     FilterExpression as fe,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
+from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut, InvalidRequest
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
@@ -203,3 +203,55 @@ class TestFilterExprBase64Query(TestFixtureConnection):
             count += 1
         records.close()
         assert count == 10
+
+
+class TestFilterExprServerCompiledAelQuery(TestFixtureConnection):
+    """Query with server-compiled AEL filters (server >= 8.1.3)."""
+
+    NAMESPACE = "test"
+    BIN_NAME = "bin"
+
+    @pytest.fixture
+    async def client_and_data(self, client, supports_server_compiled_ael):
+        """Create a set with records bin=0..19 for server-compiled AEL query tests."""
+        if not supports_server_compiled_ael:
+            pytest.skip(
+                "server-compiled AEL filters require server >= 8.1.3; point "
+                "AEROSPIKE_HOST at an 8.1.3+ build to run these"
+            )
+        set_name = f"sc_ael_{uuid.uuid4().hex[:8]}"
+        wp = WritePolicy()
+        for i in range(20):
+            key = Key(self.NAMESPACE, set_name, i)
+            await client.put(key, {self.BIN_NAME: i}, policy=wp)
+        yield client, set_name
+
+    async def test_query_with_server_compiled_ael_single_match(self, client_and_data):
+        """Server-compiled AEL filter on a query returns the matching record count."""
+        client, set_name = client_and_data
+        qp = QueryPolicy()
+        qp.filter_expression = fe.from_server_compiled_ael(f"$.{self.BIN_NAME} == 1")
+
+        stmt = Statement(self.NAMESPACE, set_name, None)
+        records = await client.query(stmt, PartitionFilter.all(), policy=qp)
+        count = 0
+        async for _ in records:
+            count += 1
+        records.close()
+        assert count == 1
+
+    async def test_query_with_invalid_server_compiled_ael(self, client_and_data):
+        """Invalid server-compiled AEL surfaces as PARAMETER_ERROR from the server."""
+        client, set_name = client_and_data
+        qp = QueryPolicy()
+        qp.filter_expression = fe.from_server_compiled_ael("this is not valid AEL !!!")
+
+        stmt = Statement(self.NAMESPACE, set_name, None)
+        records = await client.query(stmt, PartitionFilter.all(), policy=qp)
+        try:
+            with pytest.raises(InvalidRequest) as exc_info:
+                async for _ in records:
+                    pass
+        finally:
+            records.close()
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR

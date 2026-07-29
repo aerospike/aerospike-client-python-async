@@ -241,6 +241,14 @@ class TestFilterExprBase64:
         restored = fe.from_base64(b64)
         assert restored.base64() == b64
 
+    def test_base64_roundtrip_server_compiled_ael(self):
+        expr = fe.from_server_compiled_ael("$.rank in (1,2,3)")
+        b64 = expr.base64()
+        assert isinstance(b64, str)
+        assert len(b64) > 0
+        restored = fe.from_base64(b64)
+        assert restored.base64() == b64
+
     def test_from_base64_invalid_raises(self):
         import pytest
         from aerospike_async.exceptions import BadResponse
