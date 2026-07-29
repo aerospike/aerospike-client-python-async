@@ -2534,6 +2534,12 @@ class FilterExpression:
         Create an expression from a base64-encoded expression string.
         """
     @staticmethod
+    def from_server_compiled_ael(ael: builtins.str) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
+        server (8.1.3+) parses and compiles the Aerospike Expression Language string.
+        """
+    @staticmethod
     def unknown() -> _aerospike_async_native.FilterExpression:
         r"""
         Create unknown value. Used to intentionally fail an expression.
@@ -5411,6 +5417,10 @@ class Version:
         ``TO_STRING`` op-type 19) and the matching string-expression
         dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
         Requires server >= 8.1.3.
+        """
+    def supports_server_compiled_ael(self) -> builtins.bool:
+        r"""
+        Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

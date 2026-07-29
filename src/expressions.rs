@@ -1232,6 +1232,15 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
+        /// Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
+        /// server (8.1.3+) parses and compiles the Aerospike Expression Language string.
+        pub fn from_server_compiled_ael(ael: &str) -> PyResult<FilterExpression> {
+            aerospike_core::expressions::pack_ael_server_filter(ael)
+                .map(|expr| FilterExpression { _as: expr })
+                .map_err(|e| PyErr::from(RustClientError(e)))
+        }
+
+        #[staticmethod]
         /// Create unknown value. Used to intentionally fail an expression.
         /// The failure can be ignored with `ExpWriteFlags` `EVAL_NO_FAIL`
         /// or `ExpReadFlags` `EVAL_NO_FAIL`.
