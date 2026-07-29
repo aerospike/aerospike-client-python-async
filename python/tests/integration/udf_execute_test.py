@@ -267,6 +267,35 @@ class TestExecuteUDF(TestFixtureConnection):
                 policy=wp,
             )
 
+    async def test_udf_client_timeout_marks_in_doubt(self, client_with_sleep_udf):
+        """A client socket timeout on a write that reached the server marks the error in-doubt."""
+        from aerospike_async.exceptions import TimeoutError
+
+        key = Key("test", "test", "in_doubt_test_key")
+        wp = WritePolicy()
+
+        # The socket timeout must fire while the server is still executing the
+        # UDF: the write reached the wire but its outcome is unknown, which is
+        # exactly the in-doubt condition. total_timeout must stay 0: a nonzero
+        # total makes the client send min(socket, total) as the server-side
+        # deadline, and the server's own "UDF Execution Timeout" abort then
+        # beats the client's socket timer. With no server deadline the client's
+        # 250ms timer is the only one racing the 1000ms UDF sleep, so the
+        # client-side timeout is deterministic even under server load.
+        wp.socket_timeout = 250
+        wp.total_timeout = 0
+        wp.max_retries = 0
+
+        with pytest.raises(TimeoutError) as exc_info:
+            await client_with_sleep_udf.execute_udf(
+                key,
+                "sleep_example",
+                "sleep",
+                [1000],
+                policy=wp,
+            )
+        assert exc_info.value.in_doubt is True
+
     async def test_udf_timeout_not_triggered_on_fast_operation(self, client_with_sleep_udf):
         """Test that total_timeout doesn't trigger on fast UDF operations."""
         key = Key("test", "test", "timeout_test_key2")

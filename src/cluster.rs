@@ -172,17 +172,24 @@ use crate::policies::AdminPolicy;
             self._as.supports_mrt()
         }
 
+        /// Returns true if server supports the string-operations module
+        /// (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
+        /// ``TO_STRING`` op-type 19) and the matching string-expression
+        /// dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
+        /// Requires server >= 8.1.3.
+        pub fn supports_string_operations(&self) -> bool {
+            self._as.supports_string_operations()
+        }
+
+        /// Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
+        pub fn supports_server_compiled_ael(&self) -> bool {
+            self._as.supports_server_compiled_ael()
+        }
+
         /// Returns true if server supports two-phase server query selection
         /// (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
         pub fn supports_query_selection(&self) -> bool {
             //self._as.supports_query_selection()
-            true
-        }
-
-        /// Returns true if server accepts server-compiled AEL on filter field **43**
-        /// (``[128, "<utf-8>"]``). Requires server >= 8.1.3.
-        pub fn supports_server_compiled_ael(&self) -> bool {
-            //self._as.supports_server_compiled_ael()
             true
         }
 

@@ -25,6 +25,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::cdt::*;
 use crate::expressions::FilterExpression;
 use crate::record::PythonValue;
+use crate::string_ops::{StringNumericType, StringOperation};
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -280,6 +281,92 @@ use crate::record::PythonValue;
         CdtSelectByPath(String, i64, Vec<CTX>),
         /// CDT path modify operation — writes nested CDT data by path expression.
         CdtModifyByPath(String, i64, FilterExpression, Vec<CTX>),
+
+        // ----- String operations (server 8.1.3+) -----
+        // STRING_READ — sub-ops 0..16. No write_flags field.
+        /// String strlen — codepoint count.
+        StringStrlen(String),
+        /// String substr (bin, start, end). end=None means substr-from-start to end.
+        StringSubstr(String, i64, Option<i64>),
+        /// String char_at (bin, index).
+        StringCharAt(String, i64),
+        /// String find (bin, needle, occurrence). occurrence=None means first match.
+        StringFind(String, String, Option<i64>),
+        /// String contains (bin, needle) — boolean return.
+        StringContains(String, String),
+        /// String starts_with (bin, prefix) — boolean return.
+        StringStartsWith(String, String),
+        /// String ends_with (bin, suffix) — boolean return.
+        StringEndsWith(String, String),
+        /// String to_integer.
+        StringToInteger(String),
+        /// String to_double.
+        StringToDouble(String),
+        /// String byte_length — UTF-8 byte length.
+        StringByteLength(String),
+        /// String is_numeric (bin, numeric_type). numeric_type=None means ANY.
+        StringIsNumeric(String, Option<StringNumericType>),
+        /// String is_upper — boolean return.
+        StringIsUpper(String),
+        /// String is_lower — boolean return.
+        StringIsLower(String),
+        /// String to_blob — UTF-8 bytes as blob.
+        StringToBlob(String),
+        /// String split (bin, separator). separator=None means codepoint-by-codepoint.
+        StringSplit(String, Option<String>),
+        /// String b64_decode.
+        StringB64Decode(String),
+        /// String regex_compare (bin, pattern, regex_flags) — boolean return.
+        StringRegexCompare(String, String, u8),
+
+        // STRING_MODIFY — sub-ops 50..66. Every variant carries write_flags as last u8,
+        // except StringRegexReplace which carries regex_flags (no write_flags slot per spec §2.5).
+        /// String insert (bin, index, value, write_flags).
+        StringInsert(String, i64, String, u8),
+        /// String overwrite (bin, index, value, write_flags).
+        StringOverwrite(String, i64, String, u8),
+        /// String concat (bin, values, write_flags) — wire is always list-of-strings.
+        StringConcat(String, Vec<String>, u8),
+        /// String append (bin, value, write_flags) — single-value form, sub-op 67.
+        StringAppend(String, String, u8),
+        /// String prepend (bin, value, write_flags) — single-value form, sub-op 68.
+        StringPrepend(String, String, u8),
+        /// String snip (bin, start, end, write_flags). ``end`` is REQUIRED — the server's
+        /// snip table has no 1-arg form (a 2-int wire is misparsed as start+end with
+        /// flags=DEFAULT=0, producing a silent no-op).
+        StringSnip(String, i64, i64, u8),
+        /// String replace (bin, needle, replacement, write_flags) — first match only.
+        StringReplace(String, String, String, u8),
+        /// String replace_all (bin, needle, replacement, write_flags) — all matches.
+        StringReplaceAll(String, String, String, u8),
+        /// String upper (bin, write_flags).
+        StringUpper(String, u8),
+        /// String lower (bin, write_flags).
+        StringLower(String, u8),
+        /// String case_fold (bin, write_flags) — locale-independent lowercase.
+        StringCaseFold(String, u8),
+        /// String normalize_nfc (bin, write_flags) — Unicode NFC normalize.
+        StringNormalizeNfc(String, u8),
+        /// String trim_start (bin, write_flags).
+        StringTrimStart(String, u8),
+        /// String trim_end (bin, write_flags).
+        StringTrimEnd(String, u8),
+        /// String trim (bin, write_flags) — both ends.
+        StringTrim(String, u8),
+        /// String pad_start (bin, target_length, pad_string, write_flags).
+        StringPadStart(String, i64, String, u8),
+        /// String pad_end (bin, target_length, pad_string, write_flags).
+        StringPadEnd(String, i64, String, u8),
+        /// String repeat (bin, count, write_flags).
+        StringRepeat(String, i64, u8),
+        /// String regex_replace (bin, pattern, replacement, regex_flags). NOTE: regex_flags,
+        /// not write_flags — spec §2.5 says no trailing flags slot; the server rejects
+        /// messages that pack write_flags here. The PSDK signature accepts regex flags only.
+        StringRegexReplace(String, String, String, u8),
+
+        // TO_STRING — op-type 19. Top-level wire op, no payload, no sub-op id, no CTX.
+        /// String to_string (bin) — convert non-string bin to string repr.
+        StringToString(String),
     }
 
     /// Python wrapper for Operation enum.
@@ -362,7 +449,7 @@ use crate::record::PythonValue;
             }
         }
 
-        /// Create an Append operation (appends to string bin value).
+        /// Create an Append operation (byte-level append to a string or bytes bin).
         #[staticmethod]
         pub fn append(bin_name: String, value: PythonValue) -> Self {
             Operation {
@@ -370,7 +457,7 @@ use crate::record::PythonValue;
             }
         }
 
-        /// Create a Prepend operation (prepends to string bin value).
+        /// Create a Prepend operation (byte-level prepend to a string or bytes bin).
         #[staticmethod]
         pub fn prepend(bin_name: String, value: PythonValue) -> Self {
             Operation {
@@ -1569,7 +1656,7 @@ use crate::record::PythonValue;
         ///     flag: Controls what is returned. Pass any combination of
         ///         ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
         ///         SelectFlags.NO_FAIL``) — the resulting value is a plain
-        ///         ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
+        ///         ``int`` bitmask.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
         /// Returns:
@@ -1603,7 +1690,7 @@ use crate::record::PythonValue;
         ///     bin_name: Name of the bin containing the top-level CDT.
         ///     flag: Controls error-handling behavior. Pass any combination of
         ///         ``ModifyFlags`` constants — the resulting value is a plain
-        ///         ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
+        ///         ``int`` bitmask.
         ///     exp: Expression that produces the value to write.
         ///     ctx: Path into the CDT — one ``CTX`` per nesting level.
         ///
@@ -1762,6 +1849,37 @@ pub(crate) fn bins_flag(bins: Option<Vec<String>>) -> aerospike_core::Bins {
     }
 }
 
+/// Convert a Python ``{bin_name: value}`` mapping into core bins, rejecting
+/// non-string bin names.
+///
+/// Every write entry point converts its payload up front like this because the
+/// conversion needs the GIL, while the op it feeds runs on a Tokio worker.
+pub(crate) fn bins_from_dict(
+    bins: &Bound<'_, pyo3::types::PyDict>,
+) -> PyResult<Vec<aerospike_core::Bin>> {
+    let mut bin_vec = Vec::with_capacity(bins.len());
+    for (py_key, py_val) in bins.iter() {
+        let name = py_key.extract::<String>().map_err(|_| {
+            PyTypeError::new_err("A bin name must be a string or unicode string")
+        })?;
+        let val: PythonValue = py_val.extract()?;
+        bin_vec.push(aerospike_core::Bin::new(name, val.into()));
+    }
+    Ok(bin_vec)
+}
+
+/// Positional [`bins_from_dict`] for the per-key-payload entry points: each
+/// object must be a mapping, and slot *i* becomes the payload for key *i*.
+pub(crate) fn bins_from_dict_list(
+    py: Python<'_>,
+    bins_list: &[Py<PyAny>],
+) -> PyResult<Vec<Vec<aerospike_core::Bin>>> {
+    bins_list
+        .iter()
+        .map(|obj| bins_from_dict(obj.bind(py).cast::<pyo3::types::PyDict>()?))
+        .collect()
+}
+
 /// Extract a list of Python operation objects into the internal `OperationType` representation.
 pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<Vec<OperationType>> {
     let mut rust_ops = Vec::with_capacity(py_ops.len());
@@ -1774,6 +1892,8 @@ pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<V
             rust_ops.push(py_op.op.clone());
         } else if let Ok(py_op) = op_obj.extract::<PyRef<BitOperation>>(py) {
             rust_ops.push(py_op.op.clone());
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<StringOperation>>(py) {
+            rust_ops.push(py_op.op.clone());
         } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
             rust_ops.push(py_op.op.clone());
         } else if let Ok(py_op) = op_obj.extract::<PyRef<ExpOperation>>(py) {
@@ -1782,7 +1902,7 @@ pub(crate) fn extract_py_ops(py: Python<'_>, py_ops: &[Py<PyAny>]) -> PyResult<V
             rust_ops.push(py_op.op.clone());
         } else {
             return Err(PyTypeError::new_err(
-                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation, or CdtOperation"
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, StringOperation, HllOperation, ExpOperation, or CdtOperation"
             ));
         }
     }
@@ -1863,7 +1983,7 @@ pub(crate) fn convert_scalar_ops_to_core(
             other => {
                 return Err(PyErr::new::<pyo3::exceptions::PyNotImplementedError, _>(
                     format!("Operation type {other:?} is not yet supported in Client.batch(). \
-                             Use batch_operate() for list, map, bit, and HLL operations.")
+                             Use batch_operate() for list, map, bit, string, and HLL operations.")
                 ));
             }
         };
@@ -1908,6 +2028,14 @@ pub(crate) fn extract_py_ops_with_ctx(py: Python<'_>, py_ops: &[Py<PyAny>]) -> P
                 op: py_op.op.clone(),
                 ctx: None,
             });
+        } else if let Ok(py_op) = op_obj.extract::<PyRef<StringOperation>>(py) {
+            let ctx = py_op.ctx.as_ref().map(|ctx_vec| {
+                ctx_vec.iter().map(|c| c.ctx.clone()).collect()
+            });
+            rust_ops.push(OpWithCtx {
+                op: py_op.op.clone(),
+                ctx,
+            });
         } else if let Ok(py_op) = op_obj.extract::<PyRef<HllOperation>>(py) {
             rust_ops.push(OpWithCtx {
                 op: py_op.op.clone(),
@@ -1925,7 +2053,7 @@ pub(crate) fn extract_py_ops_with_ctx(py: Python<'_>, py_ops: &[Py<PyAny>]) -> P
             });
         } else {
             return Err(PyTypeError::new_err(
-                "Operation must be Operation, ListOperation, MapOperation, BitOperation, HllOperation, ExpOperation, or CdtOperation"
+                "Operation must be Operation, ListOperation, MapOperation, BitOperation, StringOperation, HllOperation, ExpOperation, or CdtOperation"
             ));
         }
     }
@@ -1978,7 +2106,20 @@ pub(crate) fn record_batch_ops_have_write(rust_ops: &[OpWithCtx]) -> bool {
             OperationType::ExpWrite(_, _, _) |
             OperationType::HllInit(_, _, _, _) | OperationType::HllAdd(_, _, _, _, _) |
             OperationType::HllFold(_, _) | OperationType::HllSetUnion(_, _, _) |
-            OperationType::CdtModifyByPath(_, _, _, _) => {
+            OperationType::CdtModifyByPath(_, _, _, _) |
+            // STRING_MODIFY ops (sub-ops 50..66) — every string-mutating op flips this
+            // to `true` so batch routing picks the write path. Note: `StringToString`
+            // is a READ op (TO_STRING op-type 19) and is intentionally excluded.
+            OperationType::StringInsert(_, _, _, _) | OperationType::StringOverwrite(_, _, _, _) |
+            OperationType::StringConcat(_, _, _) | OperationType::StringAppend(_, _, _) |
+            OperationType::StringPrepend(_, _, _) | OperationType::StringSnip(_, _, _, _) |
+            OperationType::StringReplace(_, _, _, _) | OperationType::StringReplaceAll(_, _, _, _) |
+            OperationType::StringUpper(_, _) | OperationType::StringLower(_, _) |
+            OperationType::StringCaseFold(_, _) | OperationType::StringNormalizeNfc(_, _) |
+            OperationType::StringTrimStart(_, _) | OperationType::StringTrimEnd(_, _) |
+            OperationType::StringTrim(_, _) |
+            OperationType::StringPadStart(_, _, _, _) | OperationType::StringPadEnd(_, _, _, _) |
+            OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _) => {
                 return true;
             }
             _ => {}
@@ -2228,6 +2369,29 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::ExpRead(_, _, _) | OperationType::ExpWrite(_, _, _)
             | OperationType::CdtSelectByPath(_, _, _)
             | OperationType::CdtModifyByPath(_, _, _, _) => {}
+
+            // String ops (server 8.1.3+): args are owned in the variant; rust-core's
+            // builders take &str and copy/own internally. No pre-storage needed.
+            OperationType::StringStrlen(_) | OperationType::StringSubstr(_, _, _)
+            | OperationType::StringCharAt(_, _) | OperationType::StringFind(_, _, _)
+            | OperationType::StringContains(_, _) | OperationType::StringStartsWith(_, _)
+            | OperationType::StringEndsWith(_, _) | OperationType::StringToInteger(_)
+            | OperationType::StringToDouble(_) | OperationType::StringByteLength(_)
+            | OperationType::StringIsNumeric(_, _) | OperationType::StringIsUpper(_)
+            | OperationType::StringIsLower(_) | OperationType::StringToBlob(_)
+            | OperationType::StringSplit(_, _) | OperationType::StringB64Decode(_)
+            | OperationType::StringRegexCompare(_, _, _)
+            | OperationType::StringInsert(_, _, _, _) | OperationType::StringOverwrite(_, _, _, _)
+            | OperationType::StringConcat(_, _, _) | OperationType::StringAppend(_, _, _)
+            | OperationType::StringPrepend(_, _, _) | OperationType::StringSnip(_, _, _, _)
+            | OperationType::StringReplace(_, _, _, _) | OperationType::StringReplaceAll(_, _, _, _)
+            | OperationType::StringUpper(_, _) | OperationType::StringLower(_, _)
+            | OperationType::StringCaseFold(_, _) | OperationType::StringNormalizeNfc(_, _)
+            | OperationType::StringTrimStart(_, _) | OperationType::StringTrimEnd(_, _)
+            | OperationType::StringTrim(_, _)
+            | OperationType::StringPadStart(_, _, _, _) | OperationType::StringPadEnd(_, _, _, _)
+            | OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _)
+            | OperationType::StringToString(_) => {}
         }
     }
 
@@ -3068,6 +3232,204 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::path::{modify_by_path, ModifyFlag};
                 let core_ctx = crate::cdt::ctx_to_vec(ctx);
                 modify_by_path(bin_name, ModifyFlag(*flag), exp._as.clone(), &core_ctx)
+            }
+
+            // ----- String ops (server 8.1.3+) -----
+            // Performance notes:
+            //   - `bin` and string args (`needle` / `pattern` / `value` / etc.) are passed
+            //     to rust-core as &str via auto-deref. Zero per-op alloc beyond the args
+            //     already owned in the variant.
+            //   - `StringPolicy` and rust-core's flag tuples are stack-constructed inline.
+            //   - `concat` allocates one Vec<&str> to bridge Vec<String> → &[&str] —
+            //     unavoidable for the rust-core API shape (it takes &[&str], not &[String]).
+            OperationType::StringStrlen(bin) => {
+                aerospike_core::operations::string::strlen(bin)
+            }
+            OperationType::StringSubstr(bin, start, end) => {
+                use aerospike_core::operations::string as str_op;
+                match end {
+                    Some(e) => str_op::substr(bin, *start, *e),
+                    None => str_op::substr_from(bin, *start),
+                }
+            }
+            OperationType::StringCharAt(bin, index) => {
+                aerospike_core::operations::string::char_at(bin, *index)
+            }
+            OperationType::StringFind(bin, needle, occurrence) => {
+                use aerospike_core::operations::string as str_op;
+                match occurrence {
+                    Some(n) => str_op::find_nth(bin, needle, *n),
+                    None => str_op::find(bin, needle),
+                }
+            }
+            OperationType::StringContains(bin, needle) => {
+                aerospike_core::operations::string::contains(bin, needle)
+            }
+            OperationType::StringStartsWith(bin, prefix) => {
+                aerospike_core::operations::string::starts_with(bin, prefix)
+            }
+            OperationType::StringEndsWith(bin, suffix) => {
+                aerospike_core::operations::string::ends_with(bin, suffix)
+            }
+            OperationType::StringToInteger(bin) => {
+                aerospike_core::operations::string::to_integer(bin)
+            }
+            OperationType::StringToDouble(bin) => {
+                aerospike_core::operations::string::to_double(bin)
+            }
+            OperationType::StringByteLength(bin) => {
+                aerospike_core::operations::string::byte_length(bin)
+            }
+            OperationType::StringIsNumeric(bin, numeric_type) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::StringNumericType as CoreNT;
+                match numeric_type {
+                    Some(StringNumericType::Any) => str_op::is_numeric_typed(bin, CoreNT::Any),
+                    Some(StringNumericType::Int) => str_op::is_numeric_typed(bin, CoreNT::Int),
+                    Some(StringNumericType::Float) => str_op::is_numeric_typed(bin, CoreNT::Float),
+                    None => str_op::is_numeric(bin),
+                }
+            }
+            OperationType::StringIsUpper(bin) => {
+                aerospike_core::operations::string::is_upper(bin)
+            }
+            OperationType::StringIsLower(bin) => {
+                aerospike_core::operations::string::is_lower(bin)
+            }
+            OperationType::StringToBlob(bin) => {
+                aerospike_core::operations::string::to_blob(bin)
+            }
+            OperationType::StringSplit(bin, separator) => {
+                use aerospike_core::operations::string as str_op;
+                match separator {
+                    Some(s) => str_op::split_by_separator(bin, s),
+                    None => str_op::split(bin),
+                }
+            }
+            OperationType::StringB64Decode(bin) => {
+                aerospike_core::operations::string::b64_decode(bin)
+            }
+            OperationType::StringRegexCompare(bin, pattern, regex_flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::StringRegexFlags as CoreSRF;
+                str_op::regex_compare_with_flags(bin, pattern, CoreSRF(*regex_flags as i64))
+            }
+
+            OperationType::StringInsert(bin, index, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::insert(&policy, bin, *index, value)
+            }
+            OperationType::StringOverwrite(bin, index, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::overwrite(&policy, bin, *index, value)
+            }
+            OperationType::StringConcat(bin, values, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                // Rust-core's concat_list takes &[&str]; build the &str view once here.
+                let value_refs: Vec<&str> = values.iter().map(String::as_str).collect();
+                str_op::concat_list(&policy, bin, &value_refs)
+            }
+            OperationType::StringAppend(bin, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::append(&policy, bin, value)
+            }
+            OperationType::StringPrepend(bin, value, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::prepend(&policy, bin, value)
+            }
+            OperationType::StringSnip(bin, start, end, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::snip(&policy, bin, *start, *end)
+            }
+            OperationType::StringReplace(bin, needle, replacement, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::replace(&policy, bin, needle, replacement)
+            }
+            OperationType::StringReplaceAll(bin, needle, replacement, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::replace_all(&policy, bin, needle, replacement)
+            }
+            OperationType::StringUpper(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::upper(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringLower(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::lower(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringCaseFold(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::case_fold(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringNormalizeNfc(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::normalize_nfc(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringTrimStart(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::trim_start(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringTrimEnd(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::trim_end(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringTrim(bin, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                str_op::trim(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+            }
+            OperationType::StringPadStart(bin, target_length, pad_string, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::pad_start(&policy, bin, *target_length, pad_string)
+            }
+            OperationType::StringPadEnd(bin, target_length, pad_string, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::pad_end(&policy, bin, *target_length, pad_string)
+            }
+            OperationType::StringRepeat(bin, count, flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                str_op::repeat(&policy, bin, *count)
+            }
+            OperationType::StringRegexReplace(bin, pattern, replacement, regex_flags) => {
+                use aerospike_core::operations::string as str_op;
+                use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
+                // Per spec §2.5: regex_replace has no write-flags slot on the wire; the
+                // server rejects messages that pack write flags here. Pass a default
+                // StringPolicy that the rust-core builder is documented to ignore.
+                let policy = StringPolicy::default();
+                str_op::regex_replace(&policy, bin, pattern, replacement, CoreSRF(*regex_flags as i64))
+            }
+
+            OperationType::StringToString(bin) => {
+                aerospike_core::operations::string::to_string(bin)
             }
         };
 

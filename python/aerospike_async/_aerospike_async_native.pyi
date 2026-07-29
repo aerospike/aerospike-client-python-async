@@ -34,12 +34,14 @@ __all__ = [
     "CommitLevel",
     "CommitStatus",
     "DropIndexTask",
+    "ErrorDetailVerbosity",
     "ExecuteTask",
     "ExpOperation",
     "ExpReadFlags",
     "ExpType",
     "ExpWriteFlags",
     "Expiration",
+    "ExpressionTrace",
     "FastRng",
     "Filter",
     "FilterExpression",
@@ -75,10 +77,7 @@ __all__ = [
     "Privilege",
     "PrivilegeCode",
     "QueryDuration",
-    "QueryPlan",
     "QueryPolicy",
-    "QuerySelection",
-    "QueryWhereFlags",
     "ReadModeAP",
     "ReadModeSC",
     "ReadPolicy",
@@ -94,6 +93,11 @@ __all__ = [
     "ServerError",
     "SpecialValue",
     "Statement",
+    "StringNumericType",
+    "StringOperation",
+    "StringRegexFlags",
+    "StringWriteFlags",
+    "SubCode",
     "TaskStatus",
     "TlsConfig",
     "Txn",
@@ -109,6 +113,7 @@ __all__ = [
     "new_client",
     "new_client_blocking",
     "null",
+    "refresh_log_levels",
 ]
 class AdminPolicy:
     @property
@@ -167,6 +172,16 @@ class BasePolicy:
     def read_touch_ttl(self) -> builtins.int: ...
     @read_touch_ttl.setter
     def read_touch_ttl(self, value: builtins.int) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int:
+        r"""
+        Extended server-error detail requested per command: 0 none,
+        1 subcode, 2 +message, 3 +expression trace on expression build
+        failures. Default: 0 (disabled). Requires server 8.1.3+; older
+        servers ignore it.
+        """
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
     def __new__(cls) -> _aerospike_async_native.BasePolicy: ...
 
 @typing.final
@@ -623,7 +638,7 @@ class CdtOperation:
             flag: Controls what is returned. Pass any combination of
                 ``SelectFlags`` constants (e.g. ``SelectFlags.VALUE |
                 SelectFlags.NO_FAIL``) — the resulting value is a plain
-                ``int``, matching JSDK's ``select_by_path(int flag)`` shape.
+                ``int`` bitmask.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
         Returns:
@@ -650,7 +665,7 @@ class CdtOperation:
             bin_name: Name of the bin containing the top-level CDT.
             flag: Controls error-handling behavior. Pass any combination of
                 ``ModifyFlags`` constants — the resulting value is a plain
-                ``int``, matching JSDK's ``modify_by_path(int flag)`` shape.
+                ``int`` bitmask.
             exp: Expression that produces the value to write.
             ctx: Path into the CDT — one ``CTX`` per nesting level.
 
@@ -726,8 +741,58 @@ class CdtOperation:
         """
 
 class Client:
+    @property
+    def cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Configured cluster name from the ``ClientPolicy`` used to build this
+        client, or ``None`` when cluster-name validation was not requested.
+
+        This is the client-side *expected* name (set via cluster-name
+        validation), not a server-reported value; it reads a cached field
+        with no network or lock cost.
+        """
     def __new__(cls) -> _aerospike_async_native.Client: ...
     def seeds(self) -> builtins.str: ...
+    @staticmethod
+    def client_version() -> builtins.str:
+        r"""
+        Returns this client library's own version string
+        (e.g. ``"0.6.0-alpha.6"``).
+
+        This is the version of the installed native client extension you are
+        running — the same identifier stamped into the wire user-agent — not
+        the embedded engine core. The value is baked in at build time, so no
+        cluster connection is required; call it directly on the class without
+        a live instance. For the embedded engine version, see
+        :meth:`core_version`.
+
+        Example::
+
+            from aerospike_async import Client
+            print(Client.client_version())
+
+        Returns:
+            str: This client library's version.
+        """
+    @staticmethod
+    def core_version() -> builtins.str:
+        r"""
+        Returns the embedded engine core version string
+        (e.g. ``"3.0.0-alpha.1"``).
+
+        This is the version of the underlying core the client is built
+        against — useful for support and diagnostics. It is independent of
+        this client library's own version (see :meth:`client_version`) and,
+        like it, is baked in at build time and needs no live instance.
+
+        Example::
+
+            from aerospike_async import Client
+            print(Client.core_version())
+
+        Returns:
+            str: The embedded engine core version.
+        """
     def is_strong_consistency(self, namespace: builtins.str) -> typing.Optional[builtins.bool]:
         r"""
         Returns whether ``namespace`` is configured for strong
@@ -832,14 +897,6 @@ class Client:
         r"""
         Synchronously execute a query and return a Recordset that supports
         `for record in recordset:` iteration via `__iter__`/`__next__`.
-        """
-    def query_explain_blocking(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, explain_where_flags: typing.Optional[builtins.int] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.QueryPlan:
-        r"""
-        Synchronously run phase 1 (explain) of server-led query selection.
-        """
-    def query_with_plan_blocking(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.Recordset:
-        r"""
-        Synchronously execute a partitioned query using a server query plan.
         """
     def query_operate_blocking(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> _aerospike_async_native.ExecuteTask:
         r"""
@@ -1015,6 +1072,69 @@ class Client:
         When `policy_sc` is provided, PAC resolves the namespace mode at
         op time and picks AP vs SC. `filter_expression` / `txn` are
         applied after the mode pick on a cloned policy.
+        """
+    def _submit_many_read(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> typing.Awaitable[typing.Any]:
+        r"""
+        Submit a window of independent single-record reads in one call.
+
+        One crossing spawns all reads and one completion delivers all
+        results, so per-op submission and wakeup overhead is amortized
+        across the window. These stay independent wire ops — this is
+        client-side fusion, not a server batch request. Results are
+        positional: each slot is either a :class:`Record` or the
+        exception instance for that key (check with
+        ``isinstance(slot, Exception)``), so a missing record never
+        fails its window-mates.
+
+        When `policy_sc` is provided, the namespace mode is resolved at
+        op time per key and AP vs SC is picked, mirroring `get`.
+        """
+    def _submit_coalesced_read(self, keys: typing.Sequence[_aerospike_async_native.Key], futures: typing.Sequence[typing.Any], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> None:
+        r"""
+        Per-op-delivery coalesced read: one crossing submits N independent
+        reads and resolves each caller's OWN pre-created future the moment
+        that key completes, via the bridge's drainer.
+
+        Unlike :meth:`_submit_many_read`'s single batched future (which
+        resolves only when the slowest key returns), no op waits on its
+        window-mates — a task awaiting a fast key resumes immediately and
+        can issue its next op, so there is no intra-batch head-of-line. This
+        is the backend for PSDK's transparent same-tick read coalescer.
+
+        Fire-and-forget: returns ``None``. ``futures[i]`` receives key
+        ``keys[i]``'s :class:`Record`, or its exception (byte-identical to a
+        direct :meth:`get`, including ``KEY_NOT_FOUND`` raising). `bins` is a
+        shared projection; `policy_sc`, when set, picks AP vs SC per key.
+        """
+    def _submit_many_write(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[typing.Any]:
+        r"""
+        Submit a window of independent single-record writes in one call.
+
+        Write-side counterpart of :meth:`_submit_many_read`: one crossing
+        spawns all writes and one completion delivers all results. The
+        bin payload is converted once and shared across the window (the
+        common benchmark/app shape writes the same record spec per key).
+        Each result slot is ``None`` on success or the exception instance
+        for that key.
+        """
+    def _submit_coalesced_write(self, keys: typing.Sequence[_aerospike_async_native.Key], futures: typing.Sequence[typing.Any], bins_list: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> None:
+        r"""
+        Per-op-delivery coalesced write: one crossing submits N independent
+        writes, each carrying its OWN bin payload, and resolves each
+        caller's pre-created future the moment that key completes.
+
+        Write-side counterpart of :meth:`_submit_coalesced_read`. The
+        distinction from :meth:`_submit_many_write` is per-key payloads:
+        that method broadcasts ONE ``bins`` dict to every key and resolves a
+        single batched future, so it cannot carry writes that differ per
+        key; here ``bins_list[i]`` is the payload for ``keys[i]``. That is
+        what lets a caller-side buffer of unrelated writes fuse into one
+        crossing. As with the read side, no op waits on its window-mates —
+        there is no intra-batch head-of-line.
+
+        Fire-and-forget: returns ``None``. ``futures[i]`` receives ``None``
+        on success, or key ``keys[i]``'s exception (byte-identical to a
+        direct :meth:`put`). `policy_sc`, when set, picks AP vs SC per key.
         """
     def operate(self, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, generation: typing.Optional[builtins.int] = None, durable_delete: typing.Optional[builtins.bool] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> typing.Awaitable[Record]:
         r"""
@@ -1221,15 +1341,6 @@ class Client:
         records on a queue in separate threads. The calling thread concurrently pops records off
         the queue through the record iterator.
         """
-    def query_explain(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, explain_where_flags: typing.Optional[builtins.int] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[QueryPlan]:
-        r"""
-        Run phase 1 (explain) of server-led query selection.
-        """
-    def query_with_plan(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[Recordset]:
-        r"""
-        Execute a partitioned query using a server query plan from
-        :meth:`query_explain`.
-        """
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
         Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
@@ -1421,6 +1532,25 @@ class ClientPolicy:
     @timeout.setter
     def timeout(self, value: builtins.int) -> None: ...
     @property
+    def connect_timeout(self) -> builtins.int:
+        r"""
+        Initial connection timeout in milliseconds for opening (and, when
+        security is enabled, authenticating) a socket to a node. Applied
+        per connection attempt during cluster tend and on-demand pool
+        growth. ``0`` (the default) falls back to :attr:`timeout`.
+        """
+    @connect_timeout.setter
+    def connect_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def login_timeout(self) -> builtins.int:
+        r"""
+        Login timeout in milliseconds for the authentication handshake
+        when security is enabled. ``0`` falls back to
+        :attr:`connect_timeout`. Defaults to 5000 ms.
+        """
+    @login_timeout.setter
+    def login_timeout(self, value: builtins.int) -> None: ...
+    @property
     def idle_timeout(self) -> builtins.int:
         r"""
         Connection idle timeout. Every time a connection is used, its idle
@@ -1459,6 +1589,20 @@ class ClientPolicy:
         """
     @conn_pools_per_node.setter
     def conn_pools_per_node(self, value: builtins.int) -> None: ...
+    @property
+    def opening_connection_threshold(self) -> builtins.int:
+        r"""
+        Cluster-wide cap on the number of connections that may be in the
+        middle of being opened (TCP connect + TLS + login) at the same
+        time. When a command finds its node's pool empty, the connection
+        is opened by a background task while the command retries; this
+        threshold bounds how many such opens can run concurrently across
+        all nodes, protecting the cluster from a thundering herd after a
+        cold start or mass disconnect. ``0`` (the default) means
+        unlimited.
+        """
+    @opening_connection_threshold.setter
+    def opening_connection_threshold(self, value: builtins.int) -> None: ...
     @property
     def use_services_alternate(self) -> builtins.bool:
         r"""
@@ -1643,6 +1787,23 @@ class DropIndexTask:
             True if task completed, False if max attempts reached
         """
 
+@typing.final
+class ErrorDetailVerbosity:
+    r"""
+    Verbosity levels for error_detail_verbosity on a policy.
+
+    NONE (0) requests no extended detail (default). SUBCODE (1)
+    requests the numeric subcode; MESSAGE (2) adds the server message;
+    EXPRESSION_TRACE (3) adds an expression trace on expression build
+    failures.
+    Higher levels are supersets. Requires server 8.1.3+; older servers
+    ignore the request.
+    """
+    NONE: builtins.int = 0
+    SUBCODE: builtins.int = 1
+    MESSAGE: builtins.int = 2
+    EXPRESSION_TRACE: builtins.int = 3
+
 class ExecuteTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]: ...
@@ -1718,15 +1879,98 @@ class Expiration:
     def __hash__(self) -> builtins.int: ...
 
 @typing.final
+class ExpressionTrace:
+    r"""
+    A structured expression build trace, surfaced on ServerError.exp_trace
+    at error_detail_verbosity 3 when the server fails to build an expression
+    (a filter_expression, or an exp_read / exp_write operation).
+
+    Every field is optional: the server caps the detail payload and drops
+    snippet first, then path, under a tight byte budget, so treat any field
+    as possibly absent. Expression build failures carry
+    ResultCode.PARAMETER_ERROR and no subcode; this trace is purely additive
+    diagnostic detail and never changes the result code, subcode, or message.
+    byte_offset indexes the msgpack expression payload the client sent;
+    ael_offset / ael_span index AEL source text (a different coordinate
+    space, reserved for a future server branch). Requires a server build that
+    emits the trace.
+    """
+    PHASE_BUILD: builtins.int = 1
+    r"""
+    The expression build failed.
+    """
+    PHASE_EVAL: builtins.int = 2
+    r"""
+    Expression evaluation failed (reserved for a future server branch).
+    """
+    LANG_MSGPACK: builtins.int = 1
+    r"""
+    The msgpack source language (the implied default).
+    """
+    LANG_AEL: builtins.int = 2
+    r"""
+    The AEL DSL source language (reserved for a future server branch).
+    """
+    @property
+    def phase(self) -> typing.Optional[builtins.int]:
+        r"""
+        Phase that failed: PHASE_BUILD or PHASE_EVAL; None when absent.
+        """
+    @property
+    def byte_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        Byte offset into the msgpack expression payload of the failing element.
+        """
+    @property
+    def op(self) -> typing.Optional[builtins.str]:
+        r"""
+        The failing op name (pre-rendered server-side).
+        """
+    @property
+    def depth(self) -> typing.Optional[builtins.int]:
+        r"""
+        True nesting depth of the fault (accurate even when path was truncated).
+        """
+    @property
+    def path(self) -> typing.Optional[builtins.list[builtins.str]]:
+        r"""
+        Op-name chain from root to fault; may contain a "..." truncation
+        sentinel when nesting exceeded the server's path-frame cap.
+        """
+    @property
+    def snippet(self) -> typing.Optional[builtins.str]:
+        r"""
+        Human-only rendered snippet of the failing element (dropped first
+        under a tight byte budget).
+        """
+    @property
+    def lang(self) -> typing.Optional[builtins.int]:
+        r"""
+        Source language: LANG_MSGPACK (the default) or LANG_AEL.
+        """
+    @property
+    def ael_offset(self) -> typing.Optional[builtins.int]:
+        r"""
+        Char offset into AEL source text (reserved for the AEL branch).
+        """
+    @property
+    def ael_span(self) -> typing.Optional[builtins.int]:
+        r"""
+        Byte width of the offending AEL source region (reserved for the AEL branch).
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class FastRng:
     r"""
     Fast PRNG (xoshiro256++ via rand crate) exposed for Python callers
     that want sub-100 ns random number generation per call. CPython's
     stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     fine for general use, but a measurable handicap in benchmark hot
-    loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    and Rust core uses `SmallRng` for the same reason; this exposes the
-    equivalent to Python so benchmark methodology stays apples-to-apples.
+    loops where every µs counts. Rust core uses `SmallRng` for the
+    same reason; this exposes the equivalent to Python so benchmark
+    methodology stays consistent across language layers.
 
     Not thread-safe — construct one per worker thread / task.
     """
@@ -1809,11 +2053,6 @@ class FilterExpression:
     r"""
     Filter expression, which can be applied to most commands, to control which records are
     affected by the command.
-    """
-    SERVER_COMPILED_AEL_EXPRESSION_OP: builtins.int = 128
-    r"""
-    First element of the server-compiled AEL MessagePack array (`[128, "<dsl>"]`).
-    Matches the Java fluent client's ``Expression.SERVER_COMPILED_AEL_EXPRESSION_OP``.
     """
     @staticmethod
     def key(exp_type: _aerospike_async_native.ExpType) -> _aerospike_async_native.FilterExpression:
@@ -1948,6 +2187,22 @@ class FilterExpression:
     def geo_compare(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Create compare geospatial operation.
+        """
+    @staticmethod
+    def val(value: typing.Any) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Build a value expression from a Python value, dispatching by type.
+
+        Single-entry alternative to the typed accessors (``bool_val``,
+         ``int_val``, ``float_val``, ``string_val``, ``blob_val``,
+         ``list_val``, ``map_val``, ``geo_val``, ``nil``). The Python type of
+        *value* selects which underlying constructor is invoked; ``None``
+        maps to :meth:`nil`. ``GeoJSON`` strings and HLL bytes should
+        continue to use :meth:`geo_val` / typed accessors explicitly when
+        the literal form is ambiguous.
+
+        Raises ``TypeError`` for values that don't correspond to a
+        supported variant (e.g. ``SpecialValue`` sentinels).
         """
     @staticmethod
     def int_val(val: builtins.int) -> _aerospike_async_native.FilterExpression:
@@ -2279,12 +2534,10 @@ class FilterExpression:
         Create an expression from a base64-encoded expression string.
         """
     @staticmethod
-    def from_server_compiled_ael(ael:builtins.str) -> FilterExpression:
+    def from_server_compiled_ael(ael: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
         Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
         server (8.1.3+) parses and compiles the Aerospike Expression Language string.
-
-        See also ``SERVER_COMPILED_AEL_EXPRESSION_OP``.
         """
     @staticmethod
     def unknown() -> _aerospike_async_native.FilterExpression:
@@ -3070,6 +3323,229 @@ class FilterExpression:
 
         Requires Aerospike Server version >= 8.1.1.
         """
+    @staticmethod
+    def string_strlen(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Codepoint count of `src` as an INT (NOT byte count — use `string_byte_length`).
+        """
+    @staticmethod
+    def string_substr(start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Substring of `src` from codepoint `start` to the end.
+        """
+    @staticmethod
+    def string_substr_range(start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Substring of `src` over the half-open codepoint range ``[start, end)``.
+        The second arg is named ``end`` (exclusive index) to reflect the
+        server's actual decoder behavior — rust-core's parameter name
+        "length" in its docstring is misleading.
+        """
+    @staticmethod
+    def string_char_at(index: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Codepoint at `index` (one-codepoint string).
+        """
+    @staticmethod
+    def string_find(needle: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        First-match codepoint index of `needle` in `src` (-1 if absent).
+        """
+    @staticmethod
+    def string_find_nth(needle: _aerospike_async_native.FilterExpression, occurrence: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        N-th-match codepoint index of `needle` in `src` (1 = first, -1 = last; -1 if absent).
+        """
+    @staticmethod
+    def string_contains(needle: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` contains `needle` as a substring.
+        """
+    @staticmethod
+    def string_starts_with(prefix: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` starts with `prefix`.
+        """
+    @staticmethod
+    def string_ends_with(suffix: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` ends with `suffix`.
+        """
+    @staticmethod
+    def string_to_integer(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Parse `src` as INT. Returns PARAMETER_ERROR on unparseable input.
+        """
+    @staticmethod
+    def string_to_double(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Parse `src` as FLOAT (f64). Returns PARAMETER_ERROR on unparseable input.
+        """
+    @staticmethod
+    def string_byte_length(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        UTF-8 byte length of `src` (differs from `string_strlen` for non-ASCII).
+        """
+    @staticmethod
+    def string_is_numeric(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` parses as a number (integer or float).
+        """
+    @staticmethod
+    def string_is_numeric_typed(numeric_type: _aerospike_async_native.StringNumericType, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` parses as the requested numeric type.
+        """
+    @staticmethod
+    def string_is_upper(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — every cased codepoint in `src` is uppercase.
+        """
+    @staticmethod
+    def string_is_lower(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — every cased codepoint in `src` is lowercase.
+        """
+    @staticmethod
+    def string_to_blob(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BLOB — UTF-8 bytes of `src`.
+        """
+    @staticmethod
+    def string_split(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns LIST — `src` split by codepoint (one element per codepoint).
+        """
+    @staticmethod
+    def string_split_by_separator(separator: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns LIST — `src` split by `separator`.
+        """
+    @staticmethod
+    def string_b64_decode(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BLOB — `src` treated as base64-encoded text, decoded to bytes.
+        """
+    @staticmethod
+    def string_regex_compare(pattern: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` matches ICU regex `pattern`. Use
+        `string_regex_compare_with_flags` to pass case-insensitive etc.
+        flags.
+
+        Server-side limitation (spec §4.2): the expression engine does
+        NOT honor a literal source via ``Exp.val(...)`` —
+        ``string_regex_compare(Exp.val("pat"), Exp.val("text"))`` returns
+        OP_NOT_APPLICABLE (26). Only bin-sourced inputs are verified.
+        """
+    @staticmethod
+    def string_regex_compare_with_flags(pattern: _aerospike_async_native.FilterExpression, regex_flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns BOOL — `src` matches ICU regex `pattern` with the given
+        `regex_flags` (OR-combined `StringRegexFlags` bitmask).
+        """
+    @staticmethod
+    def string_insert(flags: builtins.int, index: _aerospike_async_native.FilterExpression, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` spliced in at codepoint `index`.
+        """
+    @staticmethod
+    def string_overwrite(flags: builtins.int, index: _aerospike_async_native.FilterExpression, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with codepoints starting at `index` overwritten by `value`.
+        """
+    @staticmethod
+    def string_concat(flags: builtins.int, values: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` concatenated with the LIST-yielding `values` expression.
+        Per spec §3.7 the expression-path `concat` always takes a list source;
+        single-string callers must wrap via ``FilterExpression.list_val([s])``.
+        """
+    @staticmethod
+    def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
+        ``end`` is required (server's snip table has no 1-arg form — see
+        the matching ``StringOperation.snip`` note).
+        """
+    @staticmethod
+    def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the first occurrence of `needle` replaced by `replacement`.
+        """
+    @staticmethod
+    def string_replace_all(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with every occurrence of `needle` replaced by `replacement`.
+        """
+    @staticmethod
+    def string_upper(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` uppercased.
+        """
+    @staticmethod
+    def string_lower(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` lowercased.
+        """
+    @staticmethod
+    def string_case_fold(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with locale-independent case fold applied.
+        """
+    @staticmethod
+    def string_normalize_nfc(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` normalized to Unicode NFC form.
+        """
+    @staticmethod
+    def string_trim_start(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from the start.
+        """
+    @staticmethod
+    def string_trim_end(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from the end.
+        """
+    @staticmethod
+    def string_trim(flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with whitespace stripped from both ends.
+        """
+    @staticmethod
+    def string_pad_start(flags: builtins.int, target_length: _aerospike_async_native.FilterExpression, pad_string: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` left-padded with `pad_string` to `target_length` codepoints.
+        """
+    @staticmethod
+    def string_pad_end(flags: builtins.int, target_length: _aerospike_async_native.FilterExpression, pad_string: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` right-padded with `pad_string` to `target_length` codepoints.
+        """
+    @staticmethod
+    def string_repeat(flags: builtins.int, count: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` contents repeated `count` times.
+        """
+    @staticmethod
+    def string_regex_replace(pattern: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, regex_flags: builtins.int, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with the first match of `pattern` replaced by
+        `replacement`. Set the `GLOBAL` bit in `regex_flags` to replace every match.
+
+        Note: rust-core's signature includes `_policy` for API symmetry; the
+        wire payload has no write-flags slot (the server rejects messages
+        that pack one). PAC passes the default policy and surfaces only
+        `regex_flags` here.
+        """
+    @staticmethod
+    def string_to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
+        Uses CALL_REPR module (id 4) internally; on the wire path this is a separate dispatcher
+        from the other string expressions (CALL_STRING, id 3).
+        """
 
 class GeoJSON:
     @property
@@ -3255,8 +3731,7 @@ class Key:
 
         Per-op cost drops from ~2 µs (PyO3 PythonValue dispatch +
         Python str()) to ~500 ns (positional PyO3 call + Rust string
-        alloc). JSDK does the equivalent in one Java ``new Key(...)``
-        call at ~50 ns; we close most of the gap.
+        alloc).
         """
     @staticmethod
     def key_with_digest(namespace: builtins.str, set: builtins.str, digest: typing.Any) -> _aerospike_async_native.Key:
@@ -3824,7 +4299,7 @@ class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    Namespace of plain ``int`` constants. Combine with bitwise OR — the
     result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
@@ -3928,12 +4403,12 @@ class Operation:
     @staticmethod
     def append(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create an Append operation (appends to string bin value).
+        Create an Append operation (byte-level append to a string or bytes bin).
         """
     @staticmethod
     def prepend(bin_name: builtins.str, value: typing.Any) -> _aerospike_async_native.Operation:
         r"""
-        Create a Prepend operation (prepends to string bin value).
+        Create a Prepend operation (byte-level prepend to a string or bytes bin).
         """
 
 @typing.final
@@ -4012,57 +4487,9 @@ class Privilege:
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
-@typing.final
-class QueryPlan:
-    r"""
-    Result of a server query explain (phase 1).
-    """
-    @property
-    def selection(self) -> _aerospike_async_native.QuerySelection: ...
-    @property
-    def namespace(self) -> builtins.str: ...
-    @property
-    def set_name(self) -> typing.Optional[str]: ...
-    @property
-    def ael(self) -> builtins.str: ...
-    @property
-    def index_name(self) -> typing.Optional[builtins.str]: ...
-    @property
-    def index_type(self) -> _aerospike_async_native.CollectionIndexType: ...
-    @property
-    def is_primary_index(self) -> builtins.bool: ...
-    @property
-    def is_secondary_index(self) -> builtins.bool: ...
-    @property
-    def is_filtered_out(self) -> builtins.bool: ...
-    def filter_for_execute(self) -> typing.Optional[_aerospike_async_native.Filter]:
-        r"""
-        Build the execute ``Filter`` for a secondary-index plan.
-        """
-
 class QueryPolicy(_aerospike_async_native.BasePolicy):
     ...
 
-@typing.final
-class QueryWhereFlags:
-    r"""
-    Field ``44`` (WHERE) flag bits for server query explain (phase 1).
-
-    Combine with bitwise OR and pass to :meth:`Client.query_explain` /
-    :meth:`Client.query_explain_blocking` as ``explain_where_flags``.
-    Omit the argument (or pass ``None``) for default explain
-    (``QueryWhereFlags.EXPLAIN`` only).
-
-    Requires Aerospike Server version >= 8.1.3.
-    """
-    ENC_VARINT: builtins.int
-    """Bit 0 encoding selector — must remain clear for v1 wire."""
-    EXPLAIN: builtins.int
-    """Explain phase — server runs index planner only (always set on explain)."""
-    REQUIRE_INDEX: builtins.int
-    """Reject primary-index fallback on explain when combined with ``EXPLAIN``."""
-    HARD_HINT: builtins.int
-    """Require field ``21`` index name hint; fail if hint missing or not selected."""
 class ReadPolicy(_aerospike_async_native.BasePolicy):
     ...
 
@@ -4070,12 +4497,35 @@ class Record:
     @property
     def bins(self) -> typing.Any: ...
     @property
+    def results(self) -> typing.Optional[typing.Any]:
+        r"""
+        Positional results, one slot per op in request order.
+
+        Use ``record.results`` when the request issued multiple ops and you
+        need to address each result by its op index — e.g. a chain that
+        modifies a bin and reads it back in the same execute. Slots for
+        ops that produced no value carry Python ``None``.
+
+        For by-name access, prefer ``record.bins`` (cheaper for the common
+        case of one op per bin).
+        """
+    @property
     def generation(self) -> typing.Optional[builtins.int]: ...
     @property
     def ttl(self) -> typing.Optional[builtins.int]: ...
     @property
     def key(self) -> typing.Optional[_aerospike_async_native.Key]: ...
     def bin(self, name: builtins.str) -> typing.Optional[typing.Any]: ...
+    def operation_result(self, i: builtins.int) -> typing.Optional[typing.Any]:
+        r"""
+        Return the positional result for the *i*-th op in the request,
+        or ``None`` if *i* is out of range.
+
+        Equivalent to ``record.results[i]`` but without bounds-error noise:
+        out-of-range returns Python ``None`` (matching the in-range
+        nil-result encoding). Use this when the request size is dynamic
+        and the caller wants a uniform optional shape.
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -4100,7 +4550,7 @@ class RegexFlag:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Namespace of plain ``int`` constants. Bit values match the
     Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
@@ -4247,7 +4697,7 @@ class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    Namespace of plain ``int`` constants. Combine with bitwise OR
     (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
     suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
@@ -4272,7 +4722,28 @@ class ServerError(builtins.Exception):
     def result_code(self) -> _aerospike_async_native.ResultCode: ...
     @property
     def in_doubt(self) -> builtins.bool: ...
-    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False) -> _aerospike_async_native.ServerError: ...
+    @property
+    def sub_code(self) -> typing.Optional[builtins.int]:
+        r"""
+        Server-supplied error subcode, present when the request asked for
+        extended error detail (``error_detail_verbosity`` >= 1) and the
+        server (>= 8.1.3) attached one. Subcode values are scoped to their
+        parent result code — interpret the (result_code, sub_code) pair.
+        """
+    @property
+    def server_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        Server-supplied error detail message, present at
+        ``error_detail_verbosity`` >= 2 when the server attached one.
+        """
+    @property
+    def exp_trace(self) -> typing.Optional[_aerospike_async_native.ExpressionTrace]:
+        r"""
+        Structured server-supplied expression build trace, present only at
+        ``error_detail_verbosity`` 3 on an expression build failure and when the
+        server build emits one.
+        """
+    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None) -> _aerospike_async_native.ServerError: ...
 
 class Statement:
     r"""
@@ -4307,6 +4778,420 @@ class Statement:
         8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
         CDT, expression, bit, and HLL reads.
         """
+
+class StringOperation:
+    r"""
+    String bin operations (server 8.1.3+). Use these to inspect or modify
+    string bins via the client's ``operate()`` method.
+
+    Index orientation is left-to-right with codepoint addressing. Negative
+    indexes count from the end of the string (-1 = last codepoint).
+    Out-of-bounds indexes are clamped to the valid range.
+
+    CTX navigation: every factory (except ``to_string``) accepts an optional
+    trailing ``ctx`` argument selecting a string element nested inside a
+    list/map bin. With ``ctx=None`` the op targets the bin itself.
+    """
+    @staticmethod
+    def strlen(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Codepoint count (NOT byte count — use ``byte_length`` for bytes).
+        """
+    @staticmethod
+    def substr(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Substring from codepoint ``start`` to the end (when ``end`` is None),
+        or the half-open range ``[start, end)`` (when ``end`` is given).
+        Negative indexes count from the end; out-of-bounds clamp.
+        """
+    @staticmethod
+    def char_at(bin: builtins.str, index: builtins.int, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Codepoint at ``index`` as a one-codepoint string. Negative = from end.
+        """
+    @staticmethod
+    def find(bin: builtins.str, needle: builtins.str, occurrence: typing.Optional[builtins.int] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        First-match codepoint index of ``needle`` (returns -1 if absent), or
+        the N-th-match index when ``occurrence`` is given (1 = first match,
+        -1 = last match).
+        """
+    @staticmethod
+    def contains(bin: builtins.str, needle: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin contains ``needle`` as a substring.
+        """
+    @staticmethod
+    def starts_with(bin: builtins.str, prefix: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin starts with ``prefix``.
+        """
+    @staticmethod
+    def ends_with(bin: builtins.str, suffix: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin ends with ``suffix``.
+        """
+    @staticmethod
+    def to_integer(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Parse the bin as an integer. Returns PARAMETER_ERROR if unparseable.
+        """
+    @staticmethod
+    def to_double(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Parse the bin as a float (f64). Returns PARAMETER_ERROR if unparseable.
+        """
+    @staticmethod
+    def byte_length(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        UTF-8 byte length (differs from ``strlen`` for non-ASCII content).
+        """
+    @staticmethod
+    def is_numeric(bin: builtins.str, numeric_type: typing.Optional[_aerospike_async_native.StringNumericType] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the bin contains a valid number. Pass ``numeric_type`` to
+        restrict to integer-only (``StringNumericType.INT``) or float-only
+        (``StringNumericType.FLOAT``).
+        """
+    @staticmethod
+    def is_upper(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if every cased codepoint is uppercase.
+        """
+    @staticmethod
+    def is_lower(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if every cased codepoint is lowercase.
+        """
+    @staticmethod
+    def to_blob(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Return the UTF-8 bytes of the string as a blob.
+        """
+    @staticmethod
+    def split(bin: builtins.str, separator: typing.Optional[builtins.str] = None, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Split the bin into a list of strings. With ``separator=None`` returns
+        one element per codepoint.
+        """
+    @staticmethod
+    def b64_decode(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Treat the bin as base64-encoded text and return the decoded bytes.
+        """
+    @staticmethod
+    def regex_compare(bin: builtins.str, pattern: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        True if the ICU regex ``pattern`` matches the bin. ``flags`` is an
+        OR-combined ``StringRegexFlags`` bitmask (or 0 for no flags).
+        """
+    @staticmethod
+    def insert(bin: builtins.str, index: builtins.int, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Splice ``value`` into the bin at codepoint ``index``. Negative index
+        counts from the end.
+        """
+    @staticmethod
+    def overwrite(bin: builtins.str, index: builtins.int, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Overwrite codepoints starting at ``index`` with ``value``. May extend
+        past the original length.
+        """
+    @staticmethod
+    def concat(bin: builtins.str, value: typing.Any, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``value`` to the bin. Accepts either a single string or a
+        list of strings; the list form appends each element in order.
+        """
+    @staticmethod
+    def append(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``value`` to the end of the bin. Single-value form (server sub-op
+        67); use ``concat`` for the list form.
+        """
+    @staticmethod
+    def prepend(bin: builtins.str, value: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Prepend ``value`` to the start of the bin. Distinct from ``insert(0, …)``
+        — this is the server's dedicated prepend sub-op (68).
+        """
+    @staticmethod
+    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Remove the half-open codepoint range ``[start, end)`` from the bin.
+
+        Note: ``end`` is required. The server's snip op table cannot dispatch
+        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
+        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
+        producing an empty range and a silent no-op. To snip from ``start``
+        through the end of the bin, the caller must supply the codepoint
+        length explicitly (via a ``strlen`` read).
+        """
+    @staticmethod
+    def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace the first occurrence of ``needle`` with ``replacement``.
+        """
+    @staticmethod
+    def replace_all(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace every occurrence of ``needle`` with ``replacement``.
+        """
+    @staticmethod
+    def upper(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Uppercase the bin in place.
+        """
+    @staticmethod
+    def lower(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Lowercase the bin in place.
+        """
+    @staticmethod
+    def case_fold(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Apply a locale-independent case fold (lowercase). Useful for
+        normalized comparison keys.
+        """
+    @staticmethod
+    def normalize_nfc(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Normalize the bin to Unicode NFC form. Already-normalized strings
+        are unchanged.
+        """
+    @staticmethod
+    def trim_start(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from the start of the bin.
+        """
+    @staticmethod
+    def trim_end(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from the end of the bin.
+        """
+    @staticmethod
+    def trim(bin: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Strip whitespace from both ends of the bin.
+        """
+    @staticmethod
+    def pad_start(bin: builtins.str, target_length: builtins.int, pad_string: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Prepend ``pad_string`` repeatedly until the bin reaches
+        ``target_length`` codepoints. No-op if already at or above target.
+        """
+    @staticmethod
+    def pad_end(bin: builtins.str, target_length: builtins.int, pad_string: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Append ``pad_string`` repeatedly until the bin reaches
+        ``target_length`` codepoints. No-op if already at or above target.
+        """
+    @staticmethod
+    def repeat(bin: builtins.str, count: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Repeat the bin contents ``count`` times. ``count`` must be non-negative.
+        """
+    @staticmethod
+    def regex_replace(bin: builtins.str, pattern: builtins.str, replacement: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+        r"""
+        Replace the first match of ``pattern`` (ICU regex) with
+        ``replacement``. Pass ``StringRegexFlags.GLOBAL`` in ``flags`` to
+        replace every match.
+
+        Note: ``flags`` here carries regex flags, NOT write flags. The wire
+        payload for ``regex_replace`` has no slot for write flags — the
+        server rejects messages that include one. This method accepts only
+        the regex-flags bitmask for that reason.
+        """
+    @staticmethod
+    def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:
+        r"""
+        Convert a non-string bin (integer, float, string, or blob) to its
+        string representation. Returns BIN_TYPE_ERROR for any other bin type.
+
+        Note: ``to_string`` does NOT accept a CTX argument — the wire format
+        is a top-level op with no payload, so there is no place to put a
+        CTX path. To convert a value nested inside a list or map, extract
+        the leaf with ``ListOperation`` / ``MapOperation`` first.
+        """
+
+@typing.final
+class SubCode:
+    r"""
+    Server-error detail subcodes, re-exported from the client core.
+
+    When extended error detail is requested via
+    error_detail_verbosity on a policy, the server may attach a numeric
+    subcode to a failure, surfaced as ServerError.sub_code. Match on the
+    (result code, subcode) pair: subcode values are scoped to their parent
+    result code and are not globally unique. NONE (0) means no subcode.
+    The catalog is append-only and server-version-specific; treat an
+    unknown value as an opaque integer. Requires server 8.1.3+.
+    """
+    NONE: builtins.int = 0
+    r"""
+    Returned when the server did not supply a subcode.
+    """
+    PARAM_TTL_INVALID: builtins.int = 1
+    r"""
+    Per-record TTL exceeds the namespace's max-ttl.
+    """
+    PARAM_BITS_OFFSET_OUT_OF_RANGE: builtins.int = 2
+    r"""
+    Bit op offset lands past the blob (or above the proto cap).
+    """
+    PARAM_BITS_SIZE_OUT_OF_RANGE: builtins.int = 3
+    r"""
+    Bit op size is out of range (e.g. zero, or too large).
+    """
+    PARAM_BITS_RESIZE_EXCEEDED: builtins.int = 4
+    r"""
+    Blob resize would exceed the maximum blob size.
+    """
+    PARAM_BIN_COUNT_TOO_LARGE: builtins.int = 5
+    r"""
+    Write would exceed the per-record bin-count limit (write path).
+    """
+    PARAM_STRING_OP_PARAMS_INVALID: builtins.int = 6
+    r"""
+    String op wire/expression args malformed or out of range.
+    """
+    PARAM_STRING_OP_INVALID: builtins.int = 7
+    r"""
+    String op code or modifier/read class mismatch on the wire path.
+    """
+    PARAM_STRING_CTX_NOT_APPLICABLE: builtins.int = 8
+    r"""
+    String context-eval path malformed.
+    """
+    PARAM_STRING_INDEX_OUT_OF_BOUNDS: builtins.int = 9
+    r"""
+    String modify/read index or code-point range out of bounds.
+    """
+    PARAM_STRING_REGEX_INVALID: builtins.int = 10
+    r"""
+    String regex pattern invalid (compile / ICU failure).
+    """
+    PARAM_STRING_UTF8_INVALID: builtins.int = 11
+    r"""
+    String or string op argument is not valid UTF-8.
+    """
+    UNAVAIL_INITIAL_BALANCE_UNRESOLVED: builtins.int = 1
+    r"""
+    Cluster is still resolving initial partition balance at startup.
+    """
+    UNAVAIL_REPLICA_UNAVAILABLE: builtins.int = 2
+    r"""
+    A needed replica is unavailable (likely a partition split).
+    """
+    UNSUPP_FEAT_MRT_REQUIRES_STRONG_CONSISTENCY: builtins.int = 1
+    r"""
+    MRT attempted against a non-SC (AP) namespace.
+    """
+    UNSUPP_FEAT_GENERIC: builtins.int = 2
+    r"""
+    Requested feature is unsupported in this context (generic).
+    """
+    BIN_NOT_FOUND_HLL_CANNOT_CREATE_WITH_OP: builtins.int = 1
+    r"""
+    HLL op needs an existing bin and can't auto-create one.
+    """
+    BIN_NOT_FOUND_STRING_VALUE_NOT_FOUND: builtins.int = 2
+    r"""
+    String modify on a missing bin (non-NO_FAIL path).
+    """
+    BIN_NAME_COUNT_TOO_LARGE: builtins.int = 1
+    r"""
+    Write would exceed the per-record bin-count limit (UDF path).
+    """
+    FORBID_XDR_FILTER_BLOCKED: builtins.int = 1
+    r"""
+    Write bounced by an XDR ship filter at the destination.
+    """
+    FORBID_SET_COUNT_STOP_WRITES: builtins.int = 2
+    r"""
+    Set-level record-count stop-writes limit reached.
+    """
+    FORBID_SET_SIZE_STOP_WRITES: builtins.int = 3
+    r"""
+    Set-level size stop-writes limit reached.
+    """
+    FORBID_CLOCK_SKEW_STOP_WRITES: builtins.int = 4
+    r"""
+    Writes stopped due to cluster clock skew.
+    """
+    FORBID_REPLACE_CONFLICT_RESOLVING: builtins.int = 5
+    r"""
+    `REPLACE` / `CREATE_OR_REPLACE` forbidden while resolving conflicts.
+    """
+    FORBID_TRUNCATED: builtins.int = 6
+    r"""
+    Write forbidden because the set/namespace is mid-truncate.
+    """
+    FORBID_DURABILITY_VIOLATION: builtins.int = 8
+    r"""
+    Non-durable delete forbidden (would violate durability).
+    """
+    OPNOT_CDT_INDEX_OUT_OF_BOUNDS: builtins.int = 1
+    r"""
+    List index is outside the current element range.
+    """
+    OPNOT_CDT_RANK_OUT_OF_BOUNDS: builtins.int = 2
+    r"""
+    Requested rank is past the current population.
+    """
+    OPNOT_CDT_BOUNDED_LIST_OVERFLOW: builtins.int = 3
+    r"""
+    Insert would exceed an ordered+bounded list's cap.
+    """
+    OPNOT_HLL_INDEX_BITS_UNSET: builtins.int = 4
+    r"""
+    HLL op needs `index_bits` but the sketch has none set.
+    """
+    OPNOT_HLL_CANNOT_REDUCE_INDEX_BITS: builtins.int = 5
+    r"""
+    Union needs to reduce `index_bits` but folding isn't allowed.
+    """
+    OPNOT_HLL_CANNOT_REDUCE_MINHASH_BITS: builtins.int = 6
+    r"""
+    As above, for the minhash dimension.
+    """
+    OPNOT_HLL_CANNOT_FOLD_MINHASH: builtins.int = 7
+    r"""
+    Fold blocked because the sketch carries minhash bits.
+    """
+    OPNOT_HLL_FOLD_INDEX_BITS_TOO_LARGE: builtins.int = 8
+    r"""
+    Fold target `index_bits` >= current (fold can only reduce).
+    """
+    OPNOT_HLL_INTERSECT_MINHASH_MISMATCH: builtins.int = 9
+    r"""
+    Intersect inputs have mismatched minhash parameters.
+    """
+    OPNOT_STRING_CONVERSION_FAILED: builtins.int = 10
+    r"""
+    String to numeric conversion failed.
+    """
+    OPNOT_STRING_UTF8_INVALID: builtins.int = 11
+    r"""
+    Source blob/string is not valid UTF-8 for an `OpNotApplicable` path.
+    """
+    FILTERED_META: builtins.int = 1
+    r"""
+    Record filtered out by a metadata-only filter expression.
+    """
+    FILTERED_BINS: builtins.int = 2
+    r"""
+    Record filtered out by a bin-reading filter expression.
+    """
+    MRT_BLOCKED_RECORD_LOCKED: builtins.int = 1
+    r"""
+    Record is provisionally locked by another MRT.
+    """
+    MRT_BLOCKED_ID_MISMATCH: builtins.int = 2
+    r"""
+    Op belongs to a different MRT than the one holding the lock.
+    """
 
 class TlsConfig:
     def __new__(cls, cafile: builtins.str) -> _aerospike_async_native.TlsConfig:
@@ -4525,15 +5410,17 @@ class Version:
         Returns true if server supports Multi-Record Transactions
         (MRT). Requires server >= 8.0.0.
         """
-    def supports_query_selection(self) -> builtins.bool:
+    def supports_string_operations(self) -> builtins.bool:
         r"""
-        Returns true if server supports two-phase server query selection
-        (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        Returns true if server supports the string-operations module
+        (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
+        ``TO_STRING`` op-type 19) and the matching string-expression
+        dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
+        Requires server >= 8.1.3.
         """
     def supports_server_compiled_ael(self) -> builtins.bool:
         r"""
-        Returns true if server accepts server-compiled AEL on filter field **43**
-        (``[128, "<utf-8>"]``). Requires server >= 8.1.3.
+        Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
@@ -4564,6 +5451,11 @@ class _LocalClient:
     signals private / unstable status; opt in via PSDK's
     `SyncClient(current_thread_runtime=True)`.
     """
+    @property
+    def cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Configured cluster name (see :attr:`Client.cluster_name`).
+        """
     def __new__(cls, policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str) -> _aerospike_async_native._LocalClient: ...
     def get_blocking(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record: ...
     def put_blocking(self, key: _aerospike_async_native.Key, bins: typing.Mapping[builtins.str, typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> None: ...
@@ -4760,7 +5652,6 @@ class IndexType(enum.Enum):
     NUMERIC = ...
     STRING = ...
     GEO2D_SPHERE = ...
-    BLOB = ...
 
 @typing.final
 class ListOrderType(enum.Enum):
@@ -4953,15 +5844,6 @@ class QueryDuration(enum.Enum):
     """
 
 @typing.final
-class QuerySelection(enum.Enum):
-    r"""
-    Server query plan selection inferred from an explain response.
-    """
-    PRIMARY_INDEX = ...
-    SECONDARY_INDEX = ...
-    FILTERED_OUT = ...
-
-@typing.final
 class ReadModeAP(enum.Enum):
     r"""
     Read policy for AP (availability) namespaces.
@@ -5046,6 +5928,80 @@ class SpecialValue(enum.Enum):
     """
 
 @typing.final
+class StringNumericType(enum.Enum):
+    r"""
+    Numeric-type filter for `StringOperation.is_numeric`. Default `ANY`
+    matches integers or floats; restrict to one or the other with `INT` /
+    `FLOAT`.
+    """
+    ANY = ...
+    r"""
+    Match either an integer or a floating-point number.
+    """
+    INT = ...
+    r"""
+    Match only integers.
+    """
+    FLOAT = ...
+    r"""
+    Match only floating-point numbers.
+    """
+
+@typing.final
+class StringRegexFlags(enum.Enum):
+    r"""
+    ICU regex flags for `regex_compare` and `regex_replace`. Combine with
+    bitwise OR. Default is no flags.
+    """
+    DEFAULT = ...
+    r"""
+    No flags.
+    """
+    CASE_INSENSITIVE = ...
+    r"""
+    Case-insensitive matching.
+    """
+    MULTILINE = ...
+    r"""
+    Multi-line: `^` and `$` match the start and end of any line.
+    """
+    DOTALL = ...
+    r"""
+    `.` matches any character including line terminators. Spelled
+    `DOTALL` (one word) to match Python's stdlib `re.DOTALL`;
+    rust-core spells the same flag `DOT_ALL`.
+    """
+    UNIX_LINES = ...
+    r"""
+    Only `\n` is treated as a line terminator (Unix-style line endings).
+    """
+    GLOBAL = ...
+    r"""
+    `regex_replace` only — replace every match (default replaces only
+    the first match).
+    """
+
+@typing.final
+class StringWriteFlags(enum.Enum):
+    r"""
+    Per-operation write flags for string modify ops.
+
+    Two values are valid; the server-side enumeration was trimmed in commit
+    `fe5a346e` (2026-04-17). `CREATE_ONLY` and `UPDATE_ONLY` previously
+    existed but are no longer recognized.
+    """
+    DEFAULT = ...
+    r"""
+    Default. Allow create or update.
+    """
+    NO_FAIL = ...
+    r"""
+    Do not raise an error if the operation cannot be applied (e.g. wrong
+    bin type). The bin is left unchanged and the op result is the
+    canonical null value.
+    """
+
+@typing.final
 class TaskStatus(enum.Enum):
     NOT_FOUND = ...
     IN_PROGRESS = ...
@@ -5110,5 +6066,17 @@ def null() -> typing.Any:
     Return a null value for use in Aerospike operations.
     This is equivalent to Python None but represents an Aerospike null value.
     Matches the legacy client's aerospike.null() function.
+    """
+
+def refresh_log_levels() -> None:
+    r"""
+    Re-sync Rust-emitted log levels with the Python `logging` hierarchy.
+
+    The bridge that forwards Rust log records to Python's `logging` module
+    caches each logger's effective level the first time that logger emits.
+    Calling `logging.getLogger("aerospike_core.cluster").setLevel(...)` at
+    runtime therefore has no effect on Rust-emitted records for
+    already-cached loggers until this function is called to drop the cache.
+    Cheap; safe to call from any thread.
     """
 

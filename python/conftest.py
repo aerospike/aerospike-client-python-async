@@ -112,36 +112,64 @@ def aerospike_host_sec():
     return os.environ.get('AEROSPIKE_HOST_SEC')
 
 
-@pytest.fixture(scope="session")
-def aerospike_host_8_1_2():
-    """Seed for an 8.1.2+ Aerospike cluster, when one is available locally.
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def aerospike_host_812_required(aerospike_host, server_version):
+    """The default seed, required to be server >= 8.1.2, else skip.
 
-    Returns ``None`` when ``AEROSPIKE_HOST_8_1_2`` is unset; tests that depend
-    on 8.1.2+ behavior should accept this fixture and ``pytest.skip`` when it
-    is ``None`` rather than failing.
+    Single-host model: version-gated tests connect to the default
+    ``AEROSPIKE_HOST`` and skip unless it is 8.1.2+. Point ``AEROSPIKE_HOST``
+    at an 8.1.2+ build to run them; CI covers the version spread via a server
+    matrix rather than a dedicated host var. Skips when the seed is < 8.1.2 or
+    unreachable (``server_version`` probes to ``None``).
     """
-    return os.environ.get('AEROSPIKE_HOST_8_1_2')
-
-
-@pytest.fixture
-def aerospike_host_812_required(aerospike_host_8_1_2):
-    """Returns the 8.1.2+ host or skips the dependent test cleanly.
-
-    Tests that exercise server-8.1.2-only features opt in by depending on
-    this fixture (typically via a ``_812``-suffixed client fixture rather
-    than directly). When ``AEROSPIKE_HOST_8_1_2`` is unset the dependent
-    test is skipped with a clear message rather than running against the
-    wrong cluster. When set, the test is auto-routed to the 8.1.2+ seed,
-    so a single ``make test`` run can exercise the broad surface against
-    ``AEROSPIKE_HOST`` and the 8.1.2-only subset against
-    ``AEROSPIKE_HOST_8_1_2``.
-    """
-    if not aerospike_host_8_1_2:
+    if server_version is None or server_version < SERVER_8_1_2:
         pytest.skip(
-            "AEROSPIKE_HOST_8_1_2 is unset; this test requires an 8.1.2+ "
-            "cluster. Set AEROSPIKE_HOST_8_1_2 in aerospike.env to enable."
+            "default cluster is not 8.1.2+ (or unreachable); point "
+            "AEROSPIKE_HOST at an 8.1.2+ build to run these tests"
         )
-    return aerospike_host_8_1_2
+    return aerospike_host
+
+
+# Named server-version floors for capability gates. Compare against the
+# ``(M, m, p, b)`` tuple from :func:`server_version`. Centralized so feature
+# checks reference an intent-named constant instead of an inline magic tuple
+# (mirrors the Java clients' ``SERVER_VERSION_*`` constants). Add a new floor
+# here rather than inlining a tuple in a new ``supports_*`` gate.
+SERVER_8_1_1 = (8, 1, 1, 0)
+SERVER_8_1_2 = (8, 1, 2, 0)
+SERVER_8_1_3 = (8, 1, 3, 0)
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_string_operations(server_version):
+    """``True`` when the (default-host) cluster supports server-side string ops.
+
+    Covers ``StringOperation`` (strlen / substr / find / concat / upper /
+    replace / pad / to_string / masking) and the string filter expressions,
+    gated server-side via the Rust core's
+    ``Node.version.supports_string_operations()`` (server >= 8.1.3). Single-host
+    model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these; CI
+    covers the version spread via a server matrix rather than a dedicated host
+    var. Tests that need string ops should ``pytest.skip`` when this is
+    ``False``.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_server_compiled_ael(server_version):
+    """``True`` when the (default-host) cluster supports server-compiled AEL filters.
+
+    Covers ``FilterExpression.from_server_compiled_ael`` wire form
+    (MessagePack ``[128, "<utf-8 ael>"]`` on filter field 43), gated
+    server-side via the Rust core's
+    ``Node.version.supports_server_compiled_ael()`` (server >= 8.1.3).
+    Single-host model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to
+    exercise these; CI covers the version spread via a server matrix rather
+    than a dedicated host var. Tests that need server-compiled AEL should
+    ``pytest.skip`` when this is ``False``.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
 
 
 def _parse_build_string(build: str):
@@ -218,7 +246,7 @@ async def supports_query_ops_projection_ext(server_version):
     that need extended reads in ``Statement.set_operations`` should
     ``pytest.skip`` when this is ``False``.
     """
-    return server_version is not None and server_version >= (8, 1, 2, 0)
+    return server_version is not None and server_version >= SERVER_8_1_2
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -231,7 +259,7 @@ async def supports_enhanced_expression_api(server_version):
     ``exp_modify_*``) are 8.1.1 — gate those on
     ``supports_cdt_path_expressions``.
     """
-    return server_version is not None and server_version >= (8, 1, 2, 0)
+    return server_version is not None and server_version >= SERVER_8_1_2
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -245,7 +273,20 @@ async def supports_cdt_path_expressions(server_version):
     >= 8.1.1). Tests that exercise path expressions should
     ``pytest.skip`` when this is ``False``.
     """
-    return server_version is not None and server_version >= (8, 1, 1, 0)
+    return server_version is not None and server_version >= SERVER_8_1_1
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_error_detail(server_version):
+    """``True`` when the (default-host) cluster supplies extended error detail.
+
+    Covers ``error_detail_verbosity`` and the resulting ``ServerError``
+    ``sub_code`` / ``server_message`` / ``exp_trace``. Server >= 8.1.3; older
+    servers ignore the request flags. Single-host model: point
+    ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these tests; CI covers
+    the version spread via a server matrix rather than a dedicated host var.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")

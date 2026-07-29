@@ -9,11 +9,15 @@ name = "_aerospike_async_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.29", default-features = false }
+pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "41137a4dfe44145094bb9576f7e428ee8d9b650c", package = "aerospike-core", features = ["rt-tokio"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "4dd1a932267d2051a3f0f5c41f537b8a360c0cc6", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
 hex = "0.4"
+# Match aerospike-core's info/bins return type (order-preserving). The `indexmap`
+# feature on pyo3 provides the IntoPyObject conversion so these map straight to
+# ordered Python dicts.
+indexmap = "2"
 ordered-float = { version = "3", default-features = false }
 pyo3-stub-gen = "0.23"
 log = "0.4"
@@ -23,10 +27,13 @@ tokio-rustls = { version = "0.26", optional = true }
 rustls = { version = "0.23", optional = true }
 rustls-pemfile = { version = "2", optional = true }
 webpki-roots = { version = "1.0", optional = true }
-aws-lc-sys = "0.37.0"
-aws-lc-rs = "1.15.4"
 mimalloc = "0.1"
 rand = { version = "0.8", features = ["small_rng"] }
+
+[build-dependencies]
+# Re-exports pyo3's interpreter cfgs (Py_3_13, Py_GIL_DISABLED, …) via build.rs
+# so the crate can gate FFI on the target Python ABI.
+pyo3-build-config = "0.29"
 
 [features]
 default = ["extension-module", "tls"]

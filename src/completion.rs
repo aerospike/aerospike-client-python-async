@@ -40,10 +40,34 @@ use pyo3::IntoPyObjectExt;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
 
+#[cfg(unix)]
+use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
+
 use crate::client_runtime::ClientRuntime;
 use crate::waker;
 
 type Converter = Box<dyn FnOnce(Python<'_>) -> PyResult<Py<PyAny>> + Send>;
+
+/// Cross-thread wake transport for a bridge whose owning loop is uvloop under a
+/// free-threaded build. Instead of the waker thread calling
+/// `loop.call_soon_threadsafe` (whose ready-queue mutation trips uvloop's libuv
+/// free-threading race, MagicStack/uvloop #720, unfixed in release 0.22.1), the
+/// waker writes one byte to `tx`; a `loop.add_reader(rx_fd, PipeDrainer)`
+/// callback then runs `drain()` on the loop thread. The foreign thread touches
+/// only a kernel fd — thread-safe by construction — so uvloop's bug cannot fire
+/// on an API we no longer use. Unix + uvloop + FT only (see `should_use_pipe`).
+#[cfg(unix)]
+struct PipeTransport {
+    /// Waker-thread write end. One byte per completion burst; coalesced by the
+    /// reader draining to `WouldBlock`.
+    tx: UnixStream,
+    /// Loop-thread read end, watched via `add_reader`.
+    rx: UnixStream,
+}
 
 struct PendingResult {
     future: Py<PyAny>,
@@ -73,6 +97,22 @@ pub(crate) struct CompletionInner {
     /// from `ClientPolicy.per_client_runtime_workers`. Held by Arc so the
     /// runtime outlives any in-flight futures.
     client_rt: Option<Arc<ClientRuntime>>,
+    /// Pipe-wake transport. `Some` only when the owning loop is uvloop under a
+    /// free-threaded build (or forced via `AEROSPIKE_PIPE_WAKE=1`); `None` uses
+    /// today's `call_soon_threadsafe` path unchanged. Holds both socketpair
+    /// ends so they close when this `CompletionInner` drops.
+    ///
+    /// Lifetime: the loop-side reader (`add_reader`) holds a `Py<PipeDrainer>`
+    /// which holds an `Arc<CompletionInner>`, so the transport lives until the
+    /// owning loop closes and asyncio drops its readers — the same lifecycle as
+    /// the `call_soon_threadsafe` path, and required so a *closed but not yet
+    /// dropped* client (e.g. `is_connected()` after `close()`) still delivers
+    /// completions through the reader. A client closed on a still-running loop
+    /// therefore keeps its two socketpair fds until loop close; negligible for
+    /// pooled/typical usage (client lifetime ≈ loop lifetime), and only worth
+    /// revisiting for high-churn client creation on one long-lived loop.
+    #[cfg(unix)]
+    pipe: Option<PipeTransport>,
 }
 
 /// Owned by each `Client`.  Thin wrapper around `Arc<CompletionInner>` so the
@@ -95,6 +135,96 @@ impl CompletionDrainer {
     fn __call__(&self, py: Python<'_>) -> PyResult<()> {
         drain(py, &self.inner);
         Ok(())
+    }
+}
+
+/// Loop-thread reader for the pipe-wake transport. Registered via
+/// `loop.add_reader(rx_fd, PipeDrainer)`; asyncio invokes it (0-arg) whenever
+/// the read end is readable. Drains the coalesced wake bytes, then runs the
+/// same `drain()` the `CompletionDrainer` would — semantics are identical, only
+/// the wake transport differs.
+#[cfg(unix)]
+#[pyclass]
+pub(crate) struct PipeDrainer {
+    inner: Arc<CompletionInner>,
+}
+
+#[cfg(unix)]
+#[pymethods]
+impl PipeDrainer {
+    fn __call__(&self, py: Python<'_>) -> PyResult<()> {
+        if let Some(p) = self.inner.pipe.as_ref() {
+            drain_fd(&p.rx);
+        }
+        drain(py, &self.inner);
+        Ok(())
+    }
+}
+
+/// Waker-thread side: write one wake byte for a pipe bridge. Returns `None`
+/// when the bridge uses the `call_soon_threadsafe` path (caller falls through
+/// to it). `WouldBlock` is mapped to `Ok` — a full pipe means a wake is already
+/// pending and undrained, which the one-per-burst gate makes benign.
+#[cfg(unix)]
+pub(crate) fn pipe_wake(inner: &CompletionInner) -> Option<std::io::Result<()>> {
+    inner.pipe.as_ref().map(|p| {
+        let mut writer: &UnixStream = &p.tx;
+        match writer.write(b"x") {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(()),
+            Err(e) => Err(e),
+        }
+    })
+}
+
+/// Drain the read end to `WouldBlock`, consuming all coalesced wake bytes so the
+/// reader doesn't re-fire for wakes already covered by this `drain()`.
+#[cfg(unix)]
+fn drain_fd(rx: &UnixStream) {
+    let mut buf = [0u8; 256];
+    let mut reader: &UnixStream = rx;
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) => break, // writer closed
+            Ok(_) => continue,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => break, // WouldBlock (drained) or hard error — stop either way
+        }
+    }
+}
+
+/// True on a free-threaded (GIL-disabled) build. uvloop's #720 race only
+/// manifests without the GIL serializing the cross-thread ready-queue mutation.
+#[cfg(unix)]
+fn is_free_threaded() -> bool {
+    cfg!(Py_GIL_DISABLED)
+}
+
+/// Whether the owning loop is a uvloop loop (its type's module is `uvloop*`).
+#[cfg(unix)]
+fn loop_is_uvloop(py: Python<'_>, owning_loop: &Py<PyAny>) -> bool {
+    (|| -> PyResult<bool> {
+        let module: String = owning_loop
+            .bind(py)
+            .get_type()
+            .getattr(pyo3::intern!(py, "__module__"))?
+            .extract()?;
+        Ok(module.starts_with("uvloop"))
+    })()
+    .unwrap_or(false)
+}
+
+/// Transport selection. `AEROSPIKE_PIPE_WAKE` = `0` off / `1` force-on (incl.
+/// plain asyncio, for A/B) / `auto` (default) enables only in the racy regime:
+/// uvloop loop AND free-threaded build. Unix-only (Windows has no usable
+/// `add_reader` for this and no uvloop).
+#[cfg(unix)]
+fn should_use_pipe(py: Python<'_>, owning_loop: &Py<PyAny>) -> bool {
+    match std::env::var("AEROSPIKE_PIPE_WAKE").ok().as_deref() {
+        Some("0") => false,
+        Some("1") => true,
+        Some("auto") | None => is_free_threaded() && loop_is_uvloop(py, owning_loop),
+        Some(_) => false,
     }
 }
 
@@ -140,6 +270,16 @@ impl CompletionInner {
         if pending.is_empty() {
             return;
         }
+        // Shutdown-safety guard: never `Python::attach` from a Tokio worker
+        // while the interpreter is finalizing.  On a free-threaded build,
+        // attaching here creates a fresh `PyThreadState` for this worker whose
+        // biased-refcount teardown (`_Py_brc_remove_thread`) then null-derefs
+        // during finalization (EXC_BAD_ACCESS).  The futures are unreachable
+        // during process teardown, so drop `pending` — its `Py` refs release
+        // via pyo3's deferred mechanism, no attach required.
+        if interpreter_unavailable() {
+            return;
+        }
         Python::attach(|py| {
             for pr in pending {
                 let future = pr.future.bind(py);
@@ -161,6 +301,19 @@ impl CompletionBridge {
         // Ensure the waker thread exists before any completion can fire.
         waker::ensure_waker(py)?;
 
+        // Select the wake transport up front (runs on the loop thread under
+        // GIL). `None` keeps every downstream path byte-identical to today.
+        #[cfg(unix)]
+        let pipe = if should_use_pipe(py, &owning_loop) {
+            Some(make_socketpair().map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "pipe-wake: socketpair creation failed: {e}"
+                ))
+            })?)
+        } else {
+            None
+        };
+
         let inner = Arc::new(CompletionInner {
             queue: Mutex::new(Vec::new()),
             drain_scheduled: AtomicBool::new(false),
@@ -168,14 +321,121 @@ impl CompletionBridge {
             owning_loop,
             drainer: OnceLock::new(),
             client_rt,
+            #[cfg(unix)]
+            pipe,
         });
         let drainer = Py::new(py, CompletionDrainer { inner: inner.clone() })?;
         let _ = inner.drainer.set(drainer);
+
+        // Register the loop-side reader for the pipe transport. The loop is
+        // running here (bridge construction is awaited), so add_reader takes
+        // effect immediately — before the first completion can fire.
+        #[cfg(unix)]
+        {
+            if let Some(p) = inner.pipe.as_ref() {
+                let rx_fd = p.rx.as_raw_fd();
+                let reader = Py::new(py, PipeDrainer { inner: inner.clone() })?;
+                inner.owning_loop.bind(py).call_method1(
+                    pyo3::intern!(py, "add_reader"),
+                    (rx_fd, reader),
+                )?;
+            }
+        }
         Ok(CompletionBridge { inner })
+    }
+
+    /// Arc to the shared inner state. Used by per-op-delivery coalesced-submit
+    /// entries that resolve each op's own future through this bridge's drainer
+    /// as it completes (see [`deliver_one`]).
+    pub(crate) fn inner_arc(&self) -> Arc<CompletionInner> {
+        self.inner.clone()
+    }
+
+    /// Spawn a driver future on this bridge's runtime — the per-Client runtime
+    /// when configured, else the shared global one. Mirrors
+    /// [`batched_future_into_py`]'s spawn choice so coalesced submits land on
+    /// the same reactor as the ops they drive.
+    pub(crate) fn spawn<F>(&self, fut: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        match self.inner.client_rt.clone() {
+            Some(rt) => {
+                rt.handle().spawn(fut);
+            }
+            None => {
+                pyo3_asyncio::get_runtime().spawn(fut);
+            }
+        }
+    }
+}
+
+/// Enqueue one already-created Python future's result for batched delivery
+/// through a bridge's drainer — the per-op-delivery primitive for coalesced
+/// submits. Each op calls this the instant it completes, so callers of fast
+/// keys resume without waiting on their batch-mates (no head-of-line), while
+/// the drainer still coalesces the `set_result` calls on the loop thread. The
+/// `T -> PyObject` conversion runs inside the drainer, off the Tokio worker.
+pub(crate) fn deliver_one<T>(
+    inner: &Arc<CompletionInner>,
+    future: Py<PyAny>,
+    result: PyResult<T>,
+) where
+    T: for<'a> IntoPyObject<'a> + Send + 'static,
+{
+    let pr = match result {
+        Ok(val) => PendingResult {
+            future,
+            result: Ok(Box::new(move |py| val.into_py_any(py))),
+        },
+        Err(e) => PendingResult {
+            future,
+            result: Err(e),
+        },
+    };
+    CompletionInner::enqueue(inner, pr);
+}
+
+/// Create a nonblocking `socketpair` for the pipe-wake transport.
+#[cfg(unix)]
+fn make_socketpair() -> std::io::Result<PipeTransport> {
+    let (tx, rx) = UnixStream::pair()?;
+    tx.set_nonblocking(true)?;
+    rx.set_nonblocking(true)?;
+    Ok(PipeTransport { tx, rx })
+}
+
+/// True when the interpreter cannot be safely attached to from a non-Python
+/// thread — either not yet initialized or already finalizing.  On free-threaded
+/// builds, `Python::attach` from a Tokio worker during finalization registers a
+/// `PyThreadState` whose biased-refcount teardown crashes; guard every
+/// worker-side cold path with this.
+pub(crate) fn interpreter_unavailable() -> bool {
+    unsafe {
+        if pyo3::ffi::Py_IsInitialized() == 0 {
+            return true;
+        }
+        // `Py_IsFinalizing` is Python 3.13+ (pyo3-ffi gates it on `Py_3_13`).
+        // The teardown crash it guards against is a free-threaded (3.13t+)
+        // hazard, so on older ABIs the initialized check alone suffices.
+        #[cfg(Py_3_13)]
+        {
+            pyo3::ffi::Py_IsFinalizing() != 0
+        }
+        #[cfg(not(Py_3_13))]
+        {
+            false
+        }
     }
 }
 
 fn fail_pr(pr: PendingResult, msg: &'static str) {
+    // Shutdown-safety guard (see `fail_all_pending`): don't attach during
+    // finalization.  Dropping `pr` releases its `Py` ref via pyo3's deferred
+    // drop; the future is unreachable during teardown anyway.
+    if interpreter_unavailable() {
+        return;
+    }
     Python::attach(|py| {
         let future = pr.future.bind(py);
         let err = pyo3::exceptions::PyRuntimeError::new_err(msg);

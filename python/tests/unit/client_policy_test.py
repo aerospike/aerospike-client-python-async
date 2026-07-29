@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import ClientPolicy
+from aerospike_async import Client, ClientPolicy
 
 
 def test_client_policy_properties():
@@ -24,6 +24,8 @@ def test_client_policy_properties():
     cp.user = "testuser"
     cp.password = "testpass"
     cp.timeout = 5000
+    cp.connect_timeout = 1500
+    cp.login_timeout = 8000
     cp.idle_timeout = 3000
     cp.max_conns_per_node = 128
     cp.conn_pools_per_node = 2
@@ -41,11 +43,13 @@ def test_client_policy_properties():
     assert cp.user == "testuser"
     assert cp.password == "testpass"
     assert cp.timeout == 5000
+    assert cp.connect_timeout == 1500
+    assert cp.login_timeout == 8000
     assert cp.idle_timeout == 3000
     assert cp.max_conns_per_node == 128
     assert cp.conn_pools_per_node == 2
     assert cp.use_services_alternate is True
-    assert set(cp.rack_ids) == {1, 2, 3}  # HashSet doesn't preserve order
+    assert cp.rack_ids == [1, 2, 3]  # ordered Vec preserves preference order
     assert cp.fail_if_not_connected is False
     assert cp.seed_only_cluster is True
     assert cp.buffer_reclaim_threshold == 32768
@@ -79,6 +83,23 @@ def test_client_policy_properties():
     assert cp2.tend_interval == 1000
     assert cp2.cluster_name is None
     assert cp2.ip_map is None
+    # connect_timeout defaults to 0 (falls back to timeout); login_timeout to 5s.
+    assert cp2.connect_timeout == 0
+    assert cp2.login_timeout == 5000
+
+
+def test_version_static_methods_expose_client_and_core_versions():
+    """``Client.client_version()`` reports this library's own version;
+    ``Client.core_version()`` reports the embedded engine version. Both are
+    static methods callable without a live cluster connection."""
+    client_version = Client.client_version()
+    core_version = Client.core_version()
+    for version in (client_version, core_version):
+        assert isinstance(version, str)
+        assert version  # non-empty
+        # Semantic-version-ish: at least a major.minor prefix.
+        assert version[0].isdigit()
+        assert "." in version
 
 
 def test_default_custom_client_id_identifies_this_client():

@@ -1,0 +1,105 @@
+name: Dev channel publish
+
+# Publishes a uniquely-versioned wheel matrix to the JFrog dev repo on every
+# merge to dev, so downstream consumers (the Python SDK) can pin PAC as a
+# normal versioned dependency without waiting on a public PyPI release.
+#
+# The committed Cargo.toml version is never mutated: the next dev version
+# (e.g. 0.6.0-alpha.6 -> 0.6.0-alpha.7.dev.<run>) is computed here and
+# stamped ephemerally into each build workspace via build-release.yaml's
+# version-override input. The release path (push-to-build.yaml) is
+# unchanged and continues to build the committed version.
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build the matrix but keep deploy + bundle in dry-run mode.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+# Queue rapid merges rather than cancel: a cancelled run could leave a
+# partially uploaded build in the dev repo.
+concurrency:
+  group: dev-channel-publish
+  cancel-in-progress: false
+
+jobs:
+  compute-version:
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    outputs:
+      cargo-version: ${{ steps.next.outputs.cargo-version }}
+      pep440-version: ${{ steps.next.outputs.pep440-version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read committed version
+        id: base
+        uses: ./.github/actions/get-version
+
+      - name: Compute next dev version
+        id: next
+        run: |
+          python .github/scripts/next_dev_version.py \
+            "${{ steps.base.outputs.release-version }}" \
+            "${{ github.run_number }}" | tee -a "$GITHUB_OUTPUT"
+
+  build-publish:
+    needs: compute-version
+    uses: ./.github/workflows/build-release.yaml
+    with:
+      # Merges publish for real; manual dispatches default to dry-run.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+      version-override: ${{ needs.compute-version.outputs.cargo-version }}
+    secrets: inherit
+
+  smoke-install:
+    needs: [compute-version, build-publish]
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run == false }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Setup JFrog CLI
+        uses: step-security/setup-jfrog-cli@3054b554c0fb4915b3d58847fb7730c593dbb934 # v5.0.0
+        env:
+          JF_URL: https://artifact.aerospike.io
+          JF_PROJECT: ${{ vars.JFROG_PROJECT }}
+        with:
+          oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+
+      - name: Download published wheel from the dev repo
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.compute-version.outputs.pep440-version }}"
+          # PyPI layout in the dev repo: {normalized-name}/{version}/{filename}
+          jf rt dl \
+            "${{ vars.JFROG_PROJECT }}-pypi-dev-local/aerospike-async/${VERSION}/*cp312*manylinux*x86_64*.whl" \
+            wheels/ --flat=true
+          ls -l wheels/
+          test -n "$(ls wheels/*.whl 2>/dev/null)"
+
+      - name: Install and import
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.compute-version.outputs.pep440-version }}"
+          python -m pip install wheels/*.whl
+          python - <<PY
+          import aerospike_async
+          assert aerospike_async.__version__ == "${VERSION}", (
+              aerospike_async.__version__, "${VERSION}")
+          print("smoke OK:", aerospike_async.__version__)
+          PY

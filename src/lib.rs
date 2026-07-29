@@ -23,6 +23,7 @@ extern crate pyo3;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -61,6 +62,8 @@ mod policies;
 mod query_plan;
 mod query_where;
 mod cluster;
+mod string_ops;
+mod server_error;
 
 pub use enums::*;
 pub use errors::*;
@@ -74,15 +77,17 @@ pub use policies::*;
 pub use query_plan::*;
 pub use query_where::*;
 pub use cluster::*;
+pub use server_error::*;
 pub use tls::*;
+pub use string_ops::*;
 
 define_stub_info_gatherer!(stub_info);
 
 use crate::blocking::run_blocking;
 use crate::cdt::ctx_to_vec;
 use crate::operations::{
-    bins_flag, convert_ops_with_ctx_to_core, convert_scalar_ops_to_core, extract_py_ops,
-    extract_py_ops_with_ctx,
+    bins_flag, bins_from_dict, bins_from_dict_list, convert_ops_with_ctx_to_core,
+    convert_scalar_ops_to_core, extract_py_ops, extract_py_ops_with_ctx,
 };
 
     /**********************************************************************************
@@ -96,6 +101,7 @@ use crate::operations::{
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
         let as_policy = policy._as.clone();
         let as_seeds = seeds.clone();
+        let cluster_name = as_policy.cluster_name.clone();
         // Capture the loop the caller is awaiting on; this becomes the bridge's
         // owning loop and every subsequent op on this Client must run on it.
         let locals = pyo3_asyncio::get_current_locals(py)?;
@@ -135,6 +141,7 @@ use crate::operations::{
             let res = Client {
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
+                cluster_name,
                 bridge: Some(bridge),
             };
 
@@ -246,6 +253,28 @@ use crate::operations::{
         }
     }
 
+    // Per-slot carrier for `Client._submit_many_read` / `_submit_many_write`.
+    // Holds the record (reads), nothing (writes), or the op's exception so
+    // one failed key cannot poison its window-mates; converts on the drainer
+    // thread to the `Record` object, `None`, or the exception INSTANCE (not
+    // raised) so callers can distinguish slots with
+    // `isinstance(slot, Exception)`.
+    struct SlotOutcome(Result<Option<Record>, PyErr>);
+
+    impl<'py> IntoPyObject<'py> for SlotOutcome {
+        type Target = PyAny;
+        type Output = Bound<'py, PyAny>;
+        type Error = PyErr;
+
+        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+            match self.0 {
+                Ok(Some(record)) => Ok(record.into_pyobject(py)?.into_any()),
+                Ok(None) => Ok(py.None().into_bound(py)),
+                Err(e) => Ok(e.into_value(py).into_bound(py).into_any()),
+            }
+        }
+    }
+
     // Deferred-conversion carrier for `Client.exists_legacy`.  Returned from
     // the spawned Tokio task and converted to a `(Key, meta_dict | None)`
     // Python tuple inside pyo3-async-runtimes' single delivery-time
@@ -284,9 +313,9 @@ use crate::operations::{
     /// that want sub-100 ns random number generation per call. CPython's
     /// stdlib `random.Random` uses Mersenne Twister at ~700 ns/call —
     /// fine for general use, but a measurable handicap in benchmark hot
-    /// loops where every µs counts. JSDK uses `RandomShift` (xorshift128+)
-    /// and Rust core uses `SmallRng` for the same reason; this exposes the
-    /// equivalent to Python so benchmark methodology stays apples-to-apples.
+    /// loops where every µs counts. Rust core uses `SmallRng` for the
+    /// same reason; this exposes the equivalent to Python so benchmark
+    /// methodology stays consistent across language layers.
     ///
     /// Not thread-safe — construct one per worker thread / task.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
@@ -355,6 +384,8 @@ use crate::operations::{
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
+        // See `Client.cluster_name`: configured validation name, captured once.
+        cluster_name: Option<String>,
     }
 
     #[gen_stub_pymethods]
@@ -370,13 +401,21 @@ use crate::operations::{
                     format!("failed to build current_thread Tokio runtime: {e}")
                 ))?;
             let as_policy = policy._as.clone();
+            let cluster_name = as_policy.cluster_name.clone();
             let client = rt.block_on(async move {
                 aerospike_core::Client::new(&as_policy, &seeds).await
             }).map_err(|e| PyErr::from(RustClientError(e)))?;
             Ok(LocalClient {
                 rt,
                 client: Arc::new(client),
+                cluster_name,
             })
+        }
+
+        /// Configured cluster name (see :attr:`Client.cluster_name`).
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
         }
 
         // -- Plain blocking ops (drop-in for Client.*_blocking) -------------
@@ -428,7 +467,7 @@ use crate::operations::{
                     Ok(res)
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         #[pyo3(signature = (key, bins, *, policy=None, policy_sc=None, txn=None))]
@@ -575,7 +614,7 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Returns whether ``namespace`` is configured for strong
@@ -591,7 +630,7 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, String>> {
+        ) -> PyResult<IndexMap<String, String>> {
             let client = self.client.clone();
             py.detach(|| {
                 self.rt.block_on(async move {
@@ -611,6 +650,11 @@ use crate::operations::{
     pub struct Client {
         _as: Arc<aerospike_core::Client>,
         seeds: String,
+        // Configured cluster-name from ClientPolicy (the validation name), or
+        // None when cluster-name validation was not requested. Captured once at
+        // construction so callers can tag diagnostics without a per-call clone
+        // of the whole policy through the core.
+        cluster_name: Option<String>,
         // None for clients created via `new_client_blocking` — async methods
         // require this to be Some; `require_bridge()` enforces it with a clear
         // PyRuntimeError instead of panicking.
@@ -703,12 +747,14 @@ use crate::operations::{
                     Some(stream) => stream.as_mut().next().await,
                     None => None,
                 };
+                // Return a plain (Send) Rust value; the CompletionBridge's
+                // converter builds the Python tuple on the drainer/loop thread.
+                // Never `Python::attach` here — this runs on a Tokio worker, and
+                // registering a PyThreadState on a worker segfaults on
+                // free-threaded finalization teardown (see the invariant in
+                // waker.rs and the lazy pattern in errors.rs).
                 match next {
-                    Some((idx, br)) => Python::attach(|py| -> PyResult<Py<PyAny>> {
-                        let py_br = BatchRecord { _as: br }.into_pyobject(py)?.unbind();
-                        let tup = (idx, py_br).into_pyobject(py)?.unbind();
-                        Ok(tup.into())
-                    }),
+                    Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
                     None => Err(PyStopAsyncIteration::new_err(())),
                 }
             })
@@ -945,6 +991,59 @@ use crate::operations::{
             &self.seeds
         }
 
+        /// Returns this client library's own version string
+        /// (e.g. ``"0.6.0-alpha.6"``).
+        ///
+        /// This is the version of the installed native client extension you are
+        /// running — the same identifier stamped into the wire user-agent — not
+        /// the embedded engine core. The value is baked in at build time, so no
+        /// cluster connection is required; call it directly on the class without
+        /// a live instance. For the embedded engine version, see
+        /// :meth:`core_version`.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.client_version())
+        ///
+        /// Returns:
+        ///     str: This client library's version.
+        #[staticmethod]
+        pub fn client_version() -> &'static str {
+            env!("CARGO_PKG_VERSION")
+        }
+
+        /// Returns the embedded engine core version string
+        /// (e.g. ``"3.0.0-alpha.1"``).
+        ///
+        /// This is the version of the underlying core the client is built
+        /// against — useful for support and diagnostics. It is independent of
+        /// this client library's own version (see :meth:`client_version`) and,
+        /// like it, is baked in at build time and needs no live instance.
+        ///
+        /// Example::
+        ///
+        ///     from aerospike_async import Client
+        ///     print(Client.core_version())
+        ///
+        /// Returns:
+        ///     str: The embedded engine core version.
+        #[staticmethod]
+        pub fn core_version() -> &'static str {
+            aerospike_core::Client::client_version()
+        }
+
+        /// Configured cluster name from the ``ClientPolicy`` used to build this
+        /// client, or ``None`` when cluster-name validation was not requested.
+        ///
+        /// This is the client-side *expected* name (set via cluster-name
+        /// validation), not a server-reported value; it reads a cached field
+        /// with no network or lock cost.
+        #[getter]
+        pub fn cluster_name(&self) -> Option<String> {
+            self.cluster_name.clone()
+        }
+
         /// Returns whether ``namespace`` is configured for strong
         /// consistency on the cluster.
         ///
@@ -965,6 +1064,14 @@ use crate::operations::{
         pub fn close<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
 
+            // NB: close() does NOT tear down the pipe-wake reader. A closed
+            // client is still usable (e.g. `is_connected()` returning False),
+            // and those calls still deliver completions through the reader —
+            // removing it here would leave them writing to an unwatched pipe
+            // and hang. The reader is released when the owning loop closes
+            // (asyncio drops readers on `loop.close()`), matching the
+            // `call_soon_threadsafe` path, which likewise relies on the loop
+            // staying alive after client close.
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 client
                     .close()
@@ -1030,17 +1137,7 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self._as.clone();
 
-            // Same bin extraction as `put` — must run with the GIL.
-            let mut bin_vec = Vec::new();
-            for (py_key, py_val) in bins.iter() {
-                let name = py_key.extract::<String>().map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                        "A bin name must be a string or unicode string",
-                    )
-                })?;
-                let val: PythonValue = py_val.extract()?;
-                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-            }
+            let bin_vec = bins_from_dict(bins)?;
 
             run_blocking(py, async move {
                 let mut policy = match base_sc {
@@ -1109,7 +1206,7 @@ use crate::operations::{
                 }
                 Ok(res)
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously delete a record for the specified key.
@@ -1311,7 +1408,7 @@ use crate::operations::{
                 client.operate(&policy, &key_as, &core_ops).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(Record { _as: raw, cached_bins: None })
+            Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
         /// Synchronously execute a registered UDF on a single record.
@@ -1611,7 +1708,7 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, String>> {
+        ) -> PyResult<IndexMap<String, String>> {
             let client = self._as.clone();
             run_blocking(py, async move {
                 let node = client.cluster.get_random_node()
@@ -1627,11 +1724,11 @@ use crate::operations::{
             &self,
             command: String,
             py: Python<'_>,
-        ) -> PyResult<HashMap<String, HashMap<String, String>>> {
+        ) -> PyResult<HashMap<String, IndexMap<String, String>>> {
             let client = self._as.clone();
             run_blocking(py, async move {
                 let nodes = client.nodes();
-                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut results: HashMap<String, IndexMap<String, String>> = HashMap::new();
                 let policy = aerospike_core::AdminPolicy::default();
                 for node in nodes {
                     let response = node.info(&policy, &[&command]).await
@@ -2045,21 +2142,7 @@ use crate::operations::{
             let client = self._as.clone();
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
-            let mut bins_vecs = Vec::with_capacity(bins_list.len());
-            for bins_obj in &bins_list {
-                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
-                let mut bin_vec = Vec::new();
-                for (py_key, py_val) in bins_dict.iter() {
-                    let name = py_key.extract::<String>().map_err(|_| {
-                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                            "A bin name must be a string or unicode string",
-                        )
-                    })?;
-                    let val: PythonValue = py_val.extract()?;
-                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-                }
-                bins_vecs.push(bin_vec);
-            }
+            let bins_vecs = bins_from_dict_list(py, &bins_list)?;
             let raw = run_blocking(py, async move {
                 use aerospike_core::BatchOperation;
                 use aerospike_core::operations;
@@ -2198,7 +2281,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(raw.into_iter()
-                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                 .collect())
         }
 
@@ -2383,17 +2466,7 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self._as.clone();
 
-            // Convert PyDict to Vec<Bin>, validating that all keys are strings
-            let mut bin_vec = Vec::new();
-            for (py_key, py_val) in bins.iter() {
-                let name = py_key.extract::<String>().map_err(|_| {
-                    PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                        "A bin name must be a string or unicode string"
-                    )
-                })?;
-                let val: PythonValue = py_val.extract()?;
-                bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-            }
+            let bin_vec = bins_from_dict(bins)?;
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
@@ -2465,8 +2538,318 @@ use crate::operations::{
                     return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
+        }
+
+        /// Submit a window of independent single-record reads in one call.
+        ///
+        /// One crossing spawns all reads and one completion delivers all
+        /// results, so per-op submission and wakeup overhead is amortized
+        /// across the window. These stay independent wire ops — this is
+        /// client-side fusion, not a server batch request. Results are
+        /// positional: each slot is either a :class:`Record` or the
+        /// exception instance for that key (check with
+        /// ``isinstance(slot, Exception)``), so a missing record never
+        /// fails its window-mates.
+        ///
+        /// When `policy_sc` is provided, the namespace mode is resolved at
+        /// op time per key and AP vs SC is picked, mirroring `get`.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(name = "_submit_many_read", signature = (
+            keys,
+            bins=None,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_many_read<'a>(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
+            policy_sc: Option<ReadPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let keys_as: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let client = self._as.clone();
+
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let slots = keys_as.into_iter().map(|key_as| {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bins = bins.clone();
+                    async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        SlotOutcome(
+                            client
+                                .get(&policy, &key_as, bins_flag(bins))
+                                .await
+                                .map(|res| Some(Record {
+                                    _as: res,
+                                    cached_bins: None,
+                                    cached_results: None,
+                                }))
+                                .map_err(|e| PyErr::from(RustClientError(e))),
+                        )
+                    }
+                });
+                Ok(futures::future::join_all(slots).await)
+            })
+        }
+
+        /// Per-op-delivery coalesced read: one crossing submits N independent
+        /// reads and resolves each caller's OWN pre-created future the moment
+        /// that key completes, via the bridge's drainer.
+        ///
+        /// Unlike :meth:`_submit_many_read`'s single batched future (which
+        /// resolves only when the slowest key returns), no op waits on its
+        /// window-mates — a task awaiting a fast key resumes immediately and
+        /// can issue its next op, so there is no intra-batch head-of-line. This
+        /// is the backend for PSDK's transparent same-tick read coalescer.
+        ///
+        /// Fire-and-forget: returns ``None``. ``futures[i]`` receives key
+        /// ``keys[i]``'s :class:`Record`, or its exception (byte-identical to a
+        /// direct :meth:`get`, including ``KEY_NOT_FOUND`` raising). `bins` is a
+        /// shared projection; `policy_sc`, when set, picks AP vs SC per key.
+        #[pyo3(name = "_submit_coalesced_read", signature = (
+            keys,
+            futures,
+            bins=None,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_coalesced_read(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            futures: Vec<Py<PyAny>>,
+            bins: Option<Vec<String>>,
+            policy: Option<ReadPolicy>,
+            policy_sc: Option<ReadPolicy>,
+        ) -> PyResult<()> {
+            if keys.len() != futures.len() {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "keys and futures must have the same length",
+                ));
+            }
+            let bridge = self.require_bridge()?;
+            let inner = bridge.inner_arc();
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let client = self._as.clone();
+            let pairs: Vec<(aerospike_core::Key, Py<PyAny>)> = keys
+                .iter()
+                .map(|k| k._as.clone())
+                .zip(futures)
+                .collect();
+
+            // One spawn drives all N ops concurrently; each delivers its own
+            // future as it finishes (FuturesUnordered yields in completion
+            // order), so the FFI crossing and Tokio spawn are amortized while
+            // delivery stays per-op.
+            bridge.spawn(async move {
+                use futures::stream::{FuturesUnordered, StreamExt};
+                let mut ops = FuturesUnordered::new();
+                for (key_as, fut) in pairs {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bins = bins.clone();
+                    ops.push(async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        let result = client
+                            .get(&policy, &key_as, bins_flag(bins))
+                            .await
+                            .map(|res| Record {
+                                _as: res,
+                                cached_bins: None,
+                                cached_results: None,
+                            })
+                            .map_err(|e| PyErr::from(RustClientError(e)));
+                        (fut, result)
+                    });
+                }
+                while let Some((fut, result)) = ops.next().await {
+                    completion::deliver_one(&inner, fut, result);
+                }
+            });
+            Ok(())
+        }
+
+        /// Submit a window of independent single-record writes in one call.
+        ///
+        /// Write-side counterpart of :meth:`_submit_many_read`: one crossing
+        /// spawns all writes and one completion delivers all results. The
+        /// bin payload is converted once and shared across the window (the
+        /// common benchmark/app shape writes the same record spec per key).
+        /// Each result slot is ``None`` on success or the exception instance
+        /// for that key.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[pyo3(name = "_submit_many_write", signature = (
+            keys,
+            bins,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_many_write<'a>(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            bins: &Bound<'a, PyDict>,
+            policy: Option<WritePolicy>,
+            policy_sc: Option<WritePolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let keys_as: Vec<aerospike_core::Key> =
+                keys.iter().map(|k| k._as.clone()).collect();
+            let client = self._as.clone();
+
+            let bin_vec = std::sync::Arc::new(bins_from_dict(bins)?);
+
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let slots = keys_as.into_iter().map(|key_as| {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    let bin_vec = bin_vec.clone();
+                    async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        SlotOutcome(
+                            client
+                                .put(&policy, &key_as, &bin_vec)
+                                .await
+                                .map(|_| None)
+                                .map_err(|e| PyErr::from(RustClientError(e))),
+                        )
+                    }
+                });
+                Ok(futures::future::join_all(slots).await)
+            })
+        }
+
+        /// Per-op-delivery coalesced write: one crossing submits N independent
+        /// writes, each carrying its OWN bin payload, and resolves each
+        /// caller's pre-created future the moment that key completes.
+        ///
+        /// Write-side counterpart of :meth:`_submit_coalesced_read`. The
+        /// distinction from :meth:`_submit_many_write` is per-key payloads:
+        /// that method broadcasts ONE ``bins`` dict to every key and resolves a
+        /// single batched future, so it cannot carry writes that differ per
+        /// key; here ``bins_list[i]`` is the payload for ``keys[i]``. That is
+        /// what lets a caller-side buffer of unrelated writes fuse into one
+        /// crossing. As with the read side, no op waits on its window-mates —
+        /// there is no intra-batch head-of-line.
+        ///
+        /// Fire-and-forget: returns ``None``. ``futures[i]`` receives ``None``
+        /// on success, or key ``keys[i]``'s exception (byte-identical to a
+        /// direct :meth:`put`). `policy_sc`, when set, picks AP vs SC per key.
+        #[pyo3(name = "_submit_coalesced_write", signature = (
+            keys,
+            futures,
+            bins_list,
+            *,
+            policy=None,
+            policy_sc=None,
+        ))]
+        pub fn submit_coalesced_write(
+            &self,
+            keys: Vec<PyRef<Key>>,
+            futures: Vec<Py<PyAny>>,
+            bins_list: Vec<Py<PyAny>>,
+            policy: Option<WritePolicy>,
+            policy_sc: Option<WritePolicy>,
+            py: Python<'_>,
+        ) -> PyResult<()> {
+            if keys.len() != futures.len() || keys.len() != bins_list.len() {
+                return Err(PyValueError::new_err(
+                    "keys, futures, and bins_list must have the same length",
+                ));
+            }
+            let bridge = self.require_bridge()?;
+            let inner = bridge.inner_arc();
+            let base_ap = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let base_sc = policy_sc.map(|p| p._as.clone());
+            let client = self._as.clone();
+
+            let ops: Vec<(aerospike_core::Key, Py<PyAny>, Vec<aerospike_core::Bin>)> = keys
+                .iter()
+                .map(|k| k._as.clone())
+                .zip(futures)
+                .zip(bins_from_dict_list(py, &bins_list)?)
+                .map(|((key_as, fut), bin_vec)| (key_as, fut, bin_vec))
+                .collect();
+
+            // One spawn drives all N ops concurrently; each delivers its own
+            // future as it finishes (FuturesUnordered yields in completion
+            // order), so the FFI crossing and Tokio spawn are amortized while
+            // delivery stays per-op.
+            bridge.spawn(async move {
+                use futures::stream::{FuturesUnordered, StreamExt};
+                let mut pending = FuturesUnordered::new();
+                for (key_as, fut, bin_vec) in ops {
+                    let client = client.clone();
+                    let base_ap = base_ap.clone();
+                    let base_sc = base_sc.clone();
+                    pending.push(async move {
+                        let policy = match base_sc {
+                            Some(sc) => {
+                                let is_sc = client
+                                    .cluster
+                                    .is_strong_consistency(&key_as.namespace)
+                                    .unwrap_or(false);
+                                if is_sc { sc } else { base_ap }
+                            }
+                            None => base_ap,
+                        };
+                        // `None` so the future resolves to Python `None`, matching
+                        // a direct `put`; a Rust unit would cross as `()`.
+                        let result = client
+                            .put(&policy, &key_as, &bin_vec)
+                            .await
+                            .map(|_| Option::<Record>::None)
+                            .map_err(|e| PyErr::from(RustClientError(e)));
+                        (fut, result)
+                    });
+                }
+                while let Some((fut, result)) = pending.next().await {
+                    completion::deliver_one(&inner, fut, result);
+                }
+            });
+            Ok(())
         }
 
         /// Execute multiple operations atomically on a single record.
@@ -2532,7 +2915,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(Record { _as: res, cached_bins: None })
+                Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
         }
 
@@ -2738,21 +3121,7 @@ use crate::operations::{
             let rust_keys: Vec<aerospike_core::Key> =
                 keys.iter().map(|k| k._as.clone()).collect();
 
-            let mut bins_vecs = Vec::with_capacity(bins_list.len());
-            for bins_obj in &bins_list {
-                let bins_dict = bins_obj.bind(py).cast::<pyo3::types::PyDict>()?;
-                let mut bin_vec = Vec::new();
-                for (py_key, py_val) in bins_dict.iter() {
-                    let name = py_key.extract::<String>().map_err(|_| {
-                        PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                            "A bin name must be a string or unicode string"
-                        )
-                    })?;
-                    let val: PythonValue = py_val.extract()?;
-                    bin_vec.push(aerospike_core::Bin::new(name, val.into()));
-                }
-                bins_vecs.push(bin_vec);
-            }
+            let bins_vecs = bins_from_dict_list(py, &bins_list)?;
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 use aerospike_core::BatchOperation;
@@ -2942,7 +3311,7 @@ use crate::operations::{
 
                 Ok(results
                     .into_iter()
-                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None }))
+                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
                     .collect::<Vec<Option<Record>>>())
             })
         }
@@ -4182,7 +4551,7 @@ use crate::operations::{
                 let nodes = client
                     .nodes();
 
-                let mut results: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut results: HashMap<String, IndexMap<String, String>> = HashMap::new();
 
                 for node in nodes {
                     let node_name = node.name().to_string();
@@ -4334,6 +4703,28 @@ impl log::Log for ResilientPyLogger {
     }
 }
 
+/// Cache-reset handle for the pyo3-log bridge. `Caching::LoggersAndLevels`
+/// snapshots each logger's effective level on first use; Python-side
+/// `setLevel()` calls made after that are invisible to Rust-emitted records
+/// until the cache is cleared through this handle.
+static LOG_RESET_HANDLE: std::sync::OnceLock<pyo3_log::ResetHandle> = std::sync::OnceLock::new();
+
+/// Re-sync Rust-emitted log levels with the Python `logging` hierarchy.
+///
+/// The bridge that forwards Rust log records to Python's `logging` module
+/// caches each logger's effective level the first time that logger emits.
+/// Calling `logging.getLogger("aerospike_core.cluster").setLevel(...)` at
+/// runtime therefore has no effect on Rust-emitted records for
+/// already-cached loggers until this function is called to drop the cache.
+/// Cheap; safe to call from any thread.
+#[pyfunction]
+#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+pub fn refresh_log_levels() {
+    if let Some(handle) = LOG_RESET_HANDLE.get() {
+        handle.reset();
+    }
+}
+
 #[pymodule(gil_used = false)]
 fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Filter the noisy default panic-hook output for a specific class of
@@ -4354,7 +4745,13 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
             .map(|s| s.as_str())
             .or_else(|| payload.downcast_ref::<&'static str>().copied());
         if let Some(s) = msg_str {
-            if s.contains("Python interpreter is not initialized") {
+            // Message text differs by pyo3 version: pre-0.29 asserted
+            // "Python interpreter is not initialized"; pyo3 0.29+ rejects the
+            // attach with "Cannot attach to the Python interpreter while it is
+            // finalizing".  Match both so the filter survives pyo3 bumps.
+            if s.contains("Python interpreter is not initialized")
+                || s.contains("Cannot attach to the Python interpreter while it is finalizing")
+            {
                 return;
             }
         }
@@ -4374,6 +4771,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     //   aerospike_core::cluster -> logging.getLogger("aerospike_core.cluster")
     // Uses ResilientPyLogger to avoid panics on background threads during shutdown.
     let inner = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?;
+    let _ = LOG_RESET_HANDLE.set(inner.reset_handle());
     let logger = ResilientPyLogger { inner };
     log::set_max_level(log::LevelFilter::Debug);
     let _ = log::set_logger(Box::leak(Box::new(logger)));
@@ -4402,6 +4800,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<PrivilegeCode>()?;
     m.add_class::<Privilege>()?;
     m.add_class::<ResultCode>()?;
+    m.add_class::<SubCode>()?;
+    m.add_class::<ErrorDetailVerbosity>()?;
+    m.add_class::<ExpressionTrace>()?;
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;
@@ -4441,6 +4842,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_function(wrap_pyfunction!(null, m)?)?;
     m.add_function(wrap_pyfunction!(has_any_write_op, m)?)?;
     m.add_function(wrap_pyfunction!(geojson, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_log_levels, m)?)?;
     m.add_class::<AuthMode>()?;
     m.add_class::<ClientPolicy>()?;
     m.add_class::<WritePolicy>()?;
@@ -4468,6 +4870,10 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BitWriteFlags>()?;
     m.add_class::<BitwiseOverflowActions>()?;
     m.add_class::<BitPolicy>()?;
+    m.add_class::<StringWriteFlags>()?;
+    m.add_class::<StringRegexFlags>()?;
+    m.add_class::<StringNumericType>()?;
+    m.add_class::<StringOperation>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
     m.add_class::<QueryPlan>()?;

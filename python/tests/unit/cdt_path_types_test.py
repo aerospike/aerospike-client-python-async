@@ -131,13 +131,13 @@ class TestCdtOperation:
         assert isinstance(op, CdtOperation)
 
     def test_select_by_path_combined_flags(self):
-        """JSDK-style combined bitmask works: ``SelectFlags.VALUE | SelectFlags.NO_FAIL``."""
+        """Combined bitmask works: ``SelectFlags.VALUE | SelectFlags.NO_FAIL``."""
         ctx = [CTX.map_key("items")]
         op = CdtOperation.select_by_path("mybin", SelectFlags.VALUE | SelectFlags.NO_FAIL, ctx)
         assert isinstance(op, CdtOperation)
 
     def test_select_by_path_raw_int(self):
-        """JSDK-style raw int also accepted."""
+        """Raw int also accepted (same bitmask, no enum wrap required)."""
         op = CdtOperation.select_by_path("mybin", 0x11, [])
         assert isinstance(op, CdtOperation)
 

@@ -39,6 +39,8 @@ import re
 # Exception class stub definitions (defined once, reused everywhere)
 EXCEPTION_STUB_CLASSES = '''class AerospikeError(builtins.Exception):
     """Base exception class for all Aerospike-specific errors."""
+    @property
+    def in_doubt(self) -> builtins.bool: ...
     def __init__(self, message: builtins.str) -> None: ...
 
 class ServerError(AerospikeError):
@@ -1553,7 +1555,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR
+    Namespace of plain ``int`` constants. Combine with bitwise OR
     (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
     suitable for ``CdtOperation.select_by_path(..., flag=...)``.
 
@@ -1578,7 +1580,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    JSDK-shape namespace of plain ``int`` constants. Combine with bitwise OR — the
+    Namespace of plain ``int`` constants. Combine with bitwise OR — the
     result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
@@ -1592,7 +1594,7 @@ def add_return_type_stubs(content: str) -> str:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    JSDK-shape namespace of plain ``int`` constants. Bit values match the
+    Namespace of plain ``int`` constants. Bit values match the
     Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
@@ -1805,6 +1807,11 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('MaxErrorRate = _exceptions.MaxErrorRate\n')
         f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
         f.write('ResultCode = _aerospike_async_native.ResultCode\n')
+        f.write('\n')
+        f.write('# Typed in-doubt lives on the base so every error answers it; the native\n')
+        f.write('# layer sets the instance attribute only when core reports the write may\n')
+        f.write('# have landed.\n')
+        f.write('AerospikeError.in_doubt = False\n')
         f.write('\n')
         f.write('# ServerError subclasses for specific result codes (grouping bases first)\n')
         f.write('class RecordError(ServerError):\n')

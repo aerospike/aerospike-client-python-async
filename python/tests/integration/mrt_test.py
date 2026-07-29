@@ -23,6 +23,9 @@ Requires a strong-consistency namespace. Point the suite at it via the
     AEROSPIKE_SC_USER          auth user (default: AEROSPIKE_AUTH_USER)
     AEROSPIKE_SC_PASSWORD      auth password (default: AEROSPIKE_AUTH_PASSWORD)
     AEROSPIKE_SC_AUTH_MODE     auth mode (default: AEROSPIKE_AUTH_MODE, else INTERNAL)
+    AEROSPIKE_SC_USE_SERVICES_ALTERNATE
+                               "true" to reach the SC cluster via alternate
+                               access addresses (default: AEROSPIKE_USE_SERVICES_ALTERNATE)
 
 When the cluster isn't reachable, the namespace isn't configured, or it
 isn't strong-consistency, every test skips cleanly with a clear reason.
@@ -63,8 +66,9 @@ _AUTH_MODES = {
 def _sc_client_policy() -> ClientPolicy:
     cp = ClientPolicy()
     cp.use_services_alternate = (
-        os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "").lower() == "true"
-    )
+        os.environ.get("AEROSPIKE_SC_USE_SERVICES_ALTERNATE")
+        or os.environ.get("AEROSPIKE_USE_SERVICES_ALTERNATE", "")
+    ).lower() == "true"
     user = os.environ.get("AEROSPIKE_SC_USER") or os.environ.get("AEROSPIKE_AUTH_USER")
     password = (
         os.environ.get("AEROSPIKE_SC_PASSWORD")
