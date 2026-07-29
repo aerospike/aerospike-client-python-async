@@ -858,7 +858,8 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
 
 
 async def test_batch_mixed_with_invalid_namespace(client_and_keys):
-    """Batch with an invalid namespace fails at the client routing level."""
+    """A mixed batch with one invalid-namespace key records a per-key
+    INVALID_NAMESPACE rather than failing the whole batch."""
     client, keys, _, bin_name = client_and_keys
 
     k_good = keys[0]
@@ -867,24 +868,16 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
     good_op = BatchWriteOp(k_good, [Operation.put(bin_name, "updated")])
     bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
 
-    with pytest.raises(InvalidNamespaceError):
-        await client.batch([good_op, bad_op], batch_policy=None)
+    results = await client.batch([good_op, bad_op], batch_policy=None)
+
+    assert len(results) == 2
+    assert results[0].result_code == ResultCode.OK
+    assert results[1].result_code == ResultCode.INVALID_NAMESPACE
 
 
-@pytest.mark.xfail(
-    reason="Rust core's batch executor raises InvalidNamespace at partition routing "
-           "(batch_executor.rs::get_batch_operate_nodes uses `?` on node_for_key) "
-           "instead of recording per-key INVALID_NAMESPACE on a synthetic BatchRecord. "
-           "CLIENT-4881's per-key ServerError absorption doesn't reach here — this is "
-           "a client-side routing bail, not a server response code. Fix needs the "
-           "batch executor to catch Error::InvalidNamespace/InvalidNode at lookup "
-           "time, synthesize a BatchRecord with result_code=INVALID_NAMESPACE, and "
-           "thread it into all_results alongside the per-node groups.",
-    raises=InvalidNamespaceError,
-    strict=True,
-)
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
-    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE when supported."""
+    """Mixed batch with one invalid-namespace key records per-key
+    INVALID_NAMESPACE."""
     client, keys, delete_keys, bin_name = client_and_keys
 
     k_good = keys[0]

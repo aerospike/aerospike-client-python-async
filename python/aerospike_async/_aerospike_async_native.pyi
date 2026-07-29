@@ -259,6 +259,16 @@ class BatchRecord:
     def result_code(self) -> typing.Optional[_aerospike_async_native.ResultCode]: ...
     @property
     def in_doubt(self) -> builtins.bool: ...
+    @property
+    def sub_code(self) -> typing.Optional[builtins.int]:
+        r"""
+        The server-supplied error subcode for this record, or None when the
+        record succeeded or the server attached no detail. Populated on the
+        same terms as the single-key commands: the request must ask for it
+        via the policy's error_detail_verbosity and the server must support
+        extended error detail. Subcode values are scoped to their parent
+        result code — interpret the (result_code, sub_code) pair.
+        """
 
 class BatchRecordStream:
     r"""
@@ -5652,6 +5662,10 @@ class IndexType(enum.Enum):
     NUMERIC = ...
     STRING = ...
     GEO2D_SPHERE = ...
+    BLOB = ...
+    r"""
+    Blob (byte-array) index. Requires server 7.0+.
+    """
 
 @typing.final
 class ListOrderType(enum.Enum):

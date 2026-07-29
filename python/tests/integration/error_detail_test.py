@@ -150,15 +150,6 @@ class TestBatchErrorDetail:
     single-key path puts on the exception has to travel on the record instead.
     """
 
-    @pytest.mark.xfail(
-        reason="Rust core does not plumb sub_code through batch records — BatchRecord "
-               "carries only (key, record, result_code, in_doubt) and the batch executor "
-               "discards the server error detail, so there is nowhere for a per-record "
-               "subcode to live. The single-key path above already has it. Un-xfail once "
-               "BatchRecord exposes sub_code.",
-        raises=AttributeError,
-        strict=True,
-    )
     async def test_batch_per_record_carries_subcode(self, edv_client):
         """A failing record in a batch should carry the subcode the equivalent
         single-key failure raises."""

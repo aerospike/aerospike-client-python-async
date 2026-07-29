@@ -586,6 +586,9 @@ pub enum Replica {
         String,
         #[pyo3(name = "GEO2D_SPHERE")]
         Geo2DSphere,
+        /// Blob (byte-array) index. Requires server 7.0+.
+        #[pyo3(name = "BLOB")]
+        Blob,
     }
 
 
@@ -595,6 +598,7 @@ pub enum Replica {
                 IndexType::Numeric => aerospike_core::query::IndexType::Numeric,
                 IndexType::String => aerospike_core::query::IndexType::String,
                 IndexType::Geo2DSphere => aerospike_core::query::IndexType::Geo2DSphere,
+                IndexType::Blob => aerospike_core::query::IndexType::Blob,
             }
         }
     }

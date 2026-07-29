@@ -115,11 +115,15 @@ class TestIndexType:
         assert IndexType.NUMERIC is not None
         assert IndexType.STRING is not None
         assert IndexType.GEO2D_SPHERE is not None
+        assert IndexType.BLOB is not None
 
     def test_variants_distinct(self):
         assert IndexType.NUMERIC != IndexType.STRING
         assert IndexType.STRING != IndexType.GEO2D_SPHERE
         assert IndexType.NUMERIC != IndexType.GEO2D_SPHERE
+        assert IndexType.BLOB != IndexType.NUMERIC
+        assert IndexType.BLOB != IndexType.STRING
+        assert IndexType.BLOB != IndexType.GEO2D_SPHERE
 
 
 class TestListOrderType:

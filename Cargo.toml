@@ -12,8 +12,9 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "4dd1a932267d2051a3f0f5c41f537b8a360c0cc6", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "037fcb002737ffc712788ea96a74ad82fb81a267", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
 hex = "0.4"
+parking_lot = "0.12"  # match aerospike-core's PartitionStatus mutex (v3 @ 037fcb00)
 # Match aerospike-core's info/bins return type (order-preserving). The `indexmap`
 # feature on pyo3 provides the IntoPyObject conversion so these map straight to
 # ordered Python dicts.

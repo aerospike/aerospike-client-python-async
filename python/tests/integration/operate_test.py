@@ -147,21 +147,13 @@ async def test_operate_multiple_puts(client_and_key):
     assert rec.bins.get("bin2") == "updated2"
 
 
-@pytest.mark.xfail(
-    reason="Rust core does not auto-enable RESPOND_ALL_OPS for scalar multi-op operates, "
-           "so the server returns a result only for the ops that produced data and the "
-           "slots stop being op-aligned. Complex ops (map/bit/HLL/expression/string) do "
-           "auto-enable it, so only the scalar path is affected. Fix is in "
-           "commands/buffer.rs (respond_all_ops); un-xfail once it lands.",
-    strict=True,
-)
 async def test_scalar_multi_op_results_are_op_aligned(client_and_key):
-    """Multi-op results on one bin should have a slot per op, write-only ops included.
+    """Multi-op results on one bin keep a slot per op, write-only ops included.
 
-    ``get`` / ``add`` / ``get`` on the same bin should come back as
+    ``get`` / ``add`` / ``get`` on the same bin comes back positionally as
     ``[1, None, 11]`` — three ops, three slots, with the write-only ``add``
-    contributing ``None``. Core returns only the two read values, so every slot
-    after the write is shifted.
+    occupying a slot with no value. The bins view merges the two reads and
+    skips the write's empty slot.
     """
     client, _ = client_and_key
     key = Key("test", "test", "scalar_multiop_positional")
@@ -177,7 +169,8 @@ async def test_scalar_multi_op_results_are_op_aligned(client_and_key):
         ],
     )
 
-    assert record.bins["n"] == [1, None, 11]
+    assert record.results == [1, None, 11]
+    assert record.bins["n"] == [1, 11]
 
 
 async def test_operate_add_and_put(client_and_key):

@@ -297,9 +297,9 @@ use crate::record::{Key, PythonValue, Record};
                 Some(partitions) => {
                     let mut py_partitions = Vec::new();
                     for arc_mutex_status in partitions.iter() {
-                        // Use blocking_lock() which doesn't require a Tokio runtime handle
-                        // This allows the property to work from Python asyncio context
-                        let status_guard = arc_mutex_status.blocking_lock();
+                        // parking_lot Mutex: a synchronous lock, so no Tokio runtime
+                        // handle is needed — works from a Python asyncio context.
+                        let status_guard = arc_mutex_status.lock();
                         let status = &*status_guard;
                         let py_status = PartitionStatus {
                             _as: aerospike_core::query::PartitionStatus {
@@ -344,9 +344,9 @@ use crate::record::{Key, PythonValue, Record};
                             node: None,
                             sequence: None,
                         };
-                        rust_partitions.push(Arc::new(tokio::sync::Mutex::new(core_status)));
+                        rust_partitions.push(parking_lot::Mutex::new(core_status));
                     }
-                    self._as.partitions = Some(rust_partitions);
+                    self._as.partitions = Some(Arc::new(rust_partitions));
                 }
             }
             Ok(())
