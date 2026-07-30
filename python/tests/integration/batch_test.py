@@ -859,7 +859,8 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
 
 
 async def test_batch_mixed_with_invalid_namespace(client_and_keys):
-    """Mixed batch: bad namespace is per-key INVALID_NAMESPACE; good keys still run."""
+    """A mixed batch with one invalid-namespace key records a per-key
+    INVALID_NAMESPACE rather than failing the whole batch."""
     client, keys, _, bin_name = client_and_keys
 
     k_good = keys[0]
@@ -876,7 +877,8 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
 
 
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
-    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE."""
+    """Mixed batch with one invalid-namespace key records per-key
+    INVALID_NAMESPACE."""
     client, keys, delete_keys, bin_name = client_and_keys
 
     k_good = keys[0]

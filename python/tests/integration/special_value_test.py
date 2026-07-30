@@ -22,6 +22,7 @@ from aerospike_async import (
     ListOperation, ListPolicy, ListReturnType,
     SpecialValue,
 )
+from aerospike_async import exceptions as ax_exc
 from aerospike_async.exceptions import ResultCode, ServerError
 
 
@@ -267,25 +268,19 @@ async def test_wildcard_cannot_be_stored_in_list(client_and_key):
 
 
 # ---------------------------------------------------------------------------
-# 3. Known core bug: xfail
+# 3. SpecialValue as a top-level bin is rejected with PARAMETER_ERROR
 # ---------------------------------------------------------------------------
 
-@pytest.mark.slow
-@pytest.mark.xfail(
-    reason="Rust core panics at value.rs:411 (unreachable! in particle_type) when "
-           "writing a SpecialValue as a top-level bin value; should return an error "
-           "instead. estimate_size() and write_to() already handle these variants, so "
-           "only particle_type() needs the fix.",
-    raises=Exception,
-    strict=True,
-)
-async def test_put_special_value_as_bin_panics(client_and_key):
-    """Storing a SpecialValue sentinel as a top-level bin value triggers a core panic.
+async def test_put_special_value_as_bin_raises_value_error(client_and_key):
+    """A SpecialValue sentinel as a top-level bin value is rejected client-side
+    with a ValueError (previously the particle encoder aborted in the client
+    instead of returning an error).
 
-    Marked ``slow`` because the panic surfaces only after the client's
-    full retry/backoff cycle completes — the wall-clock can run to tens
-    of seconds depending on policy timeouts. Skip with ``-m "not slow"``
-    during normal dev iteration.
+    Rejected before the wire — the collection/expression forms above go to the
+    server and surface as ``ServerError``, but a bare bin value is caught in the
+    particle encoder, so it raises PAC's client-side ``ValueError`` instead.
     """
     client, key, wp = client_and_key
-    await client.put(key, {"bad": SpecialValue.INFINITY}, policy=wp)
+    with pytest.raises(ax_exc.ValueError) as exc_info:
+        await client.put(key, {"bad": SpecialValue.INFINITY}, policy=wp)
+    assert "particle type" in str(exc_info.value).lower()

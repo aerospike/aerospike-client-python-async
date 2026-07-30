@@ -167,6 +167,59 @@ class TestQueryEqualByIndex(TestFixtureInsertRecord):
         await self.cleanup_index(client)
 
 
+class TestQueryBlobIndex(TestFixtureConnection):
+    """Query a bytes bin through a blob secondary index (server 7.0+)."""
+
+    set_name = "blob_idx_set"
+    idx_name = "pac_it_query_blob_equal"
+    bin_name = "payload"
+
+    async def cleanup(self, client):
+        try:
+            await client.truncate("test", self.set_name)
+        except Exception:
+            pass
+        try:
+            task = await client.drop_index("test", self.set_name, self.idx_name)
+            await task.wait_till_complete()
+        except Exception:
+            pass
+
+    async def test_query_blob_equal_returns_only_exact_match(self, client, wait_for_index):
+        await self.cleanup(client)
+        wp = WritePolicy()
+
+        # The decoy shares a prefix with the needle, so a truncating
+        # comparison would over-match.
+        needle = b"\xde\xad\xbe\xef"
+        blobs = [b"\x01\x02", needle, b"\xff", b"\xde\xad"]
+        for i, blob in enumerate(blobs):
+            key = Key("test", self.set_name, i)
+            await client.put(key, {self.bin_name: blob}, policy=wp)
+
+        await client.create_index(
+            "test",
+            self.set_name,
+            self.bin_name,
+            self.idx_name,
+            IndexType.BLOB,
+            cit=CollectionIndexType.DEFAULT,
+        )
+        flt = Filter.equal(self.bin_name, needle)
+        await wait_for_index(client, "test", self.set_name, flt, bins=[self.bin_name])
+
+        stmt = Statement("test", self.set_name, [self.bin_name])
+        stmt.filters = [flt]
+
+        records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
+        matches = []
+        async for record in records:
+            matches.append(record.bins.get(self.bin_name))
+        assert matches == [needle]
+
+        await self.cleanup(client)
+
+
 class TestQueryFilterContext(TestFixtureConnection):
     """Query with Filter.context for a secondary index on a nested list element."""
 

@@ -586,6 +586,7 @@ pub enum Replica {
         String,
         #[pyo3(name = "GEO2D_SPHERE")]
         Geo2DSphere,
+        /// Blob (byte-array) index. Requires server 7.0+.
         #[pyo3(name = "BLOB")]
         Blob,
     }

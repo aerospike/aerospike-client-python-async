@@ -297,8 +297,10 @@ use crate::record::{Key, PythonValue, Record};
                 None => Ok(py.None()),
                 Some(partitions) => {
                     let mut py_partitions = Vec::new();
-                    for mutex_status in partitions.iter() {
-                        let status = mutex_status.lock();
+                    for arc_mutex_status in partitions.iter() {
+                        // parking_lot Mutex: a synchronous lock, so no Tokio runtime
+                        // handle is needed — works from a Python asyncio context.
+                        let status = arc_mutex_status.lock();
                         let py_status = PartitionStatus {
                             _as: aerospike_core::query::PartitionStatus {
                                 id: status.id,

@@ -1145,6 +1145,17 @@ use crate::TlsConfig;
         pub fn get_in_doubt(&self) -> bool {
             self._as.in_doubt
         }
+
+        /// The server-supplied error subcode for this record, or None when the
+        /// record succeeded or the server attached no detail. Populated on the
+        /// same terms as the single-key commands: the request must ask for it
+        /// via the policy's error_detail_verbosity and the server must support
+        /// extended error detail. Subcode values are scoped to their parent
+        /// result code — interpret the (result_code, sub_code) pair.
+        #[getter]
+        pub fn get_sub_code(&self) -> Option<u32> {
+            self._as.error_detail().map(|d| d.sub_code)
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
