@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "4dd1a932267d2051a3f0f5c41f537b8a360c0cc6", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "d5f268b166ab9d127f176cf5c3eb14c8c00591d2", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
 hex = "0.4"
 # Match aerospike-core's info/bins return type (order-preserving). The `indexmap`
 # feature on pyo3 provides the IntoPyObject conversion so these map straight to
@@ -28,6 +28,7 @@ rustls = { version = "0.23", optional = true }
 rustls-pemfile = { version = "2", optional = true }
 webpki-roots = { version = "1.0", optional = true }
 mimalloc = "0.1"
+parking_lot = "0.12"
 rand = { version = "0.8", features = ["small_rng"] }
 
 [build-dependencies]

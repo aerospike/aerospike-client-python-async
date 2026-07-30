@@ -602,8 +602,9 @@ async def test_batch_operate_complex(client_and_keys):
 async def test_batch_invalid_namespace(client_and_keys):
     """Test batch operations with invalid namespace.
 
-    The Rust core raises InvalidNamespaceError before the batch operation
-    executes (client-side partition map lookup).
+    When every key is unroutable the Rust core still fails the call outright
+    (no batch left to send). Mixed batches record per-key INVALID_NAMESPACE
+    instead; see ``test_batch_mixed_with_invalid_namespace``.
     """
 
     client, keys, _, _ = client_and_keys
@@ -858,7 +859,7 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
 
 
 async def test_batch_mixed_with_invalid_namespace(client_and_keys):
-    """Batch with an invalid namespace fails at the client routing level."""
+    """Mixed batch: bad namespace is per-key INVALID_NAMESPACE; good keys still run."""
     client, keys, _, bin_name = client_and_keys
 
     k_good = keys[0]
@@ -867,24 +868,15 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
     good_op = BatchWriteOp(k_good, [Operation.put(bin_name, "updated")])
     bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
 
-    with pytest.raises(InvalidNamespaceError):
-        await client.batch([good_op, bad_op], batch_policy=None)
+    results = await client.batch([good_op, bad_op], batch_policy=None)
+
+    assert len(results) == 2
+    assert results[0].result_code == ResultCode.OK
+    assert results[1].result_code == ResultCode.INVALID_NAMESPACE
 
 
-@pytest.mark.xfail(
-    reason="Rust core's batch executor raises InvalidNamespace at partition routing "
-           "(batch_executor.rs::get_batch_operate_nodes uses `?` on node_for_key) "
-           "instead of recording per-key INVALID_NAMESPACE on a synthetic BatchRecord. "
-           "CLIENT-4881's per-key ServerError absorption doesn't reach here — this is "
-           "a client-side routing bail, not a server response code. Fix needs the "
-           "batch executor to catch Error::InvalidNamespace/InvalidNode at lookup "
-           "time, synthesize a BatchRecord with result_code=INVALID_NAMESPACE, and "
-           "thread it into all_results alongside the per-node groups.",
-    raises=InvalidNamespaceError,
-    strict=True,
-)
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
-    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE when supported."""
+    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE."""
     client, keys, delete_keys, bin_name = client_and_keys
 
     k_good = keys[0]

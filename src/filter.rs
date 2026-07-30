@@ -24,6 +24,7 @@ use pyo3::{prelude::*, IntoPyObjectExt};
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
+use parking_lot::Mutex as PartitionMutex;
 use tokio::sync::Mutex;
 
 use aerospike_core::query::RecordStream;
@@ -296,11 +297,8 @@ use crate::record::{Key, PythonValue, Record};
                 None => Ok(py.None()),
                 Some(partitions) => {
                     let mut py_partitions = Vec::new();
-                    for arc_mutex_status in partitions.iter() {
-                        // Use blocking_lock() which doesn't require a Tokio runtime handle
-                        // This allows the property to work from Python asyncio context
-                        let status_guard = arc_mutex_status.blocking_lock();
-                        let status = &*status_guard;
+                    for mutex_status in partitions.iter() {
+                        let status = mutex_status.lock();
                         let py_status = PartitionStatus {
                             _as: aerospike_core::query::PartitionStatus {
                                 id: status.id,
@@ -332,21 +330,18 @@ use crate::record::{Key, PythonValue, Record};
                     let mut rust_partitions = Vec::new();
                     for item in py_partitions.iter() {
                         let status: PyRef<PartitionStatus> = item.extract()?;
-                        let bval = status._as.bval;
-                        let id = status._as.id;
-                        let retry = status._as.retry;
-                        let digest_bytes = status._as.digest;
-                        let core_status = aerospike_core::query::PartitionStatus {
-                            id,
-                            retry,
-                            bval,
-                            digest: digest_bytes,
-                            node: None,
-                            sequence: None,
-                        };
-                        rust_partitions.push(Arc::new(tokio::sync::Mutex::new(core_status)));
+                        rust_partitions.push(PartitionMutex::new(
+                            aerospike_core::query::PartitionStatus {
+                                id: status._as.id,
+                                retry: status._as.retry,
+                                bval: status._as.bval,
+                                digest: status._as.digest,
+                                node: None,
+                                sequence: None,
+                            },
+                        ));
                     }
-                    self._as.partitions = Some(rust_partitions);
+                    self._as.partitions = Some(Arc::new(rust_partitions));
                 }
             }
             Ok(())

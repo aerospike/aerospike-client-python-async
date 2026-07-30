@@ -189,8 +189,14 @@ use crate::policies::AdminPolicy;
         /// Returns true if server supports two-phase server query selection
         /// (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
         pub fn supports_query_selection(&self) -> bool {
-            //self._as.supports_query_selection()
+            //TODO: enable this once index selection is merged on server side
+            // self._as.supports_query_selection()
             true
+        }
+
+        /// Returns true if server supports blob secondary indexes (>= 7.0.0).
+        pub fn supports_blob_index(&self) -> bool {
+            self._as.supports_blob_index()
         }
 
         pub fn __str__(&self) -> String {

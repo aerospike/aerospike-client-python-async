@@ -63,6 +63,9 @@ def pytest_configure(config):
     # the root — pytest's own `log_cli` handler (see pyproject.toml) prints
     # them to stderr in the standard pytest format. Attaching a stderr
     # handler here as well would duplicate every warning on the console.
+    #
+    # ``query`` is the Rust ``log`` target for server query-plan debug lines
+    # (``query_explain`` / two-phase selection), forwarded by pyo3-log.
     log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
     if log_level:
         numeric = getattr(logging, log_level, None)
@@ -76,7 +79,7 @@ def pytest_configure(config):
                 file_handler.setFormatter(logging.Formatter(
                     "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
                 ))
-            for prefix in ("aerospike_core", "aerospike_async"):
+            for prefix in ("aerospike_core", "aerospike_async", "query"):
                 logger = logging.getLogger(prefix)
                 logger.setLevel(numeric)
                 if file_handler is not None:
@@ -170,6 +173,34 @@ async def supports_server_compiled_ael(server_version):
     ``pytest.skip`` when this is ``False``.
     """
     return server_version is not None and server_version >= SERVER_8_1_3
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_query_selection(aerospike_host, use_services_alternate):
+    """``True`` when the cluster supports two-phase server query selection.
+
+    Probes ``Node.version.supports_query_selection()`` on a connected node
+    (Rust core version gate; the PAC binding may override during pre-release
+    testing). Tests that need query selection should ``pytest.skip`` when
+    this is ``False``.
+    """
+    from aerospike_async import ClientPolicy, new_client
+
+    if not aerospike_host:
+        return False
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    try:
+        client = await new_client(cp, aerospike_host)
+    except Exception:
+        return False
+    try:
+        nodes = await client.nodes()
+        if not nodes:
+            return False
+        return nodes[0].version.supports_query_selection()
+    finally:
+        await client.close()
 
 
 def _parse_build_string(build: str):
