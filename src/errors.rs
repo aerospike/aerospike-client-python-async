@@ -438,6 +438,10 @@ impl<T: PyTypeInfo + 'static> PyErrArguments for RetryCtxArgs<T> {
 // A bare failure with nothing to report beyond its message stays on the
 // existing fast path: no setattr, no extra allocation, identical to
 // `T::new_err(msg)`.  Anything carrying retry context takes the lazy path.
+// The bare path deliberately drops the already-built `ctx.base_message`
+// (leaving the class default None): setting it would push nearly every
+// client error onto the lazy path for a field that, with no retry
+// decoration present, adds nothing over the message itself.
 fn client_err<T>(message: String, in_doubt: bool, ctx: RetryContext) -> PyErr
 where
     T: PyTypeInfo + 'static,

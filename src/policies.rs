@@ -1894,7 +1894,9 @@ use crate::TlsConfig;
         #[getter]
         fn get_user(&self) -> Option<String> {
             match &self._as.auth_mode {
-                aerospike_core::AuthMode::Internal(user, _) | aerospike_core::AuthMode::External(user, _) => {
+                aerospike_core::AuthMode::Internal(user, _)
+                | aerospike_core::AuthMode::External(user, _)
+                | aerospike_core::AuthMode::ExternalInsecure(user, _) => {
                     Some(user.clone())
                 }
                 _ => None,
@@ -1910,13 +1912,21 @@ use crate::TlsConfig;
                 (Some(user), aerospike_core::AuthMode::External(_, password)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::External(user, password.clone());
                 }
+                (Some(user), aerospike_core::AuthMode::ExternalInsecure(_, password)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user, password.clone());
+                }
                 (Some(_user), aerospike_core::AuthMode::PKI) => {
                     // PKI mode doesn't use usernames, ignore
                 }
                 (Some(user), _) => {
                     self._as.auth_mode = aerospike_core::AuthMode::Internal(user, "".to_string());
                 }
-                (None, aerospike_core::AuthMode::Internal(_, _) | aerospike_core::AuthMode::External(_, _)) => {
+                (
+                    None,
+                    aerospike_core::AuthMode::Internal(_, _)
+                    | aerospike_core::AuthMode::External(_, _)
+                    | aerospike_core::AuthMode::ExternalInsecure(_, _),
+                ) => {
                     self._as.auth_mode = aerospike_core::AuthMode::None;
                 }
                 (None, aerospike_core::AuthMode::PKI) => {
@@ -1929,7 +1939,9 @@ use crate::TlsConfig;
         #[getter]
         pub fn get_password(&self) -> Option<String> {
             match &self._as.auth_mode {
-                aerospike_core::AuthMode::Internal(_, password) | aerospike_core::AuthMode::External(_, password) => {
+                aerospike_core::AuthMode::Internal(_, password)
+                | aerospike_core::AuthMode::External(_, password)
+                | aerospike_core::AuthMode::ExternalInsecure(_, password) => {
                     Some(password.clone())
                 }
                 _ => None,
@@ -1945,6 +1957,9 @@ use crate::TlsConfig;
                 (Some(password), aerospike_core::AuthMode::External(user, _)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::External(user.clone(), password);
                 }
+                (Some(password), aerospike_core::AuthMode::ExternalInsecure(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user.clone(), password);
+                }
                 (Some(password), aerospike_core::AuthMode::None) => {
                     self._as.auth_mode = aerospike_core::AuthMode::Internal("".to_string(), password);
                 }
@@ -1956,6 +1971,9 @@ use crate::TlsConfig;
                 }
                 (None, aerospike_core::AuthMode::External(user, _)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::External(user.clone(), "".to_string());
+                }
+                (None, aerospike_core::AuthMode::ExternalInsecure(user, _)) => {
+                    self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user.clone(), "".to_string());
                 }
                 (None, aerospike_core::AuthMode::None) => {}
                 (None, aerospike_core::AuthMode::PKI) => {}
@@ -1969,6 +1987,7 @@ use crate::TlsConfig;
                 aerospike_core::AuthMode::None => AuthMode::None,
                 aerospike_core::AuthMode::Internal(_, _) => AuthMode::Internal,
                 aerospike_core::AuthMode::External(_, _) => AuthMode::External,
+                aerospike_core::AuthMode::ExternalInsecure(_, _) => AuthMode::ExternalInsecure,
                 aerospike_core::AuthMode::PKI => AuthMode::PKI,
             }
         }
@@ -1976,9 +1995,10 @@ use crate::TlsConfig;
         /// Set the authentication mode.
         ///
         /// Args:
-        ///     mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL, or AuthMode.PKI)
-        ///     user: Optional username (required for INTERNAL and EXTERNAL modes)
-        ///     password: Optional password (required for INTERNAL and EXTERNAL modes)
+        ///     mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL,
+        ///         AuthMode.EXTERNAL_INSECURE, or AuthMode.PKI)
+        ///     user: Optional username (required for INTERNAL, EXTERNAL, and EXTERNAL_INSECURE modes)
+        ///     password: Optional password (required for INTERNAL, EXTERNAL, and EXTERNAL_INSECURE modes)
         ///
         /// Note: For PKI mode, user and password are ignored. TLS with client certificate is required.
         #[pyo3(signature = (mode, user = None, password = None))]
@@ -1996,6 +2016,11 @@ use crate::TlsConfig;
                     let user = user.unwrap_or_default();
                     let password = password.unwrap_or_default();
                     self._as.auth_mode = aerospike_core::AuthMode::External(user, password);
+                }
+                AuthMode::ExternalInsecure => {
+                    let user = user.unwrap_or_default();
+                    let password = password.unwrap_or_default();
+                    self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user, password);
                 }
                 AuthMode::PKI => {
                     self._as.auth_mode = aerospike_core::AuthMode::PKI;

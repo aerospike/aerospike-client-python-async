@@ -690,6 +690,13 @@ pub enum Replica {
         #[pyo3(name = "EXTERNAL")]
         External,
 
+        /// Uses external authentication (like LDAP) when user/password defined. Specific external
+        /// authentication is configured on server. Sends the clear password on node login whether
+        /// or not TLS is defined. This mode should only be used for testing purposes because it is
+        /// not secure authentication.
+        #[pyo3(name = "EXTERNAL_INSECURE")]
+        ExternalInsecure,
+
         /// Allows authentication and authorization based on a certificate. No user name or
         /// password needs to be configured. Requires TLS and a client certificate.
         /// Requires server version 5.7.0+
