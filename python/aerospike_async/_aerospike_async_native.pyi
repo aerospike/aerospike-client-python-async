@@ -4671,6 +4671,25 @@ class ResultCode:
     MRT_ABORTED: _aerospike_async_native.ResultCode
     MRT_ALREADY_LOCKED: _aerospike_async_native.ResultCode
     MRT_MONITOR_EXISTS: _aerospike_async_native.ResultCode
+    INVALID_PASSWORD: _aerospike_async_native.ResultCode
+    EXPIRED_PASSWORD: _aerospike_async_native.ResultCode
+    INVALID_CREDENTIAL: _aerospike_async_native.ResultCode
+    EXPIRED_SESSION: _aerospike_async_native.ResultCode
+    INVALID_ROLE: _aerospike_async_native.ResultCode
+    ROLE_ALREADY_EXISTS: _aerospike_async_native.ResultCode
+    INVALID_PRIVILEGE: _aerospike_async_native.ResultCode
+    INVALID_ALLOWLIST: _aerospike_async_native.ResultCode
+    ROLE_VIOLATION: _aerospike_async_native.ResultCode
+    NOT_ALLOWLISTED: _aerospike_async_native.ResultCode
+    QUOTAS_NOT_ENABLED: _aerospike_async_native.ResultCode
+    INVALID_QUOTA: _aerospike_async_native.ResultCode
+    QUOTA_EXCEEDED: _aerospike_async_native.ResultCode
+    BATCH_DISABLED: _aerospike_async_native.ResultCode
+    BATCH_MAX_REQUESTS_EXCEEDED: _aerospike_async_native.ResultCode
+    BATCH_QUEUES_FULL: _aerospike_async_native.ResultCode
+    INVALID_GEOJSON: _aerospike_async_native.ResultCode
+    QUERY_NETIO_ERR: _aerospike_async_native.ResultCode
+    QUERY_DUPLICATE: _aerospike_async_native.ResultCode
     def __richcmp__(self, other: _aerospike_async_native.ResultCode, op: int) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
@@ -4753,7 +4772,39 @@ class ServerError(builtins.Exception):
         ``error_detail_verbosity`` 3 on an expression build failure and when the
         server build emits one.
         """
-    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None) -> _aerospike_async_native.ServerError: ...
+    @property
+    def node(self) -> typing.Optional[builtins.str]:
+        r"""
+        Last node the command was attempted on, when the retry loop recorded
+        one. ``None`` for failures that never reached node selection.
+        """
+    @property
+    def iteration(self) -> typing.Optional[builtins.int]:
+        r"""
+        Number of attempts before the command failed, when the retry loop
+        recorded it. ``None`` when the failure precedes the retry loop.
+        """
+    @property
+    def base_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        The failure message without the retry-context decoration that the
+        full exception message carries. ``None`` when no decorated message
+        was recorded.
+        """
+    @property
+    def sub_exceptions(self) -> typing.Optional[typing.Any]:
+        r"""
+        Exceptions from prior retry attempts of the same command, oldest
+        first. ``None`` when the command was not retried.
+        """
+    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None, node: typing.Optional[builtins.str] = None, iteration: typing.Optional[builtins.int] = None, base_message: typing.Optional[builtins.str] = None, sub_exceptions: typing.Optional[typing.Any] = None) -> _aerospike_async_native.ServerError: ...
+    def __str__(self) -> builtins.str:
+        r"""
+        ``str(exc)`` is the human-readable message alone. Without this, the
+        PyException base renders the whole constructor args tuple (message,
+        result_code, in_doubt, ...) — every field of which is already a
+        structured accessor.
+        """
 
 class Statement:
     r"""

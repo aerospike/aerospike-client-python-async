@@ -38,6 +38,12 @@ ResultCode = _aerospike_async_native.ResultCode
 # layer sets the instance attribute only when core reports the write may
 # have landed.
 AerospikeError.in_doubt = False
+# Retry/diagnostic context defaults, same mechanism: the native layer
+# sets the instance attribute only when the retry loop recorded a value.
+AerospikeError.node = None
+AerospikeError.iteration = None
+AerospikeError.base_message = None
+AerospikeError.sub_exceptions = None
 
 # ServerError subclasses for specific result codes (grouping bases first)
 class RecordError(ServerError):
@@ -93,6 +99,19 @@ class NotAuthenticated(SecurityError):
 class SecurityNotEnabled(SecurityError):
     """Security not enabled (SECURITY_NOT_ENABLED)."""
 
+# Tier 3 — subsystem families (query/scan, batch, quota, UDF)
+class QueryError(ServerError):
+    """Query and scan server errors."""
+
+class BatchError(ServerError):
+    """Batch subsystem server errors."""
+
+class QuotaError(ServerError):
+    """Quota server errors."""
+
+class UdfError(ServerError):
+    """Server-side UDF execution errors (UDF_BAD_RESPONSE)."""
+
 # ResultCode -> exception class for Rust create_server_error() dispatch
 _RC_TO_CLS = {
     ResultCode.KEY_NOT_FOUND_ERROR: RecordNotFound,
@@ -108,6 +127,41 @@ _RC_TO_CLS = {
     ResultCode.INDEX_FOUND: IndexFoundError,
     ResultCode.NOT_AUTHENTICATED: NotAuthenticated,
     ResultCode.SECURITY_NOT_ENABLED: SecurityNotEnabled,
+    # Security family (flat: the finer authentication-vs-
+    # authorization split is an SDK-level concern)
+    ResultCode.ILLEGAL_STATE: SecurityError,
+    ResultCode.INVALID_USER: SecurityError,
+    ResultCode.USER_ALREADY_EXISTS: SecurityError,
+    ResultCode.INVALID_PASSWORD: SecurityError,
+    ResultCode.EXPIRED_PASSWORD: SecurityError,
+    ResultCode.FORBIDDEN_PASSWORD: SecurityError,
+    ResultCode.INVALID_CREDENTIAL: SecurityError,
+    ResultCode.EXPIRED_SESSION: SecurityError,
+    ResultCode.INVALID_ROLE: SecurityError,
+    ResultCode.ROLE_ALREADY_EXISTS: SecurityError,
+    ResultCode.INVALID_PRIVILEGE: SecurityError,
+    ResultCode.INVALID_ALLOWLIST: SecurityError,
+    ResultCode.ROLE_VIOLATION: SecurityError,
+    ResultCode.NOT_ALLOWLISTED: SecurityError,
+    ResultCode.SECURITY_NOT_SUPPORTED: SecurityError,
+    ResultCode.SECURITY_SCHEME_NOT_SUPPORTED: SecurityError,
+    # Query/scan family
+    ResultCode.QUERY_GENERIC: QueryError,
+    ResultCode.QUERY_ABORTED: QueryError,
+    ResultCode.QUERY_QUEUE_FULL: QueryError,
+    ResultCode.QUERY_NETIO_ERR: QueryError,
+    ResultCode.QUERY_DUPLICATE: QueryError,
+    ResultCode.SCAN_ABORT: QueryError,
+    # Batch family
+    ResultCode.BATCH_DISABLED: BatchError,
+    ResultCode.BATCH_MAX_REQUESTS_EXCEEDED: BatchError,
+    ResultCode.BATCH_QUEUES_FULL: BatchError,
+    # Quota family
+    ResultCode.QUOTA_EXCEEDED: QuotaError,
+    ResultCode.QUOTAS_NOT_ENABLED: QuotaError,
+    ResultCode.INVALID_QUOTA: QuotaError,
+    # UDF
+    ResultCode.UDF_BAD_RESPONSE: UdfError,
 }
 
 def _get_server_error_class(result_code):

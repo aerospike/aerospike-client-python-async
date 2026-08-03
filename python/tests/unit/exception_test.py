@@ -263,3 +263,122 @@ class TestResultCode:
         d = {ResultCode.OK: "success", ResultCode.TIMEOUT: "timed out"}
         assert d[ResultCode.OK] == "success"
         assert d[ResultCode.TIMEOUT] == "timed out"
+
+
+class TestRetryContextSurface:
+    """Retry/diagnostic context on both exception surfaces.
+
+    The class defaults live on ``AerospikeError`` (applied by the generated
+    exceptions wrapper); the native layer sets instance attributes only when
+    core recorded a value. ``ServerError`` carries them as real fields.
+    """
+
+    def test_client_side_class_defaults(self):
+        err = TimeoutError("timed out")
+        assert err.node is None
+        assert err.iteration is None
+        assert err.base_message is None
+        assert err.sub_exceptions is None
+
+    def test_client_side_instance_overrides(self):
+        err = TimeoutError("timed out")
+        err.node = "BB9020011AC4202"
+        err.iteration = 3
+        err.base_message = "Client Timeout: deadline exceeded"
+        err.sub_exceptions = [TimeoutError("attempt 1"), TimeoutError("attempt 2")]
+        assert err.node == "BB9020011AC4202"
+        assert err.iteration == 3
+        assert err.base_message == "Client Timeout: deadline exceeded"
+        assert len(err.sub_exceptions) == 2
+        assert isinstance(err.sub_exceptions[0], TimeoutError)
+        assert TimeoutError.node is None
+
+    def test_server_error_retry_context_defaults(self):
+        err = ServerError("fail", ResultCode.GENERATION_ERROR)
+        assert err.node is None
+        assert err.iteration is None
+        assert err.base_message is None
+        assert err.sub_exceptions is None
+
+    def test_server_error_full_positional_construction(self):
+        subs = [TimeoutError("attempt 1")]
+        err = ServerError(
+            "fail", ResultCode.GENERATION_ERROR, True, 2, "generation conflict",
+            None, "BB9020011AC4202", 3, "Server error: GenerationError", subs,
+        )
+        assert err.in_doubt is True
+        assert err.sub_code == 2
+        assert err.server_message == "generation conflict"
+        assert err.node == "BB9020011AC4202"
+        assert err.iteration == 3
+        assert err.base_message == "Server error: GenerationError"
+        assert len(err.sub_exceptions) == 1
+        assert isinstance(err.sub_exceptions[0], TimeoutError)
+
+    def test_server_error_trailing_defaults(self):
+        # Construction is positional-only: the PyException base rejects
+        # keyword arguments, so the retry-context parameters are reachable
+        # as a positional suffix with defaults.
+        err = ServerError(
+            "fail", ResultCode.SERVER_ERROR, False, None, None, None,
+            "BB9020011AC4202", 1, "Server error: ServerError",
+        )
+        assert err.node == "BB9020011AC4202"
+        assert err.iteration == 1
+        assert err.base_message == "Server error: ServerError"
+        assert err.sub_exceptions is None
+
+    def test_server_error_subclass_inherits_retry_context(self):
+        err = RecordNotFound(
+            "not found", ResultCode.KEY_NOT_FOUND_ERROR, False, None, None,
+            None, "BB9020011AC4202", 2,
+        )
+        assert err.node == "BB9020011AC4202"
+        assert err.iteration == 2
+
+
+class TestSubsystemFamilyDispatch:
+    """Result-code dispatch for the subsystem family classes."""
+
+    def test_family_classes_subclass_server_error(self):
+        from aerospike_async.exceptions import (
+            BatchError, QueryError, QuotaError, UdfError,
+        )
+        for cls in (QueryError, BatchError, QuotaError, UdfError):
+            assert issubclass(cls, ServerError)
+
+    def test_dispatch_by_result_code(self):
+        from aerospike_async.exceptions import (
+            BatchError, QueryError, QuotaError, UdfError,
+            _get_server_error_class,
+        )
+        expected = {
+            ResultCode.QUERY_GENERIC: QueryError,
+            ResultCode.SCAN_ABORT: QueryError,
+            ResultCode.QUERY_ABORTED: QueryError,
+            ResultCode.BATCH_DISABLED: BatchError,
+            ResultCode.BATCH_QUEUES_FULL: BatchError,
+            ResultCode.QUOTA_EXCEEDED: QuotaError,
+            ResultCode.UDF_BAD_RESPONSE: UdfError,
+            ResultCode.ROLE_VIOLATION: SecurityError,
+            ResultCode.INVALID_PASSWORD: SecurityError,
+            # Unmapped codes keep the base
+            ResultCode.SERVER_ERROR: ServerError,
+        }
+        for code, cls in expected.items():
+            assert _get_server_error_class(code) is cls, code
+
+
+class TestServerErrorStr:
+    """str(exc) is the message alone, not the constructor args tuple."""
+
+    def test_str_is_message_only(self):
+        err = ServerError(
+            "something broke", ResultCode.SERVER_ERROR, True, 2, "detail",
+            None, "BB9020011AC4202", 3, "Server error: ServerError", None,
+        )
+        assert str(err) == "something broke"
+
+    def test_subclass_str_is_message_only(self):
+        err = RecordNotFound("not found", ResultCode.KEY_NOT_FOUND_ERROR)
+        assert str(err) == "not found"

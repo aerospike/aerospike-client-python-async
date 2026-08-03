@@ -236,3 +236,62 @@ class TestUDFLang:
 
     def test_lua_exists(self):
         assert UDFLang.LUA is not None
+
+
+class TestResultCodeCatalog:
+    """Drift guard: the Python-exposed ResultCode catalog covers every server
+    result code the Rust core defines.
+
+    The pinned list below is the core `ResultCode` enum (aerospike-core
+    `src/result_code.rs`, server codes only — `ClientResultCode` is a
+    separate core enum deliberately not exposed here; client-side failures
+    surface as typed exception classes instead). When core adds a code,
+    regenerate this list from that enum and add the matching classattr in
+    `src/enums.rs`.
+    """
+
+    CORE_SERVER_CODES = [
+        "OK", "SERVER_ERROR", "KEY_NOT_FOUND_ERROR", "GENERATION_ERROR",
+        "PARAMETER_ERROR", "KEY_EXISTS_ERROR", "BIN_EXISTS_ERROR",
+        "CLUSTER_KEY_MISMATCH", "SERVER_MEM_ERROR", "TIMEOUT",
+        "ALWAYS_FORBIDDEN", "PARTITION_UNAVAILABLE", "BIN_TYPE_ERROR",
+        "RECORD_TOO_BIG", "KEY_BUSY", "SCAN_ABORT", "UNSUPPORTED_FEATURE",
+        "BIN_NOT_FOUND", "DEVICE_OVERLOAD", "KEY_MISMATCH",
+        "INVALID_NAMESPACE", "BIN_NAME_TOO_LONG", "FAIL_FORBIDDEN",
+        "ELEMENT_NOT_FOUND", "ELEMENT_EXISTS", "ENTERPRISE_ONLY",
+        "OP_NOT_APPLICABLE", "FILTERED_OUT", "LOST_CONFLICT", "XDR_KEY_BUSY",
+        "MRT_BLOCKED", "MRT_VERSION_MISMATCH", "MRT_EXPIRED",
+        "MRT_TOO_MANY_WRITES", "MRT_COMMITTED", "MRT_ABORTED",
+        "MRT_ALREADY_LOCKED", "MRT_MONITOR_EXISTS", "QUERY_END",
+        "SECURITY_NOT_SUPPORTED", "SECURITY_NOT_ENABLED",
+        "SECURITY_SCHEME_NOT_SUPPORTED", "INVALID_COMMAND", "INVALID_FIELD",
+        "ILLEGAL_STATE", "INVALID_USER", "USER_ALREADY_EXISTS",
+        "INVALID_PASSWORD", "EXPIRED_PASSWORD", "FORBIDDEN_PASSWORD",
+        "INVALID_CREDENTIAL", "EXPIRED_SESSION", "INVALID_ROLE",
+        "ROLE_ALREADY_EXISTS", "INVALID_PRIVILEGE", "INVALID_ALLOWLIST",
+        "QUOTAS_NOT_ENABLED", "INVALID_QUOTA", "NOT_AUTHENTICATED",
+        "ROLE_VIOLATION", "NOT_ALLOWLISTED", "QUOTA_EXCEEDED",
+        "UDF_BAD_RESPONSE", "BATCH_DISABLED", "BATCH_MAX_REQUESTS_EXCEEDED",
+        "BATCH_QUEUES_FULL", "INVALID_GEOJSON", "INDEX_FOUND",
+        "INDEX_NOT_FOUND", "INDEX_OOM", "INDEX_NOT_READABLE",
+        "INDEX_GENERIC", "INDEX_NAME_MAX_LEN", "INDEX_MAX_COUNT",
+        "QUERY_ABORTED", "QUERY_QUEUE_FULL", "QUERY_TIMEOUT",
+        "QUERY_GENERIC", "QUERY_NETIO_ERR", "QUERY_DUPLICATE",
+    ]
+
+    def test_every_core_server_code_is_exposed(self):
+        from aerospike_async import ResultCode
+
+        exposed = {n for n in dir(ResultCode) if not n.startswith("_")}
+        missing = [c for c in self.CORE_SERVER_CODES if c not in exposed]
+        assert not missing, f"core server codes missing from ResultCode: {missing}"
+
+    def test_catalog_is_complete_against_this_pin(self):
+        from aerospike_async import ResultCode
+
+        exposed = {n for n in dir(ResultCode) if not n.startswith("_")}
+        extras = exposed - set(self.CORE_SERVER_CODES)
+        assert not extras, (
+            f"ResultCode exposes names not in the pinned core list: {extras} "
+            "— core probably added codes; regenerate the pinned list"
+        )

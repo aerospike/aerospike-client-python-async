@@ -40,13 +40,18 @@ pub struct ServerError {
     sub_code: Option<u32>,
     server_message: Option<String>,
     exp_trace: Option<ExpressionTrace>,
+    node: Option<String>,
+    iteration: Option<u32>,
+    base_message: Option<String>,
+    sub_exceptions: Option<Py<PyAny>>,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl ServerError {
     #[new]
-    #[pyo3(signature = (_message, result_code, in_doubt=false, sub_code=None, server_message=None, exp_trace=None))]
+    #[pyo3(signature = (_message, result_code, in_doubt=false, sub_code=None, server_message=None, exp_trace=None, node=None, iteration=None, base_message=None, sub_exceptions=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         _message: String,
         result_code: ResultCode,
@@ -54,6 +59,10 @@ impl ServerError {
         sub_code: Option<u32>,
         server_message: Option<String>,
         exp_trace: Option<ExpressionTrace>,
+        node: Option<String>,
+        iteration: Option<u32>,
+        base_message: Option<String>,
+        sub_exceptions: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         // Note: message is handled by the base PyException; the fields here
         // are the structured accessors.
@@ -63,6 +72,10 @@ impl ServerError {
             sub_code,
             server_message,
             exp_trace,
+            node,
+            iteration,
+            base_message,
+            sub_exceptions,
         })
     }
 
@@ -99,6 +112,47 @@ impl ServerError {
     fn exp_trace(&self) -> Option<ExpressionTrace> {
         self.exp_trace.clone()
     }
+
+    /// Last node the command was attempted on, when the retry loop recorded
+    /// one. ``None`` for failures that never reached node selection.
+    #[getter]
+    fn node(&self) -> Option<String> {
+        self.node.clone()
+    }
+
+    /// Number of attempts before the command failed, when the retry loop
+    /// recorded it. ``None`` when the failure precedes the retry loop.
+    #[getter]
+    fn iteration(&self) -> Option<u32> {
+        self.iteration
+    }
+
+    /// The failure message without the retry-context decoration that the
+    /// full exception message carries. ``None`` when no decorated message
+    /// was recorded.
+    #[getter]
+    fn base_message(&self) -> Option<String> {
+        self.base_message.clone()
+    }
+
+    /// Exceptions from prior retry attempts of the same command, oldest
+    /// first. ``None`` when the command was not retried.
+    #[getter]
+    fn sub_exceptions(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.sub_exceptions.as_ref().map(|list| list.clone_ref(py))
+    }
+
+    /// ``str(exc)`` is the human-readable message alone. Without this, the
+    /// PyException base renders the whole constructor args tuple (message,
+    /// result_code, in_doubt, ...) — every field of which is already a
+    /// structured accessor.
+    fn __str__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let args = slf.getattr("args")?;
+        match args.get_item(0) {
+            Ok(first) => first.str().map(|s| s.to_string()),
+            Err(_) => Ok(String::new()),
+        }
+    }
 }
 
 // Resolve the Python ServerError subclass for the given result code (for dispatch).
@@ -119,6 +173,160 @@ struct ServerErrorArgs {
     result_code: CoreResultCode,
     in_doubt: bool,
     detail: Option<aerospike_core::ServerErrorDetail>,
+    ctx: RetryContext,
+}
+
+// Tag for the client-side exception type a sub-error maps to.  Captured at
+// the boundary because `ErrorKind` itself is neither `Clone` nor cheap to
+// carry, while the deferred-arguments structs must stay plain Send + Sync
+// data.
+enum ClientKindTag {
+    Timeout,
+    Connection,
+    NoMoreConnections,
+    MaxErrorRate,
+    InvalidNode,
+    InvalidNamespace,
+    InvalidArgument,
+    BadResponse,
+    UdfBadResponse,
+    Client,
+}
+
+impl ClientKindTag {
+    fn from_kind(kind: &ErrorKind) -> Self {
+        match kind {
+            ErrorKind::Timeout => ClientKindTag::Timeout,
+            ErrorKind::Connection | ErrorKind::ConnectionPoolEmpty => ClientKindTag::Connection,
+            ErrorKind::NoMoreConnections => ClientKindTag::NoMoreConnections,
+            ErrorKind::MaxErrorRate => ClientKindTag::MaxErrorRate,
+            ErrorKind::InvalidNode => ClientKindTag::InvalidNode,
+            ErrorKind::InvalidNamespace => ClientKindTag::InvalidNamespace,
+            ErrorKind::InvalidArgument => ClientKindTag::InvalidArgument,
+            ErrorKind::BadResponse | ErrorKind::ParsePeers => ClientKindTag::BadResponse,
+            ErrorKind::UdfBadResponse => ClientKindTag::UdfBadResponse,
+            _ => ClientKindTag::Client,
+        }
+    }
+
+    fn type_object<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, pyo3::types::PyType> {
+        match self {
+            ClientKindTag::Timeout => py.get_type::<TimeoutError>(),
+            ClientKindTag::Connection => py.get_type::<ConnectionError>(),
+            ClientKindTag::NoMoreConnections => py.get_type::<NoMoreConnections>(),
+            ClientKindTag::MaxErrorRate => py.get_type::<MaxErrorRate>(),
+            ClientKindTag::InvalidNode => py.get_type::<InvalidNodeError>(),
+            ClientKindTag::InvalidNamespace => py.get_type::<InvalidNamespaceError>(),
+            ClientKindTag::InvalidArgument => py.get_type::<ValueError>(),
+            ClientKindTag::BadResponse => py.get_type::<BadResponse>(),
+            ClientKindTag::UdfBadResponse => py.get_type::<UDFBadResponse>(),
+            ClientKindTag::Client => py.get_type::<ClientError>(),
+        }
+    }
+}
+
+// Plain-data snapshot of one prior-attempt error.  Core's `Error` is not
+// `Clone`, so the fields the Python surface needs are copied out while the
+// original error is still on hand; materialization happens later in
+// `arguments()` on the event-loop/drainer thread.
+struct SubErrorData {
+    message: String,
+    result_code: Option<CoreResultCode>,
+    in_doubt: bool,
+    node: Option<String>,
+    iteration: Option<u32>,
+    detail: Option<aerospike_core::ServerErrorDetail>,
+    kind: ClientKindTag,
+}
+
+fn capture_sub_error(e: &Error) -> SubErrorData {
+    SubErrorData {
+        message: e.to_string(),
+        result_code: e.server_result_code(),
+        in_doubt: e.in_doubt(),
+        node: e.node().map(str::to_string),
+        iteration: e.iteration(),
+        detail: e.server_error_detail().cloned(),
+        kind: ClientKindTag::from_kind(e.kind()),
+    }
+}
+
+// Retry/diagnostic context shared by the server and client error paths:
+// where the command failed (node), how many attempts it took (iteration),
+// the undecorated message, and the errors of prior attempts.
+struct RetryContext {
+    node: Option<String>,
+    iteration: Option<u32>,
+    base_message: String,
+    subs: Vec<SubErrorData>,
+}
+
+fn capture_retry_context(err: &Error) -> RetryContext {
+    RetryContext {
+        node: err.node().map(str::to_string),
+        iteration: err.iteration(),
+        base_message: err.base_message(),
+        subs: err.sub_errors().iter().map(capture_sub_error).collect(),
+    }
+}
+
+// Build the exception instance for one prior-attempt error.  A sub-error
+// carrying a server result code gets the mapped ServerError subclass with
+// its own detail; anything else gets its client-side type with the retry
+// attributes set on the instance.  Sub-errors never nest further.
+fn materialize_sub_error(py: Python<'_>, sub: &SubErrorData) -> Py<PyAny> {
+    if let Some(rc) = sub.result_code {
+        let exc_cls = resolve_server_error_class(py, rc)
+            .unwrap_or_else(|_| py.get_type::<ServerError>().into_any());
+        let detail = sub.detail.as_ref();
+        let sub_code = detail.map(|d| d.sub_code);
+        let server_message = detail.map(|d| d.message.clone());
+        let exp_trace = detail.and_then(|d| d.exp_trace.as_ref().map(ExpressionTrace::from_core));
+        match exc_cls.call1((
+            sub.message.clone(),
+            ResultCode(rc),
+            sub.in_doubt,
+            sub_code,
+            server_message,
+            exp_trace,
+            sub.node.clone(),
+            sub.iteration,
+            None::<String>,
+            None::<Py<PyAny>>,
+        )) {
+            Ok(obj) => obj.unbind(),
+            Err(e) => e.into_value(py).into_any(),
+        }
+    } else {
+        match sub.kind.type_object(py).call1((sub.message.clone(),)) {
+            Ok(obj) => {
+                if sub.in_doubt {
+                    let _ = obj.setattr("in_doubt", true);
+                }
+                if let Some(node) = &sub.node {
+                    let _ = obj.setattr("node", node);
+                }
+                if let Some(iteration) = sub.iteration {
+                    let _ = obj.setattr("iteration", iteration);
+                }
+                obj.unbind()
+            }
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
+fn materialize_sub_exceptions(
+    py: Python<'_>,
+    subs: &[SubErrorData],
+) -> Option<Py<PyAny>> {
+    if subs.is_empty() {
+        return None;
+    }
+    let items: Vec<Py<PyAny>> = subs.iter().map(|s| materialize_sub_error(py, s)).collect();
+    pyo3::types::PyList::new(py, items)
+        .ok()
+        .map(|list| list.into_any().unbind())
 }
 
 impl PyErrArguments for ServerErrorArgs {
@@ -134,7 +342,19 @@ impl PyErrArguments for ServerErrorArgs {
         let sub_code = detail.map(|d| d.sub_code);
         let server_message = detail.map(|d| d.message.clone());
         let exp_trace = detail.and_then(|d| d.exp_trace.as_ref().map(ExpressionTrace::from_core));
-        match exc_cls.call1((self.message, rc, self.in_doubt, sub_code, server_message, exp_trace)) {
+        let sub_exceptions = materialize_sub_exceptions(py, &self.ctx.subs);
+        match exc_cls.call1((
+            self.message,
+            rc,
+            self.in_doubt,
+            sub_code,
+            server_message,
+            exp_trace,
+            self.ctx.node,
+            self.ctx.iteration,
+            Some(self.ctx.base_message),
+            sub_exceptions,
+        )) {
             Ok(obj) => obj.unbind(),
             // Construction failed — surface that failure's own exception value.
             Err(e) => e.into_value(py).into_any(),
@@ -161,35 +381,52 @@ fn create_server_error(
     result_code: CoreResultCode,
     in_doubt: bool,
     detail: Option<&aerospike_core::ServerErrorDetail>,
+    ctx: RetryContext,
 ) -> PyErr {
     PyErr::new::<ServerError, _>(ServerErrorArgs {
         message,
         result_code,
         in_doubt,
         detail: detail.cloned(),
+        ctx,
     })
 }
 
-// Deferred arguments for a client-side error whose core cause chain is marked
-// in-doubt.  Lazy for the same reason as `ServerErrorArgs` above: `arguments()`
-// runs when the PyErr is first materialized, on the event-loop/drainer thread,
-// never on a Tokio worker.  Builds the exception instance and sets the
-// `in_doubt` instance attribute, overriding the `False` class default that
-// `AerospikeError` declares on the Python side.
-struct InDoubtArgs<T> {
+// Deferred arguments for a client-side error that carries retry/diagnostic
+// context (in-doubt, node, iteration, prior-attempt errors).  Lazy for the
+// same reason as `ServerErrorArgs` above: `arguments()` runs when the PyErr
+// is first materialized, on the event-loop/drainer thread, never on a Tokio
+// worker.  Builds the exception instance and sets the retry attributes on
+// it, overriding the class defaults that `AerospikeError` declares on the
+// Python side.
+struct RetryCtxArgs<T> {
     message: String,
+    in_doubt: bool,
+    ctx: RetryContext,
     // `fn() -> T` keeps this Send + Sync regardless of T: the generated
     // exception types wrap `PyAny`, which is not Sync.
     _cls: PhantomData<fn() -> T>,
 }
 
-impl<T: PyTypeInfo + 'static> PyErrArguments for InDoubtArgs<T> {
+impl<T: PyTypeInfo + 'static> PyErrArguments for RetryCtxArgs<T> {
     fn arguments(self, py: Python<'_>) -> Py<PyAny> {
         match py.get_type::<T>().call1((self.message,)) {
             Ok(obj) => {
                 // Best effort: a failed setattr falls back to the class
-                // default False rather than masking the original error.
-                let _ = obj.setattr("in_doubt", true);
+                // default rather than masking the original error.
+                if self.in_doubt {
+                    let _ = obj.setattr("in_doubt", true);
+                }
+                if let Some(node) = &self.ctx.node {
+                    let _ = obj.setattr("node", node);
+                }
+                if let Some(iteration) = self.ctx.iteration {
+                    let _ = obj.setattr("iteration", iteration);
+                }
+                let _ = obj.setattr("base_message", &self.ctx.base_message);
+                if let Some(subs) = materialize_sub_exceptions(py, &self.ctx.subs) {
+                    let _ = obj.setattr("sub_exceptions", subs);
+                }
                 obj.unbind()
             }
             // Construction failed — surface that failure's own exception value.
@@ -198,14 +435,20 @@ impl<T: PyTypeInfo + 'static> PyErrArguments for InDoubtArgs<T> {
     }
 }
 
-// Not-in-doubt is the overwhelmingly common case and stays on the existing
-// fast path: no setattr, no extra allocation, identical to `T::new_err(msg)`.
-fn client_err<T>(message: String, in_doubt: bool) -> PyErr
+// A bare failure with nothing to report beyond its message stays on the
+// existing fast path: no setattr, no extra allocation, identical to
+// `T::new_err(msg)`.  Anything carrying retry context takes the lazy path.
+fn client_err<T>(message: String, in_doubt: bool, ctx: RetryContext) -> PyErr
 where
     T: PyTypeInfo + 'static,
 {
-    if in_doubt {
-        PyErr::new::<T, _>(InDoubtArgs::<T> { message, _cls: PhantomData })
+    if in_doubt || ctx.node.is_some() || ctx.iteration.is_some() || !ctx.subs.is_empty() {
+        PyErr::new::<T, _>(RetryCtxArgs::<T> {
+            message,
+            in_doubt,
+            ctx,
+            _cls: PhantomData,
+        })
     } else {
         PyErr::new::<T, _>(message)
     }
@@ -277,7 +520,8 @@ impl From<RustClientError> for PyErr {
                 // (>= 8.1.3) attached one.
                 message.push_str(&format!(", Detail: {detail}"));
             }
-            return create_server_error(message, result_code, in_doubt, detail);
+            let ctx = capture_retry_context(&err);
+            return create_server_error(message, result_code, in_doubt, detail, ctx);
         }
 
         // Otherwise dispatch on the specific client-side failure. `Display`
@@ -290,22 +534,25 @@ impl From<RustClientError> for PyErr {
         // chain routes through `client_err`; the pure conversion failures
         // (Base64 .. PwHash) never do and stay on `new_err`.
         let in_doubt = err.in_doubt();
+        let ctx = capture_retry_context(&err);
         match err.kind() {
-            ErrorKind::Timeout => client_err::<TimeoutError>(msg, in_doubt),
+            ErrorKind::Timeout => client_err::<TimeoutError>(msg, in_doubt, ctx),
             ErrorKind::Connection | ErrorKind::ConnectionPoolEmpty => {
-                client_err::<ConnectionError>(msg, in_doubt)
+                client_err::<ConnectionError>(msg, in_doubt, ctx)
             }
-            ErrorKind::NoMoreConnections => client_err::<NoMoreConnections>(msg, in_doubt),
-            ErrorKind::MaxErrorRate => client_err::<MaxErrorRate>(msg, in_doubt),
-            ErrorKind::InvalidNode => client_err::<InvalidNodeError>(msg, in_doubt),
-            ErrorKind::InvalidNamespace => client_err::<InvalidNamespaceError>(msg, in_doubt),
-            ErrorKind::InvalidArgument => client_err::<ValueError>(msg, in_doubt),
+            ErrorKind::NoMoreConnections => client_err::<NoMoreConnections>(msg, in_doubt, ctx),
+            ErrorKind::MaxErrorRate => client_err::<MaxErrorRate>(msg, in_doubt, ctx),
+            ErrorKind::InvalidNode => client_err::<InvalidNodeError>(msg, in_doubt, ctx),
+            ErrorKind::InvalidNamespace => client_err::<InvalidNamespaceError>(msg, in_doubt, ctx),
+            ErrorKind::InvalidArgument => client_err::<ValueError>(msg, in_doubt, ctx),
             ErrorKind::BadResponse | ErrorKind::ParsePeers => {
-                client_err::<BadResponse>(msg, in_doubt)
+                client_err::<BadResponse>(msg, in_doubt, ctx)
             }
-            ErrorKind::UdfBadResponse => client_err::<UDFBadResponse>(msg, in_doubt),
+            ErrorKind::UdfBadResponse => client_err::<UDFBadResponse>(msg, in_doubt, ctx),
             ErrorKind::Commit { error_type, .. } => {
-                client_err::<CommitFailedError>(format!("{error_type} (in_doubt={in_doubt})"), in_doubt)
+                client_err::<CommitFailedError>(
+                    format!("{error_type} (in_doubt={in_doubt})"), in_doubt, ctx,
+                )
             }
             ErrorKind::Base64(e) => Base64DecodeError::new_err(e.to_string()),
             ErrorKind::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
@@ -317,7 +564,7 @@ impl From<RustClientError> for PyErr {
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection
             // etc. are handled above.)
-            _ => client_err::<ClientError>(msg, in_doubt),
+            _ => client_err::<ClientError>(msg, in_doubt, ctx),
         }
     }
 }

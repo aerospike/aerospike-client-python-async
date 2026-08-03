@@ -331,6 +331,12 @@ class TestStringModifyExpressions:
 
 class TestToStringExpression:
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Exp.string_to_string dispatches via the CALL_REPR encoding, "
+        "which server 8.1.3 rejects with PARAMETER_ERROR; passes once the "
+        "core emits the standalone EXP_TO_STRING opcode (CLIENT-5186)",
+    )
     async def test_int_to_string_via_expression(self, string_client_813):
         key = _key("ts_exp_int")
         await string_client_813.put(key, {"n": 42}, policy=WritePolicy())

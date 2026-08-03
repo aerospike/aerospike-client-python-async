@@ -314,3 +314,39 @@ class TestExecuteUDF(TestFixtureConnection):
             policy=wp,
         )
         assert result == "slept"
+
+    async def test_udf_client_timeout_carries_retry_context(self, client_with_sleep_udf):
+        """A client timeout surfaces the retry context: node, iteration,
+        base_message, and — when the retry loop re-attempted — the prior
+        attempts as sub_exceptions.
+
+        Same deterministic shape as the in-doubt test above (socket timeout
+        racing a longer server-side UDF sleep, no server deadline), with
+        retries enabled so the context has more than one attempt to record.
+        """
+        from aerospike_async.exceptions import TimeoutError
+
+        key = Key("test", "test", "retry_ctx_test_key")
+        wp = WritePolicy()
+        wp.socket_timeout = 250
+        wp.total_timeout = 0
+        wp.max_retries = 2
+
+        with pytest.raises(TimeoutError) as exc_info:
+            await client_with_sleep_udf.execute_udf(
+                key,
+                "sleep_example",
+                "sleep",
+                [1000],
+                policy=wp,
+            )
+        err = exc_info.value
+        assert err.in_doubt is True
+        assert err.node, "expected the attempted node to be recorded"
+        assert err.iteration is not None and err.iteration >= 1
+        assert err.base_message
+        # Timeouts are retriable, so the prior attempts must be recorded as
+        # typed exception instances. In-doubt is a command-level verdict
+        # (finalized on the top error only), so it is not asserted per attempt.
+        assert err.sub_exceptions, "expected prior attempts in sub_exceptions"
+        assert all(isinstance(s, TimeoutError) for s in err.sub_exceptions)
