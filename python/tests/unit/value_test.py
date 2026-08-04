@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import GeoJSON, List, Blob, HLL, Map, geojson, null
+from aerospike_async import GeoJSON, List, Blob, HLL, Map, Vector, VectorElementType, geojson, null
 
 # Common test data
 TEST_BLOB_DATA_1 = [1, 7, 8, 4, 1]
@@ -549,3 +549,87 @@ def test_list_operation_accepts_special_value_range_endpoints():
         "lst", 1, SpecialValue.INFINITY, ListReturnType.VALUE,
     )
     assert op is not None
+
+
+def test_vector_default_element_type_is_float32():
+    """Vector() with no element_type defaults to FLOAT32."""
+
+    v = Vector([0.12, 0.98, -0.34])
+    assert v.element_type == VectorElementType.FLOAT32
+    assert v.dimensions == 3
+    assert len(v) == 3
+
+
+def test_vector_float64():
+    v = Vector([1.5, -2.5, 3.25], VectorElementType.FLOAT64)
+    assert v.element_type == VectorElementType.FLOAT64
+    assert list(v.value) == [1.5, -2.5, 3.25]
+
+
+def test_vector_int32():
+    v = Vector([1, 2, 3, -4], VectorElementType.INT32)
+    assert v.element_type == VectorElementType.INT32
+    assert list(v.value) == [1, 2, 3, -4]
+
+
+def test_vector_float32_value_round_trips_within_float32_precision():
+    """FLOAT32 elements lose precision relative to Python's native float64,
+    same as numpy float32 arrays would."""
+
+    v = Vector([0.12, 0.98, -0.34])
+    assert [round(x, 5) for x in v.value] == [0.12, 0.98, -0.34]
+
+
+def test_vector_empty():
+    v = Vector([])
+    assert v.dimensions == 0
+    assert len(v) == 0
+    assert list(v.value) == []
+
+
+def test_vector_equality():
+    assert Vector([1.0, 2.0]) == Vector([1.0, 2.0])
+    assert Vector([1.0, 2.0]) != Vector([1.0, 3.0])
+
+
+def test_vector_different_element_types_are_not_equal():
+    """Same numeric values but different element types are distinct, matching
+    the underlying particle encoding."""
+
+    assert Vector([1.0], VectorElementType.FLOAT32) != Vector([1.0], VectorElementType.FLOAT64)
+
+
+def test_vector_str_repr():
+    v = Vector([1.0, 2.0], VectorElementType.FLOAT32)
+    assert str(v) == "Vector::float32([1.0, 2.0])"
+    assert repr(v) == "Vector::float32([1.0, 2.0])"
+    assert v.as_string() == "Vector::float32([1.0, 2.0])"
+
+
+def test_vector_copy_construct_from_existing_vector():
+    v = Vector([1.0, 2.0, 3.0])
+    v_copy = Vector(v)
+    assert v_copy == v
+    assert v_copy.element_type == v.element_type
+
+
+def test_vector_float16_not_supported_from_list_yet():
+    """FLOAT16 has no native Python representation; list construction is
+    rejected with a clear error until the numpy fast path lands."""
+
+    with pytest.raises(TypeError):
+        Vector([0.1, 0.2], VectorElementType.FLOAT16)
+
+
+def test_vector_rejects_non_list_input():
+    with pytest.raises(TypeError):
+        Vector("not a list")
+
+
+def test_vector_cannot_be_used_as_dict_key():
+    """Vectors are not hashable, matching the underlying core type
+    (a vector has no natural map-key semantics)."""
+
+    v = Vector([1.0, 2.0])
+    with pytest.raises(TypeError):
+        {v: 1}

@@ -119,6 +119,8 @@ __all__ = [
     "UDFLang",
     "UdfRemoveTask",
     "User",
+    "Vector",
+    "VectorElementType",
     "Version",
     "WritePolicy",
     "_LocalClient",
@@ -6002,6 +6004,42 @@ class User:
         Number of currently open connections for the user
         """
 
+class Vector:
+    r"""
+    A dense numeric vector for vector similarity search, stored in a bin with
+    the ``VECTOR`` particle type.
+
+    Construct one from a list of numbers, optionally specifying the element
+    type (default :attr:`VectorElementType.FLOAT32`)::
+
+        Vector([0.12, 0.98, -0.34])
+        Vector([1, 2, 3], VectorElementType.INT32)
+    """
+    @property
+    def element_type(self) -> _aerospike_async_native.VectorElementType:
+        r"""
+        The element type of this vector.
+        """
+    @property
+    def dimensions(self) -> builtins.int:
+        r"""
+        Number of elements (dimensions) in this vector.
+        """
+    @property
+    def value(self) -> typing.Any:
+        r"""
+        The vector's elements as a Python list of numbers.
+        """
+    def __new__(cls, data: typing.Any, element_type: typing.Optional[_aerospike_async_native.VectorElementType] = None) -> _aerospike_async_native.Vector: ...
+    def as_string(self) -> builtins.str:
+        r"""
+        Returns a string representation of the value.
+        """
+    def __len__(self) -> builtins.int: ...
+    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
 class Version:
     @property
     def major(self) -> builtins.int: ...
@@ -6790,6 +6828,29 @@ class UDFLang(enum.Enum):
     LUA = ...
     r"""
     Lua embedded programming language.
+    """
+
+@typing.final
+class VectorElementType(enum.Enum):
+    r"""
+    Element type of a :class:`Vector`, controlling how each element is stored
+    on the wire.
+    """
+    FLOAT16 = ...
+    r"""
+    IEEE 754 half precision, carried as raw 16-bit patterns.
+    """
+    INT32 = ...
+    r"""
+    32-bit signed integer.
+    """
+    FLOAT32 = ...
+    r"""
+    32-bit IEEE 754 float (the default).
+    """
+    FLOAT64 = ...
+    r"""
+    64-bit IEEE 754 double.
     """
 
 def geojson(geo_str: builtins.str) -> _aerospike_async_native.GeoJSON:
