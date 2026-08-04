@@ -869,6 +869,29 @@ use crate::record::{Key, PythonValue, Record};
             })
         }
 
+        pub fn partition_filter_sync(&self, py: Python<'_>) -> PyResult<Option<PartitionFilter>> {
+            // Synchronous counterpart to `partition_filter()` for the blocking
+            // query path. The async method returns an awaitable and needs a
+            // CompletionBridge; a Recordset created via `query_blocking` has no
+            // event loop to await on, so block on the per-thread runtime instead
+            // — the same pattern `__next__` uses. Core's `partition_filter()`
+            // only locks the tracker and clones out the cursor (no network IO),
+            // so blocking here is cheap.
+            let asyncio = py.import("asyncio")?;
+            if asyncio.call_method0("get_running_loop").is_ok() {
+                return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "Cannot call partition_filter_sync() from within an async \
+                     context. Use `await partition_filter()` instead.",
+                ));
+            }
+            let recordset = self._as.clone();
+            let rt = pyo3_async_runtimes::tokio::get_runtime();
+            let pf = py.detach(|| {
+                rt.block_on(async move { recordset.partition_filter().await })
+            });
+            Ok(pf.map(|pf| PartitionFilter { _as: pf }))
+        }
+
         fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
             slf
         }
