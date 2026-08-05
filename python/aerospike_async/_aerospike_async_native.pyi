@@ -3551,11 +3551,12 @@ class FilterExpression:
         `regex_flags` here.
         """
     @staticmethod
-    def string_to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+    def to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
-        Unlike the other string expressions, which dispatch through the CALL_STRING module (id 3),
-        this is encoded as the dedicated unary TO_STRING expression opcode.
+        Returns STRING — `src` (integer / float / string / blob) coerced to its string
+        representation. Unlike the other string expressions, which dispatch through the
+        CALL_STRING module (id 3), this is encoded as the dedicated unary TO_STRING
+        expression opcode.
         """
 
 class GeoJSON:

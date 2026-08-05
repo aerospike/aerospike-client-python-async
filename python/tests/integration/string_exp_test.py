@@ -335,7 +335,7 @@ class TestToStringExpression:
         key = _key("ts_exp_int")
         await string_client_813.put(key, {"n": 42}, policy=WritePolicy())
         out = await _eval_exp(
-            string_client_813, key, Exp.string_to_string(Exp.int_bin("n"))
+            string_client_813, key, Exp.to_string(Exp.int_bin("n"))
         )
         assert out == "42"
 
