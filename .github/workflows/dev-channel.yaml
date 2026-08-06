@@ -62,15 +62,42 @@ jobs:
       version-override: ${{ needs.compute-version.outputs.cargo-version }}
     secrets: inherit
 
+  # Smoke-install the published wheels across the platforms that would otherwise
+  # silently fall back to a source build: the x86_64 baseline, free-threaded
+  # (cp314t) linux, Apple Silicon, and free-threaded Apple Silicon. Each leg pulls
+  # only the wheel matching its (runner, interpreter) and asserts it installs and
+  # imports as a binary wheel. fail-fast is off so one bad platform doesn't mask
+  # the others.
   smoke-install:
     needs: [compute-version, build-publish]
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run == false }}
-    runs-on: ubuntu-22.04
+    name: smoke-install (${{ matrix.name }})
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64-py312
+            runs-on: ubuntu-22.04
+            python: "3.12"
+            wheel-glob: "*cp312-cp312-manylinux*x86_64*.whl"
+          - name: linux-x86_64-py314t
+            runs-on: ubuntu-22.04
+            python: "3.14t"
+            wheel-glob: "*cp314-cp314t-manylinux*x86_64*.whl"
+          - name: macos-arm64-py314
+            runs-on: macos-14
+            python: "3.14"
+            wheel-glob: "*cp314-cp314-macosx*arm64*.whl"
+          - name: macos-arm64-py314t
+            runs-on: macos-14
+            python: "3.14t"
+            wheel-glob: "*cp314-cp314t-macosx*arm64*.whl"
     steps:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "${{ matrix.python }}"
 
       - name: Setup JFrog CLI
         uses: step-security/setup-jfrog-cli@3054b554c0fb4915b3d58847fb7730c593dbb934 # v5.0.0
@@ -87,7 +114,7 @@ jobs:
           VERSION="${{ needs.compute-version.outputs.pep440-version }}"
           # PyPI layout in the dev repo: {normalized-name}/{version}/{filename}
           jf rt dl \
-            "${{ vars.JFROG_PROJECT }}-pypi-dev-local/aerospike-async/${VERSION}/*cp312*manylinux*x86_64*.whl" \
+            "${{ vars.JFROG_PROJECT }}-pypi-dev-local/aerospike-async/${VERSION}/${{ matrix.wheel-glob }}" \
             wheels/ --flat=true
           ls -l wheels/
           test -n "$(ls wheels/*.whl 2>/dev/null)"
