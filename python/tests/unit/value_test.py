@@ -13,6 +13,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import subprocess
+import sys
+import textwrap
+
 import pytest
 from aerospike_async import GeoJSON, List, Blob, HLL, Map, Vector, VectorElementType, geojson, null
 
@@ -613,9 +617,9 @@ def test_vector_copy_construct_from_existing_vector():
     assert v_copy.element_type == v.element_type
 
 
-def test_vector_float16_not_supported_from_list_yet():
-    """FLOAT16 has no native Python representation; list construction is
-    rejected with a clear error until the numpy fast path lands."""
+def test_vector_float16_from_list_rejected():
+    """FLOAT16 has no native Python representation, so it can only be built from
+    a numpy.float16 array; list construction is rejected with a clear error."""
 
     with pytest.raises(TypeError):
         Vector([0.1, 0.2], VectorElementType.FLOAT16)
@@ -633,3 +637,309 @@ def test_vector_cannot_be_used_as_dict_key():
     v = Vector([1.0, 2.0])
     with pytest.raises(TypeError):
         {v: 1}
+
+
+def test_vector_numpy_rejects_multi_dimensional_arrays():
+    np = pytest.importorskip("numpy")
+
+    with pytest.raises(TypeError):
+        Vector(np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32))
+
+
+# --- Edge cases and type/readback permutations -----------------------------
+
+# (input element type, matching numpy dtype, explicit VectorElementType, sample
+# values) for the three element types that have a native Python list form.
+_LISTABLE_TYPES = [
+    ("float32", VectorElementType.FLOAT32, [1.0, 2.0, 3.0]),
+    ("float64", VectorElementType.FLOAT64, [1.0, 2.0, 3.0]),
+    ("int32", VectorElementType.INT32, [1, 2, -3]),
+]
+
+
+def test_vector_value_is_a_plain_list_not_numpy():
+    """`.value` returns an actual Python list, never a numpy array."""
+    v = Vector([1.0, 2.0, 3.0])
+    assert type(v.value) is list
+
+
+@pytest.mark.parametrize("np_dtype, element_type, values", _LISTABLE_TYPES)
+def test_vector_list_input_readback_both_ways(np_dtype, element_type, values):
+    """Build from a list, then read back both as a Python list and as a numpy
+    array; the two views must agree."""
+    np = pytest.importorskip("numpy")
+
+    v = Vector(values, element_type)
+    assert v.value == values
+
+    arr = v.numpy_value
+    assert arr.dtype == np.dtype(np_dtype)
+    assert arr.tolist() == values
+    assert v.value == arr.tolist()
+
+
+@pytest.mark.parametrize("np_dtype, element_type, values", _LISTABLE_TYPES)
+def test_vector_numpy_input_readback_both_ways(np_dtype, element_type, values):
+    """Build from a numpy array (dtype inferred and explicit), then read back as
+    a Python list and as a numpy array."""
+    np = pytest.importorskip("numpy")
+    arr_in = np.array(values, dtype=np_dtype)
+
+    for et in (None, element_type):
+        v = Vector(arr_in) if et is None else Vector(arr_in, et)
+        assert v.element_type == element_type
+        assert v.value == values
+        out = v.numpy_value
+        assert out.dtype == arr_in.dtype
+        assert out.tolist() == values
+
+
+@pytest.mark.parametrize("np_dtype", ["float16", "float32", "float64", "int32"])
+def test_vector_roundtrip_through_numpy_value(np_dtype):
+    """numpy array -> Vector -> numpy_value -> Vector round-trips for every type."""
+    np = pytest.importorskip("numpy")
+    values = [1, 2, 3] if np_dtype == "int32" else [1.0, 2.0, -3.5]
+    arr_in = np.array(values, dtype=np_dtype)
+
+    v = Vector(arr_in)
+    v2 = Vector(v.numpy_value)
+    assert v2 == v
+    assert v2.element_type == v.element_type
+
+
+def test_vector_float16_readback():
+    """float16 is unreadable as a list but round-trips through numpy_value."""
+    np = pytest.importorskip("numpy")
+    arr_in = np.array([1.0, 2.0, -3.5], dtype=np.float16)
+
+    v = Vector(arr_in)
+    assert v.element_type == VectorElementType.FLOAT16
+    with pytest.raises(TypeError):
+        _ = v.value
+
+    out = v.numpy_value
+    assert out.dtype == np.float16
+    assert out.tolist() == [1.0, 2.0, -3.5]
+    assert Vector(out) == v
+
+
+def test_vector_float16_special_values_roundtrip():
+    """inf/-inf and signed zero survive a float16 numpy round-trip bit-for-bit."""
+    np = pytest.importorskip("numpy")
+    arr_in = np.array([np.inf, -np.inf, 0.0, -0.0, 1.5], dtype=np.float16)
+
+    out = Vector(arr_in).numpy_value
+    assert out.dtype == np.float16
+    assert np.array_equal(out, arr_in)
+
+
+@pytest.mark.parametrize(
+    "np_dtype, element_type",
+    [
+        ("float16", VectorElementType.FLOAT16),
+        ("float32", VectorElementType.FLOAT32),
+        ("float64", VectorElementType.FLOAT64),
+        ("int32", VectorElementType.INT32),
+    ],
+)
+def test_vector_empty_numpy_input(np_dtype, element_type):
+    """Empty numpy arrays produce empty vectors for every element type."""
+    np = pytest.importorskip("numpy")
+
+    v = Vector(np.array([], dtype=np_dtype))
+    assert v.element_type == element_type
+    assert v.dimensions == 0
+    assert len(v) == 0
+
+    arr = v.numpy_value
+    assert arr.dtype == np.dtype(np_dtype)
+    assert arr.tolist() == []
+    if element_type != VectorElementType.FLOAT16:
+        assert v.value == []
+
+
+def test_vector_int32_boundary_values():
+    """i32 min/max survive both list and numpy construction."""
+    np = pytest.importorskip("numpy")
+    data = [-2147483648, 0, 2147483647]
+
+    assert Vector(data, VectorElementType.INT32).value == data
+    v = Vector(np.array(data, dtype=np.int32))
+    assert v.value == data
+    assert v.numpy_value.tolist() == data
+
+
+def test_vector_numpy_non_contiguous_input():
+    """A non-contiguous 1-D array (e.g. a strided slice) is handled correctly."""
+    np = pytest.importorskip("numpy")
+    base = np.array([1.0, 99.0, 2.0, 99.0, 3.0], dtype=np.float32)
+    sliced = base[::2]
+    assert not sliced.flags["C_CONTIGUOUS"]
+
+    assert Vector(sliced).value == [1.0, 2.0, 3.0]
+
+
+def test_vector_numpy_rejects_zero_d_array():
+    np = pytest.importorskip("numpy")
+    with pytest.raises(TypeError):
+        Vector(np.array(5.0, dtype=np.float32))
+
+
+@pytest.mark.parametrize("np_dtype", ["int64", "int16", "int8", "uint8", "uint32", "complex64"])
+def test_vector_numpy_rejects_various_unsupported_dtypes(np_dtype):
+    np = pytest.importorskip("numpy")
+    with pytest.raises(TypeError):
+        Vector(np.array([1, 2, 3], dtype=np_dtype))
+
+
+@pytest.mark.parametrize(
+    "np_dtype, element_type",
+    [
+        ("float16", VectorElementType.FLOAT16),
+        ("float32", VectorElementType.FLOAT32),
+        ("float64", VectorElementType.FLOAT64),
+        ("int32", VectorElementType.INT32),
+    ],
+)
+def test_vector_numpy_explicit_matching_element_type(np_dtype, element_type):
+    np = pytest.importorskip("numpy")
+    values = [1, 2, 3] if np_dtype == "int32" else [1.0, 2.0, 3.0]
+    v = Vector(np.array(values, dtype=np_dtype), element_type)
+    assert v.element_type == element_type
+
+
+@pytest.mark.parametrize(
+    "np_dtype, wrong_element_type",
+    [
+        ("float32", VectorElementType.FLOAT64),
+        ("float32", VectorElementType.INT32),
+        ("float32", VectorElementType.FLOAT16),
+        ("float64", VectorElementType.FLOAT32),
+        ("int32", VectorElementType.FLOAT32),
+        ("float16", VectorElementType.FLOAT32),
+    ],
+)
+def test_vector_numpy_element_type_mismatch_permutations(np_dtype, wrong_element_type):
+    np = pytest.importorskip("numpy")
+    values = [1, 2, 3] if np_dtype == "int32" else [1.0, 2.0, 3.0]
+    with pytest.raises(TypeError):
+        Vector(np.array(values, dtype=np_dtype), wrong_element_type)
+
+
+@pytest.mark.parametrize("np_dtype, element_type, values", _LISTABLE_TYPES)
+def test_vector_numpy_and_list_cross_equality(np_dtype, element_type, values):
+    np = pytest.importorskip("numpy")
+    assert Vector(np.array(values, dtype=np_dtype)) == Vector(values, element_type)
+
+
+# The following two tests simulate numpy NOT being installed. numpy is an
+# optional dependency, so list-based Vector construction must keep working
+# without it. They run in a subprocess because they mutate global
+# `sys.modules`/`sys.meta_path`.
+
+_BLOCK_NUMPY_PREAMBLE = """
+import sys, importlib.abc
+
+class _BlockNumpy(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name == "numpy" or name.startswith("numpy."):
+            raise ImportError("numpy blocked for test: " + name)
+        return None
+
+for _m in [m for m in list(sys.modules) if m == "numpy" or m.startswith("numpy.")]:
+    del sys.modules[_m]
+sys.meta_path.insert(0, _BlockNumpy())
+"""
+
+
+def _run_without_numpy(body: str) -> subprocess.CompletedProcess:
+    script = _BLOCK_NUMPY_PREAMBLE + textwrap.dedent(body)
+    return subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_vector_list_construction_works_without_numpy():
+    """Regression: numpy is optional, so constructing a Vector from a plain
+    list (and reading it back) must not require numpy to be importable."""
+    result = _run_without_numpy(
+        """
+        from aerospike_async import Vector, VectorElementType
+
+        v = Vector([1.0, 2.0, 3.0])
+        assert v.element_type == VectorElementType.FLOAT32
+        assert list(v.value) == [1.0, 2.0, 3.0]
+
+        vi = Vector([1, 2, 3], VectorElementType.INT32)
+        assert list(vi.value) == [1, 2, 3]
+
+        # float16 from a list is unsupported, but must fail cleanly (TypeError),
+        # not panic while probing for numpy.
+        try:
+            Vector([1.0, 2.0], VectorElementType.FLOAT16)
+        except TypeError:
+            pass
+        else:
+            raise AssertionError("expected TypeError for FLOAT16 from list")
+
+        print("OK")
+        """
+    )
+    assert result.returncode == 0, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    assert "OK" in result.stdout
+    assert "PanicException" not in result.stderr
+
+
+def test_vector_float16_numpy_value_without_numpy_raises_clean_error():
+    """Reading FLOAT16 needs numpy via `.numpy_value`; without numpy it must
+    surface a clean ImportError rather than a Rust panic. Build the vector while
+    numpy is available, then make numpy unimportable before the getter runs."""
+    pytest.importorskip("numpy")
+    script = textwrap.dedent(
+        """
+        import sys, importlib.abc
+        import numpy as np
+        from aerospike_async import Vector
+
+        v16 = Vector(np.array([1.0, 2.0, -3.5], dtype=np.float16))
+
+        class _BlockNumpy(importlib.abc.MetaPathFinder):
+            def find_spec(self, name, path, target=None):
+                if name == "numpy" or name.startswith("numpy."):
+                    raise ImportError("numpy blocked for test: " + name)
+                return None
+
+        for _m in [m for m in list(sys.modules) if m == "numpy" or m.startswith("numpy.")]:
+            del sys.modules[_m]
+        sys.meta_path.insert(0, _BlockNumpy())
+
+        # Non-numpy accessors still work.
+        assert v16.dimensions == 3
+
+        # `.value` raises TypeError (numpy-independent), directing to numpy_value.
+        try:
+            _ = v16.value
+        except TypeError:
+            pass
+        else:
+            raise AssertionError("expected TypeError from FLOAT16 .value")
+
+        # `.numpy_value` needs numpy -> clean ImportError, not a panic.
+        try:
+            _ = v16.numpy_value
+        except ImportError:
+            print("OK")
+        else:
+            raise AssertionError("expected ImportError from .numpy_value without numpy")
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    assert "OK" in result.stdout
+    assert "PanicException" not in result.stderr

@@ -16,6 +16,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
+[project.optional-dependencies]
+# Only needed to pass numpy arrays into Vector (e.g. for FLOAT16, which has no
+# Python-list form). Plain Python lists work for Vector without this extra.
+numpy = ["numpy>=1.16"]
+
 [project.urls]
 Repository = "https://github.com/aerospike/aerospike-client-python-async"
 Issues = "https://github.com/aerospike/aerospike-client-python-async/issues"
