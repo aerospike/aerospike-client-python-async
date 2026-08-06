@@ -988,6 +988,201 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  Vector
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Element type of a :class:`Vector`, controlling how each element is stored
+    /// on the wire.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum VectorElementType {
+        /// IEEE 754 half precision, carried as raw 16-bit patterns.
+        #[pyo3(name = "FLOAT16")]
+        Float16,
+        /// 32-bit signed integer.
+        #[pyo3(name = "INT32")]
+        Int32,
+        /// 32-bit IEEE 754 float (the default).
+        #[pyo3(name = "FLOAT32")]
+        Float32,
+        /// 64-bit IEEE 754 double.
+        #[pyo3(name = "FLOAT64")]
+        Float64,
+    }
+
+    #[pymethods]
+    impl VectorElementType {
+        fn __richcmp__(
+            &self,
+            other: &VectorElementType,
+            op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err(
+                    "Only == and != comparisons are supported",
+                )),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&VectorElementType> for aerospike_core::VectorElementType {
+        fn from(input: &VectorElementType) -> Self {
+            match input {
+                VectorElementType::Float16 => aerospike_core::VectorElementType::Float16,
+                VectorElementType::Int32 => aerospike_core::VectorElementType::Int32,
+                VectorElementType::Float32 => aerospike_core::VectorElementType::Float32,
+                VectorElementType::Float64 => aerospike_core::VectorElementType::Float64,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::VectorElementType> for VectorElementType {
+        fn from(input: &aerospike_core::VectorElementType) -> Self {
+            match input {
+                aerospike_core::VectorElementType::Float16 => VectorElementType::Float16,
+                aerospike_core::VectorElementType::Int32 => VectorElementType::Int32,
+                aerospike_core::VectorElementType::Float32 => VectorElementType::Float32,
+                aerospike_core::VectorElementType::Float64 => VectorElementType::Float64,
+            }
+        }
+    }
+
+    /// A dense numeric vector for vector similarity search, stored in a bin with
+    /// the ``VECTOR`` particle type.
+    ///
+    /// Construct one from a list of numbers, optionally specifying the element
+    /// type (default :attr:`VectorElementType.FLOAT32`)::
+    ///
+    ///     Vector([0.12, 0.98, -0.34])
+    ///     Vector([1, 2, 3], VectorElementType.INT32)
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone)]
+    pub struct Vector {
+        pub(crate) v: aerospike_core::Vector,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl Vector {
+        #[new]
+        #[pyo3(signature = (data, element_type=None))]
+        pub fn new(
+            data: &Bound<'_, PyAny>,
+            element_type: Option<VectorElementType>,
+        ) -> PyResult<Self> {
+            // If handed an existing Vector, copy it (mirrors GeoJSON).
+            if let Ok(existing) = data.extract::<Vector>() {
+                return Ok(existing);
+            }
+
+            let et = element_type.unwrap_or(VectorElementType::Float32);
+            let core = match et {
+                VectorElementType::Float32 => {
+                    let d: Vec<f32> = data.extract().map_err(|_| {
+                        PyTypeError::new_err("FLOAT32 Vector requires a list of numbers")
+                    })?;
+                    aerospike_core::Vector::float32(d)
+                }
+                VectorElementType::Float64 => {
+                    let d: Vec<f64> = data.extract().map_err(|_| {
+                        PyTypeError::new_err("FLOAT64 Vector requires a list of numbers")
+                    })?;
+                    aerospike_core::Vector::float64(d)
+                }
+                VectorElementType::Int32 => {
+                    let d: Vec<i32> = data.extract().map_err(|_| {
+                        PyTypeError::new_err("INT32 Vector requires a list of integers")
+                    })?;
+                    aerospike_core::Vector::int32(d)
+                }
+                VectorElementType::Float16 => {
+                    return Err(PyTypeError::new_err(
+                        "FLOAT16 Vector cannot be built from a Python list yet; numpy support is coming",
+                    ));
+                }
+            };
+
+            Ok(Vector { v: core })
+        }
+
+        /// The element type of this vector.
+        #[getter]
+        pub fn get_element_type(&self) -> VectorElementType {
+            (&self.v.element_type()).into()
+        }
+
+        /// Number of elements (dimensions) in this vector.
+        #[getter]
+        pub fn get_dimensions(&self) -> usize {
+            self.v.dimensions()
+        }
+
+        /// The vector's elements as a Python list of numbers.
+        #[getter]
+        pub fn get_value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+            match self.v.data() {
+                aerospike_core::VectorData::Float16(d) => d.clone().into_bound_py_any(py),
+                aerospike_core::VectorData::Int32(d) => d.clone().into_bound_py_any(py),
+                aerospike_core::VectorData::Float32(d) => d.clone().into_bound_py_any(py),
+                aerospike_core::VectorData::Float64(d) => d.clone().into_bound_py_any(py),
+            }
+        }
+
+        /// Returns a string representation of the value.
+        pub fn as_string(&self) -> String {
+            PythonValue::Vector(self.v.clone()).as_string()
+        }
+
+        fn __len__(&self) -> usize {
+            self.v.dimensions()
+        }
+
+        fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> bool {
+            match op {
+                CompareOp::Eq => {
+                    if let Ok(o) = other.extract::<Vector>() {
+                        return self.v == o.v;
+                    }
+                    false
+                }
+                CompareOp::Ne => {
+                    if let Ok(o) = other.extract::<Vector>() {
+                        return self.v != o.v;
+                    }
+                    true
+                }
+                _ => false,
+            }
+        }
+
+        fn __str__(&self) -> String {
+            self.v.to_string()
+        }
+
+        fn __repr__(&self) -> String {
+            self.v.to_string()
+        }
+    }
+
+    impl fmt::Display for Vector {
+        fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
+            write!(f, "{}", self.as_string())
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  SpecialValue (CDT range / value boundaries)
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1079,6 +1274,9 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         /// HLL value
         HLL(Vec<u8>),
 
+        /// Dense numeric vector (see :class:`Vector`).
+        Vector(aerospike_core::Vector),
+
         /// CDT boundary markers (see :class:`SpecialValue`).
         CdtSpecial(SpecialValue),
     }
@@ -1100,6 +1298,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 PythonValue::HashMap(_) | PythonValue::OrderedMap(_) => {
                     panic!("Maps cannot be used as map keys.")
                 }
+                PythonValue::Vector(_) => panic!("Vectors cannot be used as map keys."),
                 PythonValue::CdtSpecial(ref s) => s.hash(state),
             }
         }
@@ -1117,6 +1316,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 PythonValue::GeoJSON(ref val) => format!("GeoJSON('{}')", val),
                 PythonValue::Blob(ref val) => format!("{:?}", val),
                 PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
+                PythonValue::Vector(ref val) => val.to_string(),
                 PythonValue::List(ref val) => format!("{:?}", val),
                 PythonValue::HashMap(ref val) => format!("{:?}", val),
                 PythonValue::OrderedMap(ref val) => format!("{:?}", val),
@@ -1179,6 +1379,10 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     Ok(geo.into_pyobject(py).map(|v| v.into_any()).unwrap())
                 }
                 PythonValue::HLL(b) => Ok(HLL::new(b).into_pyobject(py).map(|v| v.into_any()).unwrap()),
+                PythonValue::Vector(v) => {
+                    let vec = Vector { v };
+                    Ok(vec.into_pyobject(py).map(|v| v.into_any()).unwrap())
+                }
                 PythonValue::CdtSpecial(s) => {
                     Ok(s.into_pyobject(py).map(|v| v.into_any()).unwrap())
                 }
@@ -1269,6 +1473,11 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 return Ok(PythonValue::HLL(hll.v));
             }
 
+            let vector: Result<Vector, _> = obj.extract();
+            if let Ok(vector) = vector {
+                return Ok(PythonValue::Vector(vector.v));
+            }
+
             Err(PyTypeError::new_err("invalid value type"))
         }
     }
@@ -1316,6 +1525,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 }
                 PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
                 PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
+                PythonValue::Vector(v) => aerospike_core::Value::Vector(v),
                 PythonValue::CdtSpecial(s) => match s {
                     SpecialValue::Null => aerospike_core::Value::Nil,
                     SpecialValue::Infinity => aerospike_core::Value::Infinity,
@@ -1379,6 +1589,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 }
                 aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
                 aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
+                aerospike_core::Value::Vector(v) => PythonValue::Vector(v),
                 aerospike_core::Value::Infinity => PythonValue::CdtSpecial(SpecialValue::Infinity),
                 aerospike_core::Value::Wildcard => PythonValue::CdtSpecial(SpecialValue::Wildcard),
                 aerospike_core::Value::KeyValueList(kvl) => {
@@ -1413,5 +1624,76 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     impl From<aerospike_core::Record> for Record {
         fn from(other: aerospike_core::Record) -> Self {
             Record { _as: other, cached_bins: None, cached_results: None }
+        }
+    }
+
+    #[cfg(test)]
+    mod vector_python_value_tests {
+        use super::*;
+
+        // These exercise the PythonValue <-> aerospike_core::Value conversion
+        // directly, without going through PyO3 (no GIL, no Python interpreter,
+        // no server). The GIL-requiring half (constructing a Vector from a
+        // Python list, its getters, etc.) is exercised separately once the
+        // module is built and imported from Python.
+
+        fn assert_round_trips(core_vector: aerospike_core::Vector) {
+            let python_value = PythonValue::Vector(core_vector.clone());
+
+            let value: aerospike_core::Value = python_value.clone().into();
+            assert_eq!(value, aerospike_core::Value::Vector(core_vector.clone()));
+
+            let back: PythonValue = value.into();
+            assert_eq!(back, python_value);
+        }
+
+        #[test]
+        fn float32_round_trips_through_value() {
+            assert_round_trips(aerospike_core::Vector::float32(vec![0.12, 0.98, -0.34]));
+        }
+
+        #[test]
+        fn float64_round_trips_through_value() {
+            assert_round_trips(aerospike_core::Vector::float64(vec![1.5, -2.5, 3.25]));
+        }
+
+        #[test]
+        fn int32_round_trips_through_value() {
+            assert_round_trips(aerospike_core::Vector::int32(vec![-5, 0, 7, i32::MAX]));
+        }
+
+        #[test]
+        fn float16_round_trips_through_value() {
+            assert_round_trips(aerospike_core::Vector::float16(vec![0x3c00, 0x4000, 0xbc00]));
+        }
+
+        #[test]
+        fn empty_vector_round_trips() {
+            assert_round_trips(aerospike_core::Vector::float32(vec![]));
+        }
+
+        #[test]
+        fn different_element_types_are_not_equal() {
+            let a = PythonValue::Vector(aerospike_core::Vector::float32(vec![1.0]));
+            let b = PythonValue::Vector(aerospike_core::Vector::float64(vec![1.0]));
+            assert_ne!(a, b);
+        }
+
+        #[test]
+        fn as_string_reports_vector() {
+            let v = PythonValue::Vector(aerospike_core::Vector::int32(vec![1, 2, 3]));
+            let s = v.as_string();
+            assert!(s.contains("int32") || s.to_lowercase().contains("vector"), "got: {s}");
+        }
+
+        #[test]
+        #[should_panic(expected = "cannot be used as map keys")]
+        fn vector_cannot_be_hashed() {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::Hash;
+
+            let v = PythonValue::Vector(aerospike_core::Vector::float32(vec![1.0]));
+            let mut hasher = DefaultHasher::new();
+            v.hash(&mut hasher);
         }
     }
