@@ -19,13 +19,14 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use pyo3::basic::CompareOp;
-use pyo3::exceptions::{PyIndexError, PyValueError};
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyImportError, PyIndexError, PyTypeError, PyValueError};
 use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
 use pyo3::{prelude::*, Borrowed, IntoPyObjectExt};
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use pyo3_stub_gen::{PyStubType, TypeInfo};
+
+use numpy::{dtype, PyArrayDescrMethods, PyReadonlyArray1, PyUntypedArray, PyUntypedArrayMethods};
 
 
 
@@ -1057,6 +1058,87 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         }
     }
 
+    /// Whether `numpy` has been imported, via a `sys.modules` lookup that avoids
+    /// triggering numpy's C-API init (which panics when numpy is not installed).
+    fn numpy_is_imported(py: Python<'_>) -> bool {
+        py.import("sys")
+            .and_then(|sys| sys.getattr("modules"))
+            .and_then(|modules| modules.contains("numpy"))
+            .unwrap_or(false)
+    }
+
+    /// Build a core `Vector` from a numpy array, inferring the element type from
+    /// its `dtype`. Returns `Ok(None)` if `data` is not a numpy array.
+    fn vector_from_numpy(
+        py: Python<'_>,
+        data: &Bound<'_, PyAny>,
+        element_type: Option<VectorElementType>,
+    ) -> PyResult<Option<aerospike_core::Vector>> {
+        // A numpy array can only exist if numpy is imported; skipping otherwise
+        // keeps the list path working without numpy.
+        if !numpy_is_imported(py) {
+            return Ok(None);
+        }
+
+        let Ok(untyped) = data.cast::<PyUntypedArray>() else {
+            return Ok(None);
+        };
+
+        if untyped.ndim() != 1 {
+            return Err(PyTypeError::new_err(format!(
+                "Vector requires a 1-D numpy array, got {}-D",
+                untyped.ndim()
+            )));
+        }
+
+        let dt = untyped.dtype();
+
+        let detected = if dt.is_equiv_to(&dtype::<f32>(py)) {
+            VectorElementType::Float32
+        } else if dt.is_equiv_to(&dtype::<f64>(py)) {
+            VectorElementType::Float64
+        } else if dt.is_equiv_to(&dtype::<i32>(py)) {
+            VectorElementType::Int32
+        } else if dt.is_equiv_to(&dtype::<half::f16>(py)) {
+            VectorElementType::Float16
+        } else {
+            return Err(PyTypeError::new_err(format!(
+                "Unsupported numpy dtype {dt} for Vector; expected float16, int32, float32, or float64"
+            )));
+        };
+
+        if let Some(requested) = element_type {
+            if requested != detected {
+                let requested_core: aerospike_core::VectorElementType = (&requested).into();
+                let detected_core: aerospike_core::VectorElementType = (&detected).into();
+                return Err(PyTypeError::new_err(format!(
+                    "element_type={requested_core} does not match numpy array dtype {dt} (detected {detected_core})"
+                )));
+            }
+        }
+
+        let core = match detected {
+            VectorElementType::Float32 => {
+                let arr: PyReadonlyArray1<f32> = data.extract()?;
+                aerospike_core::Vector::float32(arr.as_array().iter().copied().collect())
+            }
+            VectorElementType::Float64 => {
+                let arr: PyReadonlyArray1<f64> = data.extract()?;
+                aerospike_core::Vector::float64(arr.as_array().iter().copied().collect())
+            }
+            VectorElementType::Int32 => {
+                let arr: PyReadonlyArray1<i32> = data.extract()?;
+                aerospike_core::Vector::int32(arr.as_array().iter().copied().collect())
+            }
+            VectorElementType::Float16 => {
+                let arr: PyReadonlyArray1<half::f16> = data.extract()?;
+                aerospike_core::Vector::float16(arr.as_array().iter().map(|x| x.to_bits()).collect())
+            }
+        };
+
+        Ok(Some(core))
+    }
+
     /// A dense numeric vector for vector similarity search, stored in a bin with
     /// the ``VECTOR`` particle type.
     ///
@@ -1065,6 +1147,18 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     ///
     ///     Vector([0.12, 0.98, -0.34])
     ///     Vector([1, 2, 3], VectorElementType.INT32)
+    ///
+    /// A 1-D ``numpy`` array is also accepted; its ``dtype`` selects the element
+    /// type, and ``element_type`` (if given) must match it. ``FLOAT16`` requires
+    /// a ``numpy.float16`` array::
+    ///
+    ///     import numpy as np
+    ///     Vector(np.array([0.12, 0.98, -0.34], dtype=np.float32))
+    ///     Vector(np.array([1, 2, 3], dtype=np.float16))
+    ///
+    /// Read values with :attr:`value` (a Python list) or :attr:`numpy_value`
+    /// (a typed ``numpy`` array); ``FLOAT16`` is only readable via
+    /// :attr:`numpy_value`.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
     #[derive(Debug, Clone)]
@@ -1078,12 +1172,17 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         #[new]
         #[pyo3(signature = (data, element_type=None))]
         pub fn new(
+            py: Python<'_>,
             data: &Bound<'_, PyAny>,
             element_type: Option<VectorElementType>,
         ) -> PyResult<Self> {
             // If handed an existing Vector, copy it (mirrors GeoJSON).
             if let Ok(existing) = data.extract::<Vector>() {
                 return Ok(existing);
+            }
+
+            if let Some(core) = vector_from_numpy(py, data, element_type)? {
+                return Ok(Vector { v: core });
             }
 
             let et = element_type.unwrap_or(VectorElementType::Float32);
@@ -1108,7 +1207,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 }
                 VectorElementType::Float16 => {
                     return Err(PyTypeError::new_err(
-                        "FLOAT16 Vector cannot be built from a Python list yet; numpy support is coming",
+                        "FLOAT16 Vector requires a numpy.float16 array",
                     ));
                 }
             };
@@ -1128,15 +1227,50 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             self.v.dimensions()
         }
 
-        /// The vector's elements as a Python list of numbers.
+        /// The vector's elements as a plain Python list.
+        ///
+        /// Raises :class:`TypeError` for ``FLOAT16``; use :attr:`numpy_value`.
         #[getter]
         pub fn get_value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
             match self.v.data() {
-                aerospike_core::VectorData::Float16(d) => d.clone().into_bound_py_any(py),
+                aerospike_core::VectorData::Float16(_) => Err(PyTypeError::new_err(
+                    "FLOAT16 Vector values are not available as a Python list; \
+                     use the `.numpy_value` property instead",
+                )),
                 aerospike_core::VectorData::Int32(d) => d.clone().into_bound_py_any(py),
                 aerospike_core::VectorData::Float32(d) => d.clone().into_bound_py_any(py),
                 aerospike_core::VectorData::Float64(d) => d.clone().into_bound_py_any(py),
             }
+        }
+
+        /// The vector's elements as a typed ``numpy`` array (``dtype`` matching
+        /// the element type). Requires numpy. The only way to read ``FLOAT16``.
+        #[getter]
+        pub fn get_numpy_value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+            // Fail cleanly if numpy is missing rather than panicking in the crate.
+            py.import("numpy").map_err(|_| {
+                PyImportError::new_err(
+                    "the `numpy_value` property requires numpy; \
+                     install it with `pip install numpy` (or `aerospike_async[numpy]`)",
+                )
+            })?;
+            let arr = match self.v.data() {
+                aerospike_core::VectorData::Float16(d) => {
+                    let values: Vec<half::f16> =
+                        d.iter().map(|&bits| half::f16::from_bits(bits)).collect();
+                    numpy::PyArray1::from_vec(py, values).into_any()
+                }
+                aerospike_core::VectorData::Int32(d) => {
+                    numpy::PyArray1::from_vec(py, d.clone()).into_any()
+                }
+                aerospike_core::VectorData::Float32(d) => {
+                    numpy::PyArray1::from_vec(py, d.clone()).into_any()
+                }
+                aerospike_core::VectorData::Float64(d) => {
+                    numpy::PyArray1::from_vec(py, d.clone()).into_any()
+                }
+            };
+            Ok(arr)
         }
 
         /// Returns a string representation of the value.

@@ -5433,6 +5433,18 @@ class Vector:
 
         Vector([0.12, 0.98, -0.34])
         Vector([1, 2, 3], VectorElementType.INT32)
+
+    A 1-D ``numpy`` array is also accepted; its ``dtype`` selects the element
+    type, and ``element_type`` (if given) must match it. ``FLOAT16`` requires
+    a ``numpy.float16`` array::
+
+        import numpy as np
+        Vector(np.array([0.12, 0.98, -0.34], dtype=np.float32))
+        Vector(np.array([1, 2, 3], dtype=np.float16))
+
+    Read values with :attr:`value` (a Python list) or :attr:`numpy_value`
+    (a typed ``numpy`` array); ``FLOAT16`` is only readable via
+    :attr:`numpy_value`.
     """
     @property
     def element_type(self) -> _aerospike_async_native.VectorElementType:
@@ -5447,7 +5459,15 @@ class Vector:
     @property
     def value(self) -> typing.Any:
         r"""
-        The vector's elements as a Python list of numbers.
+        The vector's elements as a plain Python list.
+
+        Raises :class:`TypeError` for ``FLOAT16``; use :attr:`numpy_value`.
+        """
+    @property
+    def numpy_value(self) -> typing.Any:
+        r"""
+        The vector's elements as a typed ``numpy`` array (``dtype`` matching
+        the element type). Requires numpy. The only way to read ``FLOAT16``.
         """
     def __new__(cls, data: typing.Any, element_type: typing.Optional[_aerospike_async_native.VectorElementType] = None) -> _aerospike_async_native.Vector: ...
     def as_string(self) -> builtins.str:

@@ -11,7 +11,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 [[package]]
 name = "aerospike-core"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0#56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=2df5100aa1a79560d3510607843136a0acdf7a84#2df5100aa1a79560d3510607843136a0acdf7a84"
 dependencies = [
  "aerospike-macro",
  "aerospike-rt",
@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "aerospike-macro"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0#56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=2df5100aa1a79560d3510607843136a0acdf7a84#2df5100aa1a79560d3510607843136a0acdf7a84"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -51,7 +51,7 @@ dependencies = [
 [[package]]
 name = "aerospike-rt"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/aerospike/aerospike-client-rust?rev=56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0#56a6cf8371de64de0e7ac0dcbcbc60348b9f6ac0"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=2df5100aa1a79560d3510607843136a0acdf7a84#2df5100aa1a79560d3510607843136a0acdf7a84"
 dependencies = [
  "tokio",
 ]
@@ -62,10 +62,12 @@ version = "0.6.0-alpha.6"
 dependencies = [
  "aerospike-core",
  "futures",
+ "half",
  "hex",
  "indexmap",
  "log",
  "mimalloc",
+ "numpy",
  "ordered-float 3.9.2",
  "parking_lot",
  "pyo3",
@@ -593,6 +595,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "half"
+version = "2.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
+dependencies = [
+ "cfg-if",
+ "crunchy",
+ "zerocopy",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -922,6 +935,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a5b15d63a5ff39e378daed0e1340d3a5964703ea9712eb09a0dc66fade996f4"
 dependencies = [
+ "half",
  "libc",
  "ndarray",
  "num-complex",
