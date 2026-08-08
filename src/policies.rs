@@ -1156,6 +1156,27 @@ use crate::TlsConfig;
         pub fn get_sub_code(&self) -> Option<u32> {
             self._as.error_detail().map(|d| d.sub_code)
         }
+
+        /// The server's human-readable explanation for this record's failure,
+        /// or None when the record succeeded, the server attached no detail,
+        /// or it sent a subcode without a message. Populated on the same
+        /// terms as sub_code.
+        #[getter]
+        pub fn get_server_message(&self) -> Option<String> {
+            self._as.server_message().map(str::to_owned)
+        }
+
+        /// The server-supplied expression build trace for this record, or
+        /// None when absent (only attached on expression build failures at
+        /// the highest error_detail_verbosity). Populated on the same terms
+        /// as sub_code.
+        #[getter]
+        pub fn get_exp_trace(&self) -> Option<crate::server_error::ExpressionTrace> {
+            self._as
+                .error_detail()
+                .and_then(|d| d.exp_trace.as_ref())
+                .map(crate::server_error::ExpressionTrace::from_core)
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////

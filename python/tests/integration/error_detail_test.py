@@ -31,8 +31,11 @@ import pytest_asyncio
 
 from aerospike_async import (
     BatchPolicy,
+    BatchReadPolicy,
     ClientPolicy,
     ErrorDetailVerbosity,
+    ExpressionTrace,
+    FilterExpression,
     Key,
     ListOperation,
     ListReturnType,
@@ -175,3 +178,96 @@ class TestBatchErrorDetail:
         assert results[1].result_code == ResultCode.OK
 
         assert results[0].sub_code == _SUB_CDT_INDEX_OUT_OF_BOUNDS
+
+    async def test_batch_per_record_carries_server_message(self, edv_client):
+        """At MESSAGE verbosity a failing record also carries the server's
+        human-readable message; a succeeding record carries neither message
+        nor subcode. Mirrors the single-key ``server_message`` surface."""
+        bad = Key("test", "test", "error-detail-batch-msg-bad")
+        good = Key("test", "test", "error-detail-batch-msg-good")
+        for k in (bad, good):
+            await edv_client.put(k, {"nums": [1, 2, 3]})
+
+        bp = BatchPolicy()
+        bp.error_detail_verbosity = ErrorDetailVerbosity.MESSAGE
+        results = await edv_client.batch_operate(
+            [bad, good],
+            [
+                [ListOperation.get_by_index("nums", 99, ListReturnType.VALUE)],
+                [Operation.get_bin("nums")],
+            ],
+            batch_policy=bp,
+            write_policy=None,
+        )
+
+        failed, succeeded = results[0], results[1]
+        assert failed.result_code == ResultCode.OP_NOT_APPLICABLE
+        assert failed.server_message is not None
+        assert "out of bounds" in failed.server_message
+        # No expression involved, so no build trace is attached.
+        assert failed.exp_trace is None
+
+        assert succeeded.result_code == ResultCode.OK
+        assert succeeded.server_message is None
+        assert succeeded.exp_trace is None
+
+    async def test_batch_default_verbosity_yields_no_detail(self, edv_client):
+        """Without a verbosity request, a failing record exposes neither a
+        subcode nor a message (the request opts in to detail)."""
+        bad = Key("test", "test", "error-detail-batch-no-detail")
+        await edv_client.put(bad, {"nums": [1, 2, 3]})
+
+        results = await edv_client.batch_operate(
+            [bad],
+            [[ListOperation.get_by_index("nums", 99, ListReturnType.VALUE)]],
+            batch_policy=None,
+            write_policy=None,
+        )
+
+        row = results[0]
+        assert row.result_code == ResultCode.OP_NOT_APPLICABLE
+        assert row.sub_code is None
+        assert row.server_message is None
+        assert row.exp_trace is None
+
+    async def test_batch_invalid_expression_carries_exp_trace(self, edv_client):
+        """A malformed filter expression on a batch read fails each row with
+        PARAMETER_ERROR and, at EXPRESSION_TRACE verbosity, carries the
+        server's message and a structured expression trace per row.
+
+        An expression built from raw non-expression bytes compiles fine on
+        the client but the server rejects it on build. ``from_base64`` keeps
+        the packed bytes verbatim (no client-side structural validation), so
+        base64 of arbitrary bytes reaches the server as a bad expression.
+
+        Pins the full batch error-detail surface end to end — subcode (NONE
+        for an expression rejection), message, and expression trace — parsed
+        through the same path the single-key commands use. Requires a server
+        that emits batch expression traces (8.1.3 build >= -75; earlier
+        preliminary 8.1.3 images returned the message without a trace).
+        """
+        keys = [
+            Key("test", "test", "error-detail-batch-badexp-1"),
+            Key("test", "test", "error-detail-batch-badexp-2"),
+        ]
+        for k in keys:
+            await edv_client.put(k, {"nums": [1, 2, 3]})
+
+        # base64 of [0xFF, 0xFE, 0xFD] — valid base64, invalid expression wire form.
+        bad_expr = FilterExpression.from_base64("//79")
+        rp = BatchReadPolicy()
+        rp.filter_expression = bad_expr
+        bp = BatchPolicy()
+        bp.error_detail_verbosity = ErrorDetailVerbosity.EXPRESSION_TRACE
+
+        results = await edv_client.batch_read(
+            keys, None, batch_policy=bp, read_policy=rp)
+
+        assert len(results) == 2
+        for row in results:
+            assert row.result_code == ResultCode.PARAMETER_ERROR
+            # An expression rejection carries no meaningful subcode
+            # (SubCode.NONE), surfaced here as 0.
+            assert not row.sub_code
+            assert row.server_message is not None
+            assert isinstance(row.exp_trace, ExpressionTrace)
