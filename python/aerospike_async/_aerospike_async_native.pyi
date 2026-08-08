@@ -269,6 +269,22 @@ class BatchRecord:
         extended error detail. Subcode values are scoped to their parent
         result code — interpret the (result_code, sub_code) pair.
         """
+    @property
+    def server_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        The server's human-readable explanation for this record's failure,
+        or None when the record succeeded, the server attached no detail,
+        or it sent a subcode without a message. Populated on the same
+        terms as sub_code.
+        """
+    @property
+    def exp_trace(self) -> typing.Optional[_aerospike_async_native.ExpressionTrace]:
+        r"""
+        The server-supplied expression build trace for this record, or
+        None when absent (only attached on expression build failures at
+        the highest error_detail_verbosity). Populated on the same terms
+        as sub_code.
+        """
 
 class BatchRecordStream:
     r"""
