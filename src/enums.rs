@@ -690,6 +690,13 @@ pub enum Replica {
         #[pyo3(name = "EXTERNAL")]
         External,
 
+        /// Uses external authentication (like LDAP) when user/password defined. Specific external
+        /// authentication is configured on server. Sends the clear password on node login whether
+        /// or not TLS is defined. This mode should only be used for testing purposes because it is
+        /// not secure authentication.
+        #[pyo3(name = "EXTERNAL_INSECURE")]
+        ExternalInsecure,
+
         /// Allows authentication and authorization based on a certificate. No user name or
         /// password needs to be configured. Requires TLS and a client certificate.
         /// Requires server version 5.7.0+
@@ -871,6 +878,52 @@ pub enum Replica {
         fn MRT_ALREADY_LOCKED() -> ResultCode { ResultCode(CoreResultCode::MrtAlreadyLocked) }
         #[classattr]
         fn MRT_MONITOR_EXISTS() -> ResultCode { ResultCode(CoreResultCode::MrtMonitorExists) }
+
+        // Security family
+        #[classattr]
+        fn INVALID_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::InvalidPassword) }
+        #[classattr]
+        fn EXPIRED_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::ExpiredPassword) }
+        #[classattr]
+        fn INVALID_CREDENTIAL() -> ResultCode { ResultCode(CoreResultCode::InvalidCredential) }
+        #[classattr]
+        fn EXPIRED_SESSION() -> ResultCode { ResultCode(CoreResultCode::ExpiredSession) }
+        #[classattr]
+        fn INVALID_ROLE() -> ResultCode { ResultCode(CoreResultCode::InvalidRole) }
+        #[classattr]
+        fn ROLE_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::RoleAlreadyExists) }
+        #[classattr]
+        fn INVALID_PRIVILEGE() -> ResultCode { ResultCode(CoreResultCode::InvalidPrivilege) }
+        #[classattr]
+        fn INVALID_ALLOWLIST() -> ResultCode { ResultCode(CoreResultCode::InvalidAllowlist) }
+        #[classattr]
+        fn ROLE_VIOLATION() -> ResultCode { ResultCode(CoreResultCode::RoleViolation) }
+        #[classattr]
+        fn NOT_ALLOWLISTED() -> ResultCode { ResultCode(CoreResultCode::NotAllowlisted) }
+
+        // Quota family
+        #[classattr]
+        fn QUOTAS_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::QuotasNotEnabled) }
+        #[classattr]
+        fn INVALID_QUOTA() -> ResultCode { ResultCode(CoreResultCode::InvalidQuota) }
+        #[classattr]
+        fn QUOTA_EXCEEDED() -> ResultCode { ResultCode(CoreResultCode::QuotaExceeded) }
+
+        // Batch family
+        #[classattr]
+        fn BATCH_DISABLED() -> ResultCode { ResultCode(CoreResultCode::BatchDisabled) }
+        #[classattr]
+        fn BATCH_MAX_REQUESTS_EXCEEDED() -> ResultCode { ResultCode(CoreResultCode::BatchMaxRequestsExceeded) }
+        #[classattr]
+        fn BATCH_QUEUES_FULL() -> ResultCode { ResultCode(CoreResultCode::BatchQueuesFull) }
+
+        // Remaining server codes
+        #[classattr]
+        fn INVALID_GEOJSON() -> ResultCode { ResultCode(CoreResultCode::InvalidGeojson) }
+        #[classattr]
+        fn QUERY_NETIO_ERR() -> ResultCode { ResultCode(CoreResultCode::QueryNetioErr) }
+        #[classattr]
+        fn QUERY_DUPLICATE() -> ResultCode { ResultCode(CoreResultCode::QueryDuplicate) }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////

@@ -174,9 +174,9 @@ use crate::policies::AdminPolicy;
 
         /// Returns true if server supports the string-operations module
         /// (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
-        /// ``TO_STRING`` op-type 19) and the matching string-expression
-        /// dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
-        /// Requires server >= 8.1.3.
+        /// ``TO_STRING`` op-type 19), the ``CALL_STRING`` (module 3)
+        /// string-expression dispatcher, and the dedicated ``TO_STRING``
+        /// expression opcode. Requires server >= 8.1.3.
         pub fn supports_string_operations(&self) -> bool {
             self._as.supports_string_operations()
         }

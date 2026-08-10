@@ -269,6 +269,22 @@ class BatchRecord:
         extended error detail. Subcode values are scoped to their parent
         result code — interpret the (result_code, sub_code) pair.
         """
+    @property
+    def server_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        The server's human-readable explanation for this record's failure,
+        or None when the record succeeded, the server attached no detail,
+        or it sent a subcode without a message. Populated on the same
+        terms as sub_code.
+        """
+    @property
+    def exp_trace(self) -> typing.Optional[_aerospike_async_native.ExpressionTrace]:
+        r"""
+        The server-supplied expression build trace for this record, or
+        None when absent (only attached on expression build failures at
+        the highest error_detail_verbosity). Populated on the same terms
+        as sub_code.
+        """
 
 class BatchRecordStream:
     r"""
@@ -1756,9 +1772,10 @@ class ClientPolicy:
         Set the authentication mode.
 
         Args:
-            mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL, or AuthMode.PKI)
-            user: Optional username (required for INTERNAL and EXTERNAL modes)
-            password: Optional password (required for INTERNAL and EXTERNAL modes)
+            mode: The authentication mode (AuthMode.NONE, AuthMode.INTERNAL, AuthMode.EXTERNAL,
+                AuthMode.EXTERNAL_INSECURE, or AuthMode.PKI)
+            user: Optional username (required for INTERNAL, EXTERNAL, and EXTERNAL_INSECURE modes)
+            password: Optional password (required for INTERNAL, EXTERNAL, and EXTERNAL_INSECURE modes)
 
         Note: For PKI mode, user and password are ignored. TLS with client certificate is required.
         """
@@ -3550,11 +3567,12 @@ class FilterExpression:
         `regex_flags` here.
         """
     @staticmethod
-    def string_to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+    def to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
-        Uses CALL_REPR module (id 4) internally; on the wire path this is a separate dispatcher
-        from the other string expressions (CALL_STRING, id 3).
+        Returns STRING — `src` (integer / float / string / blob) coerced to its string
+        representation. Unlike the other string expressions, which dispatch through the
+        CALL_STRING module (id 3), this is encoded as the dedicated unary TO_STRING
+        expression opcode.
         """
 
 class GeoJSON:
@@ -4550,6 +4568,7 @@ class Recordset:
     def active(self) -> builtins.bool: ...
     def close(self) -> None: ...
     def partition_filter(self) -> typing.Awaitable[typing.Optional[PartitionFilter]]: ...
+    def partition_filter_sync(self) -> typing.Optional[_aerospike_async_native.PartitionFilter]: ...
     def __aiter__(self) -> _aerospike_async_native.Recordset: ...
     def __anext__(self) -> typing.Any: ...
     def __iter__(self) -> _aerospike_async_native.Recordset: ...
@@ -4671,6 +4690,25 @@ class ResultCode:
     MRT_ABORTED: _aerospike_async_native.ResultCode
     MRT_ALREADY_LOCKED: _aerospike_async_native.ResultCode
     MRT_MONITOR_EXISTS: _aerospike_async_native.ResultCode
+    INVALID_PASSWORD: _aerospike_async_native.ResultCode
+    EXPIRED_PASSWORD: _aerospike_async_native.ResultCode
+    INVALID_CREDENTIAL: _aerospike_async_native.ResultCode
+    EXPIRED_SESSION: _aerospike_async_native.ResultCode
+    INVALID_ROLE: _aerospike_async_native.ResultCode
+    ROLE_ALREADY_EXISTS: _aerospike_async_native.ResultCode
+    INVALID_PRIVILEGE: _aerospike_async_native.ResultCode
+    INVALID_ALLOWLIST: _aerospike_async_native.ResultCode
+    ROLE_VIOLATION: _aerospike_async_native.ResultCode
+    NOT_ALLOWLISTED: _aerospike_async_native.ResultCode
+    QUOTAS_NOT_ENABLED: _aerospike_async_native.ResultCode
+    INVALID_QUOTA: _aerospike_async_native.ResultCode
+    QUOTA_EXCEEDED: _aerospike_async_native.ResultCode
+    BATCH_DISABLED: _aerospike_async_native.ResultCode
+    BATCH_MAX_REQUESTS_EXCEEDED: _aerospike_async_native.ResultCode
+    BATCH_QUEUES_FULL: _aerospike_async_native.ResultCode
+    INVALID_GEOJSON: _aerospike_async_native.ResultCode
+    QUERY_NETIO_ERR: _aerospike_async_native.ResultCode
+    QUERY_DUPLICATE: _aerospike_async_native.ResultCode
     def __richcmp__(self, other: _aerospike_async_native.ResultCode, op: int) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
@@ -4753,7 +4791,39 @@ class ServerError(builtins.Exception):
         ``error_detail_verbosity`` 3 on an expression build failure and when the
         server build emits one.
         """
-    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None) -> _aerospike_async_native.ServerError: ...
+    @property
+    def node(self) -> typing.Optional[builtins.str]:
+        r"""
+        Last node the command was attempted on, when the retry loop recorded
+        one. ``None`` for failures that never reached node selection.
+        """
+    @property
+    def iteration(self) -> typing.Optional[builtins.int]:
+        r"""
+        Number of attempts before the command failed, when the retry loop
+        recorded it. ``None`` when the failure precedes the retry loop.
+        """
+    @property
+    def base_message(self) -> typing.Optional[builtins.str]:
+        r"""
+        The failure message without the retry-context decoration that the
+        full exception message carries. ``None`` when no decorated message
+        was recorded.
+        """
+    @property
+    def sub_exceptions(self) -> typing.Optional[typing.Any]:
+        r"""
+        Exceptions from prior retry attempts of the same command, oldest
+        first. ``None`` when the command was not retried.
+        """
+    def __new__(cls, _message: builtins.str, result_code: _aerospike_async_native.ResultCode, in_doubt: builtins.bool = False, sub_code: typing.Optional[builtins.int] = None, server_message: typing.Optional[builtins.str] = None, exp_trace: typing.Optional[_aerospike_async_native.ExpressionTrace] = None, node: typing.Optional[builtins.str] = None, iteration: typing.Optional[builtins.int] = None, base_message: typing.Optional[builtins.str] = None, sub_exceptions: typing.Optional[typing.Any] = None) -> _aerospike_async_native.ServerError: ...
+    def __str__(self) -> builtins.str:
+        r"""
+        ``str(exc)`` is the human-readable message alone. Without this, the
+        PyException base renders the whole constructor args tuple (message,
+        result_code, in_doubt, ...) — every field of which is already a
+        structured accessor.
+        """
 
 class Statement:
     r"""
@@ -5424,9 +5494,9 @@ class Version:
         r"""
         Returns true if server supports the string-operations module
         (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
-        ``TO_STRING`` op-type 19) and the matching string-expression
-        dispatchers (``CALL_STRING`` module 3, ``CALL_REPR`` module 4).
-        Requires server >= 8.1.3.
+        ``TO_STRING`` op-type 19), the ``CALL_STRING`` (module 3)
+        string-expression dispatcher, and the dedicated ``TO_STRING``
+        expression opcode. Requires server >= 8.1.3.
         """
     def supports_server_compiled_ael(self) -> builtins.bool:
         r"""
@@ -5507,6 +5577,13 @@ class AuthMode(enum.Enum):
     Uses external authentication (like LDAP) when user/password defined. Specific external
     authentication is configured on server. If TLSConfig is defined, sends clear password
     on node login via TLS. Will return an error if TLSConfig is not defined.
+    """
+    EXTERNAL_INSECURE = ...
+    r"""
+    Uses external authentication (like LDAP) when user/password defined. Specific external
+    authentication is configured on server. Sends the clear password on node login whether
+    or not TLS is defined. This mode should only be used for testing purposes because it is
+    not secure authentication.
     """
     PKI = ...
     r"""

@@ -3794,10 +3794,12 @@ use crate::string_ops::StringNumericType;
         // ---- Type conversion ----
 
         #[staticmethod]
-        /// Returns STRING — `src` (integer / float / string / blob) coerced to its string representation.
-        /// Uses CALL_REPR module (id 4) internally; on the wire path this is a separate dispatcher
-        /// from the other string expressions (CALL_STRING, id 3).
-        pub fn string_to_string(src: FilterExpression) -> Self {
+        #[pyo3(name = "to_string")]
+        /// Returns STRING — `src` (integer / float / string / blob) coerced to its string
+        /// representation. Unlike the other string expressions, which dispatch through the
+        /// CALL_STRING module (id 3), this is encoded as the dedicated unary TO_STRING
+        /// expression opcode.
+        pub fn to_string_expr(src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             FilterExpression { _as: str_exp::to_string(src._as) }
         }
