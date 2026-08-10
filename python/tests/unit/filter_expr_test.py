@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import ExpType
+from aerospike_async import ExpType, Vector
 from aerospike_async import FilterExpression as fe
 
 
@@ -278,3 +278,45 @@ class TestFilterExprInfinityWildcard:
         b64 = expr.base64()
         restored = fe.from_base64(b64)
         assert restored.base64() == b64
+
+
+class TestFilterExprVector:
+    """Vector distance expressions (Vector Phase 1 milestone 2).
+
+    Wire-encode ("packing") correctness is exercised here; the distance
+    semantics themselves are flagged upstream (aerospike-core) as not yet
+    double-checked against real server code, with no integration test
+    coverage.
+    """
+
+    def test_vector_bin(self):
+        expr = fe.vector_bin(name="embedding")
+        assert isinstance(expr, fe)
+
+    def test_distance_builders(self):
+        query = Vector([0.1, 0.2, 0.3])
+        funcs = [fe.l2_squared_distance, fe.dot_product, fe.cosine_similarity]
+        for func in funcs:
+            expr = func(query, fe.vector_bin("embedding"))
+            assert isinstance(expr, fe)
+
+    def test_distance_composes_with_comparators(self):
+        query = Vector([0.1, 0.2, 0.3])
+        expr = fe.gt(
+            fe.cosine_similarity(query, fe.vector_bin("embedding")),
+            fe.float_val(0.8),
+        )
+        assert isinstance(expr, fe)
+
+    def test_distance_rejects_non_vector_query(self):
+        import pytest
+
+        with pytest.raises(TypeError):
+            fe.cosine_similarity([0.1, 0.2, 0.3], fe.vector_bin("embedding"))
+
+    def test_distance_rejects_non_expression_bin(self):
+        import pytest
+
+        query = Vector([0.1, 0.2, 0.3])
+        with pytest.raises(TypeError):
+            fe.cosine_similarity(query, "embedding")

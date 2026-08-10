@@ -72,6 +72,9 @@ __all__ = [
     "ModifyFlags",
     "Node",
     "Operation",
+    "Order",
+    "OrderByFlags",
+    "OrderByType",
     "PartitionFilter",
     "PartitionStatus",
     "Privilege",
@@ -2122,6 +2125,63 @@ class FilterExpression:
     def hll_bin(name: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
         Create a HLL bin expression
+        """
+    @staticmethod
+    def vector_bin(name: builtins.str) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create a vector bin expression, for use with :meth:`l2_squared_distance`,
+        :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
+        the expression level.
+
+        # Work in progress
+
+        The vector distance wire contract has not yet been double-checked against current
+        server code and has no integration test coverage — see the caveats on
+        :meth:`cosine_similarity`.
+        """
+    @staticmethod
+    def l2_squared_distance(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create an expression that returns the squared L2 (squared Euclidean) distance between
+        a stored vector bin and ``query``, as a 64-bit float. Smaller is closer.
+
+        The query vector's element type and dimension count must match the stored vector;
+        otherwise the expression evaluates to unknown. ``bin`` is typically
+        :meth:`vector_bin`.
+
+        # Work in progress
+
+        This expression's wire contract has not yet been double-checked against current
+        server code and has no integration test coverage. It also depends on the same
+        unassigned server-version capability gate as :meth:`Statement.set_order_by`.
+        """
+    @staticmethod
+    def dot_product(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create an expression that returns the dot product between a stored vector bin and
+        ``query``, as a 64-bit float. Larger is more similar.
+
+        The query vector's element type and dimension count must match the stored vector;
+        otherwise the expression evaluates to unknown. ``bin`` is typically
+        :meth:`vector_bin`.
+
+        # Work in progress
+
+        See the caveats on :meth:`l2_squared_distance`.
+        """
+    @staticmethod
+    def cosine_similarity(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create an expression that returns the cosine similarity between a stored vector bin
+        and ``query``, as a 64-bit float. Larger is more similar.
+
+        The query vector's element type and dimension count must match the stored vector;
+        otherwise the expression evaluates to unknown. ``bin`` is typically
+        :meth:`vector_bin`.
+
+        # Work in progress
+
+        See the caveats on :meth:`l2_squared_distance`.
         """
     @staticmethod
     def bin_exists(name: builtins.str) -> _aerospike_async_native.FilterExpression:
@@ -4843,6 +4903,37 @@ class Statement:
         8.1.2 only accept the basic ``Read`` op here; 8.1.2+ also accepts
         CDT, expression, bit, and HLL reads.
         """
+    def set_order_by(self, bin_name: builtins.str, order_type: _aerospike_async_native.OrderByType, direction: _aerospike_async_native.Order, flags: typing.Optional[_aerospike_async_native.OrderByFlags] = None) -> None:
+        r"""
+        Sets the Top-K (``ORDER BY <bin> LIMIT k``) order-by clause: the order key's bin name
+        (as it appears in the *returned* record — a physical bin, or one produced by a
+        read-op/read-expression projection), its scalar type, and sort direction.
+
+        Must be paired with :meth:`set_top_k`. Request-time validation (raised as
+        :class:`ValueError` the first time this statement is used in a query — no network
+        round trip needed) rejects: an empty or over-length (>14 char) bin name, a
+        ``CASE_INSENSITIVE`` flag with a non-``STRING`` type, an order-by bin absent from the
+        query's projection (``bins``/``set_operations``) when one is set, ``set_top_k``
+        without a preceding ``set_order_by``, a ``k`` outside ``[1, 1000]``, or ``order_by``/
+        ``top_k`` combined with :meth:`set_aggregate_function`.
+
+        Top-K runs *after* the index filter (``set_filters``) and the record filter
+        expression (``QueryPolicy.filter_exp``); it only affects the order and count of
+        returned records, never which records match. ``flags`` currently only defines
+        ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
+
+        # Work in progress
+
+        Top-K's wire encode is capability-gated in the underlying client and has no assigned
+        minimum server version yet — a query with ``order_by``/``top_k`` set currently fails
+        fast client-side regardless of the server behind it.
+        """
+    def set_top_k(self, k: builtins.int) -> None:
+        r"""
+        Sets the Top-K limit. ``k`` must be in the inclusive range ``[1, 1000]``. Must be
+        paired with :meth:`set_order_by` (checked at query time, so either call can come
+        first as long as both are set before the statement is used in a query).
+        """
 
 class StringOperation:
     r"""
@@ -5888,6 +5979,70 @@ class MapWriteMode(enum.Enum):
     r"""
     If the key already exists, the write will fail.
     If the key does not exist, a new item will be created.
+    """
+
+@typing.final
+class Order(enum.Enum):
+    r"""
+    Sort direction for a Top-K ``ORDER BY <bin> LIMIT k`` query.
+
+    Applies to the Top-K result, not to the (much larger) set of records that pass the
+    filters: ``DESC`` keeps the K records with the *largest* order-key values (returned
+    largest-to-smallest); ``ASC`` keeps the K records with the *smallest* order-key values
+    (returned smallest-to-largest). Used with :meth:`Statement.set_order_by`.
+    """
+    ASC = ...
+    r"""
+    Ascending: smallest order-key value first.
+    """
+    DESC = ...
+    r"""
+    Descending: largest order-key value first.
+    """
+
+@typing.final
+class OrderByFlags(enum.Enum):
+    r"""
+    Optional per-type modifiers for :meth:`Statement.set_order_by`.
+    """
+    NONE = ...
+    r"""
+    No flags.
+    """
+    CASE_INSENSITIVE = ...
+    r"""
+    Case-insensitive string comparison. Only valid with ``OrderByType.STRING``.
+    """
+
+@typing.final
+class OrderByType(enum.Enum):
+    r"""
+    Scalar comparator type for a Top-K ``ORDER BY <bin> LIMIT k`` order-by key.
+
+    Aerospike has no schema, so the type of the order-by bin must be declared explicitly. Used
+    with :meth:`Statement.set_order_by`.
+
+    # Work in progress
+
+    Top-K's wire encode is capability-gated in the underlying client and has no assigned
+    minimum server version yet — sending a query with ``order_by``/``top_k`` set currently
+    fails fast client-side regardless of the server behind it.
+    """
+    INTEGER = ...
+    r"""
+    64-bit signed integer order key.
+    """
+    DOUBLE = ...
+    r"""
+    64-bit float order key.
+    """
+    STRING = ...
+    r"""
+    String order key.
+    """
+    BYTES = ...
+    r"""
+    Raw bytes order key, compared lexicographically.
     """
 
 @typing.final
