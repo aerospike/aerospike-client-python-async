@@ -1212,3 +1212,166 @@ pub enum Replica {
         #[classattr]
         const NO_FAIL: i64 = 0x10;
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  OrderByType
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Scalar comparator type for a Top-K ``ORDER BY <bin> LIMIT k`` order-by key.
+    ///
+    /// Aerospike has no schema, so the type of the order-by bin must be declared explicitly. Used
+    /// with :meth:`Statement.set_order_by`.
+    ///
+    /// # Work in progress
+    ///
+    /// Top-K's wire encode is capability-gated in the underlying client and has no assigned
+    /// minimum server version yet — sending a query with ``order_by``/``top_k`` set currently
+    /// fails fast client-side regardless of the server behind it.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum OrderByType {
+        /// 64-bit signed integer order key.
+        #[pyo3(name = "INTEGER")]
+        Integer,
+        /// 64-bit float order key.
+        #[pyo3(name = "DOUBLE")]
+        Double,
+        /// String order key.
+        #[pyo3(name = "STRING")]
+        String,
+        /// Raw bytes order key, compared lexicographically.
+        #[pyo3(name = "BYTES")]
+        Bytes,
+    }
+
+    #[pymethods]
+    impl OrderByType {
+        fn __richcmp__(&self, other: &OrderByType, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&OrderByType> for aerospike_core::query::OrderByType {
+        fn from(input: &OrderByType) -> Self {
+            match input {
+                OrderByType::Integer => aerospike_core::query::OrderByType::Integer,
+                OrderByType::Double => aerospike_core::query::OrderByType::Double,
+                OrderByType::String => aerospike_core::query::OrderByType::String,
+                OrderByType::Bytes => aerospike_core::query::OrderByType::Bytes,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Order
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Sort direction for a Top-K ``ORDER BY <bin> LIMIT k`` query.
+    ///
+    /// Applies to the Top-K result, not to the (much larger) set of records that pass the
+    /// filters: ``DESC`` keeps the K records with the *largest* order-key values (returned
+    /// largest-to-smallest); ``ASC`` keeps the K records with the *smallest* order-key values
+    /// (returned smallest-to-largest). Used with :meth:`Statement.set_order_by`.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum Order {
+        /// Ascending: smallest order-key value first.
+        #[pyo3(name = "ASC")]
+        Asc,
+        /// Descending: largest order-key value first.
+        #[pyo3(name = "DESC")]
+        Desc,
+    }
+
+    #[pymethods]
+    impl Order {
+        fn __richcmp__(&self, other: &Order, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&Order> for aerospike_core::query::Order {
+        fn from(input: &Order) -> Self {
+            match input {
+                Order::Asc => aerospike_core::query::Order::Asc,
+                Order::Desc => aerospike_core::query::Order::Desc,
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  OrderByFlags
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Optional per-type modifiers for :meth:`Statement.set_order_by`.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum OrderByFlags {
+        /// No flags.
+        #[pyo3(name = "NONE")]
+        None,
+        /// Case-insensitive string comparison. Only valid with ``OrderByType.STRING``.
+        #[pyo3(name = "CASE_INSENSITIVE")]
+        CaseInsensitive,
+    }
+
+    #[pymethods]
+    impl OrderByFlags {
+        fn __richcmp__(&self, other: &OrderByFlags, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<&OrderByFlags> for aerospike_core::query::OrderByFlags {
+        fn from(input: &OrderByFlags) -> Self {
+            match input {
+                OrderByFlags::None => aerospike_core::query::OrderByFlags::None,
+                OrderByFlags::CaseInsensitive => aerospike_core::query::OrderByFlags::CaseInsensitive,
+            }
+        }
+    }
