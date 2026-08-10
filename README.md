@@ -243,6 +243,37 @@ policy = WritePolicy()
 policy.set_use_compression(True)
 ```
 
+## Vector bins and Top-K queries
+
+`Vector` is a native bin type for fixed-dimension numeric embeddings
+(`FLOAT16`/`INT32`/`FLOAT32`/`FLOAT64` elements), constructible from a plain
+list or a 1-D numpy array, and it round-trips through `put`/`get` like any
+other bin type:
+
+```python
+from aerospike_async import Vector
+
+await client.put(key, {"embedding": Vector([0.1, 0.2, 0.3, 0.4])})
+record = await client.get(key)
+record.bins["embedding"].numpy_value  # typed numpy array
+```
+
+`FilterExpression.vector_bin`/`l2_squared_distance`/`dot_product`/
+`cosine_similarity` build vector-distance expressions, and
+`Statement.set_order_by`/`set_top_k` build Top-K (`ORDER BY <bin> LIMIT k`)
+queries — including hybrid search, by combining `set_order_by`/`set_top_k`
+with an index filter (`Statement.filters`) or a record filter expression
+(`QueryPolicy.filter_expression`). See
+[`python/examples/vector_topk_query.py`](python/examples/vector_topk_query.py)
+for a full example.
+
+**Work in progress:** Top-K's wire encode is capability-gated in the
+underlying client and has no assigned minimum server version yet, so a query
+with `order_by`/`top_k` set currently fails fast client-side (`ValueError`)
+regardless of the server behind it. The vector distance expressions'
+wire contract is likewise implemented and unit-tested for packing, but not
+yet verified against server code.
+
 ## Versioning
 
 PAC follows [SemVer](https://semver.org/). Pre-releases use the

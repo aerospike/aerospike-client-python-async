@@ -34,6 +34,7 @@ use crate::errors::RustClientError;
 use crate::expressions::FilterExpression;
 use crate::operations::bins_flag;
 use crate::record::{Key, PythonValue, Record};
+use crate::{Order, OrderByFlags, OrderByType};
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -451,6 +452,52 @@ use crate::record::{Key, PythonValue, Record};
                 crate::operations::convert_ops_with_ctx_to_core(&py_ops_with_ctx, false)?;
             self._as.set_operations(core_ops);
             Ok(())
+        }
+
+        /// Sets the Top-K (``ORDER BY <bin> LIMIT k``) order-by clause: the order key's bin name
+        /// (as it appears in the *returned* record — a physical bin, or one produced by a
+        /// read-op/read-expression projection), its scalar type, and sort direction.
+        ///
+        /// Must be paired with :meth:`set_top_k`. Request-time validation (raised as
+        /// :class:`ValueError` the first time this statement is used in a query — no network
+        /// round trip needed) rejects: an empty or over-length (>14 char) bin name, a
+        /// ``CASE_INSENSITIVE`` flag with a non-``STRING`` type, an order-by bin absent from the
+        /// query's projection (``bins``/``set_operations``) when one is set, ``set_top_k``
+        /// without a preceding ``set_order_by``, a ``k`` outside ``[1, 1000]``, or ``order_by``/
+        /// ``top_k`` combined with :meth:`set_aggregate_function`.
+        ///
+        /// Top-K runs *after* the index filter (``set_filters``) and the record filter
+        /// expression (``QueryPolicy.filter_exp``); it only affects the order and count of
+        /// returned records, never which records match. ``flags`` currently only defines
+        /// ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
+        ///
+        /// # Work in progress
+        ///
+        /// Top-K's wire encode is capability-gated in the underlying client and has no assigned
+        /// minimum server version yet — a query with ``order_by``/``top_k`` set currently fails
+        /// fast client-side regardless of the server behind it.
+        #[pyo3(signature = (bin_name, order_type, direction, flags = None))]
+        pub fn set_order_by(
+            &mut self,
+            bin_name: &str,
+            order_type: OrderByType,
+            direction: Order,
+            flags: Option<OrderByFlags>,
+        ) {
+            let flags = flags.unwrap_or(OrderByFlags::None);
+            self._as.set_order_by_with_flags(
+                bin_name,
+                (&order_type).into(),
+                (&direction).into(),
+                (&flags).into(),
+            );
+        }
+
+        /// Sets the Top-K limit. ``k`` must be in the inclusive range ``[1, 1000]``. Must be
+        /// paired with :meth:`set_order_by` (checked at query time, so either call can come
+        /// first as long as both are set before the statement is used in a query).
+        pub fn set_top_k(&mut self, k: u32) {
+            self._as.set_top_k(k);
         }
     }
 

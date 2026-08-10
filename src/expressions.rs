@@ -24,7 +24,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 
 use crate::cdt::*;
 use crate::errors::RustClientError;
-use crate::record::PythonValue;
+use crate::record::{PythonValue, Vector};
 use crate::string_ops::StringNumericType;
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -520,6 +520,75 @@ use crate::string_ops::StringNumericType;
         pub fn hll_bin(name: String) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::hll_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a vector bin expression, for use with :meth:`l2_squared_distance`,
+        /// :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
+        /// the expression level.
+        ///
+        /// # Work in progress
+        ///
+        /// The vector distance wire contract has not yet been double-checked against current
+        /// server code and has no integration test coverage — see the caveats on
+        /// :meth:`cosine_similarity`.
+        pub fn vector_bin(name: String) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::vector_bin(name),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an expression that returns the squared L2 (squared Euclidean) distance between
+        /// a stored vector bin and ``query``, as a 64-bit float. Smaller is closer.
+        ///
+        /// The query vector's element type and dimension count must match the stored vector;
+        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// :meth:`vector_bin`.
+        ///
+        /// # Work in progress
+        ///
+        /// This expression's wire contract has not yet been double-checked against current
+        /// server code and has no integration test coverage. It also depends on the same
+        /// unassigned server-version capability gate as :meth:`Statement.set_order_by`.
+        pub fn l2_squared_distance(query: &Vector, bin: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::vector::l2_squared_distance(&query.v, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an expression that returns the dot product between a stored vector bin and
+        /// ``query``, as a 64-bit float. Larger is more similar.
+        ///
+        /// The query vector's element type and dimension count must match the stored vector;
+        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// :meth:`vector_bin`.
+        ///
+        /// # Work in progress
+        ///
+        /// See the caveats on :meth:`l2_squared_distance`.
+        pub fn dot_product(query: &Vector, bin: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::vector::dot_product(&query.v, bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an expression that returns the cosine similarity between a stored vector bin
+        /// and ``query``, as a 64-bit float. Larger is more similar.
+        ///
+        /// The query vector's element type and dimension count must match the stored vector;
+        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// :meth:`vector_bin`.
+        ///
+        /// # Work in progress
+        ///
+        /// See the caveats on :meth:`l2_squared_distance`.
+        pub fn cosine_similarity(query: &Vector, bin: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::vector::cosine_similarity(&query.v, bin._as),
             }
         }
 
