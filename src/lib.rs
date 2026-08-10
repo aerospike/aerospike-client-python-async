@@ -460,9 +460,7 @@ use crate::operations::{
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     if res.bins.is_empty() && has_filter_expression {
-                        return Err(PyException::new_err(
-                            "Filter expression did not match any records",
-                        ));
+                        return Err(filter_expression_filtered_out());
                     }
                     Ok(res)
                 })
@@ -1200,9 +1198,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
+                    return Err(filter_expression_filtered_out());
                 }
                 Ok(res)
             })?;
@@ -2535,7 +2531,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err("Filter expression did not match any records"));
+                    return Err(filter_expression_filtered_out());
                 }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
@@ -3995,16 +3991,14 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
-            let set_ref = set_name.clone();
-            let hint_ref = index_name_hint.clone();
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let plan = client
                     .query_explain(
                         &policy,
                         &namespace,
-                        set_ref.as_deref(),
+                        set_name.as_deref(),
                         &ael,
-                        hint_ref.as_deref(),
+                        index_name_hint.as_deref(),
                         explain_where_flags,
                     )
                     .await

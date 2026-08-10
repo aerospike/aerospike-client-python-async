@@ -159,31 +159,12 @@ async def supports_string_operations(server_version):
     return server_version is not None and server_version >= SERVER_8_1_3
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def supports_server_compiled_ael(server_version):
-    """``True`` when the (default-host) cluster supports server-compiled AEL filters.
-
-    Covers ``FilterExpression.from_server_compiled_ael`` wire form
-    (MessagePack ``[128, "<utf-8 ael>"]`` on filter field 43), gated
-    server-side via the Rust core's
-    ``Node.version.supports_server_compiled_ael()`` (server >= 8.1.3).
-    Single-host model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to
-    exercise these; CI covers the version spread via a server matrix rather
-    than a dedicated host var. Tests that need server-compiled AEL should
-    ``pytest.skip`` when this is ``False``.
-    """
-    return server_version is not None and server_version >= SERVER_8_1_3
-
-
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def supports_query_selection(aerospike_host, use_services_alternate):
-    """``True`` when the cluster supports two-phase server query selection.
-
-    Probes ``Node.version.supports_query_selection()`` on a connected node
-    (Rust core version gate; the PAC binding may override during pre-release
-    testing). Tests that need query selection should ``pytest.skip`` when
-    this is ``False``.
-    """
+async def _probe_all_nodes_version_capability(
+    aerospike_host,
+    use_services_alternate,
+    capability_fn,
+) -> bool:
+    """``True`` when every connected node reports *capability_fn* on ``Version``."""
     from aerospike_async import ClientPolicy, new_client
 
     if not aerospike_host:
@@ -198,9 +179,39 @@ async def supports_query_selection(aerospike_host, use_services_alternate):
         nodes = await client.nodes()
         if not nodes:
             return False
-        return nodes[0].version.supports_query_selection()
+        return all(capability_fn(n.version) for n in nodes)
     finally:
         await client.close()
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_server_compiled_ael(aerospike_host, use_services_alternate):
+    """``True`` when every connected node supports server-compiled AEL (field 43).
+
+    Probes ``Node.version.supports_server_compiled_ael()`` on all nodes.
+    Tests that need server-compiled AEL should ``pytest.skip`` when this is
+    ``False``.
+    """
+    return await _probe_all_nodes_version_capability(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: version.supports_server_compiled_ael(),
+    )
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_query_selection(aerospike_host, use_services_alternate):
+    """``True`` when every connected node supports two-phase query selection.
+
+    Probes ``Node.version.supports_query_selection()`` on all nodes (field 44
+    explain → execute). Tests that need query selection should ``pytest.skip``
+    when this is ``False``.
+    """
+    return await _probe_all_nodes_version_capability(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: version.supports_query_selection(),
+    )
 
 
 def _parse_build_string(build: str):

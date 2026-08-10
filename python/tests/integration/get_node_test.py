@@ -228,6 +228,9 @@ class TestVersion(TestFixtureConnection):
 
         result = version.supports_server_compiled_ael()
         assert isinstance(result, bool)
+        if version.major > 8 or (version.major, version.minor, version.patch) >= (8, 1, 3):
+            assert result is True
+            assert version.supports_query_selection() is True
 
 
 class TestNodeMonitoring(TestFixtureConnection):

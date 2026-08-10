@@ -51,7 +51,10 @@ async def _collect_int_bin(recordset, bin_name: str) -> list[int]:
 @pytest.fixture
 async def qsel_fixture(client, supports_query_selection, wait_for_index):
     if not supports_query_selection:
-        pytest.skip("server does not support query selection (Node.version.supports_query_selection() is False)")
+        pytest.skip(
+            "cluster lacks query selection "
+            "(Node.version.supports_query_selection() is False on one or more nodes)"
+        )
 
     set_name = f"qsel_{uuid.uuid4().hex[:10]}"
     age_index_name = f"{NAMESPACE}_{set_name}_age_idx"
@@ -150,6 +153,51 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.is_filtered_out
         assert plan.index_name is None
         assert plan.ael
+
+
+class TestQueryPlanFilterForExecute(TestFixtureConnection):
+    """``QueryPlan.filter_for_execute()`` for each selection type."""
+
+    async def test_secondary_index_plan_returns_execute_filter(
+        self, client, qsel_fixture
+    ):
+        set_name = qsel_fixture["set_name"]
+        age_index_name = qsel_fixture["age_index_name"]
+
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age >= 14 and $.age <= 18",
+            set_name=set_name,
+        )
+
+        assert plan.is_secondary_index
+        execute_filter = plan.filter_for_execute()
+        assert isinstance(execute_filter, Filter)
+        assert age_index_name in str(execute_filter)
+
+    async def test_primary_index_plan_returns_none(self, client, qsel_fixture):
+        set_name = qsel_fixture["set_name"]
+
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.country == 'US'",
+            set_name=set_name,
+        )
+
+        assert plan.is_primary_index
+        assert plan.filter_for_execute() is None
+
+    async def test_filtered_out_plan_returns_none(self, client, qsel_fixture):
+        set_name = qsel_fixture["set_name"]
+
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age > 100 and $.age < 10",
+            set_name=set_name,
+        )
+
+        assert plan.is_filtered_out
+        assert plan.filter_for_execute() is None
 
 
 class TestQuerySelectionExecute(TestFixtureConnection):
