@@ -57,7 +57,7 @@ from aerospike_async import (
     new_client,
     new_client_blocking,
 )
-from aerospike_async.exceptions import IndexNotFound, ServerError
+from aerospike_async.exceptions import IndexFoundError, IndexNotFound, ServerError
 
 QSEL_NAMESPACE = "test"
 QSEL_SET_NAME = "qsel_blk"
@@ -477,14 +477,17 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
                 policy=wp,
             )
 
-        client.create_index_blocking(
-            QSEL_NAMESPACE,
-            QSEL_SET_NAME,
-            QSEL_AGE_BIN,
-            QSEL_AGE_INDEX,
-            IndexType.NUMERIC,
-            cit=CollectionIndexType.DEFAULT,
-        )
+        try:
+            client.create_index_blocking(
+                QSEL_NAMESPACE,
+                QSEL_SET_NAME,
+                QSEL_AGE_BIN,
+                QSEL_AGE_INDEX,
+                IndexType.NUMERIC,
+                cit=CollectionIndexType.DEFAULT,
+            )
+        except IndexFoundError:
+            pass
 
         _wait_for_index_blocking(
             client,
