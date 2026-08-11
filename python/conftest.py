@@ -166,6 +166,7 @@ async def _probe_all_nodes_version_capability(
 ) -> bool:
     """``True`` when every connected node reports *capability_fn* on ``Version``."""
     from aerospike_async import ClientPolicy, new_client
+    from aerospike_async.exceptions import ConnectionError
 
     if not aerospike_host:
         return False
@@ -173,7 +174,7 @@ async def _probe_all_nodes_version_capability(
     cp.use_services_alternate = use_services_alternate
     try:
         client = await new_client(cp, aerospike_host)
-    except Exception:
+    except ConnectionError:
         return False
     try:
         nodes = await client.nodes()
@@ -212,6 +213,29 @@ async def supports_query_selection(aerospike_host, use_services_alternate):
         use_services_alternate,
         lambda version: version.supports_query_selection(),
     )
+
+
+@pytest.fixture(scope="session")
+def supports_query_selection_sync(aerospike_host, use_services_alternate):
+    """Sync session gate for query selection (blocking integration tests)."""
+    from aerospike_async import ClientPolicy, new_client_blocking
+    from aerospike_async.exceptions import ConnectionError
+
+    if not aerospike_host:
+        return False
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    try:
+        client = new_client_blocking(cp, aerospike_host)
+    except ConnectionError:
+        return False
+    try:
+        nodes = client.nodes_blocking()
+        if not nodes:
+            return False
+        return all(n.version.supports_query_selection() for n in nodes)
+    finally:
+        client.close_blocking()
 
 
 def _parse_build_string(build: str):

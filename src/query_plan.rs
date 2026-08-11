@@ -60,6 +60,44 @@ fn core_collection_index_type(cit: &aerospike_core::CollectionIndexType) -> Coll
 #[derive(Debug, Clone)]
 pub struct QueryPlan {
     pub(crate) _as: aerospike_core::QueryPlan,
+    ael: String,
+}
+
+impl QueryPlan {
+    pub(crate) fn from_core(plan: aerospike_core::QueryPlan) -> PyResult<Self> {
+        let ael = plan.ael().map_err(|e| PyErr::from(RustClientError(e)))?;
+        Ok(QueryPlan { _as: plan, ael })
+    }
+}
+
+pub(crate) fn validate_plan_matches_statement(
+    statement: &aerospike_core::Statement,
+    plan: &aerospike_core::QueryPlan,
+) -> PyResult<()> {
+    if statement.namespace != plan.namespace() {
+        return Err(PyErr::from(RustClientError(
+            aerospike_core::Error::invalid_argument(format!(
+                "Query plan namespace '{}' does not match statement namespace '{}'",
+                plan.namespace(),
+                statement.namespace,
+            )),
+        )));
+    }
+    let stmt_set = if statement.set_name.is_empty() {
+        None
+    } else {
+        Some(statement.set_name.as_str())
+    };
+    if stmt_set != plan.set_name() {
+        return Err(PyErr::from(RustClientError(
+            aerospike_core::Error::invalid_argument(format!(
+                "Query plan set '{}' does not match statement set '{}'",
+                plan.set_name().unwrap_or(""),
+                stmt_set.unwrap_or(""),
+            )),
+        )));
+    }
+    Ok(())
 }
 
 #[gen_stub_pymethods]
@@ -81,8 +119,8 @@ impl QueryPlan {
     }
 
     #[getter]
-    pub fn ael(&self) -> PyResult<String> {
-        self._as.ael().map_err(|e| PyErr::from(RustClientError(e)))
+    pub fn ael(&self) -> &str {
+        &self.ael
     }
 
     #[getter]
@@ -110,7 +148,12 @@ impl QueryPlan {
         self._as.is_filtered_out()
     }
 
-    /// Build the execute ``Filter`` for a secondary-index plan.
+    /// Returns the secondary-index ``Filter`` the server selected, or ``None``.
+    ///
+    /// Diagnostic only — :meth:`Client.query_with_plan` derives this internally,
+    /// so callers never pass it. Use it to inspect which index range the plan
+    /// resolved to. Returns ``None`` for primary-index and filtered-out plans.
+    /// Rebuilds the filter on each call.
     pub fn filter_for_execute(&self) -> PyResult<Option<Filter>> {
         match self._as.filter_for_execute() {
             Ok(Some(filter)) => Ok(Some(Filter { _as: filter })),
@@ -118,4 +161,37 @@ impl QueryPlan {
             Err(e) => Err(PyErr::from(RustClientError(e))),
         }
     }
+}
+
+/// Field ``44`` (WHERE) flag bits for server query explain (phase 1).
+///
+/// Combine with bitwise OR and pass to :meth:`Client.query_explain` /
+/// :meth:`Client.query_explain_blocking` as ``explain_where_flags``.
+/// Omit the argument (or pass ``None``) for default explain
+/// (``QueryWhereFlags.EXPLAIN`` only).
+///
+/// Requires Aerospike Server version >= 8.1.3. Callers must verify
+/// :meth:`Version.supports_query_selection` before use.
+#[gen_stub_pyclass(module = "_aerospike_async_native")]
+#[pyclass(name = "QueryWhereFlags", module = "_aerospike_async_native")]
+pub struct QueryWhereFlags;
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl QueryWhereFlags {
+    /// Reserved for wire continuation; passing it raises ``InvalidArgument``.
+    #[classattr]
+    const ENC_VARINT: i64 = aerospike_core::FLAG_ENC_VARINT as i64;
+
+    /// Explain phase — server runs index planner only (always set on explain).
+    #[classattr]
+    const EXPLAIN: i64 = aerospike_core::FLAG_EXPLAIN as i64;
+
+    /// Reject primary-index fallback on explain when combined with ``EXPLAIN``.
+    #[classattr]
+    const REQUIRE_INDEX: i64 = aerospike_core::FLAG_REQUIRE_INDEX as i64;
+
+    /// Require field ``21`` index name hint; fail if hint missing or not selected.
+    #[classattr]
+    const HARD_HINT: i64 = aerospike_core::FLAG_HARD_HINT as i64;
 }

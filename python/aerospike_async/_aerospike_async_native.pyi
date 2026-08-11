@@ -77,7 +77,10 @@ __all__ = [
     "Privilege",
     "PrivilegeCode",
     "QueryDuration",
+    "QueryPlan",
     "QueryPolicy",
+    "QuerySelection",
+    "QueryWhereFlags",
     "ReadModeAP",
     "ReadModeSC",
     "ReadPolicy",
@@ -924,6 +927,24 @@ class Client:
         Synchronously execute a query and return a Recordset that supports
         `for record in recordset:` iteration via `__iter__`/`__next__`.
         """
+    def query_explain_blocking(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, explain_where_flags: typing.Optional[builtins.int] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.QueryPlan:
+        r"""
+        Synchronously run phase 1 (explain) of server-led query selection.
+
+        Callers must verify :meth:`Version.supports_query_selection` before use;
+        this method sends field ``44`` regardless of server version.
+
+        ``explain_where_flags`` selects Tier-D hint bits on field ``44``
+        (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ``HARD_HINT``). Omit for default explain.
+
+        A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        passed to :meth:`query_with_plan_blocking` (raises ``FilteredOut``).
+        """
+    def query_with_plan_blocking(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.Recordset:
+        r"""
+        Synchronously execute a partitioned query using a server query plan.
+        """
     def query_operate_blocking(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> _aerospike_async_native.ExecuteTask:
         r"""
         Synchronously execute a background query that performs ops on each matching record.
@@ -1366,6 +1387,25 @@ class Client:
         Execute a query on all server nodes and return a record iterator. The query executor puts
         records on a queue in separate threads. The calling thread concurrently pops records off
         the queue through the record iterator.
+        """
+    def query_explain(self, namespace: builtins.str, ael: builtins.str, *, set_name: typing.Optional[builtins.str] = None, index_name_hint: typing.Optional[builtins.str] = None, explain_where_flags: typing.Optional[builtins.int] = None, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[QueryPlan]:
+        r"""
+        Run phase 1 (explain) of server-led query selection.
+
+        Callers must verify :meth:`Version.supports_query_selection` before use;
+        this method sends field ``44`` regardless of server version.
+
+        ``explain_where_flags`` selects Tier-D hint bits on field ``44``
+        (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ``HARD_HINT``). Omit for default explain.
+
+        A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        passed to :meth:`query_with_plan` (raises ``FilteredOut``).
+        """
+    def query_with_plan(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> typing.Awaitable[Recordset]:
+        r"""
+        Execute a partitioned query using a server query plan from
+        :meth:`query_explain`.
         """
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
@@ -4515,8 +4555,71 @@ class Privilege:
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
+@typing.final
+class QueryPlan:
+    r"""
+    Result of a server query explain (phase 1).
+    """
+    @property
+    def selection(self) -> _aerospike_async_native.QuerySelection: ...
+    @property
+    def namespace(self) -> builtins.str: ...
+    @property
+    def set_name(self) -> typing.Optional[str]: ...
+    @property
+    def ael(self) -> builtins.str: ...
+    @property
+    def index_name(self) -> typing.Optional[builtins.str]: ...
+    @property
+    def index_type(self) -> _aerospike_async_native.CollectionIndexType: ...
+    @property
+    def is_primary_index(self) -> builtins.bool: ...
+    @property
+    def is_secondary_index(self) -> builtins.bool: ...
+    @property
+    def is_filtered_out(self) -> builtins.bool: ...
+    def filter_for_execute(self) -> typing.Optional[_aerospike_async_native.Filter]:
+        r"""
+        Returns the secondary-index ``Filter`` the server selected, or ``None``.
+
+        Diagnostic only — :meth:`Client.query_with_plan` derives this internally,
+        so callers never pass it. Use it to inspect which index range the plan
+        resolved to. Returns ``None`` for primary-index and filtered-out plans.
+        Rebuilds the filter on each call.
+        """
+
 class QueryPolicy(_aerospike_async_native.BasePolicy):
     ...
+
+@typing.final
+class QueryWhereFlags:
+    r"""
+    Field ``44`` (WHERE) flag bits for server query explain (phase 1).
+
+    Combine with bitwise OR and pass to :meth:`Client.query_explain` /
+    :meth:`Client.query_explain_blocking` as ``explain_where_flags``.
+    Omit the argument (or pass ``None``) for default explain
+    (``QueryWhereFlags.EXPLAIN`` only).
+
+    Requires Aerospike Server version >= 8.1.3. Callers must verify
+    :meth:`Version.supports_query_selection` before use.
+    """
+    ENC_VARINT: builtins.int = 1
+    r"""
+    Reserved for wire continuation; passing it raises ``InvalidArgument``.
+    """
+    EXPLAIN: builtins.int = 2
+    r"""
+    Explain phase — server runs index planner only (always set on explain).
+    """
+    REQUIRE_INDEX: builtins.int = 4
+    r"""
+    Reject primary-index fallback on explain when combined with ``EXPLAIN``.
+    """
+    HARD_HINT: builtins.int = 8
+    r"""
+    Require field ``21`` index name hint; fail if hint missing or not selected.
+    """
 
 class ReadPolicy(_aerospike_async_native.BasePolicy):
     ...
@@ -5502,6 +5605,15 @@ class Version:
         r"""
         Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
         """
+    def supports_query_selection(self) -> builtins.bool:
+        r"""
+        Returns true if server supports two-phase server query selection
+        (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        """
+    def supports_blob_index(self) -> builtins.bool:
+        r"""
+        Returns true if server supports blob secondary indexes (>= 7.0.0).
+        """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -5933,6 +6045,15 @@ class QueryDuration(enum.Enum):
     r"""
     LongRelaxAP will treat query as a Long query, but relax read consistency for AP namespaces.
     """
+
+@typing.final
+class QuerySelection(enum.Enum):
+    r"""
+    Server query plan selection inferred from an explain response.
+    """
+    PRIMARY_INDEX = ...
+    SECONDARY_INDEX = ...
+    FILTERED_OUT = ...
 
 @typing.final
 class ReadModeAP(enum.Enum):

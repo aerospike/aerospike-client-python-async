@@ -1653,32 +1653,11 @@ def add_return_type_stubs(content: str) -> str:
     NEWLINE: builtins.int
     """Match-any-character operators don't match a newline."""'''
 
-    query_where_flags_stub = '''class QueryWhereFlags:
-    r"""
-    Field ``44`` (WHERE) flag bits for server query explain (phase 1).
-
-    Combine with bitwise OR and pass to :meth:`Client.query_explain` /
-    :meth:`Client.query_explain_blocking` as ``explain_where_flags``.
-    Omit the argument (or pass ``None``) for default explain
-    (``QueryWhereFlags.EXPLAIN`` only).
-
-    Requires Aerospike Server version >= 8.1.3.
-    """
-    ENC_VARINT: builtins.int
-    """Bit 0 encoding selector — must remain clear for v1 wire."""
-    EXPLAIN: builtins.int
-    """Explain phase — server runs index planner only (always set on explain)."""
-    REQUIRE_INDEX: builtins.int
-    """Reject primary-index fallback on explain when combined with ``EXPLAIN``."""
-    HARD_HINT: builtins.int
-    """Require field ``21`` index name hint; fail if hint missing or not selected."""'''
-
     for cls_name, stub, name in [
         ("LoopVarPart", loop_var_part_stub, "LoopVarPart"),
         ("SelectFlags", select_flags_stub, "SelectFlags"),
         ("ModifyFlags", modify_flags_stub, "ModifyFlags"),
         ("RegexFlag", regex_flag_stub, "RegexFlag"),
-        ("QueryWhereFlags", query_where_flags_stub, "QueryWhereFlags"),
     ]:
         # Match the full class block (from 'class X:' up to the next top-level class or EOF).
         # This is robust regardless of whether stub_gen emits '...' only or full methods.

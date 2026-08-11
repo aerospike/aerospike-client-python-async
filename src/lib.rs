@@ -60,7 +60,6 @@ mod filter;
 mod operations;
 mod policies;
 mod query_plan;
-mod query_where;
 mod cluster;
 mod string_ops;
 mod server_error;
@@ -75,7 +74,6 @@ pub use filter::*;
 pub use operations::*;
 pub use policies::*;
 pub use query_plan::*;
-pub use query_where::*;
 pub use cluster::*;
 pub use server_error::*;
 pub use tls::*;
@@ -460,7 +458,9 @@ use crate::operations::{
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     if res.bins.is_empty() && has_filter_expression {
-                        return Err(filter_expression_filtered_out());
+                        return Err(PyException::new_err(
+                            "Filter expression did not match any records",
+                        ));
                     }
                     Ok(res)
                 })
@@ -1198,7 +1198,9 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(filter_expression_filtered_out());
+                    return Err(PyException::new_err(
+                        "Filter expression did not match any records",
+                    ));
                 }
                 Ok(res)
             })?;
@@ -1457,9 +1459,15 @@ use crate::operations::{
 
         /// Synchronously run phase 1 (explain) of server-led query selection.
         ///
+        /// Callers must verify :meth:`Version.supports_query_selection` before use;
+        /// this method sends field ``44`` regardless of server version.
+        ///
         /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
         /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
         /// ``HARD_HINT``). Omit for default explain.
+        ///
+        /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        /// passed to :meth:`query_with_plan_blocking` (raises ``FilteredOut``).
         #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
         pub fn query_explain_blocking(
             &self,
@@ -1488,7 +1496,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(QueryPlan { _as: plan })
+            Ok(QueryPlan::from_core(plan)?)
         }
 
         /// Synchronously execute a partitioned query using a server query plan.
@@ -1501,6 +1509,7 @@ use crate::operations::{
             policy: Option<QueryPolicy>,
             py: Python<'_>,
         ) -> PyResult<Recordset> {
+            validate_plan_matches_statement(&statement._as, &plan._as)?;
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let stmt = statement.clone()._as;
@@ -2531,7 +2540,9 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(filter_expression_filtered_out());
+                    return Err(PyException::new_err(
+                        "Filter expression did not match any records",
+                    ));
                 }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
@@ -3974,9 +3985,15 @@ use crate::operations::{
 
         /// Run phase 1 (explain) of server-led query selection.
         ///
+        /// Callers must verify :meth:`Version.supports_query_selection` before use;
+        /// this method sends field ``44`` regardless of server version.
+        ///
         /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
         /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
         /// ``HARD_HINT``). Omit for default explain.
+        ///
+        /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        /// passed to :meth:`query_with_plan` (raises ``FilteredOut``).
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[QueryPlan]", imports=("typing")))]
         #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
         pub fn query_explain<'a>(
@@ -4003,7 +4020,7 @@ use crate::operations::{
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(QueryPlan { _as: plan })
+                Ok(QueryPlan::from_core(plan)?)
             })
         }
 
@@ -4019,6 +4036,7 @@ use crate::operations::{
             policy: Option<QueryPolicy>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
+            validate_plan_matches_statement(&statement._as, &plan._as)?;
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let stmt = statement.clone()._as;

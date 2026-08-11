@@ -42,16 +42,29 @@ from aerospike_async import (
     BatchReadOp,
     BatchWriteOp,
     ClientPolicy,
+    CollectionIndexType,
+    Filter,
+    IndexType,
     Key,
     Operation,
     PartitionFilter,
     QueryPolicy,
+    QuerySelection,
     ReadPolicy,
     Statement,
     WritePolicy,
     new_client,
     new_client_blocking,
 )
+
+QSEL_NAMESPACE = "test"
+QSEL_SET_NAME = "qsel_blk"
+QSEL_AGE_BIN = "age"
+QSEL_SCORE_BIN = "score"
+QSEL_COUNTRY_BIN = "country"
+QSEL_AGE_INDEX = "qsel_blk_age_idx"
+QSEL_SCORE_INDEX = "qsel_blk_score_idx"
+QSEL_DATASET_SIZE = 50
 
 
 def _connect_blocking(aerospike_host, use_services_alternate):
@@ -405,4 +418,133 @@ def test_blocking_batch_stream_exhausted_stops(
         client.delete_blocking(k, policy=WritePolicy())
     finally:
         client.close_blocking()
+
+
+def _wait_for_index_blocking(client, ns, set_name, sindex_filter, *, bins=None,
+                             timeout=5.0, interval=0.25):
+    deadline = time.monotonic() + timeout
+    last_err = None
+    while time.monotonic() < deadline:
+        try:
+            stmt = Statement(ns, set_name, bins or [])
+            stmt.filters = [sindex_filter]
+            recordset = client.query_blocking(
+                stmt,
+                PartitionFilter.all(),
+                policy=QueryPolicy(),
+            )
+            for _ in recordset:
+                break
+            return
+        except Exception as exc:
+            if "IndexNotReadable" not in str(exc):
+                raise
+            last_err = exc
+            time.sleep(interval)
+    raise last_err  # type: ignore[misc]
+
+
+def _collect_int_bin_blocking(recordset, bin_name: str) -> list[int]:
+    values = []
+    for record in recordset:
+        values.append(record.bins[bin_name])
+    values.sort()
+    return values
+
+
+@pytest.fixture
+def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query_selection_sync):
+    if not supports_query_selection_sync:
+        pytest.skip(
+            "cluster lacks query selection "
+            "(Node.version.supports_query_selection() is False on one or more nodes)"
+        )
+
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    wp = WritePolicy()
+
+    try:
+        for i in range(1, QSEL_DATASET_SIZE + 1):
+            country = "US" if i % 2 == 0 else "CA"
+            key = Key(QSEL_NAMESPACE, QSEL_SET_NAME, i)
+            client.put_blocking(
+                key,
+                {QSEL_AGE_BIN: i, QSEL_SCORE_BIN: i, QSEL_COUNTRY_BIN: country},
+                policy=wp,
+            )
+
+        for bin_name, index_name in (
+            (QSEL_AGE_BIN, QSEL_AGE_INDEX),
+            (QSEL_SCORE_BIN, QSEL_SCORE_INDEX),
+        ):
+            client.create_index_blocking(
+                QSEL_NAMESPACE,
+                QSEL_SET_NAME,
+                bin_name,
+                index_name,
+                IndexType.NUMERIC,
+                cit=CollectionIndexType.DEFAULT,
+            )
+
+        _wait_for_index_blocking(
+            client,
+            QSEL_NAMESPACE,
+            QSEL_SET_NAME,
+            Filter.range(QSEL_AGE_BIN, 0, 100),
+            bins=[QSEL_AGE_BIN],
+        )
+
+        yield {
+            "client": client,
+            "set_name": QSEL_SET_NAME,
+            "age_index_name": QSEL_AGE_INDEX,
+        }
+    finally:
+        for index_name in (QSEL_AGE_INDEX, QSEL_SCORE_INDEX):
+            try:
+                task = client.drop_index_blocking(
+                    QSEL_NAMESPACE, QSEL_SET_NAME, index_name,
+                )
+                task.wait_till_complete_blocking()
+            except Exception:
+                pass
+        client.close_blocking()
+
+
+def test_blocking_explain_selects_secondary_index(qsel_blocking_fixture):
+    client = qsel_blocking_fixture["client"]
+    set_name = qsel_blocking_fixture["set_name"]
+    age_index_name = qsel_blocking_fixture["age_index_name"]
+
+    plan = client.query_explain_blocking(
+        QSEL_NAMESPACE,
+        "$.age >= 14 and $.age <= 18",
+        set_name=set_name,
+    )
+
+    assert plan.selection == QuerySelection.SECONDARY_INDEX
+    assert plan.is_secondary_index
+    assert plan.index_name == age_index_name
+    assert isinstance(plan.ael, str) and len(plan.ael) > 0
+
+
+def test_blocking_execute_returns_matching_records(qsel_blocking_fixture):
+    client = qsel_blocking_fixture["client"]
+    set_name = qsel_blocking_fixture["set_name"]
+
+    plan = client.query_explain_blocking(
+        QSEL_NAMESPACE,
+        "$.age >= 14 and $.age <= 18",
+        set_name=set_name,
+    )
+    stmt = Statement(QSEL_NAMESPACE, set_name, [QSEL_AGE_BIN])
+    recordset = client.query_with_plan_blocking(
+        stmt,
+        PartitionFilter.all(),
+        plan,
+        policy=QueryPolicy(),
+    )
+
+    ages = _collect_int_bin_blocking(recordset, QSEL_AGE_BIN)
+    assert ages == [14, 15, 16, 17, 18]
 

@@ -392,24 +392,6 @@ fn create_server_error(
     })
 }
 
-/// Client-side filter miss when the server returns empty bins instead of
-/// ``FilteredOut``. Matches integration-test expectations for ``get()``.
-pub(crate) fn filter_expression_filtered_out() -> PyErr {
-    const MSG: &str = "Filter expression did not match any records";
-    create_server_error(
-        MSG.to_string(),
-        CoreResultCode::FilteredOut,
-        false,
-        None,
-        RetryContext {
-            node: None,
-            iteration: None,
-            base_message: MSG.to_string(),
-            subs: vec![],
-        },
-    )
-}
-
 // Deferred arguments for a client-side error that carries retry/diagnostic
 // context (in-doubt, node, iteration, prior-attempt errors).  Lazy for the
 // same reason as `ServerErrorArgs` above: `arguments()` runs when the PyErr
