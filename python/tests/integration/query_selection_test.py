@@ -22,7 +22,9 @@ from dataclasses import dataclass
 from typing import Optional
 
 import pytest
+import pytest_asyncio
 from aerospike_async import (
+    ClientPolicy,
     CollectionIndexType,
     Filter,
     IndexType,
@@ -34,6 +36,7 @@ from aerospike_async import (
     ResultCode,
     Statement,
     WritePolicy,
+    new_client,
 )
 from aerospike_async.exceptions import (
     FilteredOut,
@@ -42,7 +45,7 @@ from aerospike_async.exceptions import (
     InvalidRequest,
     ValueError,
 )
-from fixtures import TestFixtureConnection
+from fixtures import TestFixtureConnection, wait_for_index_ready
 
 NAMESPACE = "test"
 SET_NAME = "qsel"
@@ -54,6 +57,8 @@ AGE_INDEX_NAME = "qsel_age_idx"
 SCORE_INDEX_NAME = "qsel_score_idx"
 BOGUS_INDEX_NAME = "qsel_missing_idx"
 HINT_KEY_PREFIX = "qselkey"
+
+pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 def hint_key_name(suffix: str) -> str:
@@ -118,43 +123,44 @@ async def _drop_indexes(client) -> None:
             pass
 
 
-@pytest.fixture
-async def qsel_fixture(client, supports_query_selection, wait_for_index):
-    if not supports_query_selection:
-        pytest.skip(
-            "cluster lacks query selection "
-            "(Node.version.supports_query_selection() is False on one or more nodes)"
-        )
+async def _connect_qsel(aerospike_host, use_services_alternate):
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    return await new_client(cp, aerospike_host)
 
+
+async def _seed_qsel_dataset(setup_client) -> None:
     wp = WritePolicy()
 
     for i in range(1, DATASET_SIZE + 1):
         country = "US" if i % 2 == 0 else "CA"
         key = Key(NAMESPACE, SET_NAME, i)
-        await client.put(
+        await setup_client.put(
             key,
             {AGE_BIN: i, SCORE_BIN: i, COUNTRY_BIN: country},
             policy=wp,
         )
 
     # Ages 51/52 avoid colliding with the 1..50 bulk seed (keys with the same age).
-    await client.put(
+    await setup_client.put(
         Key(NAMESPACE, SET_NAME, hint_key_name("1")),
         {AGE_BIN: 51, SCORE_BIN: 51, COUNTRY_BIN: "CA"},
         policy=wp,
     )
-    await client.put(
+    await setup_client.put(
         Key(NAMESPACE, SET_NAME, hint_key_name("2")),
         {AGE_BIN: 52, SCORE_BIN: 52, COUNTRY_BIN: "CA"},
         policy=wp,
     )
 
+
+async def _create_qsel_indexes(setup_client) -> None:
     for index_name, bin_name in (
         (AGE_INDEX_NAME, AGE_BIN),
         (SCORE_INDEX_NAME, SCORE_BIN),
     ):
         try:
-            await client.create_index(
+            await setup_client.create_index(
                 NAMESPACE,
                 SET_NAME,
                 bin_name,
@@ -165,23 +171,37 @@ async def qsel_fixture(client, supports_query_selection, wait_for_index):
         except IndexFoundError:
             pass
 
-    await wait_for_index(
-        client,
-        NAMESPACE,
-        SET_NAME,
-        Filter.range(AGE_BIN, 0, 100),
-        bins=[AGE_BIN],
-    )
-    await wait_for_index(
-        client,
-        NAMESPACE,
-        SET_NAME,
-        Filter.range(SCORE_BIN, 51, 52),
-    )
 
-    yield
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
+async def qsel_fixture(aerospike_host, use_services_alternate, supports_query_selection):
+    """Module-scoped seed + indexes; tests use the function-scoped ``client``."""
+    if not supports_query_selection:
+        pytest.skip(
+            "cluster lacks query selection "
+            "(Node.version.supports_query_selection() is False on one or more nodes)"
+        )
 
-    await _drop_indexes(client)
+    setup_client = await _connect_qsel(aerospike_host, use_services_alternate)
+    try:
+        await _seed_qsel_dataset(setup_client)
+        await _create_qsel_indexes(setup_client)
+        await wait_for_index_ready(
+            setup_client,
+            NAMESPACE,
+            SET_NAME,
+            Filter.range(AGE_BIN, 0, 100),
+            bins=[AGE_BIN],
+        )
+        await wait_for_index_ready(
+            setup_client,
+            NAMESPACE,
+            SET_NAME,
+            Filter.range(SCORE_BIN, 51, 52),
+        )
+        yield
+    finally:
+        await _drop_indexes(setup_client)
+        await setup_client.close()
 
 
 class TestQuerySelectionExplain(TestFixtureConnection):
