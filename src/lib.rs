@@ -1458,9 +1458,15 @@ use crate::operations::{
         /// Callers must verify :meth:`Version.supports_query_selection` before use;
         /// this method sends field ``44`` regardless of server version.
         ///
-        /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
-        /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
-        /// ``HARD_HINT``). Omit for default explain.
+        /// Args:
+        ///     ael: Filter expression in Aerospike Expression Language; sent on
+        ///         field ``44`` and compiled server-side during explain.
+        ///     index_name_hint: Field ``21`` soft index-name hint. Becomes strict
+        ///         when ``HARD_HINT`` is set in ``explain_where_flags`` — explain then
+        ///         fails unless that exact index is selected.
+        ///     explain_where_flags: Tier-D field ``44`` bits —
+        ///         ``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ///         ``HARD_HINT``. Omit for default explain.
         ///
         /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
         /// passed to :meth:`query_with_plan_blocking` (raises ``FilteredOut``).
@@ -3998,9 +4004,15 @@ use crate::operations::{
         /// Callers must verify :meth:`Version.supports_query_selection` before use;
         /// this method sends field ``44`` regardless of server version.
         ///
-        /// ``explain_where_flags`` selects Tier-D hint bits on field ``44``
-        /// (``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
-        /// ``HARD_HINT``). Omit for default explain.
+        /// Args:
+        ///     ael: Filter expression in Aerospike Expression Language; sent on
+        ///         field ``44`` and compiled server-side during explain.
+        ///     index_name_hint: Field ``21`` soft index-name hint. Becomes strict
+        ///         when ``HARD_HINT`` is set in ``explain_where_flags`` — explain then
+        ///         fails unless that exact index is selected.
+        ///     explain_where_flags: Tier-D field ``44`` bits —
+        ///         ``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ///         ``HARD_HINT``. Omit for default explain.
         ///
         /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
         /// passed to :meth:`query_with_plan` (raises ``FilteredOut``).
