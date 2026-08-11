@@ -220,6 +220,8 @@ class TestVersion(TestFixtureConnection):
 
         result = version.supports_query_selection()
         assert isinstance(result, bool)
+        if (version.major, version.minor, version.patch) >= (8, 1, 3):
+            assert result is True
 
     async def test_version_supports_server_compiled_ael(self, client):
         """Test Version.supports_server_compiled_ael() method."""
@@ -228,9 +230,8 @@ class TestVersion(TestFixtureConnection):
 
         result = version.supports_server_compiled_ael()
         assert isinstance(result, bool)
-        if version.major > 8 or (version.major, version.minor, version.patch) >= (8, 1, 3):
+        if (version.major, version.minor, version.patch) >= (8, 1, 3):
             assert result is True
-            assert version.supports_query_selection() is True
 
 
 class TestNodeMonitoring(TestFixtureConnection):

@@ -19,7 +19,8 @@ import time
 from pathlib import Path
 
 import pytest
-from aerospike_async import PartitionFilter, QueryPolicy, Statement
+from aerospike_async import PartitionFilter, QueryPolicy, ResultCode, Statement
+from aerospike_async.exceptions import ServerError
 
 # Ensure this directory is on sys.path so "from fixtures import ..." works
 _this_dir = str(Path(__file__).parent)
@@ -34,7 +35,7 @@ def wait_for_index():
     Server-side SI build completes asynchronously after ``create_index`` even
     when the task reports done, so ``asyncio.sleep(N)`` is inherently flaky
     on loaded hosts. This fixture issues the same query the caller is about
-    to run, retrying while ``IndexNotReadable`` is reported.
+    to run, retrying while ``ResultCode.INDEX_NOT_READABLE`` is reported.
 
     Usage::
 
@@ -56,11 +57,14 @@ def wait_for_index():
                 async for _ in records:
                     break
                 return
-            except Exception as exc:
-                if "IndexNotReadable" not in str(exc):
+            except ServerError as exc:
+                if exc.result_code != ResultCode.INDEX_NOT_READABLE:
                     raise
                 last_err = exc
                 await asyncio.sleep(interval)
-        raise last_err  # type: ignore[misc]
+        msg = f"index not readable within {timeout}s"
+        if last_err is not None:
+            raise TimeoutError(msg) from last_err
+        raise TimeoutError(msg)
 
     return _wait

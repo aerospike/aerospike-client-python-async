@@ -51,12 +51,13 @@ from aerospike_async import (
     QueryPolicy,
     QuerySelection,
     ReadPolicy,
+    ResultCode,
     Statement,
     WritePolicy,
     new_client,
     new_client_blocking,
 )
-from aerospike_async.exceptions import IndexNotFound
+from aerospike_async.exceptions import IndexNotFound, ServerError
 
 QSEL_NAMESPACE = "test"
 QSEL_SET_NAME = "qsel_blk"
@@ -436,12 +437,15 @@ def _wait_for_index_blocking(client, ns, set_name, sindex_filter, *, bins=None,
             for _ in recordset:
                 break
             return
-        except Exception as exc:
-            if "IndexNotReadable" not in str(exc):
+        except ServerError as exc:
+            if exc.result_code != ResultCode.INDEX_NOT_READABLE:
                 raise
             last_err = exc
             time.sleep(interval)
-    raise last_err  # type: ignore[misc]
+    msg = f"index not readable within {timeout}s"
+    if last_err is not None:
+        raise TimeoutError(msg) from last_err
+    raise TimeoutError(msg)
 
 
 def _collect_int_bin_blocking(recordset, bin_name: str) -> list[int]:
