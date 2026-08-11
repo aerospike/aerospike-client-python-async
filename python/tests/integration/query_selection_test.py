@@ -201,7 +201,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.namespace == NAMESPACE
         assert plan.set_name == SET_NAME
         assert plan.index_name == AGE_INDEX_NAME
-        assert plan.ael
+        assert plan.ael == "$.age >= 14 and $.age <= 18"
 
     async def test_explain_selects_primary_index_for_non_indexed_predicate(
         self, client, qsel_fixture
@@ -217,7 +217,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.namespace == NAMESPACE
         assert plan.set_name == SET_NAME
         assert plan.index_name is None
-        assert plan.ael
+        assert plan.ael == "$.country == 'US'"
 
     async def test_explain_contradiction_predicate_filtered_out(
         self, client, qsel_fixture
@@ -231,7 +231,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.selection == QuerySelection.FILTERED_OUT
         assert plan.is_filtered_out
         assert plan.index_name is None
-        assert plan.ael
+        assert plan.ael == "$.age > 100 and $.age < 10"
 
 
 class TestQueryPlanFilterForExecute(TestFixtureConnection):

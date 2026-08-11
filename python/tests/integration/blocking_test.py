@@ -520,7 +520,7 @@ def test_blocking_explain_selects_secondary_index(qsel_blocking_fixture):
     assert plan.selection == QuerySelection.SECONDARY_INDEX
     assert plan.is_secondary_index
     assert plan.index_name == age_index_name
-    assert isinstance(plan.ael, str) and len(plan.ael) > 0
+    assert plan.ael == "$.age >= 14 and $.age <= 18"
 
 
 def test_blocking_execute_returns_matching_records(qsel_blocking_fixture):
