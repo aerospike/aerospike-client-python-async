@@ -186,11 +186,7 @@ async def qsel_fixture(client, supports_query_selection, wait_for_index):
         Filter.range(SCORE_BIN, 51, 52),
     )
 
-    yield {
-        "set_name": SET_NAME,
-        "age_index_name": AGE_INDEX_NAME,
-        "score_index_name": SCORE_INDEX_NAME,
-    }
+    yield
 
     await _drop_indexes(client)
 
@@ -201,49 +197,42 @@ class TestQuerySelectionExplain(TestFixtureConnection):
     async def test_explain_selects_secondary_index_for_age_range(
         self, client, qsel_fixture
     ):
-        set_name = qsel_fixture["set_name"]
-        age_index_name = qsel_fixture["age_index_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.selection == QuerySelection.SECONDARY_INDEX
         assert plan.is_secondary_index
         assert plan.namespace == NAMESPACE
-        assert plan.set_name == set_name
-        assert plan.index_name == age_index_name
+        assert plan.set_name == SET_NAME
+        assert plan.index_name == AGE_INDEX_NAME
         assert plan.ael
 
     async def test_explain_selects_primary_index_for_non_indexed_predicate(
         self, client, qsel_fixture
     ):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.country == 'US'",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.selection == QuerySelection.PRIMARY_INDEX
         assert plan.is_primary_index
         assert plan.namespace == NAMESPACE
-        assert plan.set_name == set_name
+        assert plan.set_name == SET_NAME
         assert plan.index_name is None
         assert plan.ael
 
     async def test_explain_contradiction_predicate_filtered_out(
         self, client, qsel_fixture
     ):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.selection == QuerySelection.FILTERED_OUT
@@ -258,39 +247,32 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
     async def test_secondary_index_plan_returns_execute_filter(
         self, client, qsel_fixture
     ):
-        set_name = qsel_fixture["set_name"]
-        age_index_name = qsel_fixture["age_index_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.is_secondary_index
-        assert plan.index_name == age_index_name
+        assert plan.index_name == AGE_INDEX_NAME
         execute_filter = plan.filter_for_execute()
         assert isinstance(execute_filter, Filter)
 
     async def test_primary_index_plan_returns_none(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.country == 'US'",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.is_primary_index
         assert plan.filter_for_execute() is None
 
     async def test_filtered_out_plan_returns_none(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
 
         assert plan.is_filtered_out
@@ -300,13 +282,13 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
 class TestQuerySelectionExecute(TestFixtureConnection):
     """Phase 2: explain then execute via ``query_with_plan``."""
 
-    async def _execute_ael(self, client, set_name: str, ael: str, bins: list[str]):
+    async def _execute_ael(self, client, ael: str, bins: list[str]):
         plan = await client.query_explain(
             NAMESPACE,
             ael,
-            set_name=set_name,
+            set_name=SET_NAME,
         )
-        stmt = Statement(NAMESPACE, set_name, bins)
+        stmt = Statement(NAMESPACE, SET_NAME, bins)
         return await client.query_with_plan(
             stmt,
             PartitionFilter.all(),
@@ -315,10 +297,8 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         )
 
     async def test_execute_returns_matching_records(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
         records = await self._execute_ael(
             client,
-            set_name,
             "$.age >= 14 and $.age <= 18",
             [AGE_BIN],
         )
@@ -326,10 +306,8 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         assert ages == [14, 15, 16, 17, 18]
 
     async def test_execute_equality_returns_single_record(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
         records = await self._execute_ael(
             client,
-            set_name,
             "$.age == 25",
             [AGE_BIN],
         )
@@ -339,10 +317,8 @@ class TestQuerySelectionExecute(TestFixtureConnection):
     async def test_execute_primary_index_returns_matching_records(
         self, client, qsel_fixture
     ):
-        set_name = qsel_fixture["set_name"]
         records = await self._execute_ael(
             client,
-            set_name,
             "$.country == 'US'",
             [COUNTRY_BIN],
         )
@@ -353,16 +329,14 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         assert all(c == "US" for c in countries)
 
     async def test_execute_filtered_out_plan_raises(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
         assert plan.is_filtered_out
 
-        stmt = Statement(NAMESPACE, set_name, [AGE_BIN])
+        stmt = Statement(NAMESPACE, SET_NAME, [AGE_BIN])
         with pytest.raises(FilteredOut) as exc_info:
             await client.query_with_plan(
                 stmt,
@@ -373,14 +347,12 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
     async def test_execute_mismatched_plan_namespace_raises(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
-        stmt = Statement("not_a_namespace", set_name, [AGE_BIN])
+        stmt = Statement("not_a_namespace", SET_NAME, [AGE_BIN])
         with pytest.raises(ValueError, match="does not match statement namespace"):
             await client.query_with_plan(
                 stmt,
@@ -390,12 +362,10 @@ class TestQuerySelectionExecute(TestFixtureConnection):
             )
 
     async def test_execute_mismatched_plan_set_raises(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
         stmt = Statement(NAMESPACE, "other_set", [AGE_BIN])
         with pytest.raises(ValueError, match="does not match statement set"):
@@ -407,14 +377,12 @@ class TestQuerySelectionExecute(TestFixtureConnection):
             )
 
     async def test_execute_statement_with_filters_raises(self, client, qsel_fixture):
-        set_name = qsel_fixture["set_name"]
-
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
-            set_name=set_name,
+            set_name=SET_NAME,
         )
-        stmt = Statement(NAMESPACE, set_name, [AGE_BIN])
+        stmt = Statement(NAMESPACE, SET_NAME, [AGE_BIN])
         stmt.filters = [Filter.range(AGE_BIN, 14, 18)]
         with pytest.raises(ValueError, match="plan supplies the index filter"):
             await client.query_with_plan(

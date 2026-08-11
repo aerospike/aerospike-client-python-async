@@ -458,9 +458,7 @@ use crate::operations::{
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     if res.bins.is_empty() && has_filter_expression {
-                        return Err(PyException::new_err(
-                            "Filter expression did not match any records",
-                        ));
+                        return Err(PyException::new_err("Filter expression did not match any records"));
                     }
                     Ok(res)
                 })
@@ -1198,9 +1196,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
+                    return Err(PyException::new_err("Filter expression did not match any records"));
                 }
                 Ok(res)
             })?;
@@ -2556,9 +2552,7 @@ use crate::operations::{
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
+                    return Err(PyException::new_err("Filter expression did not match any records"));
                 }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
