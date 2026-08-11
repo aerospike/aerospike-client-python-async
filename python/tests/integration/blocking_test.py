@@ -64,7 +64,6 @@ QSEL_AGE_BIN = "age"
 QSEL_SCORE_BIN = "score"
 QSEL_COUNTRY_BIN = "country"
 QSEL_AGE_INDEX = "qsel_blk_age_idx"
-QSEL_SCORE_INDEX = "qsel_blk_score_idx"
 QSEL_DATASET_SIZE = 50
 
 
@@ -474,18 +473,14 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
                 policy=wp,
             )
 
-        for bin_name, index_name in (
-            (QSEL_AGE_BIN, QSEL_AGE_INDEX),
-            (QSEL_SCORE_BIN, QSEL_SCORE_INDEX),
-        ):
-            client.create_index_blocking(
-                QSEL_NAMESPACE,
-                QSEL_SET_NAME,
-                bin_name,
-                index_name,
-                IndexType.NUMERIC,
-                cit=CollectionIndexType.DEFAULT,
-            )
+        client.create_index_blocking(
+            QSEL_NAMESPACE,
+            QSEL_SET_NAME,
+            QSEL_AGE_BIN,
+            QSEL_AGE_INDEX,
+            IndexType.NUMERIC,
+            cit=CollectionIndexType.DEFAULT,
+        )
 
         _wait_for_index_blocking(
             client,
@@ -501,14 +496,13 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
             "age_index_name": QSEL_AGE_INDEX,
         }
     finally:
-        for index_name in (QSEL_AGE_INDEX, QSEL_SCORE_INDEX):
-            try:
-                task = client.drop_index_blocking(
-                    QSEL_NAMESPACE, QSEL_SET_NAME, index_name,
-                )
-                task.wait_till_complete_blocking()
-            except IndexNotFound:
-                pass
+        try:
+            task = client.drop_index_blocking(
+                QSEL_NAMESPACE, QSEL_SET_NAME, QSEL_AGE_INDEX,
+            )
+            task.wait_till_complete_blocking()
+        except IndexNotFound:
+            pass
         client.close_blocking()
 
 

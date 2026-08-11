@@ -63,9 +63,6 @@ def pytest_configure(config):
     # the root — pytest's own `log_cli` handler (see pyproject.toml) prints
     # them to stderr in the standard pytest format. Attaching a stderr
     # handler here as well would duplicate every warning on the console.
-    #
-    # ``query`` is the Rust ``log`` target for server query-plan debug lines
-    # (``query_explain`` / two-phase selection), forwarded by pyo3-log.
     log_level = os.environ.get("AEROSPIKE_LOG_LEVEL", "").upper()
     if log_level:
         numeric = getattr(logging, log_level, None)
@@ -79,6 +76,8 @@ def pytest_configure(config):
                 file_handler.setFormatter(logging.Formatter(
                     "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
                 ))
+            # ``query`` is the Rust ``log`` target for server query-plan debug
+            # lines (``query_explain`` / two-phase selection), forwarded by pyo3-log.
             for prefix in ("aerospike_core", "aerospike_async", "query"):
                 logger = logging.getLogger(prefix)
                 logger.setLevel(numeric)

@@ -268,9 +268,9 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
         )
 
         assert plan.is_secondary_index
+        assert plan.index_name == age_index_name
         execute_filter = plan.filter_for_execute()
         assert isinstance(execute_filter, Filter)
-        assert age_index_name in str(execute_filter)
 
     async def test_primary_index_plan_returns_none(self, client, qsel_fixture):
         set_name = qsel_fixture["set_name"]
