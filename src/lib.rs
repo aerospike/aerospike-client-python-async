@@ -1515,8 +1515,9 @@ use crate::operations::{
         ///     policy: Optional query policy.
         ///
         /// Raises:
-        ///     ValueError: If ``statement`` namespace or set does not match
-        ///         ``plan``, or if ``statement`` already has filters.
+        ///     ValueError: If the plan's namespace/set does not match
+        ///         ``statement`` (validated client-side before any server round trip),
+        ///         or if ``statement`` already has filters.
         ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
         pub fn query_with_plan_blocking(
@@ -4060,8 +4061,9 @@ use crate::operations::{
         ///     policy: Optional query policy.
         ///
         /// Raises:
-        ///     ValueError: If ``statement`` namespace or set does not match
-        ///         ``plan``, or if ``statement`` already has filters.
+        ///     ValueError: If the plan's namespace/set does not match
+        ///         ``statement`` (validated client-side before any server round trip),
+        ///         or if ``statement`` already has filters.
         ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[Recordset]", imports=("typing")))]
         #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]

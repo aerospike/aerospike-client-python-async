@@ -963,8 +963,9 @@ class Client:
             policy: Optional query policy.
 
         Raises:
-            ValueError: If ``statement`` namespace or set does not match
-                ``plan``, or if ``statement`` already has filters.
+            ValueError: If the plan's namespace/set does not match
+                ``statement`` (validated client-side before any server round trip),
+                or if ``statement`` already has filters.
             FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         """
     def query_operate_blocking(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> _aerospike_async_native.ExecuteTask:
@@ -1446,8 +1447,9 @@ class Client:
             policy: Optional query policy.
 
         Raises:
-            ValueError: If ``statement`` namespace or set does not match
-                ``plan``, or if ``statement`` already has filters.
+            ValueError: If the plan's namespace/set does not match
+                ``statement`` (validated client-side before any server round trip),
+                or if ``statement`` already has filters.
             FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         """
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:

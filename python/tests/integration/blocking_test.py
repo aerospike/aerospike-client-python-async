@@ -565,3 +565,24 @@ def test_blocking_execute_statement_with_filters_raises(qsel_blocking_fixture):
             policy=QueryPolicy(),
         )
 
+
+def test_blocking_execute_mismatched_plan_set_raises(qsel_blocking_fixture):
+    from aerospike_async.exceptions import ValueError
+
+    client = qsel_blocking_fixture["client"]
+    set_name = qsel_blocking_fixture["set_name"]
+
+    plan = client.query_explain_blocking(
+        QSEL_NAMESPACE,
+        "$.age >= 14 and $.age <= 18",
+        set_name=set_name,
+    )
+    stmt = Statement(QSEL_NAMESPACE, "other_set", [QSEL_AGE_BIN])
+    with pytest.raises(ValueError, match="does not match statement set"):
+        client.query_with_plan_blocking(
+            stmt,
+            PartitionFilter.all(),
+            plan,
+            policy=QueryPolicy(),
+        )
+
