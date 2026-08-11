@@ -137,13 +137,6 @@ async def qsel_fixture(client, supports_query_selection, wait_for_index):
             policy=wp,
         )
 
-    for suffix in ("1", "2"):
-        key = Key(NAMESPACE, SET_NAME, hint_key_name(suffix))
-        try:
-            await client.delete(key, policy=wp)
-        except Exception:
-            pass
-
     # Ages 51/52 avoid colliding with the 1..50 bulk seed (keys with the same age).
     await client.put(
         Key(NAMESPACE, SET_NAME, hint_key_name("1")),
