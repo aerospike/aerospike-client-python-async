@@ -180,6 +180,10 @@ impl QueryPlan {
             Err(e) => Err(PyErr::from(RustClientError(e))),
         }
     }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self._as)
+    }
 }
 
 /// Field ``44`` (WHERE) flag bits for server query explain (phase 1).

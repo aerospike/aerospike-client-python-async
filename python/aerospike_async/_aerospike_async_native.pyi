@@ -4629,6 +4629,7 @@ class QueryPlan:
         resolved to. Returns ``None`` for primary-index and filtered-out plans.
         Rebuilds the filter on each call.
         """
+    def __repr__(self) -> builtins.str: ...
 
 class QueryPolicy(_aerospike_async_native.BasePolicy):
     ...
