@@ -24,7 +24,6 @@ use pyo3::{prelude::*, IntoPyObjectExt};
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use parking_lot::Mutex as PartitionMutex;
 use tokio::sync::Mutex;
 
 use aerospike_core::query::RecordStream;
@@ -332,7 +331,7 @@ use crate::record::{Key, PythonValue, Record};
                     let mut rust_partitions = Vec::new();
                     for item in py_partitions.iter() {
                         let status: PyRef<PartitionStatus> = item.extract()?;
-                        rust_partitions.push(PartitionMutex::new(
+                        rust_partitions.push(parking_lot::Mutex::new(
                             aerospike_core::query::PartitionStatus {
                                 id: status._as.id,
                                 retry: status._as.retry,
