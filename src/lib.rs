@@ -458,7 +458,9 @@ use crate::operations::{
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     if res.bins.is_empty() && has_filter_expression {
-                        return Err(PyException::new_err("Filter expression did not match any records"));
+                        return Err(PyException::new_err(
+                            "Filter expression did not match any records",
+                        ));
                     }
                     Ok(res)
                 })
@@ -1196,7 +1198,9 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err("Filter expression did not match any records"));
+                    return Err(PyException::new_err(
+                        "Filter expression did not match any records",
+                    ));
                 }
                 Ok(res)
             })?;
@@ -1531,7 +1535,7 @@ use crate::operations::{
             validate_plan_matches_statement(&statement._as, &plan._as)?;
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
-            let stmt = statement.clone()._as;
+            let stmt = statement._as.clone();
             let core_plan = plan._as.clone();
             let raw = run_blocking(py, async move {
                 client
@@ -4078,7 +4082,7 @@ use crate::operations::{
             validate_plan_matches_statement(&statement._as, &plan._as)?;
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
-            let stmt = statement.clone()._as;
+            let stmt = statement._as.clone();
             let core_plan = plan._as.clone();
             let bridge = self.require_bridge()?;
             let recordset_bridge = bridge.clone();

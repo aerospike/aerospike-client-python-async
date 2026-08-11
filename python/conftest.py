@@ -225,16 +225,6 @@ async def supports_server_compiled_ael(aerospike_host, use_services_alternate):
     )
 
 
-@pytest.fixture(scope="session")
-def supports_server_compiled_ael_sync(aerospike_host, use_services_alternate):
-    """Sync session gate for server-compiled AEL (blocking integration tests)."""
-    return _probe_all_nodes_version_capability_blocking(
-        aerospike_host,
-        use_services_alternate,
-        lambda version: version.supports_server_compiled_ael(),
-    )
-
-
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def supports_query_selection(aerospike_host, use_services_alternate):
     """``True`` when every connected node supports two-phase query selection.

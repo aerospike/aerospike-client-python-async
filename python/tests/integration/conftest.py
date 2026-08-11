@@ -18,12 +18,12 @@ from pathlib import Path
 
 import pytest
 
-from fixtures import wait_for_index_ready
-
 # Ensure this directory is on sys.path so "from fixtures import ..." works
 _this_dir = str(Path(__file__).parent)
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
+
+from fixtures import wait_for_index_ready
 
 
 @pytest.fixture

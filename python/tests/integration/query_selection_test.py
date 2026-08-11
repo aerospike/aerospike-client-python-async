@@ -58,8 +58,6 @@ SCORE_INDEX_NAME = "qsel_score_idx"
 BOGUS_INDEX_NAME = "qsel_missing_idx"
 HINT_KEY_PREFIX = "qselkey"
 
-pytestmark = pytest.mark.asyncio(loop_scope="module")
-
 
 def hint_key_name(suffix: str) -> str:
     return f"{HINT_KEY_PREFIX}{suffix}"
