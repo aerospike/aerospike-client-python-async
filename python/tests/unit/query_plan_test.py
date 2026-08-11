@@ -24,9 +24,9 @@ from aerospike_async import (
 
 class TestQuerySelectionExports:
     def test_query_selection_enum_values(self):
-        assert QuerySelection.PRIMARY_INDEX is not None
-        assert QuerySelection.SECONDARY_INDEX is not None
-        assert QuerySelection.FILTERED_OUT is not None
+        assert QuerySelection.PRIMARY_INDEX.name == "PRIMARY_INDEX"
+        assert QuerySelection.SECONDARY_INDEX.name == "SECONDARY_INDEX"
+        assert QuerySelection.FILTERED_OUT.name == "FILTERED_OUT"
         assert QuerySelection.PRIMARY_INDEX != QuerySelection.SECONDARY_INDEX
         assert QuerySelection.SECONDARY_INDEX != QuerySelection.FILTERED_OUT
         assert QuerySelection.PRIMARY_INDEX != QuerySelection.FILTERED_OUT

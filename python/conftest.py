@@ -185,6 +185,32 @@ async def _probe_all_nodes_version_capability(
         await client.close()
 
 
+def _probe_all_nodes_version_capability_blocking(
+    aerospike_host,
+    use_services_alternate,
+    capability_fn,
+) -> bool:
+    """``True`` when every connected node reports *capability_fn* on ``Version``."""
+    from aerospike_async import ClientPolicy, new_client_blocking
+    from aerospike_async.exceptions import ConnectionError
+
+    if not aerospike_host:
+        return False
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    try:
+        client = new_client_blocking(cp, aerospike_host)
+    except ConnectionError:
+        return False
+    try:
+        nodes = client.nodes_blocking()
+        if not nodes:
+            return False
+        return all(capability_fn(n.version) for n in nodes)
+    finally:
+        client.close_blocking()
+
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def supports_server_compiled_ael(aerospike_host, use_services_alternate):
     """``True`` when every connected node supports server-compiled AEL (field 43).
@@ -194,6 +220,16 @@ async def supports_server_compiled_ael(aerospike_host, use_services_alternate):
     ``False``.
     """
     return await _probe_all_nodes_version_capability(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: version.supports_server_compiled_ael(),
+    )
+
+
+@pytest.fixture(scope="session")
+def supports_server_compiled_ael_sync(aerospike_host, use_services_alternate):
+    """Sync session gate for server-compiled AEL (blocking integration tests)."""
+    return _probe_all_nodes_version_capability_blocking(
         aerospike_host,
         use_services_alternate,
         lambda version: version.supports_server_compiled_ael(),
@@ -218,24 +254,11 @@ async def supports_query_selection(aerospike_host, use_services_alternate):
 @pytest.fixture(scope="session")
 def supports_query_selection_sync(aerospike_host, use_services_alternate):
     """Sync session gate for query selection (blocking integration tests)."""
-    from aerospike_async import ClientPolicy, new_client_blocking
-    from aerospike_async.exceptions import ConnectionError
-
-    if not aerospike_host:
-        return False
-    cp = ClientPolicy()
-    cp.use_services_alternate = use_services_alternate
-    try:
-        client = new_client_blocking(cp, aerospike_host)
-    except ConnectionError:
-        return False
-    try:
-        nodes = client.nodes_blocking()
-        if not nodes:
-            return False
-        return all(n.version.supports_query_selection() for n in nodes)
-    finally:
-        client.close_blocking()
+    return _probe_all_nodes_version_capability_blocking(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: version.supports_query_selection(),
+    )
 
 
 def _parse_build_string(build: str):
