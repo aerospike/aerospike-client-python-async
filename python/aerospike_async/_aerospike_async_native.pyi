@@ -943,7 +943,23 @@ class Client:
         """
     def query_with_plan_blocking(self, statement: _aerospike_async_native.Statement, partition_filter: _aerospike_async_native.PartitionFilter, plan: _aerospike_async_native.QueryPlan, *, policy: typing.Optional[_aerospike_async_native.QueryPolicy] = None) -> _aerospike_async_native.Recordset:
         r"""
-        Synchronously execute a partitioned query using a server query plan.
+        Synchronously execute a partitioned query using a server query plan
+        from :meth:`query_explain_blocking`.
+
+        The index filter is taken from ``plan``; do not set
+        :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        and set; a mismatch raises :exc:`ValueError`.
+
+        Args:
+            statement: Bins to return; must match the plan namespace/set.
+            partition_filter: Partition scope for the query.
+            plan: Plan from :meth:`query_explain_blocking`.
+            policy: Optional query policy.
+
+        Raises:
+            ValueError: If ``statement`` namespace or set does not match
+                ``plan``, or if ``statement`` already has filters.
+            FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         """
     def query_operate_blocking(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> _aerospike_async_native.ExecuteTask:
         r"""
@@ -1406,6 +1422,21 @@ class Client:
         r"""
         Execute a partitioned query using a server query plan from
         :meth:`query_explain`.
+
+        The index filter is taken from ``plan``; do not set
+        :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        and set; a mismatch raises :exc:`ValueError`.
+
+        Args:
+            statement: Bins to return; must match the plan namespace/set.
+            partition_filter: Partition scope for the query.
+            plan: Plan from :meth:`query_explain`.
+            policy: Optional query policy.
+
+        Raises:
+            ValueError: If ``statement`` namespace or set does not match
+                ``plan``, or if ``statement`` already has filters.
+            FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         """
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
@@ -4606,7 +4637,7 @@ class QueryWhereFlags:
     """
     ENC_VARINT: builtins.int = 1
     r"""
-    Reserved for wire continuation; passing it raises ``InvalidArgument``.
+    Reserved for wire continuation; passing it raises :exc:`ValueError`.
     """
     EXPLAIN: builtins.int = 2
     r"""

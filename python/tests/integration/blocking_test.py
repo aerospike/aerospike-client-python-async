@@ -548,3 +548,25 @@ def test_blocking_execute_returns_matching_records(qsel_blocking_fixture):
     ages = _collect_int_bin_blocking(recordset, QSEL_AGE_BIN)
     assert ages == [14, 15, 16, 17, 18]
 
+
+def test_blocking_execute_statement_with_filters_raises(qsel_blocking_fixture):
+    from aerospike_async.exceptions import ValueError
+
+    client = qsel_blocking_fixture["client"]
+    set_name = qsel_blocking_fixture["set_name"]
+
+    plan = client.query_explain_blocking(
+        QSEL_NAMESPACE,
+        "$.age >= 14 and $.age <= 18",
+        set_name=set_name,
+    )
+    stmt = Statement(QSEL_NAMESPACE, set_name, [QSEL_AGE_BIN])
+    stmt.filters = [Filter.range(QSEL_AGE_BIN, 14, 18)]
+    with pytest.raises(ValueError, match="plan supplies the index filter"):
+        client.query_with_plan_blocking(
+            stmt,
+            PartitionFilter.all(),
+            plan,
+            policy=QueryPolicy(),
+        )
+

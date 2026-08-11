@@ -372,6 +372,23 @@ class TestQuerySelectionExecute(TestFixtureConnection):
             )
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
+    async def test_execute_mismatched_plan_namespace_raises(self, client, qsel_fixture):
+        set_name = qsel_fixture["set_name"]
+
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age >= 14 and $.age <= 18",
+            set_name=set_name,
+        )
+        stmt = Statement("not_a_namespace", set_name, [AGE_BIN])
+        with pytest.raises(ValueError, match="does not match statement namespace"):
+            await client.query_with_plan(
+                stmt,
+                PartitionFilter.all(),
+                plan,
+                policy=QueryPolicy(),
+            )
+
     async def test_execute_mismatched_plan_set_raises(self, client, qsel_fixture):
         set_name = qsel_fixture["set_name"]
 
@@ -382,6 +399,24 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         )
         stmt = Statement(NAMESPACE, "other_set", [AGE_BIN])
         with pytest.raises(ValueError, match="does not match statement set"):
+            await client.query_with_plan(
+                stmt,
+                PartitionFilter.all(),
+                plan,
+                policy=QueryPolicy(),
+            )
+
+    async def test_execute_statement_with_filters_raises(self, client, qsel_fixture):
+        set_name = qsel_fixture["set_name"]
+
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age >= 14 and $.age <= 18",
+            set_name=set_name,
+        )
+        stmt = Statement(NAMESPACE, set_name, [AGE_BIN])
+        stmt.filters = [Filter.range(AGE_BIN, 14, 18)]
+        with pytest.raises(ValueError, match="plan supplies the index filter"):
             await client.query_with_plan(
                 stmt,
                 PartitionFilter.all(),

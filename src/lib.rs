@@ -1496,10 +1496,26 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            Ok(QueryPlan::from_core(plan)?)
+            QueryPlan::from_core(plan)
         }
 
-        /// Synchronously execute a partitioned query using a server query plan.
+        /// Synchronously execute a partitioned query using a server query plan
+        /// from :meth:`query_explain_blocking`.
+        ///
+        /// The index filter is taken from ``plan``; do not set
+        /// :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        /// and set; a mismatch raises :exc:`ValueError`.
+        ///
+        /// Args:
+        ///     statement: Bins to return; must match the plan namespace/set.
+        ///     partition_filter: Partition scope for the query.
+        ///     plan: Plan from :meth:`query_explain_blocking`.
+        ///     policy: Optional query policy.
+        ///
+        /// Raises:
+        ///     ValueError: If ``statement`` namespace or set does not match
+        ///         ``plan``, or if ``statement`` already has filters.
+        ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
         pub fn query_with_plan_blocking(
             &self,
@@ -4020,12 +4036,27 @@ use crate::operations::{
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(QueryPlan::from_core(plan)?)
+                QueryPlan::from_core(plan)
             })
         }
 
         /// Execute a partitioned query using a server query plan from
         /// :meth:`query_explain`.
+        ///
+        /// The index filter is taken from ``plan``; do not set
+        /// :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        /// and set; a mismatch raises :exc:`ValueError`.
+        ///
+        /// Args:
+        ///     statement: Bins to return; must match the plan namespace/set.
+        ///     partition_filter: Partition scope for the query.
+        ///     plan: Plan from :meth:`query_explain`.
+        ///     policy: Optional query policy.
+        ///
+        /// Raises:
+        ///     ValueError: If ``statement`` namespace or set does not match
+        ///         ``plan``, or if ``statement`` already has filters.
+        ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[Recordset]", imports=("typing")))]
         #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
         pub fn query_with_plan<'a>(

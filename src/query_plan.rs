@@ -97,6 +97,18 @@ pub(crate) fn validate_plan_matches_statement(
             )),
         )));
     }
+    if statement
+        .filters
+        .as_ref()
+        .is_some_and(|filters| !filters.is_empty())
+    {
+        return Err(PyErr::from(RustClientError(
+            aerospike_core::Error::invalid_argument(
+                "Statement must not carry filters when executing a query plan; \
+                 the plan supplies the index filter",
+            ),
+        )));
+    }
     Ok(())
 }
 
@@ -179,7 +191,7 @@ pub struct QueryWhereFlags;
 #[gen_stub_pymethods]
 #[pymethods]
 impl QueryWhereFlags {
-    /// Reserved for wire continuation; passing it raises ``InvalidArgument``.
+    /// Reserved for wire continuation; passing it raises :exc:`ValueError`.
     #[classattr]
     const ENC_VARINT: i64 = aerospike_core::FLAG_ENC_VARINT as i64;
 
