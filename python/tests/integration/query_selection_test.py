@@ -114,7 +114,7 @@ async def _drop_indexes(client) -> None:
         try:
             task = await client.drop_index(NAMESPACE, SET_NAME, index_name)
             await task.wait_till_complete()
-        except Exception:
+        except IndexNotFound:
             pass
 
 

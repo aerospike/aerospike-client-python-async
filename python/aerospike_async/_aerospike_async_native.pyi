@@ -4590,6 +4590,11 @@ class Privilege:
 class QueryPlan:
     r"""
     Result of a server query explain (phase 1).
+
+    Combines the client-authored field ``44`` explain payload (AEL and flags) with
+    the server's index selection (``selection``, ``index_name``, index range, and
+    ``index_type``). :meth:`Client.query_with_plan` replays the stored field ``44``
+    payload on execute with the explain flag cleared.
     """
     @property
     def selection(self) -> _aerospike_async_native.QuerySelection: ...
@@ -4598,9 +4603,15 @@ class QueryPlan:
     @property
     def set_name(self) -> typing.Optional[str]: ...
     @property
-    def ael(self) -> builtins.str: ...
+    def ael(self) -> builtins.str:
+        r"""
+        AEL passed to :meth:`Client.query_explain`; stored on the plan for execute replay.
+        """
     @property
-    def index_name(self) -> typing.Optional[builtins.str]: ...
+    def index_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Secondary-index name when :attr:`selection` is ``SECONDARY_INDEX``; ``None`` otherwise (PI or filtered-out).
+        """
     @property
     def index_type(self) -> _aerospike_async_native.CollectionIndexType: ...
     @property

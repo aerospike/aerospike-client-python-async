@@ -55,6 +55,11 @@ fn core_collection_index_type(cit: &aerospike_core::CollectionIndexType) -> Coll
 }
 
 /// Result of a server query explain (phase 1).
+///
+/// Combines the client-authored field ``44`` explain payload (AEL and flags) with
+/// the server's index selection (``selection``, ``index_name``, index range, and
+/// ``index_type``). :meth:`Client.query_with_plan` replays the stored field ``44``
+/// payload on execute with the explain flag cleared.
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
 #[pyclass(from_py_object, name = "QueryPlan", module = "_aerospike_async_native")]
 #[derive(Debug, Clone)]
@@ -130,11 +135,13 @@ impl QueryPlan {
         self._as.set_name()
     }
 
+    /// AEL passed to :meth:`Client.query_explain`; stored on the plan for execute replay.
     #[getter]
     pub fn ael(&self) -> &str {
         &self.ael
     }
 
+    /// Secondary-index name when :attr:`selection` is ``SECONDARY_INDEX``; ``None`` otherwise (PI or filtered-out).
     #[getter]
     pub fn index_name(&self) -> Option<&str> {
         self._as.index_name()

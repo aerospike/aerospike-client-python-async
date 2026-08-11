@@ -56,6 +56,7 @@ from aerospike_async import (
     new_client,
     new_client_blocking,
 )
+from aerospike_async.exceptions import IndexNotFound
 
 QSEL_NAMESPACE = "test"
 QSEL_SET_NAME = "qsel_blk"
@@ -506,7 +507,7 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
                     QSEL_NAMESPACE, QSEL_SET_NAME, index_name,
                 )
                 task.wait_till_complete_blocking()
-            except Exception:
+            except IndexNotFound:
                 pass
         client.close_blocking()
 
