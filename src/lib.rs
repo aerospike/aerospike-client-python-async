@@ -59,6 +59,7 @@ mod expressions;
 mod filter;
 mod operations;
 mod policies;
+mod query_plan;
 mod cluster;
 mod string_ops;
 mod server_error;
@@ -72,6 +73,7 @@ pub use expressions::*;
 pub use filter::*;
 pub use operations::*;
 pub use policies::*;
+pub use query_plan::*;
 pub use cluster::*;
 pub use server_error::*;
 pub use tls::*;
@@ -1446,6 +1448,100 @@ use crate::operations::{
             let stmt = statement.clone()._as;
             let raw = run_blocking(py, async move {
                 client.query(&policy, partition_filter._as, stmt).await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(Recordset {
+                _as: raw,
+                _stream: Arc::new(Mutex::new(None)),
+                bridge: None,
+            })
+        }
+
+        /// Synchronously run phase 1 (explain) of server-led query selection.
+        ///
+        /// Callers must verify :meth:`Version.supports_query_selection` before use;
+        /// this method sends field ``44`` regardless of server version.
+        ///
+        /// Args:
+        ///     ael: Filter expression in Aerospike Expression Language; sent on
+        ///         field ``44`` and compiled server-side during explain.
+        ///     index_name_hint: Field ``21`` soft index-name hint. Becomes strict
+        ///         when ``HARD_HINT`` is set in ``explain_where_flags`` — explain then
+        ///         fails unless that exact index is selected.
+        ///     explain_where_flags: Tier-D field ``44`` bits —
+        ///         ``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ///         ``HARD_HINT``. Omit for default explain.
+        ///
+        /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        /// passed to :meth:`query_with_plan_blocking` (raises ``FilteredOut``).
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
+        pub fn query_explain_blocking(
+            &self,
+            namespace: String,
+            ael: String,
+            set_name: Option<String>,
+            index_name_hint: Option<String>,
+            explain_where_flags: Option<u8>,
+            policy: Option<QueryPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<QueryPlan> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let set_ref = set_name.as_deref();
+            let hint_ref = index_name_hint.as_deref();
+            let where_flags = explain_where_flags.unwrap_or(aerospike_core::FLAG_EXPLAIN);
+            let plan = run_blocking(py, async move {
+                client
+                    .query_explain(
+                        &policy,
+                        &namespace,
+                        set_ref,
+                        &ael,
+                        hint_ref,
+                        explain_where_flags,
+                    )
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            QueryPlan::from_core(plan, where_flags)
+        }
+
+        /// Synchronously execute a partitioned query using a server query plan
+        /// from :meth:`query_explain_blocking`.
+        ///
+        /// The index filter is taken from ``plan``; do not set
+        /// :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        /// and set; a mismatch raises :exc:`ValueError`.
+        ///
+        /// Args:
+        ///     statement: Bins to return; must match the plan namespace/set.
+        ///     partition_filter: Partition scope for the query.
+        ///     plan: Plan from :meth:`query_explain_blocking`.
+        ///     policy: Optional query policy.
+        ///
+        /// Raises:
+        ///     ValueError: If the plan's namespace/set does not match
+        ///         ``statement`` (validated client-side before any server round trip),
+        ///         or if ``statement`` already has filters.
+        ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
+        #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
+        pub fn query_with_plan_blocking(
+            &self,
+            statement: &Statement,
+            partition_filter: PartitionFilter,
+            plan: &QueryPlan,
+            policy: Option<QueryPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<Recordset> {
+            validate_plan_matches_statement(&statement._as, &plan._as)?;
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let stmt = statement._as.clone();
+            let core_plan = plan._as.clone();
+            let raw = run_blocking(py, async move {
+                client
+                    .query_with_plan(&policy, partition_filter._as, stmt, core_plan)
+                    .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(Recordset {
@@ -3909,6 +4005,104 @@ use crate::operations::{
             })
         }
 
+        /// Run phase 1 (explain) of server-led query selection.
+        ///
+        /// Callers must verify :meth:`Version.supports_query_selection` before use;
+        /// this method sends field ``44`` regardless of server version.
+        ///
+        /// Args:
+        ///     ael: Filter expression in Aerospike Expression Language; sent on
+        ///         field ``44`` and compiled server-side during explain.
+        ///     index_name_hint: Field ``21`` soft index-name hint. Becomes strict
+        ///         when ``HARD_HINT`` is set in ``explain_where_flags`` — explain then
+        ///         fails unless that exact index is selected.
+        ///     explain_where_flags: Tier-D field ``44`` bits —
+        ///         ``QueryWhereFlags.EXPLAIN`` plus optional ``REQUIRE_INDEX`` /
+        ///         ``HARD_HINT``. Omit for default explain.
+        ///
+        /// A plan with :attr:`QueryPlan.selection` ``FILTERED_OUT`` must not be
+        /// passed to :meth:`query_with_plan` (raises ``FilteredOut``).
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[QueryPlan]", imports=("typing")))]
+        #[pyo3(signature = (namespace, ael, *, set_name=None, index_name_hint=None, explain_where_flags=None, policy=None))]
+        pub fn query_explain<'a>(
+            &self,
+            namespace: String,
+            ael: String,
+            set_name: Option<String>,
+            index_name_hint: Option<String>,
+            explain_where_flags: Option<u8>,
+            policy: Option<QueryPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let where_flags = explain_where_flags.unwrap_or(aerospike_core::FLAG_EXPLAIN);
+            completion::batched_future_into_py(self.require_bridge()?, py, async move {
+                let plan = client
+                    .query_explain(
+                        &policy,
+                        &namespace,
+                        set_name.as_deref(),
+                        &ael,
+                        index_name_hint.as_deref(),
+                        explain_where_flags,
+                    )
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                QueryPlan::from_core(plan, where_flags)
+            })
+        }
+
+        /// Execute a partitioned query using a server query plan from
+        /// :meth:`query_explain`.
+        ///
+        /// The index filter is taken from ``plan``; do not set
+        /// :attr:`Statement.filters`. ``statement`` must match ``plan`` namespace
+        /// and set; a mismatch raises :exc:`ValueError`.
+        ///
+        /// Args:
+        ///     statement: Bins to return; must match the plan namespace/set.
+        ///     partition_filter: Partition scope for the query.
+        ///     plan: Plan from :meth:`query_explain`.
+        ///     policy: Optional query policy.
+        ///
+        /// Raises:
+        ///     ValueError: If the plan's namespace/set does not match
+        ///         ``statement`` (validated client-side before any server round trip),
+        ///         or if ``statement`` already has filters.
+        ///     FilteredOut: If ``plan.selection`` is ``FILTERED_OUT``.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Recordset]", imports=("typing")))]
+        #[pyo3(signature = (statement, partition_filter, plan, *, policy=None))]
+        pub fn query_with_plan<'a>(
+            &self,
+            statement: &Statement,
+            partition_filter: PartitionFilter,
+            plan: &QueryPlan,
+            policy: Option<QueryPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            validate_plan_matches_statement(&statement._as, &plan._as)?;
+            let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
+            let client = self._as.clone();
+            let stmt = statement._as.clone();
+            let core_plan = plan._as.clone();
+            let bridge = self.require_bridge()?;
+            let recordset_bridge = bridge.clone();
+
+            completion::batched_future_into_py(bridge, py, async move {
+                let res = client
+                    .query_with_plan(&policy, partition_filter._as, stmt, core_plan)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+
+                Ok(Recordset {
+                    _as: res,
+                    _stream: Arc::new(Mutex::new(None)),
+                    bridge: Some(recordset_bridge),
+                })
+            })
+        }
+
         /// Creates a new user with password and roles. Clear-text password will be hashed using bcrypt
         /// before sending to server.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
@@ -4739,6 +4933,9 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<StringOperation>()?;
     m.add_class::<PartitionStatus>()?;
     m.add_class::<PartitionFilter>()?;
+    m.add_class::<QueryPlan>()?;
+    m.add_class::<QuerySelection>()?;
+    m.add_class::<QueryWhereFlags>()?;
     m.add_class::<UDFLang>()?;
     m.add_class::<TaskStatus>()?;
     m.add_class::<RegisterTask>()?;

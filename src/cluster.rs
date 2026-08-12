@@ -186,6 +186,17 @@ use crate::policies::AdminPolicy;
             self._as.supports_server_compiled_ael()
         }
 
+        /// Returns true if server supports two-phase server query selection
+        /// (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        pub fn supports_query_selection(&self) -> bool {
+            self._as.supports_query_selection()
+        }
+
+        /// Returns true if server supports blob secondary indexes (>= 7.0.0).
+        pub fn supports_blob_index(&self) -> bool {
+            self._as.supports_blob_index()
+        }
+
         pub fn __str__(&self) -> String {
             format!("{}.{}.{}.{}", self._as.major, self._as.minor, self._as.patch, self._as.build)
         }
@@ -462,7 +473,7 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "Privilege",
         module = "_aerospike_async_native",
         subclass,

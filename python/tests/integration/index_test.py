@@ -66,7 +66,11 @@ class TestIndex(TestFixtureConnection):
         await self.cleanup_index(client, "index_name")
 
     async def test_create_blob_index(self, client):
-        """Blob secondary index on a bytes bin (server 7.0+)."""
+        """Blob secondary index on a bytes bin (server >= 7.0.0)."""
+        nodes = await client.nodes()
+        if not nodes[0].version.supports_blob_index():
+            pytest.skip("server does not support blob secondary indexes (requires >= 7.0.0)")
+
         await self.cleanup_index(client, "index_name")
 
         retval = await client.create_index(

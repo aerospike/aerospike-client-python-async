@@ -602,8 +602,9 @@ async def test_batch_operate_complex(client_and_keys):
 async def test_batch_invalid_namespace(client_and_keys):
     """Test batch operations with invalid namespace.
 
-    The Rust core raises InvalidNamespaceError before the batch operation
-    executes (client-side partition map lookup).
+    When every key is unroutable the Rust core still fails the call outright
+    (no batch left to send). Mixed batches record per-key INVALID_NAMESPACE
+    instead; see ``test_batch_mixed_with_invalid_namespace``.
     """
 
     client, keys, _, _ = client_and_keys

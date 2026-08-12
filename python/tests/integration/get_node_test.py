@@ -213,6 +213,26 @@ class TestVersion(TestFixtureConnection):
         result = version.supports_app_id()
         assert isinstance(result, bool)
 
+    async def test_version_supports_query_selection(self, client):
+        """Test Version.supports_query_selection() method."""
+        nodes = await client.nodes()
+        version = nodes[0].version
+
+        result = version.supports_query_selection()
+        assert isinstance(result, bool)
+        if (version.major, version.minor, version.patch) >= (8, 1, 3):
+            assert result is True
+
+    async def test_version_supports_server_compiled_ael(self, client):
+        """Test Version.supports_server_compiled_ael() method."""
+        nodes = await client.nodes()
+        version = nodes[0].version
+
+        result = version.supports_server_compiled_ael()
+        assert isinstance(result, bool)
+        if (version.major, version.minor, version.patch) >= (8, 1, 3):
+            assert result is True
+
 
 class TestNodeMonitoring(TestFixtureConnection):
     """Test Node monitoring properties: failures, partition_generation, rebalance_generation, aliases."""

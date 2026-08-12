@@ -1143,7 +1143,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "BitPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1211,7 +1211,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "ListPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1425,7 +1425,7 @@ use crate::record::PythonValue;
 
     /// HLL policy for HLL operations and expressions.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "HLLPolicy",
         module = "_aerospike_async_native",
         subclass,
@@ -1478,7 +1478,7 @@ use crate::record::PythonValue;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, 
+    #[pyclass(from_py_object,
         name = "MapPolicy",
         module = "_aerospike_async_native",
         subclass,

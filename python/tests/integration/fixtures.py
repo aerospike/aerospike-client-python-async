@@ -13,8 +13,58 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import asyncio
+import time
+
 import pytest
-from aerospike_async import Key, new_client, WritePolicy, ClientPolicy, GeoJSON
+from aerospike_async import (
+    ClientPolicy,
+    GeoJSON,
+    Key,
+    PartitionFilter,
+    QueryPolicy,
+    ResultCode,
+    Statement,
+    WritePolicy,
+    new_client,
+)
+from aerospike_async.exceptions import ServerError
+
+
+async def wait_for_index_ready(
+    client,
+    ns,
+    set_name,
+    sindex_filter,
+    *,
+    bins=None,
+    timeout=5.0,
+    interval=0.25,
+):
+    """Poll until a secondary index is queryable (see integration ``conftest``)."""
+    deadline = time.monotonic() + timeout
+    last_err = None
+    while time.monotonic() < deadline:
+        try:
+            stmt = Statement(ns, set_name, bins or [])
+            stmt.filters = [sindex_filter]
+            records = await client.query(
+                stmt,
+                PartitionFilter.all(),
+                policy=QueryPolicy(),
+            )
+            async for _ in records:
+                break
+            return
+        except ServerError as exc:
+            if exc.result_code != ResultCode.INDEX_NOT_READABLE:
+                raise
+            last_err = exc
+            await asyncio.sleep(interval)
+    msg = f"index not readable within {timeout}s"
+    if last_err is not None:
+        raise TimeoutError(msg) from last_err
+    raise TimeoutError(msg)
 
 
 class TestFixtureConnection:

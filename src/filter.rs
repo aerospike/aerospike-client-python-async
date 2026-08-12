@@ -299,8 +299,7 @@ use crate::record::{Key, PythonValue, Record};
                     for arc_mutex_status in partitions.iter() {
                         // parking_lot Mutex: a synchronous lock, so no Tokio runtime
                         // handle is needed — works from a Python asyncio context.
-                        let status_guard = arc_mutex_status.lock();
-                        let status = &*status_guard;
+                        let status = arc_mutex_status.lock();
                         let py_status = PartitionStatus {
                             _as: aerospike_core::query::PartitionStatus {
                                 id: status.id,
@@ -332,19 +331,16 @@ use crate::record::{Key, PythonValue, Record};
                     let mut rust_partitions = Vec::new();
                     for item in py_partitions.iter() {
                         let status: PyRef<PartitionStatus> = item.extract()?;
-                        let bval = status._as.bval;
-                        let id = status._as.id;
-                        let retry = status._as.retry;
-                        let digest_bytes = status._as.digest;
-                        let core_status = aerospike_core::query::PartitionStatus {
-                            id,
-                            retry,
-                            bval,
-                            digest: digest_bytes,
-                            node: None,
-                            sequence: None,
-                        };
-                        rust_partitions.push(parking_lot::Mutex::new(core_status));
+                        rust_partitions.push(parking_lot::Mutex::new(
+                            aerospike_core::query::PartitionStatus {
+                                id: status._as.id,
+                                retry: status._as.retry,
+                                bval: status._as.bval,
+                                digest: status._as.digest,
+                                node: None,
+                                sequence: None,
+                            },
+                        ));
                     }
                     self._as.partitions = Some(Arc::new(rust_partitions));
                 }
