@@ -33,6 +33,16 @@ pub enum QuerySelection {
     FilteredOut,
 }
 
+impl QuerySelection {
+    fn py_name(self) -> &'static str {
+        match self {
+            QuerySelection::PrimaryIndex => "PRIMARY_INDEX",
+            QuerySelection::SecondaryIndex => "SECONDARY_INDEX",
+            QuerySelection::FilteredOut => "FILTERED_OUT",
+        }
+    }
+}
+
 impl From<aerospike_core::query::QuerySelection> for QuerySelection {
     fn from(value: aerospike_core::query::QuerySelection) -> Self {
         match value {
@@ -42,6 +52,13 @@ impl From<aerospike_core::query::QuerySelection> for QuerySelection {
             }
             aerospike_core::query::QuerySelection::FilteredOut => QuerySelection::FilteredOut,
         }
+    }
+}
+
+fn opt_repr(value: Option<&str>) -> String {
+    match value {
+        Some(v) => format!("{v:?}"),
+        None => "None".to_string(),
     }
 }
 
@@ -66,12 +83,19 @@ fn core_collection_index_type(cit: &aerospike_core::CollectionIndexType) -> Coll
 pub struct QueryPlan {
     pub(crate) _as: aerospike_core::QueryPlan,
     ael: String,
+    where_flags: u8,
 }
 
 impl QueryPlan {
-    pub(crate) fn from_core(plan: aerospike_core::QueryPlan) -> PyResult<Self> {
+    /// ``where_flags`` are the effective field ``44`` flags the explain was sent
+    /// with; core's stored payload is private, so callers pass what they resolved.
+    pub(crate) fn from_core(plan: aerospike_core::QueryPlan, where_flags: u8) -> PyResult<Self> {
         let ael = plan.ael().map_err(|e| PyErr::from(RustClientError(e)))?;
-        Ok(QueryPlan { _as: plan, ael })
+        Ok(QueryPlan {
+            _as: plan,
+            ael,
+            where_flags,
+        })
     }
 }
 
@@ -182,7 +206,16 @@ impl QueryPlan {
     }
 
     fn __repr__(&self) -> String {
-        format!("{:?}", self._as)
+        format!(
+            "QueryPlan(selection={}, namespace={:?}, set_name={}, index_name={}, \
+             where_flags={:#04x}, ael={:?})",
+            self.selection().py_name(),
+            self._as.namespace(),
+            opt_repr(self._as.set_name()),
+            opt_repr(self._as.index_name()),
+            self.where_flags,
+            self.ael,
+        )
     }
 }
 

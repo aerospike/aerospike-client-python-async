@@ -290,6 +290,62 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
         assert plan.filter_for_execute() is None
 
 
+class TestQueryPlanRepr(TestFixtureConnection):
+    """``repr(QueryPlan)`` for diagnostics."""
+
+    async def test_repr_reports_selection_index_and_ael(self, client, qsel_fixture):
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age >= 14 and $.age <= 18",
+            set_name=SET_NAME,
+        )
+
+        assert repr(plan) == (
+            f'QueryPlan(selection=SECONDARY_INDEX, namespace="{NAMESPACE}", '
+            f'set_name="{SET_NAME}", index_name="{AGE_INDEX_NAME}", '
+            f'where_flags=0x02, ael="$.age >= 14 and $.age <= 18")'
+        )
+
+    async def test_repr_reports_none_index_and_quoted_ael(self, client, qsel_fixture):
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.country == 'US'",
+            set_name=SET_NAME,
+        )
+
+        assert repr(plan) == (
+            f'QueryPlan(selection=PRIMARY_INDEX, namespace="{NAMESPACE}", '
+            f'set_name="{SET_NAME}", index_name=None, '
+            f'where_flags=0x02, ael="$.country == \'US\'")'
+        )
+
+    async def test_repr_reports_filtered_out_selection(self, client, qsel_fixture):
+        plan = await client.query_explain(
+            NAMESPACE,
+            "$.age > 100 and $.age < 10",
+            set_name=SET_NAME,
+        )
+
+        assert repr(plan) == (
+            f'QueryPlan(selection=FILTERED_OUT, namespace="{NAMESPACE}", '
+            f'set_name="{SET_NAME}", index_name=None, '
+            f'where_flags=0x02, ael="$.age > 100 and $.age < 10")'
+        )
+
+    async def test_repr_reports_non_default_where_flags(self, client, qsel_fixture):
+        plan = await explain_plan_async(
+            client,
+            "$.age == 51",
+            hint=ExplainHint(index_name=AGE_INDEX_NAME, hard_hint=True),
+        )
+
+        assert repr(plan) == (
+            f'QueryPlan(selection=SECONDARY_INDEX, namespace="{NAMESPACE}", '
+            f'set_name="{SET_NAME}", index_name="{AGE_INDEX_NAME}", '
+            f'where_flags=0x0a, ael="$.age == 51")'
+        )
+
+
 class TestQuerySelectionExecute(TestFixtureConnection):
     """Phase 2: explain then execute via ``query_with_plan``."""
 

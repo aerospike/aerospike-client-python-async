@@ -1489,6 +1489,7 @@ use crate::operations::{
             let client = self._as.clone();
             let set_ref = set_name.as_deref();
             let hint_ref = index_name_hint.as_deref();
+            let where_flags = explain_where_flags.unwrap_or(aerospike_core::FLAG_EXPLAIN);
             let plan = run_blocking(py, async move {
                 client
                     .query_explain(
@@ -1502,7 +1503,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
-            QueryPlan::from_core(plan)
+            QueryPlan::from_core(plan, where_flags)
         }
 
         /// Synchronously execute a partitioned query using a server query plan
@@ -4035,6 +4036,7 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let policy = policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
+            let where_flags = explain_where_flags.unwrap_or(aerospike_core::FLAG_EXPLAIN);
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let plan = client
                     .query_explain(
@@ -4047,7 +4049,7 @@ use crate::operations::{
                     )
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                QueryPlan::from_core(plan)
+                QueryPlan::from_core(plan, where_flags)
             })
         }
 
