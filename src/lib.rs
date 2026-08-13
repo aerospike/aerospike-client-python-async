@@ -841,6 +841,13 @@ use crate::operations::{
             key: aerospike_core::Key,
             policy: aerospike_core::BatchDeletePolicy,
         },
+        Udf {
+            key: aerospike_core::Key,
+            policy: aerospike_core::BatchUDFPolicy,
+            udf_name: String,
+            function_name: String,
+            args: Option<Vec<aerospike_core::Value>>,
+        },
     }
 
     fn extract_batch_ops_py(
@@ -867,9 +874,17 @@ use crate::operations::{
                     key: delete_op.key.clone(),
                     policy: delete_op.policy.clone(),
                 });
+            } else if let Ok(udf_op) = op_obj.extract::<PyRef<BatchUDFOp>>(py) {
+                out.push(ExtractedBatchOp::Udf {
+                    key: udf_op.key.clone(),
+                    policy: udf_op.policy.clone(),
+                    udf_name: udf_op.udf_name.clone(),
+                    function_name: udf_op.function_name.clone(),
+                    args: udf_op.args.clone(),
+                });
             } else {
                 return Err(PyTypeError::new_err(
-                    "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp",
+                    "Each op must be a BatchReadOp, BatchWriteOp, BatchDeleteOp, or BatchUDFOp",
                 ));
             }
         }
@@ -898,6 +913,11 @@ use crate::operations::{
                 }
                 ExtractedBatchOp::Delete { key, policy } => {
                     batch_ops.push(BatchOperation::delete(policy, key.clone()));
+                }
+                ExtractedBatchOp::Udf { key, policy, udf_name, function_name, args } => {
+                    batch_ops.push(BatchOperation::udf(
+                        policy, key.clone(), udf_name, function_name, args.clone(),
+                    ));
                 }
             }
         }
@@ -2378,6 +2398,13 @@ use crate::operations::{
                     key: aerospike_core::Key,
                     policy: aerospike_core::BatchDeletePolicy,
                 },
+                Udf {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchUDFPolicy,
+                    udf_name: String,
+                    function_name: String,
+                    args: Option<Vec<aerospike_core::Value>>,
+                },
             }
 
             let mut extracted: Vec<ExtractedOp> = Vec::with_capacity(ops.len());
@@ -2400,9 +2427,17 @@ use crate::operations::{
                         key: delete_op.key.clone(),
                         policy: delete_op.policy.clone(),
                     });
+                } else if let Ok(udf_op) = op_obj.extract::<PyRef<BatchUDFOp>>(py) {
+                    extracted.push(ExtractedOp::Udf {
+                        key: udf_op.key.clone(),
+                        policy: udf_op.policy.clone(),
+                        udf_name: udf_op.udf_name.clone(),
+                        function_name: udf_op.function_name.clone(),
+                        args: udf_op.args.clone(),
+                    });
                 } else {
                     return Err(PyTypeError::new_err(
-                        "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp",
+                        "Each op must be a BatchReadOp, BatchWriteOp, BatchDeleteOp, or BatchUDFOp",
                     ));
                 }
             }
@@ -2432,6 +2467,11 @@ use crate::operations::{
                         ExtractedOp::Delete { key, policy } => {
                             batch_ops.push(
                                 BatchOperation::delete(policy, key.clone())
+                            );
+                        }
+                        ExtractedOp::Udf { key, policy, udf_name, function_name, args } => {
+                            batch_ops.push(
+                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone())
                             );
                         }
                     }
@@ -3395,12 +3435,13 @@ use crate::operations::{
         /// Execute a mixed batch of read, write, and delete operations in a single server call.
         ///
         /// Each operation is specified via :class:`BatchReadOp`, :class:`BatchWriteOp`,
-        /// or :class:`BatchDeleteOp`, each carrying its own key and per-record policy.
+        /// :class:`BatchDeleteOp`, or :class:`BatchUDFOp`, each carrying its own key
+        /// and per-record policy.
         ///
         /// Args:
         ///     batch_policy: Optional :class:`BatchPolicy` for the entire batch.
-        ///     ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`, and/or
-        ///          :class:`BatchDeleteOp` objects.
+        ///     ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`,
+        ///          :class:`BatchDeleteOp`, and/or :class:`BatchUDFOp` objects.
         ///
         /// Returns:
         ///     A list of :class:`BatchRecord` results in the same order as the input ops.
@@ -3432,6 +3473,13 @@ use crate::operations::{
                     key: aerospike_core::Key,
                     policy: aerospike_core::BatchDeletePolicy,
                 },
+                Udf {
+                    key: aerospike_core::Key,
+                    policy: aerospike_core::BatchUDFPolicy,
+                    udf_name: String,
+                    function_name: String,
+                    args: Option<Vec<aerospike_core::Value>>,
+                },
             }
 
             let mut extracted: Vec<ExtractedOp> = Vec::with_capacity(ops.len());
@@ -3454,9 +3502,17 @@ use crate::operations::{
                         key: delete_op.key.clone(),
                         policy: delete_op.policy.clone(),
                     });
+                } else if let Ok(udf_op) = op_obj.extract::<PyRef<BatchUDFOp>>(py) {
+                    extracted.push(ExtractedOp::Udf {
+                        key: udf_op.key.clone(),
+                        policy: udf_op.policy.clone(),
+                        udf_name: udf_op.udf_name.clone(),
+                        function_name: udf_op.function_name.clone(),
+                        args: udf_op.args.clone(),
+                    });
                 } else {
                     return Err(PyTypeError::new_err(
-                        "Each op must be a BatchReadOp, BatchWriteOp, or BatchDeleteOp"
+                        "Each op must be a BatchReadOp, BatchWriteOp, BatchDeleteOp, or BatchUDFOp"
                     ));
                 }
             }
@@ -3487,6 +3543,11 @@ use crate::operations::{
                         ExtractedOp::Delete { key, policy } => {
                             batch_ops.push(
                                 BatchOperation::delete(policy, key.clone())
+                            );
+                        }
+                        ExtractedOp::Udf { key, policy, udf_name, function_name, args } => {
+                            batch_ops.push(
+                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone())
                             );
                         }
                     }
@@ -4914,6 +4975,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BatchReadOp>()?;
     m.add_class::<BatchWriteOp>()?;
     m.add_class::<BatchDeleteOp>()?;
+    m.add_class::<BatchUDFOp>()?;
     m.add_class::<ListOrderType>()?;
     m.add_class::<ListWriteFlags>()?;
     m.add_class::<ListPolicy>()?;

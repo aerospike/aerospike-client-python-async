@@ -17,6 +17,7 @@ __all__ = [
     "BatchReadPolicy",
     "BatchRecord",
     "BatchRecordStream",
+    "BatchUDFOp",
     "BatchUDFPolicy",
     "BatchWriteOp",
     "BatchWritePolicy",
@@ -339,6 +340,13 @@ class BatchRecordStream:
         back to normal drop semantics once that yield settles; the closed
         latch still takes effect immediately.
         """
+
+@typing.final
+class BatchUDFOp:
+    r"""
+    A single UDF-apply operation for use with :meth:`Client.batch`.
+    """
+    def __new__(cls, key: _aerospike_async_native.Key, udf_name: builtins.str, function_name: builtins.str, args: typing.Optional[typing.Sequence[typing.Any]] = None, policy: typing.Optional[_aerospike_async_native.BatchUDFPolicy] = None) -> _aerospike_async_native.BatchUDFOp: ...
 
 class BatchUDFPolicy:
     @property
@@ -1275,12 +1283,13 @@ class Client:
         Execute a mixed batch of read, write, and delete operations in a single server call.
 
         Each operation is specified via :class:`BatchReadOp`, :class:`BatchWriteOp`,
-        or :class:`BatchDeleteOp`, each carrying its own key and per-record policy.
+        :class:`BatchDeleteOp`, or :class:`BatchUDFOp`, each carrying its own key
+        and per-record policy.
 
         Args:
             batch_policy: Optional :class:`BatchPolicy` for the entire batch.
-            ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`, and/or
-                 :class:`BatchDeleteOp` objects.
+            ops: List of :class:`BatchReadOp`, :class:`BatchWriteOp`,
+                 :class:`BatchDeleteOp`, and/or :class:`BatchUDFOp` objects.
 
         Returns:
             A list of :class:`BatchRecord` results in the same order as the input ops.

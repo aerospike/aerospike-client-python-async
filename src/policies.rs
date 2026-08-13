@@ -25,7 +25,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use crate::enums::*;
 use crate::expressions::FilterExpression;
 use crate::operations::{extract_py_ops_with_ctx, OpWithCtx};
-use crate::record::{Key, Record};
+use crate::record::{Key, PythonValue, Record};
 use crate::Txn;
 #[cfg(feature = "tls")]
 use crate::TlsConfig;
@@ -1831,6 +1831,47 @@ use crate::TlsConfig;
             Ok(BatchDeleteOp {
                 key: key._as.clone(),
                 policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
+            })
+        }
+    }
+
+    /// A single UDF-apply operation for use with :meth:`Client.batch`.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object,
+        name = "BatchUDFOp",
+        module = "_aerospike_async_native",
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct BatchUDFOp {
+        pub(crate) key: aerospike_core::Key,
+        pub(crate) policy: aerospike_core::BatchUDFPolicy,
+        pub(crate) udf_name: String,
+        pub(crate) function_name: String,
+        pub(crate) args: Option<Vec<aerospike_core::Value>>,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl BatchUDFOp {
+        #[new]
+        #[pyo3(signature = (key, udf_name, function_name, args=None, policy=None))]
+        pub fn new(
+            key: &Key,
+            udf_name: String,
+            function_name: String,
+            args: Option<Vec<PythonValue>>,
+            policy: Option<&BatchUDFPolicy>,
+        ) -> PyResult<Self> {
+            let args = args.map(|a| {
+                a.into_iter().map(|v| v.into()).collect::<Vec<aerospike_core::Value>>()
+            });
+            Ok(BatchUDFOp {
+                key: key._as.clone(),
+                policy: policy.map(|p| p._as.clone()).unwrap_or_default(),
+                udf_name,
+                function_name,
+                args,
             })
         }
     }
