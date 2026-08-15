@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import pytest
+
 from aerospike_async import (
     ClientPolicy,
     CommandType,
@@ -91,6 +93,16 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert first >= 3
         assert second >= first + 3
 
+    async def test_default_policy_shapes_histograms(self, client):
+        client.enable_metrics()
+        await _do_some_ops(client, count=2)
+
+        agg = client.metrics().cluster_aggregated
+        hist = agg.command_histogram(CommandType.GET)
+        assert len(hist.buckets) == 24
+        assert hist.count >= 2
+        assert sum(hist.buckets) == hist.count
+
     async def test_millis_policy_shapes_histograms(self, client):
         client.enable_metrics(MetricsPolicy.millis())
         await _do_some_ops(client, count=2)
@@ -101,6 +113,22 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert len(hist.buckets) == 7
         assert hist.count >= 2
         assert sum(hist.buckets) == hist.count
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="core reshape bug: detail created after a column-count change keeps "
+        "the stale shape and aggregation drops it; fixed in core (unreleased) — "
+        "remove this marker on the next core pin bump",
+    )
+    async def test_millis_detailed_metrics_survive_aggregation(self, client):
+        client.enable_metrics(MetricsPolicy.millis())
+        await _do_some_ops(client, count=3)
+
+        agg = client.metrics().cluster_aggregated
+        detail = agg.detailed_metric(NAMESPACE, CommandType.GET)
+        assert detail is not None
+        assert detail.latency.count >= 3
+        assert len(detail.latency.buckets) == 7
 
     async def test_never_sampler_gates_extended_metrics(self, client):
         policy = MetricsPolicy()
@@ -153,7 +181,7 @@ def test_local_client_metrics(aerospike_host, use_services_alternate):
     client = _LocalClient(cp, aerospike_host)
 
     assert client.metrics_enabled() is False
-    client.enable_metrics(MetricsPolicy.millis())
+    client.enable_metrics(MetricsPolicy.micros())
     assert client.metrics_enabled() is True
 
     key = Key(NAMESPACE, SET_NAME, "metrics-local")
@@ -161,7 +189,7 @@ def test_local_client_metrics(aerospike_host, use_services_alternate):
     client.get_blocking(key, policy=ReadPolicy())
 
     agg = client.metrics().cluster_aggregated
-    assert agg.latency_unit == LatencyUnit.MILLISECONDS
+    assert agg.latency_unit == LatencyUnit.MICROSECONDS
     assert agg.command_histogram(CommandType.GET).count >= 1
     client.disable_metrics()
 

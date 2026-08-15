@@ -22,8 +22,8 @@ from aerospike_async import (
 )
 
 
-def test_default_policy_is_micros():
-    """Default policy records microseconds with 24 logarithmic columns."""
+def test_default_policy_mirrors_core_micros():
+    """The default is deliberately the core's: microseconds, 24 columns."""
     mp = MetricsPolicy()
     assert mp.latency_unit == LatencyUnit.MICROSECONDS
     assert mp.latency_columns == 24

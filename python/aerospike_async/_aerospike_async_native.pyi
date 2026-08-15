@@ -4546,8 +4546,8 @@ class MetricsPolicy:
     r"""
     Configuration for client metrics collection.
 
-    The default records latency in microseconds with 24 logarithmic columns
-    (base 2) and samples every command; `MetricsPolicy.millis()` selects the
+    Defaults mirror the core: microseconds with 24 logarithmic columns
+    (base 2), sampling every command. `MetricsPolicy.millis()` selects the
     classic milliseconds/7-column scheme. Re-enabling metrics with a changed
     latency unit or histogram shape discards the accumulated latency samples.
     """

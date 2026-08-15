@@ -649,7 +649,8 @@ use crate::operations::{
         /// microseconds/24-column scheme when no policy is given.
         #[pyo3(signature = (policy = None))]
         pub fn enable_metrics(&self, policy: Option<MetricsPolicy>) {
-            self.client.enable_metrics(policy.map(|p| p._as).unwrap_or_default());
+            self.client
+                .enable_metrics(policy.unwrap_or_default()._as);
         }
 
         /// Disable metrics collection. Accumulated data is retained.
@@ -4732,7 +4733,7 @@ use crate::operations::{
         /// the accumulated latency samples; counters are always retained.
         #[pyo3(signature = (policy = None))]
         pub fn enable_metrics(&self, policy: Option<MetricsPolicy>) {
-            self._as.enable_metrics(policy.map(|p| p._as).unwrap_or_default());
+            self._as.enable_metrics(policy.unwrap_or_default()._as);
         }
 
         /// Disable metrics collection. Accumulated data is retained.
