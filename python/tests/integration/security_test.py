@@ -553,25 +553,47 @@ class TestSecurityFeatures:
         with pytest.raises(Exception):
             await client.set_quotas(f"no_such_{_short_id()}", 1000, 500)
 
-    async def test_create_role_invalid_quota(self, client, unique_role):
-        """Test that creating a role with invalid quota values raises an error."""
-        check_role = unique_role()
-        invalid_role = unique_role()
+    async def test_create_role_allowlist_and_quotas_round_trip(self, client, unique_role):
+        """Allowlist and quotas set at create time read back intact.
+
+        A wire-encoding defect used to land the allowlist bytes in the
+        read-quota field, so quota values of 0 appeared to be rejected as
+        InvalidQuota while the allowlist itself was silently lost. This
+        pins the corrected encoding: both survive the round trip, and a
+        zero quota (no limit) is accepted.
+        """
+        quota_role = unique_role()
+        unlimited_role = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
+        allowlist = ["192.168.1.0/24"]
 
         try:
-            await client.create_role(check_role, privileges, ["192.168.1.0/24"], 1000, 500)
+            await client.create_role(quota_role, privileges, allowlist, 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        with pytest.raises(ServerError) as exc_info:
-            await client.create_role(invalid_role, privileges, ["192.168.1.0/24"], 0, 0)
+        roles = await wait_for_role(client, quota_role)
+        assert roles[0].allowlist == allowlist
+        assert roles[0].read_quota == 1000
+        assert roles[0].write_quota == 500
 
-        error_str = str(exc_info.value)
-        assert "InvalidQuota" in error_str
-        assert "QuotasNotEnabled" not in error_str
+        # Zero quotas mean "no limit" and must be accepted.
+        await client.create_role(unlimited_role, privileges, allowlist, 0, 0)
+        roles = await wait_for_role(client, unlimited_role)
+        assert roles[0].allowlist == allowlist
+        assert roles[0].read_quota == 0
+        assert roles[0].write_quota == 0
+
+        # An empty allowlist clears the existing one (sent as role-only).
+        await client.set_allowlist(unlimited_role, [])
+        for _ in range(PROPAGATION_RETRIES):
+            roles = await client.query_roles(unlimited_role)
+            if roles[0].allowlist == []:
+                break
+            await asyncio.sleep(PROPAGATION_DELAY)
+        assert roles[0].allowlist == []
 
 
 @pytest.mark.asyncio(loop_scope="class")

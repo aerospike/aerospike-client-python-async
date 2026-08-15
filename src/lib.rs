@@ -63,6 +63,7 @@ mod query_plan;
 mod cluster;
 mod string_ops;
 mod server_error;
+mod metrics;
 
 pub use enums::*;
 pub use errors::*;
@@ -78,6 +79,7 @@ pub use cluster::*;
 pub use server_error::*;
 pub use tls::*;
 pub use string_ops::*;
+pub use metrics::*;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -639,6 +641,34 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
             })
+        }
+
+        // -- Metrics (collection lives in the core; these are synchronous) --
+
+        /// Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
+        /// microseconds/24-column scheme when no policy is given.
+        #[pyo3(signature = (policy = None))]
+        pub fn enable_metrics(&self, policy: Option<MetricsPolicy>) {
+            self.client
+                .enable_metrics(policy.unwrap_or_default()._as);
+        }
+
+        /// Disable metrics collection. Accumulated data is retained.
+        pub fn disable_metrics(&self) {
+            self.client.disable_metrics();
+        }
+
+        /// Whether metrics collection is currently enabled.
+        pub fn metrics_enabled(&self) -> bool {
+            self.client.metrics_enabled()
+        }
+
+        /// Snapshot cluster metrics. Values are cumulative since metrics were
+        /// enabled (gauges are point-in-time); drains and aggregates per-node
+        /// state, so poll at an export interval rather than per operation.
+        pub fn metrics(&self, py: Python<'_>) -> ClusterMetrics {
+            let client = self.client.clone();
+            py.detach(move || ClusterMetrics { _as: client.metrics() })
         }
     }
 
@@ -4690,6 +4720,40 @@ use crate::operations::{
             })
         }
 
+        // -- Metrics ---------------------------------------------------------
+        //
+        // Collection, draining and aggregation all live in the core and are
+        // synchronous there, so these are plain methods on the async client —
+        // no awaitable, usable on blocking-constructed clients too.
+
+        /// Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
+        /// microseconds/24-column scheme when no policy is given.
+        ///
+        /// Re-enabling with a changed latency unit or histogram shape discards
+        /// the accumulated latency samples; counters are always retained.
+        #[pyo3(signature = (policy = None))]
+        pub fn enable_metrics(&self, policy: Option<MetricsPolicy>) {
+            self._as.enable_metrics(policy.unwrap_or_default()._as);
+        }
+
+        /// Disable metrics collection. Accumulated data is retained.
+        pub fn disable_metrics(&self) {
+            self._as.disable_metrics();
+        }
+
+        /// Whether metrics collection is currently enabled.
+        pub fn metrics_enabled(&self) -> bool {
+            self._as.metrics_enabled()
+        }
+
+        /// Snapshot cluster metrics. Values are cumulative since metrics were
+        /// enabled (gauges are point-in-time); drains and aggregates per-node
+        /// state, so poll at an export interval rather than per operation.
+        pub fn metrics(&self, py: Python<'_>) -> ClusterMetrics {
+            let client = self._as.clone();
+            py.detach(move || ClusterMetrics { _as: client.metrics() })
+        }
+
         /// Sets XDR filter for given datacenter and namespace. Pass None as filter to remove.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
         #[pyo3(signature = (datacenter, namespace, filter_expression = None, *, policy = None))]
@@ -5007,6 +5071,15 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ExecuteTask>()?;
     m.add_class::<Version>()?;
     m.add_class::<Node>()?;
+    m.add_class::<MetricsPolicy>()?;
+    m.add_class::<Sampler>()?;
+    m.add_class::<LatencyUnit>()?;
+    m.add_class::<HistogramType>()?;
+    m.add_class::<CommandType>()?;
+    m.add_class::<ClusterMetrics>()?;
+    m.add_class::<NodeMetricsSnapshot>()?;
+    m.add_class::<CommandMetric>()?;
+    m.add_class::<Histogram>()?;
     #[cfg(feature = "tls")]
     m.add_class::<TlsConfig>()?;
 

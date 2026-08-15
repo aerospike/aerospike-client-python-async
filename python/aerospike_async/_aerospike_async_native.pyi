@@ -31,7 +31,10 @@ __all__ = [
     "CdtOperation",
     "Client",
     "ClientPolicy",
+    "ClusterMetrics",
     "CollectionIndexType",
+    "CommandMetric",
+    "CommandType",
     "CommitLevel",
     "CommitStatus",
     "DropIndexTask",
@@ -51,10 +54,13 @@ __all__ = [
     "HLL",
     "HLLPolicy",
     "HLLWriteFlags",
+    "Histogram",
+    "HistogramType",
     "HllOperation",
     "IndexTask",
     "IndexType",
     "Key",
+    "LatencyUnit",
     "List",
     "ListOperation",
     "ListOrderType",
@@ -70,8 +76,10 @@ __all__ = [
     "MapReturnType",
     "MapWriteFlags",
     "MapWriteMode",
+    "MetricsPolicy",
     "ModifyFlags",
     "Node",
+    "NodeMetricsSnapshot",
     "Operation",
     "PartitionFilter",
     "PartitionStatus",
@@ -93,6 +101,7 @@ __all__ = [
     "Replica",
     "ResultCode",
     "Role",
+    "Sampler",
     "SelectFlags",
     "ServerError",
     "SpecialValue",
@@ -1604,6 +1613,28 @@ class Client:
         Returns:
             A dictionary mapping node names to their info command responses.
         """
+    def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
+        r"""
+        Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
+        microseconds/24-column scheme when no policy is given.
+
+        Re-enabling with a changed latency unit or histogram shape discards
+        the accumulated latency samples; counters are always retained.
+        """
+    def disable_metrics(self) -> None:
+        r"""
+        Disable metrics collection. Accumulated data is retained.
+        """
+    def metrics_enabled(self) -> builtins.bool:
+        r"""
+        Whether metrics collection is currently enabled.
+        """
+    def metrics(self) -> _aerospike_async_native.ClusterMetrics:
+        r"""
+        Snapshot cluster metrics. Values are cumulative since metrics were
+        enabled (gauges are point-in-time); drains and aggregates per-node
+        state, so poll at an export interval rather than per operation.
+        """
     def set_xdr_filter(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
         Sets XDR filter for given datacenter and namespace. Pass None as filter to remove.
@@ -1884,6 +1915,79 @@ class ClientPolicy:
     def __repr__(self) -> builtins.str: ...
     def __copy__(self) -> _aerospike_async_native.ClientPolicy: ...
     def __deepcopy__(self, _memo: dict) -> _aerospike_async_native.ClientPolicy: ...
+
+@typing.final
+class ClusterMetrics:
+    r"""
+    Cluster-wide metrics snapshot: per-node snapshots keyed by host address,
+    a cluster-aggregated snapshot, and cluster-level counters.
+    """
+    @property
+    def nodes(self) -> builtins.dict[builtins.str, _aerospike_async_native.NodeMetricsSnapshot]:
+        r"""
+        Per-node snapshots keyed by host address.
+        """
+    @property
+    def cluster_aggregated(self) -> _aerospike_async_native.NodeMetricsSnapshot:
+        r"""
+        All node snapshots aggregated into one view.
+        """
+    @property
+    def total_nodes(self) -> builtins.int: ...
+    @property
+    def open_connections(self) -> builtins.int:
+        r"""
+        Open connections across the cluster (point-in-time gauge).
+        """
+    @property
+    def exceeded_max_retries(self) -> builtins.int:
+        r"""
+        Commands that failed after exhausting max retries (cumulative).
+        """
+    @property
+    def exceeded_total_timeout(self) -> builtins.int:
+        r"""
+        Commands that failed on total timeout (cumulative).
+        """
+    def to_dict(self) -> typing.Any:
+        r"""
+        The full snapshot as a plain dict, using the cross-client-stable
+        serialized names. Node snapshots appear under their host address;
+        the aggregate under "cluster-aggregated-metrics".
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class CommandMetric:
+    r"""
+    Detailed per-(namespace, command type) metrics: phase latency histograms
+    plus byte-size histograms.
+    """
+    @property
+    def connection_aq(self) -> _aerospike_async_native.Histogram:
+        r"""
+        Connection-acquisition latency (pool hit or new connection).
+        """
+    @property
+    def latency(self) -> _aerospike_async_native.Histogram:
+        r"""
+        Total command latency, including retries.
+        """
+    @property
+    def parsing(self) -> _aerospike_async_native.Histogram:
+        r"""
+        Response-parsing latency.
+        """
+    @property
+    def bytes_sent(self) -> _aerospike_async_native.Histogram:
+        r"""
+        Request sizes in bytes.
+        """
+    @property
+    def bytes_received(self) -> _aerospike_async_native.Histogram:
+        r"""
+        Response sizes in bytes.
+        """
 
 class DropIndexTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
@@ -3717,6 +3821,27 @@ class HLLPolicy:
         Default is default write flags.
         """
 
+@typing.final
+class Histogram:
+    r"""
+    Snapshot of one histogram: bucket counts plus min/max/sum/count of the raw
+    values. Latency histograms are in the snapshot's latency unit; byte-size
+    histograms are in bytes regardless of the unit.
+    """
+    @property
+    def buckets(self) -> builtins.list[builtins.int]: ...
+    @property
+    def count(self) -> builtins.int: ...
+    @property
+    def min(self) -> builtins.int: ...
+    @property
+    def max(self) -> builtins.int: ...
+    @property
+    def sum(self) -> builtins.float: ...
+    @property
+    def average(self) -> builtins.float: ...
+    def __repr__(self) -> builtins.str: ...
+
 class HllOperation:
     r"""
     HLL (HyperLogLog) operations. Create HLL operations used by the client's `operate()` method.
@@ -4417,6 +4542,56 @@ class MapReturnType:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class MetricsPolicy:
+    r"""
+    Configuration for client metrics collection.
+
+    Defaults mirror the core: microseconds with 24 logarithmic columns
+    (base 2), sampling every command. `MetricsPolicy.millis()` selects the
+    classic milliseconds/7-column scheme. Re-enabling metrics with a changed
+    latency unit or histogram shape discards the accumulated latency samples.
+    """
+    @property
+    def histogram_type(self) -> _aerospike_async_native.HistogramType: ...
+    @histogram_type.setter
+    def histogram_type(self, value: _aerospike_async_native.HistogramType) -> None: ...
+    @property
+    def latency_unit(self) -> _aerospike_async_native.LatencyUnit: ...
+    @latency_unit.setter
+    def latency_unit(self, value: _aerospike_async_native.LatencyUnit) -> None: ...
+    @property
+    def latency_columns(self) -> builtins.int: ...
+    @latency_columns.setter
+    def latency_columns(self, value: builtins.int) -> None: ...
+    @property
+    def latency_base(self) -> builtins.int: ...
+    @latency_base.setter
+    def latency_base(self, value: builtins.int) -> None: ...
+    @property
+    def labels(self) -> builtins.list[builtins.dict[builtins.str, builtins.str]]:
+        r"""
+        Static label sets attached to every snapshot (e.g. `[{"team": "billing"}]`).
+        """
+    @labels.setter
+    def labels(self, value: typing.Sequence[typing.Mapping[builtins.str, builtins.str]]) -> None: ...
+    @property
+    def sampler(self) -> _aerospike_async_native.Sampler: ...
+    @sampler.setter
+    def sampler(self, value: _aerospike_async_native.Sampler) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.MetricsPolicy: ...
+    @staticmethod
+    def micros() -> _aerospike_async_native.MetricsPolicy:
+        r"""
+        Microsecond resolution with 24 logarithmic columns (the default).
+        """
+    @staticmethod
+    def millis() -> _aerospike_async_native.MetricsPolicy:
+        r"""
+        Millisecond resolution with 7 logarithmic columns (classic scheme).
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
@@ -4480,6 +4655,91 @@ class Node:
         Execute an info command on this node.
         """
     def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class NodeMetricsSnapshot:
+    r"""
+    Accumulated metrics for one node (or the cluster-aggregated view).
+
+    Counter values are cumulative since metrics were enabled;
+    `connections_open` is a point-in-time gauge. Latency histogram buckets are
+    meaningless without `latency_unit`, which is carried on the snapshot.
+    """
+    @property
+    def latency_unit(self) -> _aerospike_async_native.LatencyUnit:
+        r"""
+        Unit the latency histograms were recorded in.
+        """
+    @property
+    def labels(self) -> builtins.list[builtins.dict[builtins.str, builtins.str]]:
+        r"""
+        Label sets from the metrics policy.
+        """
+    @property
+    def open_connections(self) -> builtins.int:
+        r"""
+        Open-connections gauge (point-in-time, not cumulative).
+        """
+    @property
+    def connections_attempts(self) -> builtins.int: ...
+    @property
+    def connections_successful(self) -> builtins.int: ...
+    @property
+    def connections_failed(self) -> builtins.int: ...
+    @property
+    def connections_timeout_errors(self) -> builtins.int: ...
+    @property
+    def connections_other_errors(self) -> builtins.int: ...
+    @property
+    def circuit_breaker_hits(self) -> builtins.int: ...
+    @property
+    def connections_pool_empty(self) -> builtins.int: ...
+    @property
+    def connections_pool_overflow(self) -> builtins.int: ...
+    @property
+    def connections_idle_dropped(self) -> builtins.int: ...
+    @property
+    def connections_closed(self) -> builtins.int: ...
+    @property
+    def connections_recovered(self) -> builtins.int: ...
+    @property
+    def tends_total(self) -> builtins.int: ...
+    @property
+    def tends_successful(self) -> builtins.int: ...
+    @property
+    def tends_failed(self) -> builtins.int: ...
+    @property
+    def partition_map_updates(self) -> builtins.int: ...
+    @property
+    def node_added(self) -> builtins.int: ...
+    @property
+    def node_removed(self) -> builtins.int: ...
+    @property
+    def transaction_retry_count(self) -> builtins.int: ...
+    @property
+    def transaction_error_count(self) -> builtins.int: ...
+    def command_histogram(self, command_type: _aerospike_async_native.CommandType) -> typing.Optional[_aerospike_async_native.Histogram]:
+        r"""
+        Per-command-type latency histogram, or None for `CommandType.NONE`.
+        """
+    def detailed_metric(self, namespace: builtins.str, command_type: _aerospike_async_native.CommandType) -> typing.Optional[_aerospike_async_native.CommandMetric]:
+        r"""
+        Detailed metrics recorded for a (namespace, command type) pair, if any.
+        """
+    def result_code_count(self, namespace: builtins.str, command_type: _aerospike_async_native.CommandType, result_code: _aerospike_async_native.ResultCode) -> builtins.int:
+        r"""
+        Count recorded for a (namespace, command type, result code) triple.
+        """
+    def detailed_namespaces(self) -> builtins.list[builtins.str]:
+        r"""
+        Namespaces that have detailed metrics recorded.
+        """
+    def to_dict(self) -> typing.Any:
+        r"""
+        The full snapshot as a plain dict, using the cross-client-stable
+        serialized names (e.g. "get-metrics", "detailed-resultcode-counts").
+        """
     def __repr__(self) -> builtins.str: ...
 
 class Operation:
@@ -4908,6 +5168,42 @@ class Role:
         r"""
         Maximum writes per second limit for the role.
         """
+
+@typing.final
+class Sampler:
+    r"""
+    Sampling policy for the extended (per-command) metrics.
+
+    A command is sampled when `hash % range < threshold`, so `threshold / range`
+    is the sampled fraction. Counters and gauges are always collected while
+    metrics are enabled; only the per-command histograms and detailed metrics
+    are sampler-gated.
+    """
+    @property
+    def range(self) -> builtins.int: ...
+    @property
+    def threshold(self) -> builtins.int: ...
+    def __new__(cls, range: builtins.int, threshold: builtins.int) -> _aerospike_async_native.Sampler:
+        r"""
+        Sample `threshold` out of every `range` commands.
+        """
+    @staticmethod
+    def all() -> _aerospike_async_native.Sampler:
+        r"""
+        Sample every command (the default).
+        """
+    @staticmethod
+    def never() -> _aerospike_async_native.Sampler:
+        r"""
+        Sample no commands.
+        """
+    @staticmethod
+    def probability(p: builtins.float) -> _aerospike_async_native.Sampler:
+        r"""
+        Sample approximately `p` (0.0-1.0) of commands.
+        """
+    def __repr__(self) -> builtins.str: ...
+    def __richcmp__(self, other: _aerospike_async_native.Sampler, op: int) -> builtins.bool: ...
 
 @typing.final
 class SelectFlags:
@@ -5728,6 +6024,25 @@ class _LocalClient:
         for semantics.
         """
     def info_blocking(self, command: builtins.str) -> builtins.dict[builtins.str, builtins.str]: ...
+    def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
+        r"""
+        Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
+        microseconds/24-column scheme when no policy is given.
+        """
+    def disable_metrics(self) -> None:
+        r"""
+        Disable metrics collection. Accumulated data is retained.
+        """
+    def metrics_enabled(self) -> builtins.bool:
+        r"""
+        Whether metrics collection is currently enabled.
+        """
+    def metrics(self) -> _aerospike_async_native.ClusterMetrics:
+        r"""
+        Snapshot cluster metrics. Values are cumulative since metrics were
+        enabled (gauges are point-in-time); drains and aggregates per-node
+        state, so poll at an export interval rather than per operation.
+        """
 
 @typing.final
 class AbortStatus(enum.Enum):
@@ -5800,6 +6115,35 @@ class CollectionIndexType(enum.Enum):
     LIST = ...
     MAP_KEYS = ...
     MAP_VALUES = ...
+
+@typing.final
+class CommandType(enum.Enum):
+    r"""
+    Canonical per-command metric categories.
+
+    These are the keys of the detailed metrics and per-command histograms on
+    :class:`NodeMetricsSnapshot`. `NONE` marks commands outside every category
+    and has no histogram of its own.
+    """
+    NONE = ...
+    GET = ...
+    GET_HEADER = ...
+    EXISTS = ...
+    PUT = ...
+    DELETE = ...
+    OPERATE = ...
+    QUERY = ...
+    SCAN = ...
+    UDF = ...
+    BATCH_READ = ...
+    BATCH_WRITE = ...
+
+    def __richcmp__(self, other: _aerospike_async_native.CommandType, op: int) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __str__(self) -> builtins.str:
+        r"""
+        The name used as a key in serialized detailed metrics (e.g. "GetHeader", "UDF").
+        """
 
 @typing.final
 class CommitLevel(enum.Enum):
@@ -5910,6 +6254,18 @@ class HLLWriteFlags(enum.Enum):
     """
 
 @typing.final
+class HistogramType(enum.Enum):
+    r"""
+    Bucket layout of latency histograms: logarithmic (each bucket boundary is
+    `latency_base` times the previous one) or linear (equal-width buckets).
+    """
+    LINEAR = ...
+    LOGARITHMIC = ...
+
+    def __richcmp__(self, other: _aerospike_async_native.HistogramType, op: int) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+
+@typing.final
 class IndexType(enum.Enum):
     r"""
     Underlying data type of secondary index.
@@ -5921,6 +6277,26 @@ class IndexType(enum.Enum):
     r"""
     Blob (byte-array) index. Requires server 7.0+.
     """
+
+@typing.final
+class LatencyUnit(enum.Enum):
+    r"""
+    Unit latency histograms are recorded in.
+
+    Microseconds (24 default columns) resolve sub-millisecond work; milliseconds
+    (7 default columns) match the classic column scheme. Changing the unit on a
+    running client discards accumulated latency samples — microsecond and
+    millisecond values cannot share buckets.
+    """
+    MICROSECONDS = ...
+    MILLISECONDS = ...
+
+    def __richcmp__(self, other: _aerospike_async_native.LatencyUnit, op: int) -> builtins.bool: ...
+    def __hash__(self) -> builtins.int: ...
+    def __str__(self) -> builtins.str:
+        r"""
+        The wire/config form of the unit: "us" or "ms".
+        """
 
 @typing.final
 class ListOrderType(enum.Enum):
