@@ -4963,6 +4963,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<Client>()?;
     m.add_class::<QueryDuration>()?;
     m.add_class::<Replica>()?;
+    m.add_class::<Concurrency>()?;
     m.add_class::<Expiration>()?;
     m.add_class::<CommitLevel>()?;
     m.add_class::<TxnState>()?;

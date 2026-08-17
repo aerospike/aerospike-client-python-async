@@ -148,6 +148,63 @@ pub enum Replica {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  Concurrency
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Whether a command that spans multiple cluster nodes runs the per-node
+/// requests one at a time or all at once. Applies to batch commands.
+#[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+#[pyclass(from_py_object, module = "_aerospike_async_native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Concurrency {
+    /// Issue the per-node requests sequentially, one node at a time.
+    #[pyo3(name = "SEQUENTIAL")]
+    Sequential,
+    /// Issue the per-node requests in parallel across nodes.
+    #[pyo3(name = "PARALLEL")]
+    Parallel,
+}
+
+    impl From<&Concurrency> for aerospike_core::policy::Concurrency {
+        fn from(input: &Concurrency) -> Self {
+            match &input {
+                Concurrency::Sequential => aerospike_core::policy::Concurrency::Sequential,
+                Concurrency::Parallel => aerospike_core::policy::Concurrency::Parallel,
+            }
+        }
+    }
+
+    impl From<&aerospike_core::policy::Concurrency> for Concurrency {
+        fn from(input: &aerospike_core::policy::Concurrency) -> Self {
+            match input {
+                aerospike_core::policy::Concurrency::Sequential => Concurrency::Sequential,
+                aerospike_core::policy::Concurrency::Parallel => Concurrency::Parallel,
+            }
+        }
+    }
+
+    #[pymethods]
+    impl Concurrency {
+        fn __richcmp__(&self, other: &Concurrency, op: pyo3::class::basic::CompareOp) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Err(pyo3::exceptions::PyNotImplementedError::new_err("Only == and != comparisons are supported")),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  ReadModeAP
     //
     ////////////////////////////////////////////////////////////////////////////////////////////

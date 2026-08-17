@@ -1217,7 +1217,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, concurrency=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -1231,6 +1231,7 @@ use crate::TlsConfig;
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
             error_detail_verbosity: Option<u8>,
+            concurrency: Option<Concurrency>,
         ) -> PyResult<Py<BatchPolicy>> {
             let mut bp = aerospike_core::BatchPolicy::default();
             bp.base_policy.populate_positional_results = true;
@@ -1247,6 +1248,7 @@ use crate::TlsConfig;
             if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { bp.base_policy.compression_threshold = v; }
             if let Some(v) = error_detail_verbosity { bp.base_policy.error_detail_verbosity = v; }
+            if let Some(v) = concurrency { bp.concurrency = (&v).into(); }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -1259,6 +1261,16 @@ use crate::TlsConfig;
             BasePolicy {
                 _as: self._as.base_policy.clone(),
             }
+        }
+
+        #[getter]
+        pub fn get_concurrency(&self) -> Concurrency {
+            (&self._as.concurrency).into()
+        }
+
+        #[setter]
+        pub fn set_concurrency(&mut self, concurrency: Concurrency) {
+            self._as.concurrency = (&concurrency).into();
         }
 
         #[setter]

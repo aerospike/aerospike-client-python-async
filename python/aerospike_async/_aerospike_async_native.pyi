@@ -37,6 +37,7 @@ __all__ = [
     "CommandType",
     "CommitLevel",
     "CommitStatus",
+    "Concurrency",
     "DropIndexTask",
     "ErrorDetailVerbosity",
     "ExecuteTask",
@@ -6156,6 +6157,21 @@ class CommitStatus(enum.Enum):
     ALREADY_COMMITTED = ...
     ROLL_FORWARD_ABANDONED = ...
     CLOSE_ABANDONED = ...
+
+@typing.final
+class Concurrency(enum.Enum):
+    r"""
+    Whether a command that spans multiple cluster nodes runs the per-node
+    requests one at a time or all at once. Applies to batch commands.
+    """
+    SEQUENTIAL = ...
+    r"""
+    Issue the per-node requests sequentially, one node at a time.
+    """
+    PARALLEL = ...
+    r"""
+    Issue the per-node requests in parallel across nodes.
+    """
 
 @typing.final
 class ExpReadFlags(enum.Enum):
