@@ -278,7 +278,13 @@ jobs:
         rustup default 1.90.0
 
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          choco install nasm -y
+          # Retry: the Chocolatey community feed rate-limits concurrent matrix
+          # jobs, intermittently failing with "package not found".
+          for i in 1 2 3 4 5; do
+            choco install nasm -y && break
+            echo "choco nasm attempt $i failed; retrying in $((i*10))s"
+            sleep $((i*10))
+          done
           export PATH="/c/Program Files/NASM:/c/ProgramData/chocolatey/bin:$PATH"
         fi
 
@@ -348,7 +354,13 @@ jobs:
           rustup default 1.90.0
           rustup target add i686-pc-windows-msvc
 
-          choco install nasm -y
+          # Retry: the Chocolatey community feed rate-limits concurrent matrix
+          # jobs, intermittently failing with "package not found".
+          for i in 1 2 3 4 5; do
+            choco install nasm -y && break
+            echo "choco nasm attempt $i failed; retrying in $((i*10))s"
+            sleep $((i*10))
+          done
           export PATH="/c/Program Files/NASM:/c/ProgramData/chocolatey/bin:$PATH"
 
           export AWS_LC_SYS_CMAKE_BUILDER=0
