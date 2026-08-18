@@ -1602,6 +1602,26 @@ use crate::TlsConfig;
         pub fn set_generation_policy(&mut self, generation_policy: GenerationPolicy) {
             self._as.generation_policy = (&generation_policy).into();
         }
+
+        #[getter]
+        pub fn get_commit_level(&self) -> CommitLevel {
+            (&self._as.commit_level).into()
+        }
+
+        #[setter]
+        pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
+            self._as.commit_level = (&commit_level).into();
+        }
+
+        #[getter]
+        pub fn get_on_locking_only(&self) -> bool {
+            self._as.on_locking_only
+        }
+
+        #[setter]
+        pub fn set_on_locking_only(&mut self, on_locking_only: bool) {
+            self._as.on_locking_only = on_locking_only;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1674,6 +1694,26 @@ use crate::TlsConfig;
         pub fn set_generation(&mut self, generation: u32) {
             self._as.generation = generation;
         }
+
+        #[getter]
+        pub fn get_commit_level(&self) -> CommitLevel {
+            (&self._as.commit_level).into()
+        }
+
+        #[setter]
+        pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
+            self._as.commit_level = (&commit_level).into();
+        }
+
+        #[getter(generation_policy)]
+        pub fn get_generation_policy(&self) -> GenerationPolicy {
+            (&self._as.generation_policy).into()
+        }
+
+        #[setter(generation_policy)]
+        pub fn set_generation_policy(&mut self, generation_policy: GenerationPolicy) {
+            self._as.generation_policy = (&generation_policy).into();
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -1735,6 +1775,36 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_durable_delete(&mut self, durable_delete: bool) {
             self._as.durable_delete = durable_delete;
+        }
+
+        #[getter]
+        pub fn get_expiration(&self) -> Expiration {
+            (&self._as.expiration).into()
+        }
+
+        #[setter]
+        pub fn set_expiration(&mut self, expiration: Expiration) {
+            self._as.expiration = (&expiration).into();
+        }
+
+        #[getter]
+        pub fn get_commit_level(&self) -> CommitLevel {
+            (&self._as.commit_level).into()
+        }
+
+        #[setter]
+        pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
+            self._as.commit_level = (&commit_level).into();
+        }
+
+        #[getter]
+        pub fn get_on_locking_only(&self) -> bool {
+            self._as.on_locking_only
+        }
+
+        #[setter]
+        pub fn set_on_locking_only(&mut self, on_locking_only: bool) {
+            self._as.on_locking_only = on_locking_only;
         }
     }
 

@@ -13,8 +13,6 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import pytest
-
 from aerospike_async import (
     ClientPolicy,
     CommandType,
@@ -114,12 +112,6 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert hist.count >= 2
         assert sum(hist.buckets) == hist.count
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="core reshape bug: detail created after a column-count change keeps "
-        "the stale shape and aggregation drops it; fixed in core (unreleased) — "
-        "remove this marker on the next core pin bump",
-    )
     async def test_millis_detailed_metrics_survive_aggregation(self, client):
         client.enable_metrics(MetricsPolicy.millis())
         await _do_some_ops(client, count=3)
