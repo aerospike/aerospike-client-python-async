@@ -57,7 +57,16 @@ async def wait_for_index_ready(
                 break
             return
         except ServerError as exc:
-            if exc.result_code != ResultCode.INDEX_NOT_READABLE:
+            # Both are transient states of a just-created index: INDEX_NOT_FOUND
+            # (201) = the create has not yet registered on this node, and
+            # INDEX_NOT_READABLE (203) = registered but still building. Under
+            # full-suite churn the 201 window widens and this probe can race it.
+            # (Proper fix: have create_index return an IndexTask and
+            # wait_till_complete on build status — see pre-GA TODO.)
+            if exc.result_code not in (
+                ResultCode.INDEX_NOT_READABLE,
+                ResultCode.INDEX_NOT_FOUND,
+            ):
                 raise
             last_err = exc
             await asyncio.sleep(interval)

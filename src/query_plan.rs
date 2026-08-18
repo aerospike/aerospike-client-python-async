@@ -191,6 +191,14 @@ impl QueryPlan {
         self._as.is_filtered_out()
     }
 
+    /// Effective field ``44`` WHERE flags the explain was sent with
+    /// (bitwise-OR of ``EXPLAIN`` / ``REQUIRE_INDEX`` / ``HARD_HINT``).
+    /// Diagnostic — mirrors the ``explain_where_flags`` the plan resolved from.
+    #[getter]
+    pub fn where_flags(&self) -> u8 {
+        self.where_flags
+    }
+
     /// Returns the secondary-index ``Filter`` the server selected, or ``None``.
     ///
     /// Diagnostic only — :meth:`Client.query_with_plan` derives this internally,

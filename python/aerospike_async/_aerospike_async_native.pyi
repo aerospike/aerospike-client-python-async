@@ -4904,6 +4904,13 @@ class QueryPlan:
     def is_secondary_index(self) -> builtins.bool: ...
     @property
     def is_filtered_out(self) -> builtins.bool: ...
+    @property
+    def where_flags(self) -> builtins.int:
+        r"""
+        Effective field ``44`` WHERE flags the explain was sent with
+        (bitwise-OR of ``EXPLAIN`` / ``REQUIRE_INDEX`` / ``HARD_HINT``).
+        Diagnostic — mirrors the ``explain_where_flags`` the plan resolved from.
+        """
     def filter_for_execute(self) -> typing.Optional[_aerospike_async_native.Filter]:
         r"""
         Returns the secondary-index ``Filter`` the server selected, or ``None``.
