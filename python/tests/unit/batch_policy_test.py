@@ -23,8 +23,10 @@ from aerospike_async import (
     BatchUDFPolicy,
     BatchWriteOp,
     BatchWritePolicy,
+    CommitLevel,
     Expiration,
     FilterExpression as fe,
+    GenerationPolicy,
     Key,
     Operation,
     RecordExistsAction,
@@ -79,6 +81,18 @@ class TestBatchDeletePolicy:
         assert p.generation == 0
         p.generation = 42
         assert p.generation == 42
+
+    def test_commit_level(self):
+        p = BatchDeletePolicy()
+        assert p.commit_level == CommitLevel.COMMIT_ALL
+        p.commit_level = CommitLevel.COMMIT_MASTER
+        assert p.commit_level == CommitLevel.COMMIT_MASTER
+
+    def test_generation_policy(self):
+        p = BatchDeletePolicy()
+        assert p.generation_policy == GenerationPolicy.NONE
+        p.generation_policy = GenerationPolicy.EXPECT_GEN_EQUAL
+        assert p.generation_policy == GenerationPolicy.EXPECT_GEN_EQUAL
 
 
 class TestBatchReadPolicy:
@@ -149,6 +163,28 @@ class TestBatchUDFPolicy:
         p.durable_delete = True
         assert p.durable_delete is True
 
+    def test_expiration(self):
+        p = BatchUDFPolicy()
+        p.expiration = Expiration.NEVER_EXPIRE
+        assert p.expiration == Expiration.NEVER_EXPIRE
+        exp_seconds = Expiration.seconds(600)
+        p.expiration = exp_seconds
+        assert p.expiration == exp_seconds
+
+    def test_commit_level(self):
+        p = BatchUDFPolicy()
+        assert p.commit_level == CommitLevel.COMMIT_ALL
+        p.commit_level = CommitLevel.COMMIT_MASTER
+        assert p.commit_level == CommitLevel.COMMIT_MASTER
+
+    def test_on_locking_only(self):
+        p = BatchUDFPolicy()
+        assert p.on_locking_only is False
+        p.on_locking_only = True
+        assert p.on_locking_only is True
+        p.on_locking_only = False
+        assert p.on_locking_only is False
+
 
 class TestBatchWritePolicy:
 
@@ -187,6 +223,20 @@ class TestBatchWritePolicy:
         exp_seconds = Expiration.seconds(600)
         p.expiration = exp_seconds
         assert p.expiration == exp_seconds
+
+    def test_commit_level(self):
+        p = BatchWritePolicy()
+        assert p.commit_level == CommitLevel.COMMIT_ALL
+        p.commit_level = CommitLevel.COMMIT_MASTER
+        assert p.commit_level == CommitLevel.COMMIT_MASTER
+
+    def test_on_locking_only(self):
+        p = BatchWritePolicy()
+        assert p.on_locking_only is False
+        p.on_locking_only = True
+        assert p.on_locking_only is True
+        p.on_locking_only = False
+        assert p.on_locking_only is False
 
 
 def test_batch_policy_defaults():
