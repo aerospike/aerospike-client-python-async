@@ -91,7 +91,7 @@ class TestQueryBackground(TestFixtureConnection):
         )
         assert task is not None
 
-        done = await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        done = await task.wait_till_complete(sleep_time=0.2, timeout=10.0)
         assert done is True
 
         # Verify a couple of records have the new bin
@@ -125,7 +125,7 @@ class TestQueryBackground(TestFixtureConnection):
             write_policy=wp,
         )
         assert task is not None
-        done = await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        done = await task.wait_till_complete(sleep_time=0.2, timeout=10.0)
         assert done is True
 
         # Query and verify all records in range have the new bin
@@ -146,7 +146,7 @@ class TestQueryBackground(TestFixtureConnection):
         statement = Statement(self.NAMESPACE, self.SET_NAME, None)
         task = await client.query_operate(statement, [Operation.touch()], write_policy=wp)
         assert task is not None
-        done = await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        done = await task.wait_till_complete(sleep_time=0.2, timeout=10.0)
         assert done is True
 
     async def test_execute_task_query_status(self, client_and_data):
@@ -161,4 +161,4 @@ class TestQueryBackground(TestFixtureConnection):
         assert status is not None
         # Status may be InProgress or Complete depending on timing
 
-        await task.wait_till_complete(sleep_time=0.2, max_attempts=50)
+        await task.wait_till_complete(sleep_time=0.2, timeout=10.0)

@@ -129,7 +129,7 @@ class TestCreateIndexUsingExpression(TestFixtureConnection):
         )
 
         # Wait with custom sleep time and max attempts
-        completed = await task.wait_till_complete(sleep_time=0.1, max_attempts=100)
+        completed = await task.wait_till_complete(sleep_time=0.1, timeout=10.0)
         assert completed is True
 
         # Clean up

@@ -1732,7 +1732,9 @@ use crate::operations::{
             })
         }
 
-        /// Synchronously create a secondary index on a bin.
+        /// Synchronously create a secondary index on a bin. Returns an
+        /// :class:`IndexTask`; call :meth:`IndexTask.wait_till_complete_blocking`
+        /// before querying through the index.
         #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, ctx = None, *, policy = None))]
         pub fn create_index_blocking(
             &self,
@@ -1745,21 +1747,21 @@ use crate::operations::{
             ctx: Option<Vec<CTX>>,
             policy: Option<AdminPolicy>,
             py: Python<'_>,
-        ) -> PyResult<()> {
+        ) -> PyResult<IndexTask> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
                 .unwrap_or_default();
             let cit = (&cit.unwrap_or(CollectionIndexType::Default)).into();
             let index_type = (&index_type).into();
             let ctx_core = ctx.map(|c| ctx_to_vec(&c));
-            run_blocking(py, async move {
+            let raw = run_blocking(py, async move {
                 client.create_index_on_bin(
                     &admin_policy, &namespace, &set_name, &bin_name,
                     &index_name, index_type, cit, ctx_core.as_deref(),
                 ).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(())
-            })
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(IndexTask { _as: raw, bridge: None })
         }
 
         /// Synchronously drop a secondary index.
@@ -3957,9 +3959,10 @@ use crate::operations::{
             })
         }
 
-        /// Create a secondary index on a bin containing scalar values. This asynchronous server call
-        /// returns before the command is complete.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        /// Create a secondary index on a bin containing scalar values. Returns an
+        /// :class:`IndexTask`; the server builds the index asynchronously, so await
+        /// :meth:`IndexTask.wait_till_complete` before querying through it.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[IndexTask]", imports=("typing")))]
         #[pyo3(signature = (namespace, set_name, bin_name, index_name, index_type, cit = None, ctx = None, *, policy = None))]
         pub fn create_index<'a>(
             &self,
@@ -3980,8 +3983,10 @@ use crate::operations::{
             let index_type = (&index_type).into();
             let ctx_core = ctx.map(|c| ctx_to_vec(&c));
 
-            completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                client
+            let bridge = self.require_bridge()?;
+            let task_bridge = bridge.clone();
+            completion::batched_future_into_py(bridge, py, async move {
+                let task = client
                     .create_index_on_bin(
                         &admin_policy,
                         &namespace,
@@ -3995,7 +4000,7 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                Ok(None::<bool>)
+                Ok(IndexTask { _as: task, bridge: Some(task_bridge) })
             })
         }
 

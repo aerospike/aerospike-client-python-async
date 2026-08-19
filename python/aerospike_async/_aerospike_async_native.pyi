@@ -1038,9 +1038,11 @@ class Client:
         r"""
         Synchronously truncate records in a namespace/set.
         """
-    def create_index_blocking(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: _aerospike_async_native.IndexType, cit: typing.Optional[_aerospike_async_native.CollectionIndexType] = None, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> None:
+    def create_index_blocking(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: _aerospike_async_native.IndexType, cit: typing.Optional[_aerospike_async_native.CollectionIndexType] = None, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> _aerospike_async_native.IndexTask:
         r"""
-        Synchronously create a secondary index on a bin.
+        Synchronously create a secondary index on a bin. Returns an
+        :class:`IndexTask`; call :meth:`IndexTask.wait_till_complete_blocking`
+        before querying through the index.
         """
     def drop_index_blocking(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> _aerospike_async_native.DropIndexTask:
         r"""
@@ -1439,10 +1441,11 @@ class Client:
         r"""
         Removes all records in the specified namespace/set efficiently.
         """
-    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: _aerospike_async_native.IndexType, cit: typing.Optional[_aerospike_async_native.CollectionIndexType] = None, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
+    def create_index(self, namespace: builtins.str, set_name: builtins.str, bin_name: builtins.str, index_name: builtins.str, index_type: _aerospike_async_native.IndexType, cit: typing.Optional[_aerospike_async_native.CollectionIndexType] = None, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[IndexTask]:
         r"""
-        Create a secondary index on a bin containing scalar values. This asynchronous server call
-        returns before the command is complete.
+        Create a secondary index on a bin containing scalar values. Returns an
+        :class:`IndexTask`; the server builds the index asynchronously, so await
+        :meth:`IndexTask.wait_till_complete` before querying through it.
         """
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[DropIndexTask]:
         r"""
@@ -2020,14 +2023,14 @@ class CommandMetric:
 
 class DropIndexTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
-    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]: ...
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
         r"""
         Blocking sibling of :meth:`query_status` — returns the current
         status without spinning up an asyncio loop. Rejects calls made
         from inside a running asyncio loop.
         """
-    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> builtins.bool:
+    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> builtins.bool:
         r"""
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
@@ -2035,10 +2038,15 @@ class DropIndexTask:
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
 
 @typing.final
@@ -2060,14 +2068,14 @@ class ErrorDetailVerbosity:
 
 class ExecuteTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
-    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]: ...
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
         r"""
         Blocking sibling of :meth:`query_status` — returns the current
         status without spinning up an asyncio loop. Rejects calls made
         from inside a running asyncio loop.
         """
-    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> builtins.bool:
+    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> builtins.bool:
         r"""
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
@@ -2075,10 +2083,15 @@ class ExecuteTask:
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
 
 class ExpOperation:
@@ -3963,14 +3976,14 @@ class HllOperation:
 
 class IndexTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
-    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]: ...
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]: ...
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
         r"""
         Blocking sibling of :meth:`query_status` — returns the current
         status without spinning up an asyncio loop. Rejects calls made
         from inside a running asyncio loop.
         """
-    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> builtins.bool:
+    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> builtins.bool:
         r"""
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
@@ -3978,10 +3991,15 @@ class IndexTask:
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
 
 class Key:
@@ -5061,16 +5079,21 @@ class RegexFlag:
     """Match-any-character operators don't match a newline."""
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
-    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]:
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]:
         r"""
         Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
         r"""
@@ -5078,7 +5101,7 @@ class RegisterTask:
         status without spinning up an asyncio loop. Rejects calls made
         from inside a running asyncio loop.
         """
-    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> builtins.bool:
+    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> builtins.bool:
         r"""
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
@@ -5086,10 +5109,15 @@ class RegisterTask:
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
 
 @typing.final
@@ -5865,16 +5893,21 @@ class Txn:
 
 class UdfRemoveTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
-    def wait_till_complete(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> typing.Awaitable[bool]:
+    def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]:
         r"""
         Wait for the task to complete, polling status until COMPLETE or NOT_FOUND.
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
         r"""
@@ -5882,7 +5915,7 @@ class UdfRemoveTask:
         status without spinning up an asyncio loop. Rejects calls made
         from inside a running asyncio loop.
         """
-    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, max_attempts: builtins.int = 80) -> builtins.bool:
+    def wait_till_complete_blocking(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> builtins.bool:
         r"""
         Blocking sibling of :meth:`wait_till_complete` — polls status
         until COMPLETE or NOT_FOUND without needing an asyncio loop.
@@ -5890,10 +5923,15 @@ class UdfRemoveTask:
 
         Args:
             sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-            max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+            timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+                wait indefinitely.
 
         Returns:
-            True if task completed, False if max attempts reached
+            True once the task completes.
+
+        Raises:
+            TimeoutError: If the task is still in progress after
+                the ``timeout`` budget elapses.
         """
 
 class User:

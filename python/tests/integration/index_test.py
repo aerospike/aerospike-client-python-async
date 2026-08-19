@@ -36,14 +36,16 @@ class TestIndex(TestFixtureConnection):
         """Test creating a string index."""
         await self.cleanup_index(client, "index_name")
 
-        retval = await client.create_index(
+        task = await client.create_index(
             namespace="test",
             set_name="test",
             bin_name="brand",
             index_name="index_name",
             index_type=IndexType.STRING,
             cit=CollectionIndexType.DEFAULT)
-        assert retval is None
+        # create() hands back the build task; the index is only queryable
+        # once the server reports the build complete.
+        assert await task.wait_till_complete()
 
         await self.cleanup_index(client, "index_name")
 
@@ -51,8 +53,10 @@ class TestIndex(TestFixtureConnection):
         """Test creating a numeric index."""
         await self.cleanup_index(client, "index_name")
 
-        retval = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
-        assert retval is None
+        task = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
+        # create() hands back the build task; the index is only queryable
+        # once the server reports the build complete.
+        assert await task.wait_till_complete()
 
         await self.cleanup_index(client, "index_name")
 
@@ -60,8 +64,10 @@ class TestIndex(TestFixtureConnection):
         """Test creating a geo2dsphere index."""
         await self.cleanup_index(client, "index_name")
 
-        retval = await client.create_index("test", "test", "geojson", "index_name", IndexType.GEO2D_SPHERE, cit=CollectionIndexType.DEFAULT)
-        assert retval is None
+        task = await client.create_index("test", "test", "geojson", "index_name", IndexType.GEO2D_SPHERE, cit=CollectionIndexType.DEFAULT)
+        # create() hands back the build task; the index is only queryable
+        # once the server reports the build complete.
+        assert await task.wait_till_complete()
 
         await self.cleanup_index(client, "index_name")
 
@@ -73,10 +79,12 @@ class TestIndex(TestFixtureConnection):
 
         await self.cleanup_index(client, "index_name")
 
-        retval = await client.create_index(
+        task = await client.create_index(
             "test", "test", "payload", "index_name",
             IndexType.BLOB, cit=CollectionIndexType.DEFAULT)
-        assert retval is None
+        # create() hands back the build task; the index is only queryable
+        # once the server reports the build complete.
+        assert await task.wait_till_complete()
 
         await self.cleanup_index(client, "index_name")
 
@@ -84,8 +92,10 @@ class TestIndex(TestFixtureConnection):
         """Test creating an index with collection index type."""
         await self.cleanup_index(client, "index_name")
 
-        retval = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
-        assert retval is None
+        task = await client.create_index("test", "test", "year", "index_name", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
+        # create() hands back the build task; the index is only queryable
+        # once the server reports the build complete.
+        assert await task.wait_till_complete()
 
         await self.cleanup_index(client, "index_name")
 
@@ -192,8 +202,8 @@ class TestDropIndex(TestFixtureConnection):
 
         task = await client.drop_index("test", "test", index_name)
 
-        # Wait with custom sleep_time and max_attempts
-        completed = await task.wait_till_complete(sleep_time=0.1, max_attempts=100)
+        # Wait with a custom poll interval and time budget
+        completed = await task.wait_till_complete(sleep_time=0.1, timeout=10.0)
         assert completed is True
 
     async def test_drop_nonexistent_index(self, client):

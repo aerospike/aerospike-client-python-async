@@ -68,15 +68,24 @@ use crate::errors::RustClientError;
     }
 
     // Helper function for wait_till_complete implementation
+    /// Poll *task* until the server reports it complete.
+    ///
+    /// ``timeout`` is a wall-clock budget in seconds; ``None`` waits
+    /// indefinitely. Both values are clamped at zero so a negative float
+    /// cannot panic across the FFI boundary.
     async fn wait_till_complete_impl<T: aerospike_core::task::Task>(
         task: T,
         sleep_time: f64,
-        max_attempts: u32,
+        timeout: Option<f64>,
     ) -> Result<bool, PyErr> {
-        use tokio::time::sleep;
+        use tokio::time::{sleep, Instant};
         use std::time::Duration;
 
-        for _attempt in 0..max_attempts {
+        let started = Instant::now();
+        let budget = timeout.map(|t| Duration::from_secs_f64(t.max(0.0)));
+        let nap = Duration::from_secs_f64(sleep_time.max(0.0));
+
+        loop {
             let status: aerospike_core::task::Status = task
                 .query_status()
                 .await
@@ -87,11 +96,23 @@ use crate::errors::RustClientError;
                     return Ok(true);
                 }
                 aerospike_core::task::Status::InProgress => {
-                    sleep(Duration::from_secs_f64(sleep_time)).await;
+                    // A deadline is a failure, not an outcome: the old silent
+                    // `false` was indistinguishable from completion for every
+                    // caller that did not inspect the return value.
+                    if let Some(budget) = budget {
+                        let elapsed = started.elapsed();
+                        if elapsed >= budget {
+                            return Err(crate::errors::TimeoutError::new_err(format!(
+                                "task still in progress after {:.1}s; pass a larger \
+                                 timeout, or timeout=None to wait indefinitely",
+                                elapsed.as_secs_f64(),
+                            )));
+                        }
+                    }
+                    sleep(nap).await;
                 }
             }
         }
-        Ok(false)
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -152,16 +173,21 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete<'a>(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
@@ -173,7 +199,7 @@ use crate::errors::RustClientError;
             })?;
             let task = self._as.clone();
             crate::completion::batched_future_into_py(bridge, py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
 
@@ -198,20 +224,25 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete_blocking(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'_>,
         ) -> PyResult<bool> {
             let task = self._as.clone();
             run_blocking(py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
     }
@@ -262,16 +293,21 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete<'a>(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
@@ -283,7 +319,7 @@ use crate::errors::RustClientError;
             })?;
             let task = self._as.clone();
             crate::completion::batched_future_into_py(bridge, py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
 
@@ -308,20 +344,25 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete_blocking(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'_>,
         ) -> PyResult<bool> {
             let task = self._as.clone();
             run_blocking(py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
     }
@@ -370,11 +411,11 @@ use crate::errors::RustClientError;
         }
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete<'a>(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
@@ -386,7 +427,7 @@ use crate::errors::RustClientError;
             })?;
             let task = self._as.clone();
             crate::completion::batched_future_into_py(bridge, py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
 
@@ -411,20 +452,25 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete_blocking(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'_>,
         ) -> PyResult<bool> {
             let task = self._as.clone();
             run_blocking(py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
     }
@@ -473,11 +519,11 @@ use crate::errors::RustClientError;
         }
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete<'a>(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
@@ -489,7 +535,7 @@ use crate::errors::RustClientError;
             })?;
             let task = self._as.clone();
             crate::completion::batched_future_into_py(bridge, py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
 
@@ -514,20 +560,25 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete_blocking(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'_>,
         ) -> PyResult<bool> {
             let task = self._as.clone();
             run_blocking(py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
     }
@@ -576,11 +627,11 @@ use crate::errors::RustClientError;
         }
 
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete<'a>(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'a>,
         ) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
@@ -592,7 +643,7 @@ use crate::errors::RustClientError;
             })?;
             let task = self._as.clone();
             crate::completion::batched_future_into_py(bridge, py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
 
@@ -617,20 +668,25 @@ use crate::errors::RustClientError;
         ///
         /// Args:
         ///     sleep_time: Time to sleep between status checks (seconds). Default: 0.25
-        ///     max_attempts: Maximum number of attempts before giving up. Default: 80 (20 seconds)
+        ///     timeout: Wall-clock budget in seconds. Default: 60. Pass None to
+        ///         wait indefinitely.
         ///
         /// Returns:
-        ///     True if task completed, False if max attempts reached
-        #[pyo3(signature = (sleep_time = 0.25, max_attempts = 80))]
+        ///     True once the task completes.
+    ///
+    /// Raises:
+    ///     TimeoutError: If the task is still in progress after
+    ///         the ``timeout`` budget elapses.
+        #[pyo3(signature = (sleep_time = 0.25, timeout = Some(60.0)))]
         pub fn wait_till_complete_blocking(
             &self,
             sleep_time: f64,
-            max_attempts: u32,
+            timeout: Option<f64>,
             py: Python<'_>,
         ) -> PyResult<bool> {
             let task = self._as.clone();
             run_blocking(py, async move {
-                wait_till_complete_impl(task, sleep_time, max_attempts).await
+                wait_till_complete_impl(task, sleep_time, timeout).await
             })
         }
     }
