@@ -524,7 +524,7 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Create a vector bin expression, for use with :meth:`l2_squared_distance`,
+        /// Create a vector bin expression, for use with :meth:`euclidean_squared_distance`,
         /// :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
         /// the expression level.
         ///
@@ -540,8 +540,8 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Create an expression that returns the squared L2 (squared Euclidean) distance between
-        /// a stored vector bin and ``query``, as a 64-bit float. Smaller is closer.
+        /// Create an expression that returns the squared Euclidean distance between a stored
+        /// vector bin and ``query``, as a 64-bit float. Smaller is closer.
         ///
         /// The query vector's element type and dimension count must match the stored vector;
         /// otherwise the expression evaluates to unknown. ``bin`` is typically
@@ -552,9 +552,9 @@ use crate::string_ops::StringNumericType;
         /// This expression's wire contract has not yet been double-checked against current
         /// server code and has no integration test coverage. It also depends on the same
         /// unassigned server-version capability gate as :meth:`Statement.set_order_by`.
-        pub fn l2_squared_distance(query: &Vector, bin: FilterExpression) -> Self {
+        pub fn euclidean_squared_distance(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
-                _as: aerospike_core::expressions::vector::l2_squared_distance(&query.v, bin._as),
+                _as: aerospike_core::expressions::vector::euclidean_squared_distance(&query.v, bin._as),
             }
         }
 
@@ -568,7 +568,7 @@ use crate::string_ops::StringNumericType;
         ///
         /// # Work in progress
         ///
-        /// See the caveats on :meth:`l2_squared_distance`.
+        /// See the caveats on :meth:`euclidean_squared_distance`.
         pub fn dot_product(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector::dot_product(&query.v, bin._as),
@@ -585,7 +585,7 @@ use crate::string_ops::StringNumericType;
         ///
         /// # Work in progress
         ///
-        /// See the caveats on :meth:`l2_squared_distance`.
+        /// See the caveats on :meth:`euclidean_squared_distance`.
         pub fn cosine_similarity(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector::cosine_similarity(&query.v, bin._as),

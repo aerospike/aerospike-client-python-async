@@ -28,6 +28,8 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
 use numpy::{dtype, PyArrayDescrMethods, PyReadonlyArray1, PyUntypedArray, PyUntypedArrayMethods};
 
+use crate::errors::RustClientError;
+
 
 
     /**********************************************************************************
@@ -1120,19 +1122,23 @@ use numpy::{dtype, PyArrayDescrMethods, PyReadonlyArray1, PyUntypedArray, PyUnty
         let core = match detected {
             VectorElementType::Float32 => {
                 let arr: PyReadonlyArray1<f32> = data.extract()?;
-                aerospike_core::Vector::float32(arr.as_array().iter().copied().collect())
+                aerospike_core::Vector::try_float32(arr.as_array().iter().copied().collect())
+                    .map_err(RustClientError)?
             }
             VectorElementType::Float64 => {
                 let arr: PyReadonlyArray1<f64> = data.extract()?;
-                aerospike_core::Vector::float64(arr.as_array().iter().copied().collect())
+                aerospike_core::Vector::try_float64(arr.as_array().iter().copied().collect())
+                    .map_err(RustClientError)?
             }
             VectorElementType::Int32 => {
                 let arr: PyReadonlyArray1<i32> = data.extract()?;
-                aerospike_core::Vector::int32(arr.as_array().iter().copied().collect())
+                aerospike_core::Vector::try_int32(arr.as_array().iter().copied().collect())
+                    .map_err(RustClientError)?
             }
             VectorElementType::Float16 => {
                 let arr: PyReadonlyArray1<half::f16> = data.extract()?;
-                aerospike_core::Vector::float16(arr.as_array().iter().map(|x| x.to_bits()).collect())
+                aerospike_core::Vector::try_float16(arr.as_array().iter().map(|x| x.to_bits()).collect())
+                    .map_err(RustClientError)?
             }
         };
 
@@ -1191,19 +1197,19 @@ use numpy::{dtype, PyArrayDescrMethods, PyReadonlyArray1, PyUntypedArray, PyUnty
                     let d: Vec<f32> = data.extract().map_err(|_| {
                         PyTypeError::new_err("FLOAT32 Vector requires a list of numbers")
                     })?;
-                    aerospike_core::Vector::float32(d)
+                    aerospike_core::Vector::try_float32(d).map_err(RustClientError)?
                 }
                 VectorElementType::Float64 => {
                     let d: Vec<f64> = data.extract().map_err(|_| {
                         PyTypeError::new_err("FLOAT64 Vector requires a list of numbers")
                     })?;
-                    aerospike_core::Vector::float64(d)
+                    aerospike_core::Vector::try_float64(d).map_err(RustClientError)?
                 }
                 VectorElementType::Int32 => {
                     let d: Vec<i32> = data.extract().map_err(|_| {
                         PyTypeError::new_err("INT32 Vector requires a list of integers")
                     })?;
-                    aerospike_core::Vector::int32(d)
+                    aerospike_core::Vector::try_int32(d).map_err(RustClientError)?
                 }
                 VectorElementType::Float16 => {
                     return Err(PyTypeError::new_err(
@@ -1802,8 +1808,14 @@ use numpy::{dtype, PyArrayDescrMethods, PyReadonlyArray1, PyUntypedArray, PyUnty
         }
 
         #[test]
-        fn empty_vector_round_trips() {
-            assert_round_trips(aerospike_core::Vector::float32(vec![]));
+        fn empty_vector_is_rejected_at_construction() {
+            assert!(aerospike_core::Vector::try_float32(vec![]).is_err());
+        }
+
+        #[test]
+        fn oversized_vector_is_rejected_at_construction() {
+            let max = aerospike_core::VectorElementType::Float64.max_dimensions();
+            assert!(aerospike_core::Vector::try_float64(vec![0.0; max + 1]).is_err());
         }
 
         #[test]

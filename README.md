@@ -258,7 +258,7 @@ record = await client.get(key)
 record.bins["embedding"].numpy_value  # typed numpy array
 ```
 
-`FilterExpression.vector_bin`/`l2_squared_distance`/`dot_product`/
+`FilterExpression.vector_bin`/`euclidean_squared_distance`/`dot_product`/
 `cosine_similarity` build vector-distance expressions, and
 `Statement.set_order_by`/`set_top_k` build Top-K (`ORDER BY <bin> LIMIT k`)
 queries — including hybrid search, by combining `set_order_by`/`set_top_k`

@@ -19,6 +19,7 @@ import textwrap
 
 import pytest
 from aerospike_async import GeoJSON, List, Blob, HLL, Map, Vector, VectorElementType, geojson, null
+from aerospike_async.exceptions import ValueError as AerospikeValueError
 
 # Common test data
 TEST_BLOB_DATA_1 = [1, 7, 8, 4, 1]
@@ -584,11 +585,10 @@ def test_vector_float32_value_round_trips_within_float32_precision():
     assert [round(x, 5) for x in v.value] == [0.12, 0.98, -0.34]
 
 
-def test_vector_empty():
-    v = Vector([])
-    assert v.dimensions == 0
-    assert len(v) == 0
-    assert list(v.value) == []
+def test_vector_empty_is_rejected():
+    """The server requires at least 1 dimension; empty vectors raise cleanly."""
+    with pytest.raises(AerospikeValueError):
+        Vector([])
 
 
 def test_vector_equality():
@@ -733,29 +733,33 @@ def test_vector_float16_special_values_roundtrip():
     assert np.array_equal(out, arr_in)
 
 
-@pytest.mark.parametrize(
-    "np_dtype, element_type",
-    [
-        ("float16", VectorElementType.FLOAT16),
-        ("float32", VectorElementType.FLOAT32),
-        ("float64", VectorElementType.FLOAT64),
-        ("int32", VectorElementType.INT32),
-    ],
-)
-def test_vector_empty_numpy_input(np_dtype, element_type):
-    """Empty numpy arrays produce empty vectors for every element type."""
+@pytest.mark.parametrize("np_dtype", ["float16", "float32", "float64", "int32"])
+def test_vector_empty_numpy_input_is_rejected(np_dtype):
+    """The server requires at least 1 dimension for every element type."""
     np = pytest.importorskip("numpy")
 
-    v = Vector(np.array([], dtype=np_dtype))
-    assert v.element_type == element_type
-    assert v.dimensions == 0
-    assert len(v) == 0
+    with pytest.raises(AerospikeValueError):
+        Vector(np.array([], dtype=np_dtype))
 
-    arr = v.numpy_value
-    assert arr.dtype == np.dtype(np_dtype)
-    assert arr.tolist() == []
-    if element_type != VectorElementType.FLOAT16:
-        assert v.value == []
+
+@pytest.mark.parametrize(
+    "np_dtype, element_type, max_dimensions",
+    [
+        ("float16", VectorElementType.FLOAT16, 131_072),
+        ("float32", VectorElementType.FLOAT32, 65_536),
+        ("float64", VectorElementType.FLOAT64, 32_768),
+        ("int32", VectorElementType.INT32, 65_536),
+    ],
+)
+def test_vector_exceeding_max_dimensions_is_rejected(np_dtype, element_type, max_dimensions):
+    """Each element type has a server-defined dimension cap; over it raises cleanly."""
+    np = pytest.importorskip("numpy")
+
+    at_max = Vector(np.zeros(max_dimensions, dtype=np_dtype))
+    assert at_max.dimensions == max_dimensions
+
+    with pytest.raises(AerospikeValueError):
+        Vector(np.zeros(max_dimensions + 1, dtype=np_dtype))
 
 
 def test_vector_int32_boundary_values():

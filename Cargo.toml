@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "2df5100aa1a79560d3510607843136a0acdf7a84", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
+aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "57cac63c2e95816779243d99db813d0f5efb61f6", package = "aerospike-core", features = ["rt-tokio", "dynamic-config"] }
 hex = "0.4"
 parking_lot = "0.12"  # match aerospike-core's PartitionStatus mutex (v3)
 # Match aerospike-core's info/bins return type (order-preserving). The `indexmap`
