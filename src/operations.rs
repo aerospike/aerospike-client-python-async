@@ -393,6 +393,28 @@ use crate::string_ops::{StringNumericType, StringOperation};
             Self::default()
         }
 
+        /// Name of the bin this operation targets, or ``None`` when it targets
+        /// the whole record.
+        ///
+        /// Lets a caller report *which* bin an operation names when the server
+        /// rejects one — the server reports a bad bin name without saying which
+        /// bin it was, and the name is otherwise consumed at construction.
+        ///
+        /// Covers the operations this class constructs. Bin, list, map, HLL, and
+        /// expression operations are separate classes and answer ``None`` here.
+        #[getter]
+        pub fn bin_name(&self) -> Option<&str> {
+            match &self.op {
+                OperationType::GetBin(name)
+                | OperationType::Put(name, _)
+                | OperationType::Add(name, _)
+                | OperationType::Append(name, _)
+                | OperationType::Prepend(name, _) => Some(name),
+                // Get / GetHeader / Delete / Touch address the record, not a bin.
+                _ => None,
+            }
+        }
+
         /// Create a Get operation (reads all bins).
         #[staticmethod]
         pub fn get() -> Self {

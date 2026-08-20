@@ -1759,7 +1759,19 @@ class ClientPolicy:
     @min_conns_per_node.setter
     def min_conns_per_node(self, value: builtins.int) -> None: ...
     @property
-    def max_conns_per_node(self) -> builtins.int: ...
+    def max_conns_per_node(self) -> builtins.int:
+        r"""
+        Maximum number of connections allowed per server node.
+
+        The pool fails fast once a burst exceeds this value rather than
+        queueing, so a workload whose concurrency outgrows the cap becomes
+        pool-bound: throughput flattens and latency climbs while the cluster
+        still has headroom. Size the pool to the client's total concurrency,
+        not to concurrency divided by node count -- bursts do not spread
+        evenly across nodes.
+
+        Default: ``100``.
+        """
     @max_conns_per_node.setter
     def max_conns_per_node(self, value: builtins.int) -> None: ...
     @property
@@ -4793,6 +4805,19 @@ class Operation:
     r"""
     Python wrapper for Operation enum.
     """
+    @property
+    def bin_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Name of the bin this operation targets, or ``None`` when it targets
+        the whole record.
+
+        Lets a caller report *which* bin an operation names when the server
+        rejects one — the server reports a bad bin name without saying which
+        bin it was, and the name is otherwise consumed at construction.
+
+        Covers the operations this class constructs. Bin, list, map, HLL, and
+        expression operations are separate classes and answer ``None`` here.
+        """
     def __new__(cls) -> _aerospike_async_native.Operation: ...
     @staticmethod
     def get() -> _aerospike_async_native.Operation:
