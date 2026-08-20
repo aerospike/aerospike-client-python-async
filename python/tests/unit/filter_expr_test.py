@@ -295,7 +295,7 @@ class TestFilterExprVector:
 
     def test_distance_builders(self):
         query = Vector([0.1, 0.2, 0.3])
-        funcs = [fe.l2_squared_distance, fe.dot_product, fe.cosine_similarity]
+        funcs = [fe.euclidean_squared_distance, fe.dot_product, fe.cosine_similarity]
         for func in funcs:
             expr = func(query, fe.vector_bin("embedding"))
             assert isinstance(expr, fe)

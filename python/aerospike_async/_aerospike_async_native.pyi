@@ -2397,7 +2397,7 @@ class FilterExpression:
     @staticmethod
     def vector_bin(name: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
-        Create a vector bin expression, for use with :meth:`l2_squared_distance`,
+        Create a vector bin expression, for use with :meth:`euclidean_squared_distance`,
         :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
         the expression level.
 
@@ -2408,10 +2408,10 @@ class FilterExpression:
         :meth:`cosine_similarity`.
         """
     @staticmethod
-    def l2_squared_distance(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+    def euclidean_squared_distance(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Create an expression that returns the squared L2 (squared Euclidean) distance between
-        a stored vector bin and ``query``, as a 64-bit float. Smaller is closer.
+        Create an expression that returns the squared Euclidean distance between a stored
+        vector bin and ``query``, as a 64-bit float. Smaller is closer.
 
         The query vector's element type and dimension count must match the stored vector;
         otherwise the expression evaluates to unknown. ``bin`` is typically
@@ -2435,7 +2435,7 @@ class FilterExpression:
 
         # Work in progress
 
-        See the caveats on :meth:`l2_squared_distance`.
+        See the caveats on :meth:`euclidean_squared_distance`.
         """
     @staticmethod
     def cosine_similarity(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -2449,7 +2449,7 @@ class FilterExpression:
 
         # Work in progress
 
-        See the caveats on :meth:`l2_squared_distance`.
+        See the caveats on :meth:`euclidean_squared_distance`.
         """
     @staticmethod
     def bin_exists(name: builtins.str) -> _aerospike_async_native.FilterExpression:

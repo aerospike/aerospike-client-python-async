@@ -36,8 +36,6 @@ mimalloc = "0.1"
 rand = { version = "0.8", features = ["small_rng"] }
 numpy = { version = "0.29", features = ["half"] }
 half = "2"
-numpy = { version = "0.29", features = ["half"] }
-half = "2"
 
 [build-dependencies]
 # Re-exports pyo3's interpreter cfgs (Py_3_13, Py_GIL_DISABLED, …) via build.rs

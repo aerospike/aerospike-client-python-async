@@ -158,6 +158,23 @@ async def supports_string_operations(server_version):
     return server_version is not None and server_version >= SERVER_8_1_3
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_vector_bins(server_version):
+    """``True`` when the (default-host) cluster likely supports ``VECTOR`` bins.
+
+    TODO(vector-capability-gate): interim/temporary. Unlike the other
+    ``supports_*`` gates here, the Rust core has no
+    ``Version::supports_vector_bins()`` yet -- ``VECTOR`` particle support is
+    still an unreleased, dev-server-only feature with no assigned version
+    floor. This reuses the 8.1.3 floor only because current dev builds
+    happen to report that version (``git describe``-style, e.g.
+    ``8.1.3.0-76-g<hash>``); it will false-positive on a genuine (non-dev)
+    8.1.3+ release that lacks ``VECTOR`` support. Replace this with a real
+    capability check once the Rust core assigns one, and drop this TODO.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
+
+
 async def _probe_all_nodes_version_capability(
     aerospike_host,
     use_services_alternate,
