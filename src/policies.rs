@@ -2251,6 +2251,16 @@ use crate::TlsConfig;
             self._as.min_conns_per_node = sz;
         }
 
+        /// Maximum number of connections allowed per server node.
+        ///
+        /// The pool fails fast once a burst exceeds this value rather than
+        /// queueing, so a workload whose concurrency outgrows the cap becomes
+        /// pool-bound: throughput flattens and latency climbs while the cluster
+        /// still has headroom. Size the pool to the client's total concurrency,
+        /// not to concurrency divided by node count -- bursts do not spread
+        /// evenly across nodes.
+        ///
+        /// Default: ``100``.
         #[getter]
         pub fn get_max_conns_per_node(&self) -> usize {
             self._as.max_conns_per_node
