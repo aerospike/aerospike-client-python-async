@@ -510,7 +510,7 @@ jobs:
       - name: Download sdist
         uses: actions/download-artifact@v4
         with:
-          name: wheels-macos-arm64-${{ matrix.python }}
+          name: wheels-macos-arm64-python${{ matrix.python }}
           path: aerospike_async
 
       - name: Setup Python for maturin
