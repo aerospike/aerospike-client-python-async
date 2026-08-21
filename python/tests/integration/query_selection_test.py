@@ -26,6 +26,7 @@ import pytest_asyncio
 from aerospike_async import (
     ClientPolicy,
     CollectionIndexType,
+    ErrorDetailVerbosity,
     Filter,
     IndexType,
     Key,
@@ -170,9 +171,9 @@ async def _create_qsel_indexes(setup_client) -> None:
             pass
 
 
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
+@pytest_asyncio.fixture(scope="module", loop_scope="module", autouse=True)
 async def qsel_fixture(aerospike_host, use_services_alternate, supports_query_selection):
-    """Module-scoped seed + indexes; tests use the function-scoped ``client``."""
+    """Module-scoped seed + indexes for all tests in this module."""
     if not supports_query_selection:
         pytest.skip(
             "cluster lacks query selection "
@@ -205,9 +206,7 @@ async def qsel_fixture(aerospike_host, use_services_alternate, supports_query_se
 class TestQuerySelectionExplain(TestFixtureConnection):
     """Phase 1: server query explain."""
 
-    async def test_explain_selects_secondary_index_for_age_range(
-        self, client, qsel_fixture
-    ):
+    async def test_explain_selects_secondary_index_for_age_range(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -221,9 +220,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.index_name == AGE_INDEX_NAME
         assert plan.ael == "$.age >= 14 and $.age <= 18"
 
-    async def test_explain_selects_primary_index_for_non_indexed_predicate(
-        self, client, qsel_fixture
-    ):
+    async def test_explain_selects_primary_index_for_non_indexed_predicate(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.country == 'US'",
@@ -237,9 +234,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.index_name is None
         assert plan.ael == "$.country == 'US'"
 
-    async def test_explain_contradiction_predicate_filtered_out(
-        self, client, qsel_fixture
-    ):
+    async def test_explain_contradiction_predicate_filtered_out(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
@@ -255,9 +250,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
 class TestQueryPlanFilterForExecute(TestFixtureConnection):
     """``QueryPlan.filter_for_execute()`` for each selection type."""
 
-    async def test_secondary_index_plan_returns_execute_filter(
-        self, client, qsel_fixture
-    ):
+    async def test_secondary_index_plan_returns_execute_filter(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -269,7 +262,7 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
         execute_filter = plan.filter_for_execute()
         assert isinstance(execute_filter, Filter)
 
-    async def test_primary_index_plan_returns_none(self, client, qsel_fixture):
+    async def test_primary_index_plan_returns_none(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.country == 'US'",
@@ -279,7 +272,7 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
         assert plan.is_primary_index
         assert plan.filter_for_execute() is None
 
-    async def test_filtered_out_plan_returns_none(self, client, qsel_fixture):
+    async def test_filtered_out_plan_returns_none(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
@@ -293,7 +286,7 @@ class TestQueryPlanFilterForExecute(TestFixtureConnection):
 class TestQueryPlanRepr(TestFixtureConnection):
     """``repr(QueryPlan)`` for diagnostics."""
 
-    async def test_repr_reports_selection_index_and_ael(self, client, qsel_fixture):
+    async def test_repr_reports_selection_index_and_ael(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -306,7 +299,7 @@ class TestQueryPlanRepr(TestFixtureConnection):
             f'where_flags=0x02, ael="$.age >= 14 and $.age <= 18")'
         )
 
-    async def test_repr_reports_none_index_and_quoted_ael(self, client, qsel_fixture):
+    async def test_repr_reports_none_index_and_quoted_ael(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.country == 'US'",
@@ -319,7 +312,7 @@ class TestQueryPlanRepr(TestFixtureConnection):
             f'where_flags=0x02, ael="$.country == \'US\'")'
         )
 
-    async def test_repr_reports_filtered_out_selection(self, client, qsel_fixture):
+    async def test_repr_reports_filtered_out_selection(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
@@ -332,7 +325,7 @@ class TestQueryPlanRepr(TestFixtureConnection):
             f'where_flags=0x02, ael="$.age > 100 and $.age < 10")'
         )
 
-    async def test_repr_reports_non_default_where_flags(self, client, qsel_fixture):
+    async def test_repr_reports_non_default_where_flags(self, client):
         plan = await explain_plan_async(
             client,
             "$.age == 51",
@@ -363,7 +356,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
             policy=QueryPolicy(),
         )
 
-    async def test_execute_returns_matching_records(self, client, qsel_fixture):
+    async def test_execute_returns_matching_records(self, client):
         records = await self._execute_ael(
             client,
             "$.age >= 14 and $.age <= 18",
@@ -372,7 +365,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         ages = await _collect_int_bin(records, AGE_BIN)
         assert ages == [14, 15, 16, 17, 18]
 
-    async def test_execute_equality_returns_single_record(self, client, qsel_fixture):
+    async def test_execute_equality_returns_single_record(self, client):
         records = await self._execute_ael(
             client,
             "$.age == 25",
@@ -381,9 +374,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         ages = await _collect_int_bin(records, AGE_BIN)
         assert ages == [25]
 
-    async def test_execute_primary_index_returns_matching_records(
-        self, client, qsel_fixture
-    ):
+    async def test_execute_primary_index_returns_matching_records(self, client):
         records = await self._execute_ael(
             client,
             "$.country == 'US'",
@@ -395,7 +386,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
         assert len(countries) == 25
         assert all(c == "US" for c in countries)
 
-    async def test_execute_filtered_out_plan_raises(self, client, qsel_fixture):
+    async def test_execute_filtered_out_plan_raises(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age > 100 and $.age < 10",
@@ -413,7 +404,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
             )
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
-    async def test_execute_mismatched_plan_namespace_raises(self, client, qsel_fixture):
+    async def test_execute_mismatched_plan_namespace_raises(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -428,7 +419,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
                 policy=QueryPolicy(),
             )
 
-    async def test_execute_mismatched_plan_set_raises(self, client, qsel_fixture):
+    async def test_execute_mismatched_plan_set_raises(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -443,7 +434,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
                 policy=QueryPolicy(),
             )
 
-    async def test_execute_statement_with_filters_raises(self, client, qsel_fixture):
+    async def test_execute_statement_with_filters_raises(self, client):
         plan = await client.query_explain(
             NAMESPACE,
             "$.age >= 14 and $.age <= 18",
@@ -463,20 +454,7 @@ class TestQuerySelectionExecute(TestFixtureConnection):
 class TestQuerySelectionHintFlags(TestFixtureConnection):
     """Tier D: ``REQUIRE_INDEX`` and ``HARD_HINT`` on field 44 explain."""
 
-    async def test_require_index_on_primary_index_plan_fails_explain(
-        self, client, qsel_fixture,
-    ):
-        with pytest.raises(IndexNotFound) as exc_info:
-            await explain_plan_async(
-                client,
-                "$.country == 'US'",
-                hint=ExplainHint(require_index=True),
-            )
-        assert exc_info.value.result_code == ResultCode.INDEX_NOT_FOUND
-
-    async def test_require_index_with_soft_hint_selects_secondary_index(
-        self, client, qsel_fixture,
-    ):
+    async def test_require_index_with_soft_hint_selects_secondary_index(self, client):
         plan = await explain_plan_async(
             client,
             "$.age == 51",
@@ -489,9 +467,7 @@ class TestQuerySelectionHintFlags(TestFixtureConnection):
         assert plan.selection == QuerySelection.SECONDARY_INDEX
         assert plan.index_name == AGE_INDEX_NAME
 
-    async def test_hard_hint_with_matching_index_selects_hinted_index(
-        self, client, qsel_fixture,
-    ):
+    async def test_hard_hint_with_matching_index_selects_hinted_index(self, client):
         plan = await explain_plan_async(
             client,
             "$.age == 51",
@@ -504,9 +480,7 @@ class TestQuerySelectionHintFlags(TestFixtureConnection):
         assert plan.selection == QuerySelection.SECONDARY_INDEX
         assert plan.index_name == AGE_INDEX_NAME
 
-    async def test_require_index_and_hard_hint_selects_hinted_index(
-        self, client, qsel_fixture,
-    ):
+    async def test_require_index_and_hard_hint_selects_hinted_index(self, client):
         plan = await explain_plan_async(
             client,
             "$.age == 51",
@@ -519,19 +493,7 @@ class TestQuerySelectionHintFlags(TestFixtureConnection):
 
         assert plan.index_name == AGE_INDEX_NAME
 
-    async def test_hard_hint_with_wrong_index_fails_explain(self, client, qsel_fixture):
-        with pytest.raises(IndexNotFound) as exc_info:
-            await explain_plan_async(
-                client,
-                "$.age == 51",
-                hint=ExplainHint(
-                    index_name=BOGUS_INDEX_NAME,
-                    hard_hint=True,
-                ),
-            )
-        assert exc_info.value.result_code == ResultCode.INDEX_NOT_FOUND
-
-    async def test_hard_hint_without_index_name_fails_explain(self, client, qsel_fixture):
+    async def test_hard_hint_without_index_name_fails_explain(self, client):
         with pytest.raises(ValueError, match="index name hint"):
             await client.query_explain(
                 NAMESPACE,
@@ -540,7 +502,7 @@ class TestQuerySelectionHintFlags(TestFixtureConnection):
                 explain_where_flags=QueryWhereFlags.EXPLAIN | QueryWhereFlags.HARD_HINT,
             )
 
-    async def test_explain_flags_without_explain_bit_fails(self, client, qsel_fixture):
+    async def test_explain_flags_without_explain_bit_fails(self, client):
         with pytest.raises(ValueError, match="EXPLAIN"):
             await client.query_explain(
                 NAMESPACE,
@@ -549,7 +511,67 @@ class TestQuerySelectionHintFlags(TestFixtureConnection):
                 explain_where_flags=QueryWhereFlags.REQUIRE_INDEX,
             )
 
-    async def test_bad_ael_fails_explain_with_parameter(self, client, qsel_fixture):
+
+class TestQuerySelectionErrorDetail(TestFixtureConnection):
+    """Error-detail verbosity on the phase-1 field ``44`` explain command."""
+
+    @staticmethod
+    def _policy(verbosity: int) -> QueryPolicy:
+        policy = QueryPolicy()
+        policy.error_detail_verbosity = verbosity
+        return policy
+
+    async def test_bad_ael_message_verbosity_fails_without_trace(self, client):
         with pytest.raises(InvalidRequest) as exc_info:
-            await explain_plan_async(client, "$.age > 30 and")
+            await client.query_explain(
+                NAMESPACE,
+                "$.age > 30 and",
+                set_name=SET_NAME,
+                policy=self._policy(ErrorDetailVerbosity.MESSAGE),
+            )
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+        # `None` while the server does not stage error detail on explain
+        # failures; `0` once it does, since the rejection has no refining
+        # subcode of its own.
+        assert exc_info.value.sub_code in (None, 0)
+        assert exc_info.value.exp_trace is None
+
+    async def test_bad_ael_expression_trace_verbosity_fails_at_explain(self, client):
+        with pytest.raises(InvalidRequest) as exc_info:
+            await client.query_explain(
+                NAMESPACE,
+                "$.age > 30 and",
+                set_name=SET_NAME,
+                policy=self._policy(ErrorDetailVerbosity.EXPRESSION_TRACE),
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+        assert exc_info.value.sub_code in (None, 0)
+
+    async def test_require_index_rejection_carries_no_refining_subcode(self, client):
+        with pytest.raises(IndexNotFound) as exc_info:
+            await client.query_explain(
+                NAMESPACE,
+                "$.country == 'US'",
+                set_name=SET_NAME,
+                explain_where_flags=(
+                    QueryWhereFlags.EXPLAIN | QueryWhereFlags.REQUIRE_INDEX
+                ),
+                policy=self._policy(ErrorDetailVerbosity.MESSAGE),
+            )
+        assert exc_info.value.result_code == ResultCode.INDEX_NOT_FOUND
+        assert exc_info.value.sub_code in (None, 0)
+
+    async def test_hard_hint_rejection_carries_no_refining_subcode(self, client):
+        with pytest.raises(IndexNotFound) as exc_info:
+            await client.query_explain(
+                NAMESPACE,
+                "$.age == 51",
+                set_name=SET_NAME,
+                index_name_hint=BOGUS_INDEX_NAME,
+                explain_where_flags=(
+                    QueryWhereFlags.EXPLAIN | QueryWhereFlags.HARD_HINT
+                ),
+                policy=self._policy(ErrorDetailVerbosity.MESSAGE),
+            )
+        assert exc_info.value.result_code == ResultCode.INDEX_NOT_FOUND
+        assert exc_info.value.sub_code in (None, 0)
