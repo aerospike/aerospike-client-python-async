@@ -12,7 +12,11 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.29", default-features = false, features = ["indexmap"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = "1.40"
-aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "460e18060a9c8e30598c3764e3895c033d460fbc", package = "aerospike-core", features = ["rt-tokio", "dynamic-config", "serialization"] }
+# LOCAL TESTING ONLY -- do not commit. Tracks whatever the local core checkout
+# is on (currently branch v3). Restore the pinned git rev below before
+# committing or publishing; a path dependency breaks reproducible builds.
+aerospike-core = { path = "../aerospike-client-rust/aerospike-core", package = "aerospike-core", features = ["rt-tokio", "dynamic-config", "serialization"] }
+# aerospike-core = { git = "https://github.com/aerospike/aerospike-client-rust", rev = "460e18060a9c8e30598c3764e3895c033d460fbc", package = "aerospike-core", features = ["rt-tokio", "dynamic-config", "serialization"] }
 hex = "0.4"
 # Metrics snapshots re-serialize through core's `serialization` feature; these
 # convert the serde tree into plain Python dicts for `to_dict()`.

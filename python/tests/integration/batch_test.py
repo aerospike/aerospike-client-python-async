@@ -1189,3 +1189,125 @@ async def test_batch_stream_async_exhausted_stops(client_and_keys):
         second_pass.append(item)
     assert second_pass == []
 
+
+# ---------------------------------------------------------------------------
+# Batch-level filter expression
+#
+# Distinct from the per-record filters above: a filter set on BatchPolicy is
+# written into the batch header, ahead of the batch-index field, so its
+# presence changes that field's offset and declared size. The per-record
+# BatchReadPolicy/BatchWritePolicy filters travel with each record instead and
+# do not exercise that path.
+# ---------------------------------------------------------------------------
+
+def _match_filter(bin_name, value):
+    return FilterExpression.eq(
+        FilterExpression.int_bin(bin_name), FilterExpression.int_val(value)
+    )
+
+
+async def _seed_ints(client, keys, bin_name, values):
+    """Reset each key to exactly one int bin.
+
+    The shared fixture seeds list bins, and these tests add their own, so the
+    records are deleted first -- otherwise a bin written by an earlier run makes
+    "this write did not land" unprovable.
+    """
+    wp = WritePolicy()
+    for key, value in zip(keys, values):
+        try:
+            await client.delete(key, policy=wp)
+        except Exception:
+            pass
+        await client.put(key, {bin_name: value}, policy=wp)
+
+
+async def test_batch_read_with_batch_level_filter_expression(client_and_keys):
+    """A filter on BatchPolicy applies to every record in the batch."""
+    client, keys, _, bin_name = client_and_keys
+    pair = keys[:2]
+    await _seed_ints(client, pair, bin_name, [1, 9])
+
+    bp = BatchPolicy()
+    bp.filter_expression = _match_filter(bin_name, 9)
+
+    results = await client.batch_read(pair, [bin_name], batch_policy=bp)
+
+    assert len(results) == len(pair)
+    by_code = {r.key.value: r.result_code for r in results}
+    assert by_code[pair[1].value] == ResultCode.OK
+    assert by_code[pair[0].value] == ResultCode.FILTERED_OUT
+
+
+async def test_batch_write_with_batch_level_filter_expression(client_and_keys):
+    """A filter on BatchPolicy gates the write path, not just reads.
+
+    This is the path that stamps the batch-index field after the filter.
+    """
+    client, keys, _, bin_name = client_and_keys
+    pair = keys[2:4]
+    await _seed_ints(client, pair, bin_name, [1, 9])
+
+    bp = BatchPolicy()
+    bp.filter_expression = _match_filter(bin_name, 9)
+
+    results = await client.batch_write(
+        pair, [{"tagged": 1}] * len(pair), batch_policy=bp
+    )
+    by_code = {r.key.value: r.result_code for r in results}
+    assert by_code[pair[1].value] == ResultCode.OK
+    assert by_code[pair[0].value] == ResultCode.FILTERED_OUT
+
+    # The write reached the match and only the match.
+    rp = ReadPolicy()
+    matched = await client.get(pair[1], policy=rp)
+    assert matched.bins.get("tagged") == 1
+    skipped = await client.get(pair[0], policy=rp)
+    assert "tagged" not in skipped.bins
+
+
+async def test_batch_operate_with_batch_level_filter_expression(client_and_keys):
+    """Same batch-level filter, through batch_operate rather than batch_write."""
+    client, keys, _, bin_name = client_and_keys
+    pair = keys[4:6]
+    await _seed_ints(client, pair, bin_name, [1, 9])
+
+    bp = BatchPolicy()
+    bp.filter_expression = _match_filter(bin_name, 9)
+
+    ops = [Operation.put("op_tagged", 1)]
+    results = await client.batch_operate(pair, [ops] * len(pair), batch_policy=bp)
+
+    by_code = {r.key.value: r.result_code for r in results}
+    assert by_code[pair[1].value] == ResultCode.OK
+    assert by_code[pair[0].value] == ResultCode.FILTERED_OUT
+
+
+async def test_batch_level_filter_with_compression(client_and_keys):
+    """Batch-level filter with request compression enabled.
+
+    Compression shifts where the header's fields begin, so it combines with the
+    filter to move the batch-index field twice over. Enterprise-only.
+    """
+    client, keys, _, bin_name = client_and_keys
+    pair = keys[6:8]
+    await _seed_ints(client, pair, bin_name, [1, 9])
+
+    bp = BatchPolicy()
+    bp.filter_expression = _match_filter(bin_name, 9)
+    try:
+        bp.use_compression = True
+        bp.compression_threshold = 1  # compress even this small request
+    except Exception as exc:
+        pytest.skip(f"compression unavailable: {exc}")
+
+    try:
+        results = await client.batch_read(pair, [bin_name], batch_policy=bp)
+    except ServerError as exc:
+        if exc.result_code == ResultCode.ENTERPRISE_ONLY:
+            pytest.skip("use_compression requires Aerospike Enterprise Edition")
+        raise
+
+    by_code = {r.key.value: r.result_code for r in results}
+    assert by_code[pair[1].value] == ResultCode.OK
+    assert by_code[pair[0].value] == ResultCode.FILTERED_OUT

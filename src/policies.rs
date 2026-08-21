@@ -1413,17 +1413,28 @@ use crate::TlsConfig;
             self._as.respond_all_keys = respond_all_keys;
         }
 
-        // Override filter expression to sync with internal base_policy
+        // A batch policy carries its own filter expression *and* inherits one on
+        // its base policy. Only the outer field reaches the wire -- the batch
+        // command reads `BatchPolicy::filter_expression()`, which returns the
+        // outer one. Both are set so the getter cannot disagree with what is
+        // actually sent, and so a caller reaching through the base policy still
+        // observes the filter.
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
         pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
             match filter_expression {
-                Some(fe) => self._as.base_policy.filter_expression = Some(fe._as),
-                None => self._as.base_policy.filter_expression = None,
+                Some(fe) => {
+                    self._as.filter_expression = Some(fe._as.clone());
+                    self._as.base_policy.filter_expression = Some(fe._as);
+                }
+                None => {
+                    self._as.filter_expression = None;
+                    self._as.base_policy.filter_expression = None;
+                }
             }
         }
 
