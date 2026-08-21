@@ -11,6 +11,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 [[package]]
 name = "aerospike-core"
 version = "3.0.0-alpha.1"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e#e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e"
 dependencies = [
  "aerospike-macro",
  "aerospike-rt",
@@ -41,6 +42,7 @@ dependencies = [
 [[package]]
 name = "aerospike-macro"
 version = "3.0.0-alpha.1"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e#e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -50,6 +52,7 @@ dependencies = [
 [[package]]
 name = "aerospike-rt"
 version = "3.0.0-alpha.1"
+source = "git+https://github.com/aerospike/aerospike-client-rust?rev=e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e#e5d7f51f2c35b70786ea7a2a7cfd7622d932cb2e"
 dependencies = [
  "tokio",
 ]
