@@ -436,10 +436,8 @@ jobs:
           name: wheels-macos-x86-${{ matrix.python }}
           path: aerospike_async
 
-  # Build-only: macOS arm64 runners don't support container virtualization
-  # (vfkit fails), so tests can't run. Integration coverage comes from the
-  # Linux x86_64 / aarch64 jobs, which exercise the same Rust/Python logic.
-  # (macos-x86 is build-only for the same reason.)
+  # Build + import smoke on GitHub-hosted macos-latest (no Docker/vfkit).
+  # Integration tests run on self-hosted macOS ARM64 in macos-arm-integration.
   macos-arm:
     runs-on: macos-latest
     strategy:
@@ -507,14 +505,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download sdist
+      - name: Download wheels
         uses: actions/download-artifact@v4
         with:
           name: wheels-macos-arm64-python${{ matrix.python }}
           path: aerospike_async
 
-      - name: Setup Python for maturin
-        uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
