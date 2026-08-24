@@ -145,6 +145,17 @@ class CommitFailedError(AerospikeError):
     """Exception raised when a multi-record transaction commit fails."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class BatchFailedError(ClientError):
+    """A batch command failed as a whole.
+
+    ``records`` carries the per-key ``BatchRecord`` outcomes attached to the
+    failure: rows the server answered keep their result, unanswered rows
+    carry the stamped result code (``TIMEOUT`` on client timeouts) and the
+    per-row in-doubt flag.
+    """
+    records: typing.Optional[builtins.list[BatchRecord]]
+    def __init__(self, message: builtins.str) -> None: ...
+
 class MaxErrorRate(AerospikeError):
     """Per-node circuit breaker tripped (client-side, not sent to server)."""
     def __init__(self, message: builtins.str) -> None: ...
@@ -207,6 +218,7 @@ __all__ = [
     "InvalidNamespaceError",
     "NoMoreConnections",
     "CommitFailedError",
+    "BatchFailedError",
     "RecvError",
     "Base64DecodeError",
     "InvalidUTF8",
@@ -247,7 +259,7 @@ EXCEPTIONS_SUBMODULE_STUB = f'''# This file contains type stubs for the aerospik
 
 import builtins
 import typing
-from .._aerospike_async_native import ResultCode
+from .._aerospike_async_native import BatchRecord, ResultCode
 
 # Exception classes
 {EXCEPTION_STUB_CLASSES}
@@ -1816,6 +1828,7 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('InvalidNamespaceError = _exceptions.InvalidNamespaceError\n')
         f.write('NoMoreConnections = _exceptions.NoMoreConnections\n')
         f.write('CommitFailedError = _exceptions.CommitFailedError\n')
+        f.write('BatchFailedError = _exceptions.BatchFailedError\n')
         f.write('RecvError = _exceptions.RecvError\n')
         f.write('Base64DecodeError = _exceptions.Base64DecodeError\n')
         f.write('InvalidUTF8 = _exceptions.InvalidUTF8\n')
@@ -1840,6 +1853,8 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('AerospikeError.iteration = None\n')
         f.write('AerospikeError.base_message = None\n')
         f.write('AerospikeError.sub_exceptions = None\n')
+        f.write('# Per-key outcomes; the native layer attaches the list on batch failures.\n')
+        f.write('BatchFailedError.records = None\n')
         f.write('\n')
         f.write('# ServerError subclasses for specific result codes (grouping bases first)\n')
         f.write('class RecordError(ServerError):\n')

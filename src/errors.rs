@@ -435,6 +435,53 @@ impl<T: PyTypeInfo + 'static> PyErrArguments for RetryCtxArgs<T> {
     }
 }
 
+// Deferred arguments for a batch-wide failure. Same lazy contract as
+// `RetryCtxArgs` (materialized on the event-loop/drainer thread, never on a
+// Tokio worker), plus the per-key `BatchRecord` outcomes that core attaches
+// to the failure so callers can report truthful per-row results.
+struct BatchFailedArgs {
+    message: String,
+    in_doubt: bool,
+    ctx: RetryContext,
+    records: Vec<aerospike_core::BatchRecord>,
+}
+
+impl PyErrArguments for BatchFailedArgs {
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        match py.get_type::<BatchFailedError>().call1((self.message,)) {
+            Ok(obj) => {
+                if self.in_doubt {
+                    let _ = obj.setattr("in_doubt", true);
+                }
+                if let Some(node) = &self.ctx.node {
+                    let _ = obj.setattr("node", node);
+                }
+                if let Some(iteration) = self.ctx.iteration {
+                    let _ = obj.setattr("iteration", iteration);
+                }
+                let _ = obj.setattr("base_message", &self.ctx.base_message);
+                if let Some(subs) = materialize_sub_exceptions(py, &self.ctx.subs) {
+                    let _ = obj.setattr("sub_exceptions", subs);
+                }
+                let rows: Vec<Py<PyAny>> = self
+                    .records
+                    .into_iter()
+                    .filter_map(|r| {
+                        Py::new(py, crate::policies::BatchRecord { _as: r })
+                            .ok()
+                            .map(pyo3::Py::into_any)
+                    })
+                    .collect();
+                if let Ok(list) = pyo3::types::PyList::new(py, rows) {
+                    let _ = obj.setattr("records", list);
+                }
+                obj.unbind()
+            }
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
 // A bare failure with nothing to report beyond its message stays on the
 // existing fast path: no setattr, no extra allocation, identical to
 // `T::new_err(msg)`.  Anything carrying retry context takes the lazy path.
@@ -486,6 +533,13 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 // Client-side errors
 create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
 create_exception!(aerospike_async.exceptions, CommitFailedError, AerospikeError);
+
+// A batch command failed as a whole. Subclasses ClientError so existing
+// `except ClientError` handlers keep matching. Carries `records`: the
+// per-key `BatchRecord` outcomes core attached to the failure — rows the
+// server answered keep their result, unanswered rows carry the stamped
+// result code (TIMEOUT on client timeouts) and per-row in-doubt flag.
+create_exception!(aerospike_async.exceptions, BatchFailedError, ClientError);
 
 // Per-node circuit breaker tripped (client-side, not sent to server). Carries
 // the offending node identifier in the exception message. Raised when a node
@@ -564,7 +618,15 @@ impl From<RustClientError> for PyErr {
             ErrorKind::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
             ErrorKind::ParseInt(e) => ParseIntError::new_err(e.to_string()),
             ErrorKind::PwHash(e) => PasswordHashError::new_err(e.to_string()),
-            // Client / StreamTerminated / BatchFailed / BatchRow / Async and
+            ErrorKind::BatchFailed { records } => PyErr::new::<BatchFailedError, _>(
+                BatchFailedArgs {
+                    message: msg,
+                    in_doubt,
+                    ctx,
+                    records: records.clone(),
+                },
+            ),
+            // Client / StreamTerminated / BatchRow / Async and
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection
             // etc. are handled above.)

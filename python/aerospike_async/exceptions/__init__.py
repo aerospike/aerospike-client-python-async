@@ -20,6 +20,7 @@ InvalidNodeError = _exceptions.InvalidNodeError
 InvalidNamespaceError = _exceptions.InvalidNamespaceError
 NoMoreConnections = _exceptions.NoMoreConnections
 CommitFailedError = _exceptions.CommitFailedError
+BatchFailedError = _exceptions.BatchFailedError
 RecvError = _exceptions.RecvError
 Base64DecodeError = _exceptions.Base64DecodeError
 InvalidUTF8 = _exceptions.InvalidUTF8
@@ -44,6 +45,8 @@ AerospikeError.node = None
 AerospikeError.iteration = None
 AerospikeError.base_message = None
 AerospikeError.sub_exceptions = None
+# Per-key outcomes; the native layer attaches the list on batch failures.
+BatchFailedError.records = None
 
 # ServerError subclasses for specific result codes (grouping bases first)
 class RecordError(ServerError):

@@ -175,3 +175,27 @@ class TestClientError:
         except Exception:
             pytest.fail("ClientError should be caught as ClientError, not generic Exception")
 
+
+
+class TestBatchFailedError:
+    """BatchFailedError shape: ClientError subclass carrying per-key records."""
+
+    def test_subclasses_client_error(self):
+        from aerospike_async.exceptions import BatchFailedError
+
+        err = BatchFailedError("Batch failed (2 records)")
+        assert isinstance(err, ClientError)
+        assert isinstance(err, AerospikeError)
+
+    def test_records_defaults_to_none(self):
+        # The native layer attaches the list on real failures; a bare
+        # instance answers None rather than raising.
+        from aerospike_async.exceptions import BatchFailedError
+
+        assert BatchFailedError("x").records is None
+
+    def test_caught_as_client_error(self):
+        from aerospike_async.exceptions import BatchFailedError
+
+        with pytest.raises(ClientError):
+            raise BatchFailedError("Batch failed")

@@ -5118,6 +5118,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
     exceptions_module.add("CommitFailedError", py.get_type::<CommitFailedError>())?;
+    exceptions_module.add("BatchFailedError", py.get_type::<BatchFailedError>())?;
     exceptions_module.add("MaxErrorRate", py.get_type::<MaxErrorRate>())?;
     exceptions_module.add("ResultCode", py.get_type::<ResultCode>())?;
     m.add_submodule(&exceptions_module)?;

@@ -25,7 +25,7 @@ from aerospike_async import (
     UDFLang,
     BatchRecord,
 )
-from aerospike_async.exceptions import UDFBadResponse, ResultCode
+from aerospike_async.exceptions import BatchFailedError, ClientError, UDFBadResponse, ResultCode
 from fixtures import TestFixtureConnection
 
 
@@ -194,3 +194,63 @@ class TestBatchApply(TestFixtureConnection):
             assert result.record is not None
             assert "SUCCESS" in result.record.bins
             assert isinstance(result.record.bins["SUCCESS"], int)
+
+
+class TestBatchFailedError(TestFixtureConnection):
+    """A batch-wide failure raises BatchFailedError carrying per-key outcomes."""
+
+    @pytest.fixture
+    async def client_with_sleep_udf(self, client):
+        udf_path = os.path.join(os.path.dirname(__file__), "udf", "sleep_example.lua")
+        server_path = "sleep_example.lua"
+        try:
+            remove_task = await client.remove_udf(server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+        task = await client.register_udf_from_file(udf_path, server_path, UDFLang.LUA)
+        assert await task.wait_till_complete()
+        yield client
+        try:
+            remove_task = await client.remove_udf(server_path)
+            await remove_task.wait_till_complete()
+        except Exception:
+            pass
+
+    async def test_batch_udf_client_timeout_raises_batch_failed_with_rows(
+        self, client_with_sleep_udf
+    ):
+        """Client socket timeout racing a longer server-side UDF sleep.
+
+        total_timeout must stay 0: a nonzero total makes the client send
+        min(socket, total) as the server-side deadline and the server's own
+        abort then beats the client timer. With no server deadline the 250ms
+        socket timer is the only one racing the 1000ms sleep, so the
+        client-side timeout is deterministic. The writes reached the wire,
+        so the aggregate and every row are in-doubt, and unanswered rows are
+        stamped TIMEOUT.
+        """
+        keys = [Key("test", "test", f"pac_budf_fail_{i}") for i in range(6)]
+        bp = BatchPolicy()
+        bp.socket_timeout = 250
+        bp.total_timeout = 0
+        bp.max_retries = 0
+
+        with pytest.raises(BatchFailedError) as exc_info:
+            await client_with_sleep_udf.batch_apply(
+                keys,
+                "sleep_example",
+                "sleep",
+                [1000],
+                batch_policy=bp,
+                udf_policy=None,
+            )
+        err = exc_info.value
+        assert isinstance(err, ClientError)
+        assert err.in_doubt is True
+        assert err.records is not None and len(err.records) == len(keys)
+        for row in err.records:
+            assert isinstance(row, BatchRecord)
+            assert row.result_code == ResultCode.TIMEOUT
+            assert row.in_doubt is True
+        assert sorted(r.key.digest for r in err.records) == sorted(k.digest for k in keys)
