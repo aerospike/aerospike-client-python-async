@@ -43,6 +43,7 @@ from aerospike_async import (
     StringWriteFlags,
     WritePolicy,
 )
+from aerospike_async.exceptions import InvalidRequest
 
 
 # Module-level loop scope keeps the shared ``string_client_813`` fixture
@@ -566,12 +567,25 @@ class TestToString:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.xfail(
+    raises=InvalidRequest,
+    reason=(
+        "String-op CTX envelope reshaped server-side. The server now expects "
+        "the inner op nested — [0xFF, ctx_list, [inner_op, args...]] with the "
+        "outer element count fixed at 3 — while core still emits the flat "
+        "[0xFF, ctx_flat_list, inner_op, args...] and is rejected with "
+        "PARAMETER_ERROR. Tracked as CLIENT-5329; promote these back to plain "
+        "tests once core emits the nested envelope."
+    ),
+)
 class TestStringWithCtx:
     """String ops on values nested inside list / map bins.
 
-    The PAC encoder emits the §2.3.1 CTX-wrapper envelope when ctx is
-    non-empty and omits it entirely when ctx is None (server expects
-    distinct dispatch paths — see spec §2.3.1).
+    The encoder emits the CTX-wrapper envelope when ctx is non-empty and omits
+    it entirely when ctx is None, which the server dispatches on separately.
+    The wrapper's own layout is mid-change: the flat form encoded here is the
+    one the server is moving away from, so every test in this class is
+    currently expected to fail — see the class marker.
     """
 
     async def test_strlen_on_string_at_list_index(self, string_client_813):
