@@ -46,16 +46,17 @@ from aerospike_async import (
     Filter,
     IndexType,
     Key,
+    new_client,
+    new_client_blocking,
     Operation,
     PartitionFilter,
     QueryPolicy,
     QuerySelection,
     ReadPolicy,
     ResultCode,
+    SortedMap,
     Statement,
     WritePolicy,
-    new_client,
-    new_client_blocking,
 )
 from aerospike_async.exceptions import IndexFoundError, IndexNotFound, ServerError
 
@@ -593,3 +594,38 @@ def test_blocking_execute_mismatched_plan_set_raises(qsel_blocking_fixture):
             policy=QueryPolicy(),
         )
 
+
+
+def test_blocking_sorted_map_round_trip(aerospike_host, use_services_alternate):
+    """SortedMap through the blocking surface.
+
+    The value conversion is shared with the async path, but the blocking
+    entries are a separate surface -- this pins that a key-ordered map
+    survives a blocking write/read as the type it was written as.
+    """
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        key = Key("test", "blocking", "sortedmap-1")
+        data = {"zebra": 26, "apple": 1, "mango": 13}
+
+        client.put_blocking(key, {"m": SortedMap(data)}, policy=WritePolicy())
+        rec = client.get_blocking(key, policy=ReadPolicy())
+
+        got = rec.bins["m"]
+        assert isinstance(got, SortedMap)
+        # Still a dict in every way a caller would use one.
+        assert isinstance(got, dict)
+        assert got == data
+        assert list(got) == sorted(data)
+
+        # An undeclared map is not promoted on this surface either.
+        plain_key = Key("test", "blocking", "sortedmap-2")
+        client.put_blocking(plain_key, {"m": data}, policy=WritePolicy())
+        plain = client.get_blocking(plain_key, policy=ReadPolicy()).bins["m"]
+        assert type(plain) is dict
+        assert plain == data
+
+        client.delete_blocking(key, policy=WritePolicy())
+        client.delete_blocking(plain_key, policy=WritePolicy())
+    finally:
+        client.close_blocking()
