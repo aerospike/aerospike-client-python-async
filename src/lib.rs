@@ -4994,6 +4994,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;
+    m.add_class::<SortedMap>()?;
     m.add_class::<Blob>()?;
     m.add_class::<GeoJSON>()?;
     m.add_class::<HLL>()?;

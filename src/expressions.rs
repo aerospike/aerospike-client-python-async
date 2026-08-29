@@ -668,9 +668,9 @@ use crate::string_ops::StringNumericType;
                 PythonValue::String(s) => Self::string_val(s),
                 PythonValue::Blob(b)   => Self::blob_val(b),
                 PythonValue::List(l)   => Self::list_val(l),
-                v @ (PythonValue::HashMap(_) | PythonValue::OrderedMap(_)) => {
-                    Self::map_val(v)
-                }
+                v @ (PythonValue::HashMap(_)
+                | PythonValue::OrderedMap(_)
+                | PythonValue::SortedMap(_)) => Self::map_val(v),
                 PythonValue::GeoJSON(s) => Self::geo_val(s),
                 other => {
                     return Err(PyTypeError::new_err(format!(
@@ -740,6 +740,23 @@ use crate::string_ops::StringNumericType;
         /// We use BTreeMap to ensure deterministic key ordering for serialization matching.
         pub fn map_val(val: PythonValue) -> Self {
             match val {
+                // Declared key-ordered: pack with the K-ordered flag, which is
+                // what a bin written from a SortedMap carries. Whole-map
+                // comparison currently requires both operands to be K-ordered;
+                // the unordered case is blocked on SERVER-94.
+                PythonValue::SortedMap(pairs) => {
+                    let mut btree: BTreeMap<aerospike_core::Value, aerospike_core::Value> =
+                        BTreeMap::new();
+                    for (k, v) in pairs {
+                        btree.insert(
+                            aerospike_core::Value::from(k),
+                            aerospike_core::Value::from(v),
+                        );
+                    }
+                    FilterExpression {
+                        _as: aerospike_core::expressions::map_val(btree),
+                    }
+                }
                 PythonValue::HashMap(h) => {
                     // Convert to BTreeMap for deterministic key ordering. Rust HashMap iteration
                     // order is non-deterministic, so we sort keys to ensure exact byte-level matching

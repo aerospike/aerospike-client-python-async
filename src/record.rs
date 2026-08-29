@@ -21,7 +21,8 @@ use std::hash::{Hash, Hasher};
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::exceptions::PyTypeError;
-use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList};
+use pyo3::types::{PyBool, PyByteArray, PyBytes, PyDict, PyList, PySuper, PyTuple};
+use pyo3::PyTypeInfo;
 use pyo3::{prelude::*, Borrowed, IntoPyObjectExt};
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
@@ -491,6 +492,69 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     //  Map
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// A map to be stored key-ordered (``MapOrder.KEY_ORDERED``).
+    ///
+    /// A plain ``dict`` is written as an unordered map. The server stores the
+    /// entries sorted either way, so a read cannot tell the two apart by
+    /// looking at them -- but it will not binary-search a map that was not
+    /// *declared* ordered, so keyed and range access on one fall back to a
+    /// scan. Wrapping the dict declares the order, and the client packs the
+    /// entries sorted, which the server requires: it rejects a map that claims
+    /// ``K_ORDERED`` and arrives out of order.
+    ///
+    /// The effect is durable, not confined to the write. The order flag is
+    /// stored with the record and survives later modification, so it governs
+    /// the cost of every subsequent access, by any client, until the map is
+    /// rewritten unordered.
+    ///
+    /// Reads of a key-ordered map return this type, so the round trip is
+    /// symmetric. It subclasses ``dict``, so it behaves as one everywhere.
+    ///
+    /// Example::
+    ///
+    ///     await client.put(key, {"scores": SortedMap({"zoe": 3, "amy": 1})})
+    ///
+    ///     scores = (await client.get(key)).bins["scores"]
+    ///     scores["amy"]                   # 1
+    ///     scores == {"amy": 1, "zoe": 3}  # True
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(extends = PyDict, module = "_aerospike_async_native")]
+    #[derive(Debug)]
+    pub struct SortedMap;
+
+    #[pymethods]
+    impl SortedMap {
+        #[new]
+        #[pyo3(signature = (*_args, **_kwargs))]
+        fn __new__(_args: &Bound<'_, PyTuple>, _kwargs: Option<&Bound<'_, PyDict>>) -> Self {
+            SortedMap
+        }
+
+        #[pyo3(signature = (*args, **kwargs))]
+        fn __init__(
+            slf: &Bound<'_, Self>,
+            args: &Bound<'_, PyTuple>,
+            kwargs: Option<&Bound<'_, PyDict>>,
+        ) -> PyResult<()> {
+            // `super(SortedMap, self)`, not `super(dict, self)` -- the latter
+            // resolves past dict to object, whose __init__ takes no arguments.
+            PySuper::new(&Self::type_object(slf.py()), slf)?
+                .call_method("__init__", args.to_owned(), kwargs)?;
+            Ok(())
+        }
+
+        fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+            // Built from the items: this *is* the dict, so delegating to
+            // `.repr()` would dispatch straight back here.
+            let as_dict: &Bound<'_, PyDict> = slf.as_any().cast()?;
+            let mut parts: Vec<String> = Vec::with_capacity(as_dict.len());
+            for (k, v) in as_dict.iter() {
+                parts.push(format!("{}: {}", k.repr()?, v.repr()?));
+            }
+            Ok(format!("SortedMap({{{}}})", parts.join(", ")))
+        }
+    }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, freelist = 1, sequence, module = "_aerospike_async_native")]
@@ -1073,6 +1137,11 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
         /// Ordered map preserving key order from the server (K-ordered / KV-ordered maps).
         /// Stored as Vec of pairs so insertion order into PyDict yields sorted keys.
         OrderedMap(Vec<(PythonValue, PythonValue)>),
+        /// Map the caller asked to be stored key-ordered, via the `SortedMap` wrapper.
+        /// Carries the same pairs as `HashMap`; the variant is the request, and the
+        /// key order is produced at the boundary when this becomes a core
+        /// `Value::SortedMap`. Never produced by decoding a server response.
+        SortedMap(Vec<(PythonValue, PythonValue)>),
         /// GeoJSON data type are JSON formatted strings to encode geospatial information.
         GeoJSON(String),
 
@@ -1097,7 +1166,9 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 PythonValue::String(ref val) | PythonValue::GeoJSON(ref val) => val.hash(state),
                 PythonValue::Blob(ref val) | PythonValue::HLL(ref val) => val.hash(state),
                 PythonValue::List(ref val) => val.hash(state),
-                PythonValue::HashMap(_) | PythonValue::OrderedMap(_) => {
+                PythonValue::HashMap(_)
+                | PythonValue::OrderedMap(_)
+                | PythonValue::SortedMap(_) => {
                     panic!("Maps cannot be used as map keys.")
                 }
                 PythonValue::CdtSpecial(ref s) => s.hash(state),
@@ -1119,6 +1190,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 PythonValue::HLL(ref val) => format!("HLL('{:?}')", val),
                 PythonValue::List(ref val) => format!("{:?}", val),
                 PythonValue::HashMap(ref val) => format!("{:?}", val),
+                PythonValue::SortedMap(ref val) => format!("{:?}", val),
                 PythonValue::OrderedMap(ref val) => format!("{:?}", val),
                 PythonValue::CdtSpecial(s) => match s {
                     SpecialValue::Null => "SpecialValue.NULL".to_string(),
@@ -1155,6 +1227,19 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                         py_list.append(py_item).unwrap();
                     }
                     Ok(py_list.into_any())
+                }
+                PythonValue::SortedMap(pairs) => {
+                    let py_dict = PyDict::new(py);
+                    for (k, v) in pairs {
+                        let py_key = k.into_pyobject(py).unwrap();
+                        let py_val = v.into_pyobject(py).unwrap();
+                        py_dict.set_item(py_key, py_val).unwrap();
+                    }
+                    // Construct the declared type rather than a bare dict: the
+                    // class is a dict subclass, so this stays a drop-in for one
+                    // while telling the caller the map is key-ordered.
+                    let cls = SortedMap::type_object(py);
+                    Ok(cls.call1((py_dict,)).unwrap().into_any())
                 }
                 PythonValue::HashMap(h) => {
                     let py_dict = PyDict::new(py);
@@ -1254,6 +1339,19 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                 return Ok(PythonValue::List(l.v));
             }
 
+            // Before the plain-dict arm: a SortedMap must not degrade to an
+            // unordered map just because it also presents as a mapping.
+            if obj.is_instance_of::<SortedMap>() {
+                // A dict subclass, so the entries come from the base type. Read
+                // as pairs rather than through a HashMap so the order survives.
+                let as_dict: &Bound<'_, PyDict> = obj.as_any().cast()?;
+                let mut pairs = Vec::with_capacity(as_dict.len());
+                for (k, v) in as_dict.iter() {
+                    pairs.push((k.extract()?, v.extract()?));
+                }
+                return Ok(PythonValue::SortedMap(pairs));
+            }
+
             let hm: PyResult<HashMap<PythonValue, PythonValue>> = obj.extract();
             if let Ok(hm) = hm {
                 return Ok(PythonValue::HashMap(hm));
@@ -1303,6 +1401,19 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                         arr.insert(k.clone().into(), v.clone().into());
                     });
                     aerospike_core::Value::HashMap(arr)
+                }
+                PythonValue::SortedMap(pairs) => {
+                    // BTreeMap is what makes this key-ordered: core packs it with
+                    // the K_ORDERED flag and the entries already in key order,
+                    // which the server requires for that flag.
+                    let mut btree = std::collections::BTreeMap::new();
+                    for (key, val) in pairs {
+                        btree.insert(
+                            aerospike_core::Value::from(key),
+                            aerospike_core::Value::from(val),
+                        );
+                    }
+                    aerospike_core::Value::SortedMap(btree)
                 }
                 PythonValue::OrderedMap(pairs) => {
                     // Insertion-ordered on the Python side maps to the core
@@ -1363,13 +1474,14 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     PythonValue::OrderedMap(pairs)
                 }
                 aerospike_core::Value::SortedMap(sm) => {
-                    // K-ordered server return: surface as an ordered map,
-                    // preserving the server's canonical key order.
+                    // K-ordered server return: hand back the declared type, so a
+                    // map written as a SortedMap reads back as one. BTreeMap
+                    // iteration is already in the server's canonical key order.
                     let pairs: Vec<(PythonValue, PythonValue)> = sm
                         .into_iter()
                         .map(|(k, v)| (k.into(), v.into()))
                         .collect();
-                    PythonValue::OrderedMap(pairs)
+                    PythonValue::SortedMap(pairs)
                 }
                 aerospike_core::Value::Unknown(_code, bytes) => {
                     // Particle types this client does not interpret (legacy

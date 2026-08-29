@@ -105,6 +105,7 @@ __all__ = [
     "Sampler",
     "SelectFlags",
     "ServerError",
+    "SortedMap",
     "SpecialValue",
     "Statement",
     "StringNumericType",
@@ -5378,6 +5379,37 @@ class ServerError(builtins.Exception):
         result_code, in_doubt, ...) — every field of which is already a
         structured accessor.
         """
+
+@typing.final
+class SortedMap(dict):
+    r"""
+    A map to be stored key-ordered (``MapOrder.KEY_ORDERED``).
+
+    A plain ``dict`` is written as an unordered map. The server stores the
+    entries sorted either way, so a read cannot tell the two apart by
+    looking at them -- but it will not binary-search a map that was not
+    *declared* ordered, so keyed and range access on one fall back to a
+    scan. Wrapping the dict declares the order, and the client packs the
+    entries sorted, which the server requires: it rejects a map that claims
+    ``K_ORDERED`` and arrives out of order.
+
+    The effect is durable, not confined to the write. The order flag is
+    stored with the record and survives later modification, so it governs
+    the cost of every subsequent access, by any client, until the map is
+    rewritten unordered.
+
+    Reads of a key-ordered map return this type, so the round trip is
+    symmetric. It subclasses ``dict``, so it behaves as one everywhere.
+
+    Example::
+
+        await client.put(key, {"scores": SortedMap({"zoe": 3, "amy": 1})})
+
+        scores = (await client.get(key)).bins["scores"]
+        scores["amy"]                   # 1
+        scores == {"amy": 1, "zoe": 3}  # True
+    """
+    ...
 
 class Statement:
     r"""
