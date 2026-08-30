@@ -5860,28 +5860,38 @@ class SubCode:
     """
 
 class TlsConfig:
-    def __new__(cls, cafile: builtins.str) -> _aerospike_async_native.TlsConfig:
+    def __new__(cls, cafile: typing.Optional[builtins.str] = None, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
         r"""
-        Create a new TlsConfig from CA certificate file.
+        Create a TlsConfig.
 
         Args:
-            cafile: Path to the CA certificate file (PEM format)
+            cafile: Path to a CA certificate file (PEM). Optional -- when
+                omitted the server is verified against the system trust
+                store alone, which is what a ``tls_name``-only setup needs.
+            protocols: Allowed TLS versions, e.g. ``["TLSv1.3"]``. Omit for
+                the rustls default (TLS 1.2 and 1.3).
+            ciphers: Allowed cipher suites by rustls name, e.g.
+                ``["TLS13_AES_256_GCM_SHA384"]``. Omit for the provider
+                default. Unknown names raise rather than being ignored.
 
         Returns:
-            TlsConfig instance configured with the CA certificate
+            TlsConfig
         """
     @staticmethod
-    def with_client_auth(cafile: builtins.str, certfile: builtins.str, keyfile: builtins.str) -> _aerospike_async_native.TlsConfig:
+    def with_client_auth(cafile: typing.Optional[builtins.str], certfile: builtins.str, keyfile: builtins.str, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
         r"""
-        Create a TlsConfig with client authentication from certificate and key files.
+        Create a TlsConfig with client (mutual) authentication.
 
         Args:
-            cafile: Path to the CA certificate file (PEM format)
-            certfile: Path to the client certificate file (PEM format)
-            keyfile: Path to the client private key file (PEM format)
+            cafile: Path to a CA certificate file (PEM), or ``None`` to
+                verify against the system trust store alone.
+            certfile: Path to the client certificate file (PEM).
+            keyfile: Path to the client private key file (PEM, PKCS#8).
+            protocols: Allowed TLS versions; see :meth:`TlsConfig`.
+            ciphers: Allowed cipher suites; see :meth:`TlsConfig`.
 
         Returns:
-            TlsConfig instance configured with CA and client certificates
+            TlsConfig
         """
 
 @typing.final

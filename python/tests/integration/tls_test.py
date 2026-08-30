@@ -218,3 +218,53 @@ class TestPkiConnection:
         assert connected is True
 
         await client.close()
+
+
+class TestTlsConfigOptions:
+    """Construction-level coverage for the options `TlsConfig` accepts.
+
+    These build a config and assert on acceptance or rejection; they do not
+    need a TLS server, because what is being pinned is that an option reaches
+    rustls at all. The failure this guards against is the silent one -- a
+    caller restricting protocols or ciphers and getting neither, with no error.
+    """
+
+    def test_system_trust_store_needs_no_ca_file(self):
+        """No CA file is a supported configuration, not "no TLS".
+
+        A `tls_name`-only setup verifies against the system trust store. This
+        used to be unreachable: the builder returned None without a CA file,
+        which silently produced a plaintext connection.
+        """
+        assert TlsConfig() is not None
+
+    def test_ca_file_still_positional(self):
+        """The original single-argument form keeps working."""
+        ca = os.environ.get("AEROSPIKE_TLS_CA_FILE")
+        if not ca or not os.path.exists(ca):
+            pytest.skip("AEROSPIKE_TLS_CA_FILE unset or missing")
+        assert TlsConfig(ca) is not None
+
+    def test_protocols_accepted(self):
+        assert TlsConfig(protocols=["TLSv1.3"]) is not None
+        assert TlsConfig(protocols=["TLSv1.2", "TLSv1.3"]) is not None
+
+    def test_unknown_protocol_raises(self):
+        """Rejected, not ignored -- dropping a restriction is how a caller
+        negotiates something they explicitly excluded."""
+        with pytest.raises(ValueError, match="Unsupported TLS protocol"):
+            TlsConfig(protocols=["SSLv3"])
+
+    def test_ciphers_accepted(self):
+        assert TlsConfig(ciphers=["TLS13_AES_256_GCM_SHA384"]) is not None
+
+    def test_unknown_cipher_raises(self):
+        with pytest.raises(ValueError, match="Unknown cipher suite"):
+            TlsConfig(ciphers=["NOT_A_SUITE"])
+
+    def test_unknown_cipher_error_names_the_alternatives(self):
+        """The message carries the supported suites, so a caller can correct
+        the name without going to the rustls docs."""
+        with pytest.raises(ValueError) as exc:
+            TlsConfig(ciphers=["NOT_A_SUITE"])
+        assert "TLS13_AES_256_GCM_SHA384" in str(exc.value)
