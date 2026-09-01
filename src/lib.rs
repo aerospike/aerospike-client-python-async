@@ -4974,6 +4974,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TxnState>()?;
     m.add_class::<CommitStatus>()?;
     m.add_class::<AbortStatus>()?;
+    m.add_class::<CommitErrorType>()?;
     m.add_class::<LoopVarPart>()?;
     m.add_class::<SelectFlags>()?;
     m.add_class::<ModifyFlags>()?;

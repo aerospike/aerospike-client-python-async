@@ -35,6 +35,7 @@ __all__ = [
     "CollectionIndexType",
     "CommandMetric",
     "CommandType",
+    "CommitErrorType",
     "CommitLevel",
     "CommitStatus",
     "Concurrency",
@@ -6285,6 +6286,22 @@ class CommandType(enum.Enum):
         r"""
         The name used as a key in serialized detailed metrics (e.g. "GetHeader", "UDF").
         """
+
+@typing.final
+class CommitErrorType(enum.Enum):
+    r"""
+    Which stage of a transaction commit failed.
+
+    Carried on :exc:`aerospike_async.exceptions.CommitFailedError` as
+    ``commit_error_type``. The distinction matters for recovery: a plain
+    verify failure leaves nothing applied, while the abandoned variants mean
+    the client stopped tracking a transaction the server will finish
+    resolving on its own.
+    """
+    VERIFY_FAIL = ...
+    VERIFY_FAIL_CLOSE_ABANDONED = ...
+    VERIFY_FAIL_ABORT_ABANDONED = ...
+    MARK_ROLL_FORWARD_ABANDONED = ...
 
 @typing.final
 class CommitLevel(enum.Enum):

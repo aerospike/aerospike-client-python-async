@@ -44,6 +44,7 @@ from aerospike_async import (
     AuthMode,
     BatchPolicy,
     ClientPolicy,
+    CommitErrorType,
     CommitStatus,
     Key,
     ReadPolicy,
@@ -53,6 +54,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
+from aerospike_async.exceptions import CommitFailedError
 
 
 _AUTH_MODES = {
@@ -267,3 +269,41 @@ async def test_txn_batch_commit(sc_client, sc_namespace):
 
     for k in keys:
         assert await _get_bin(sc_client, k, "bin") == 2
+
+
+# ---------------------------------------------------------------------------
+# Commit-failure detail
+# ---------------------------------------------------------------------------
+async def test_commit_verify_failure_carries_stage_and_records(sc_client, sc_key):
+    """A verify failure reports which stage failed and the per-key outcomes.
+
+    Reading inside the transaction records the generation it expects; an
+    outside write moves it, so verify fails at commit. Core wraps that failure
+    with the stage and per-key records and attaches the original as the cause,
+    so the wrapper is what surfaces -- without it a caller sees only a version
+    mismatch, and cannot tell whether anything landed or whether the server is
+    still resolving a transaction the client stopped tracking.
+    """
+    await sc_client.put(sc_key, {"bin": 1}, policy=WritePolicy())
+
+    txn = Txn()
+    rp = ReadPolicy()
+    rp.txn = txn
+    await sc_client.get(sc_key, policy=rp)
+
+    # Outside the transaction: moves the generation the txn verified against.
+    await sc_client.put(sc_key, {"bin": 99}, policy=WritePolicy())
+
+    with pytest.raises(CommitFailedError) as excinfo:
+        await sc_client.commit(txn)
+
+    exc = excinfo.value
+    assert exc.commit_error_type == CommitErrorType.VERIFY_FAIL
+    assert len(exc.verify_records) == 1
+    assert exc.verify_records[0].key.value == sc_key.value
+    # Verify ran and failed, so the roll phase never did.
+    assert exc.roll_records == []
+    # Reporting the commit failure ahead of the cause chain must not lose the
+    # code that tripped verify -- it is what retry logic classifies on.
+    assert exc.result_code == ResultCode.MRT_VERSION_MISMATCH
+    assert "MrtVersionMismatch" in str(exc)
