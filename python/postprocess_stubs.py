@@ -749,45 +749,6 @@ def add_client_stubs(content: str) -> str:
     return content
 
 
-def add_batch_policy_stubs(content: str) -> str:
-    """Add missing properties to BatchPolicy class."""
-    batch_policy_properties = '''    @property
-    def allow_inline(self) -> builtins.bool: ...
-    @allow_inline.setter
-    def allow_inline(self, value: builtins.bool) -> None: ...
-    @property
-    def allow_inline_ssd(self) -> builtins.bool: ...
-    @allow_inline_ssd.setter
-    def allow_inline_ssd(self, value: builtins.bool) -> None: ...
-    @property
-    def respond_all_keys(self) -> builtins.bool: ...
-    @respond_all_keys.setter
-    def respond_all_keys(self, value: builtins.bool) -> None: ...
-'''
-
-    # Check if BatchPolicy class exists and add properties if missing
-    batch_policy_match = re.search(r'^class BatchPolicy\(BasePolicy\):', content, re.MULTILINE)
-    if batch_policy_match:
-        # Find the end of the class (next class or blank line)
-        class_start = batch_policy_match.start()
-        next_class = re.search(r'\n\n(?=class\s|\ndef\s)', content[class_start:], re.MULTILINE)
-        if next_class:
-            insert_pos = class_start + next_class.start() + 1
-        else:
-            # Find the next class or function
-            next_match = re.search(r'\n(?=class\s|\ndef\s)', content[class_start:], re.MULTILINE)
-            if next_match:
-                insert_pos = class_start + next_match.start() + 1
-            else:
-                insert_pos = len(content)
-
-        # Check if properties already exist
-        if '@property\n    def allow_inline(self)' not in content:
-            content = content[:insert_pos] + batch_policy_properties + content[insert_pos:]
-            print("  ✓ Added missing properties to BatchPolicy class")
-
-    return content
-
 
 def add_record_stubs(content: str) -> str:
     """Add Record class stubs if missing (pyo3_stub_gen limitation)."""
@@ -1682,110 +1643,181 @@ def add_return_type_stubs(content: str) -> str:
 
 
 def add_policy_stubs(content: str) -> str:
-    """Add full method stubs for WritePolicy, ReadPolicy, and QueryPolicy classes."""
-    read_policy_stub = '''class ReadPolicy(BasePolicy):
-    def __new__(cls) -> ReadPolicy: ...
-    @property
-    def base_policy(self) -> BasePolicy: ...
-    @base_policy.setter
-    def base_policy(self, value: BasePolicy) -> None: ...
-    @property
-    def replica(self) -> Replica: ...
-    @replica.setter
-    def replica(self, value: Replica) -> None: ...
-    @property
-    def filter_expression(self) -> typing.Optional[FilterExpression]: ...
-    @filter_expression.setter
-    def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
-'''
+    """Fill in the policy classes' properties, which stub generation cannot emit.
 
-    write_policy_stub = '''class WritePolicy(BasePolicy):
-    def __new__(cls) -> WritePolicy: ...
-    @property
-    def base_policy(self) -> BasePolicy: ...
-    @base_policy.setter
-    def base_policy(self, value: BasePolicy) -> None: ...
-    @property
-    def record_exists_action(self) -> RecordExistsAction: ...
-    @record_exists_action.setter
-    def record_exists_action(self, value: RecordExistsAction) -> None: ...
-    @property
-    def generation_policy(self) -> GenerationPolicy: ...
-    @generation_policy.setter
-    def generation_policy(self, value: GenerationPolicy) -> None: ...
-    @property
-    def commit_level(self) -> CommitLevel: ...
-    @commit_level.setter
-    def commit_level(self, value: CommitLevel) -> None: ...
-    @property
-    def generation(self) -> builtins.int: ...
-    @generation.setter
-    def generation(self, value: builtins.int) -> None: ...
-    @property
-    def expiration(self) -> Expiration: ...
-    @expiration.setter
-    def expiration(self, value: Expiration) -> None: ...
-    @property
-    def send_key(self) -> builtins.bool: ...
-    @send_key.setter
-    def send_key(self, value: builtins.bool) -> None: ...
-    @property
-    def respond_per_each_op(self) -> builtins.bool: ...
-    @respond_per_each_op.setter
-    def respond_per_each_op(self, value: builtins.bool) -> None: ...
-    @property
-    def durable_delete(self) -> builtins.bool: ...
-    @durable_delete.setter
-    def durable_delete(self, value: builtins.bool) -> None: ...
-'''
+    The four policy classes subclass ``BasePolicy``, so their ``new()`` returns
+    a ``PyClassInitializer``. The stub generator has no type mapping for that,
+    so ``#[gen_stub_pymethods]`` will not compile on those impl blocks and the
+    classes generate as a bare shell. Their properties are therefore declared
+    here, mirroring the getters in ``src/policies.rs``.
 
-    query_policy_stub = '''class QueryPolicy(BasePolicy):
-    def __new__(cls) -> QueryPolicy: ...
-    @property
-    def base_policy(self) -> BasePolicy: ...
-    @base_policy.setter
-    def base_policy(self, value: BasePolicy) -> None: ...
-    @property
-    def max_concurrent_nodes(self) -> builtins.int: ...
-    @max_concurrent_nodes.setter
-    def max_concurrent_nodes(self, value: builtins.int) -> None: ...
-    @property
-    def record_queue_size(self) -> builtins.int: ...
-    @record_queue_size.setter
-    def record_queue_size(self, value: builtins.int) -> None: ...
-    @property
-    def records_per_second(self) -> builtins.int: ...
-    @records_per_second.setter
-    def records_per_second(self, value: builtins.int) -> None: ...
-    @property
-    def max_records(self) -> builtins.int: ...
-    @max_records.setter
-    def max_records(self, value: builtins.int) -> None: ...
-    @property
-    def expected_duration(self) -> QueryDuration: ...
-    @expected_duration.setter
-    def expected_duration(self, value: QueryDuration) -> None: ...
-    @property
-    def replica(self) -> Replica: ...
-    @replica.setter
-    def replica(self, value: Replica) -> None: ...
-    @property
-    def filter_expression(self) -> typing.Optional[FilterExpression]: ...
-    @filter_expression.setter
-    def filter_expression(self, value: typing.Optional[FilterExpression]) -> None: ...
-'''
+    Adding a getter/setter pair in Rust means adding a row below; nothing links
+    the two automatically. The no-match warning is what catches drift, since a
+    stub that is merely incomplete looks exactly like a correct one -- these
+    fixups had already stopped applying once, when the generator started
+    qualifying the base class, and nothing said so.
+    """
+    POLICY_PROPERTIES = {
+        "ReadPolicy": [
+            ("replica", "_aerospike_async_native.Replica"),
+            ("base_policy", "_aerospike_async_native.BasePolicy"),
+            ("error_detail_verbosity", "builtins.int"),
+            ("total_timeout", "builtins.int"),
+            ("max_retries", "builtins.int"),
+            ("sleep_between_retries", "builtins.int"),
+            ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
+            ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
+            ("socket_timeout", "builtins.int"),
+            ("use_compression", "builtins.bool"),
+            ("compression_threshold", "builtins.int"),
+            ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
+            ("filter_expression", "typing.Optional[_aerospike_async_native.FilterExpression]"),
+            ("read_touch_ttl", "builtins.int"),
+        ],
+        "WritePolicy": [
+            ("record_exists_action", "_aerospike_async_native.RecordExistsAction"),
+            ("generation_policy", "_aerospike_async_native.GenerationPolicy"),
+            ("commit_level", "_aerospike_async_native.CommitLevel"),
+            ("records_per_second", "builtins.int"),
+            ("generation", "builtins.int"),
+            ("expiration", "_aerospike_async_native.Expiration"),
+            ("send_key", "builtins.bool"),
+            ("respond_per_each_op", "builtins.bool"),
+            ("durable_delete", "builtins.bool"),
+            ("base_policy", "_aerospike_async_native.BasePolicy"),
+            ("error_detail_verbosity", "builtins.int"),
+            ("total_timeout", "builtins.int"),
+            ("max_retries", "builtins.int"),
+            ("sleep_between_retries", "builtins.int"),
+            ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
+            ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
+            ("socket_timeout", "builtins.int"),
+            ("use_compression", "builtins.bool"),
+            ("compression_threshold", "builtins.int"),
+            ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
+            ("filter_expression", "typing.Optional[_aerospike_async_native.FilterExpression]"),
+            ("read_touch_ttl", "builtins.int"),
+        ],
+        "QueryPolicy": [
+            ("base_policy", "_aerospike_async_native.BasePolicy"),
+            ("error_detail_verbosity", "builtins.int"),
+            ("total_timeout", "builtins.int"),
+            ("max_retries", "builtins.int"),
+            ("sleep_between_retries", "builtins.int"),
+            ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
+            ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
+            ("socket_timeout", "builtins.int"),
+            ("use_compression", "builtins.bool"),
+            ("compression_threshold", "builtins.int"),
+            ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
+            ("filter_expression", "typing.Optional[_aerospike_async_native.FilterExpression]"),
+            ("max_concurrent_nodes", "builtins.int"),
+            ("record_queue_size", "builtins.int"),
+            ("records_per_second", "builtins.int"),
+            ("max_records", "builtins.int"),
+            ("include_bin_data", "builtins.bool"),
+            ("expected_duration", "_aerospike_async_native.QueryDuration"),
+            ("replica", "_aerospike_async_native.Replica"),
+        ],
+        "BatchPolicy": [
+            ("base_policy", "_aerospike_async_native.BasePolicy"),
+            ("concurrency", "_aerospike_async_native.Concurrency"),
+            ("error_detail_verbosity", "builtins.int"),
+            ("total_timeout", "builtins.int"),
+            ("max_retries", "builtins.int"),
+            ("sleep_between_retries", "builtins.int"),
+            ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
+            ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
+            ("socket_timeout", "builtins.int"),
+            ("use_compression", "builtins.bool"),
+            ("compression_threshold", "builtins.int"),
+            ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
+            ("allow_inline", "builtins.bool"),
+            ("allow_inline_ssd", "builtins.bool"),
+            ("respond_all_keys", "builtins.bool"),
+            ("filter_expression", "typing.Optional[_aerospike_async_native.FilterExpression]"),
+            ("replica", "_aerospike_async_native.Replica"),
+        ],
+    }
 
-    patterns = [
-        (r'class ReadPolicy\(BasePolicy\):\s*\.\.\.', read_policy_stub, "ReadPolicy"),
-        (r'class WritePolicy\(BasePolicy\):\s*\.\.\.', write_policy_stub, "WritePolicy"),
-        (r'class QueryPolicy\(BasePolicy\):\s*\.\.\.', query_policy_stub, "QueryPolicy"),
-    ]
+    POLICY_FROM_FIELDS = {
+        "ReadPolicy": [
+            ("total_timeout", "typing.Optional[builtins.int]"),
+            ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("max_retries", "typing.Optional[builtins.int]"),
+            ("sleep_between_retries", "typing.Optional[builtins.int]"),
+            ("replica", "typing.Optional[_aerospike_async_native.Replica]"),
+            ("read_mode_ap", "typing.Optional[_aerospike_async_native.ReadModeAP]"),
+            ("read_mode_sc", "typing.Optional[_aerospike_async_native.ReadModeSC]"),
+            ("read_touch_ttl", "typing.Optional[builtins.int]"),
+            ("use_compression", "typing.Optional[builtins.bool]"),
+            ("compression_threshold", "typing.Optional[builtins.int]"),
+            ("error_detail_verbosity", "typing.Optional[builtins.int]"),
+        ],
+        "WritePolicy": [
+            ("total_timeout", "typing.Optional[builtins.int]"),
+            ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("max_retries", "typing.Optional[builtins.int]"),
+            ("sleep_between_retries", "typing.Optional[builtins.int]"),
+            ("record_exists_action", "typing.Optional[_aerospike_async_native.RecordExistsAction]"),
+            ("generation_policy", "typing.Optional[_aerospike_async_native.GenerationPolicy]"),
+            ("commit_level", "typing.Optional[_aerospike_async_native.CommitLevel]"),
+            ("generation", "typing.Optional[builtins.int]"),
+            ("expiration", "typing.Optional[_aerospike_async_native.Expiration]"),
+            ("send_key", "typing.Optional[builtins.bool]"),
+            ("respond_per_each_op", "typing.Optional[builtins.bool]"),
+            ("durable_delete", "typing.Optional[builtins.bool]"),
+            ("use_compression", "typing.Optional[builtins.bool]"),
+            ("compression_threshold", "typing.Optional[builtins.int]"),
+            ("error_detail_verbosity", "typing.Optional[builtins.int]"),
+            ("records_per_second", "typing.Optional[builtins.int]"),
+        ],
+        "BatchPolicy": [
+            ("total_timeout", "typing.Optional[builtins.int]"),
+            ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("max_retries", "typing.Optional[builtins.int]"),
+            ("sleep_between_retries", "typing.Optional[builtins.int]"),
+            ("allow_inline", "typing.Optional[builtins.bool]"),
+            ("allow_inline_ssd", "typing.Optional[builtins.bool]"),
+            ("respond_all_keys", "typing.Optional[builtins.bool]"),
+            ("replica", "typing.Optional[_aerospike_async_native.Replica]"),
+            ("use_compression", "typing.Optional[builtins.bool]"),
+            ("compression_threshold", "typing.Optional[builtins.int]"),
+            ("error_detail_verbosity", "typing.Optional[builtins.int]"),
+            ("concurrency", "typing.Optional[_aerospike_async_native.Concurrency]"),
+        ],
+    }
 
-    for pattern, stub, name in patterns:
-        if re.search(pattern, content):
-            content = re.sub(pattern, stub.rstrip(), content)
-            print(f"  ✓ Updated {name} class stubs")
-
+    total = 0
+    for cls, props in POLICY_PROPERTIES.items():
+        # Accept the qualified and bare base-class spellings, so a change on
+        # either side is not a silent no-op.
+        pattern = (
+            r'class %s\((?:_aerospike_async_native\.)?BasePolicy\):\s*\n\s*\.\.\.'
+            % cls
+        )
+        if not re.search(pattern, content):
+            print(f"  !! {cls}: no bare class to fill in -- pattern did not match")
+            continue
+        body = [f"class {cls}(_aerospike_async_native.BasePolicy):",
+                f"    def __new__(cls) -> _aerospike_async_native.{cls}: ..."]
+        # The keyword-only bulk constructor the SDK layer builds policies
+        # through; absent from the stub, callers get no checking on the one
+        # entry point they actually use.
+        if cls in POLICY_FROM_FIELDS:
+            args = "".join(f", {n}: {t} = None" for n, t in POLICY_FROM_FIELDS[cls])
+            body += ["    @staticmethod",
+                     f"    def from_fields(*{args}) -> _aerospike_async_native.{cls}: ..."]
+        for name, typ in props:
+            body += ["    @property",
+                     f"    def {name}(self) -> {typ}: ...",
+                     f"    @{name}.setter",
+                     f"    def {name}(self, value: {typ}) -> None: ..."]
+        content = re.sub(pattern, "\n".join(body), content, count=1)
+        total += len(props)
+        print(f"  \u2713 {cls}: filled in {len(props)} properties")
+    if total:
+        print(f"  \u2713 policy properties written: {total}")
     return content
 
 
@@ -2051,7 +2083,6 @@ def postprocess_stubs(pyi_file_path: str):
         content = add_node_stubs(content)
         content = add_client_stubs(content)
         content = fix_client_keyword_only_policy_params(content)
-        content = add_batch_policy_stubs(content)
         content = ensure_statement_set_name(content)
         content = add_dunder_all(content)
 
