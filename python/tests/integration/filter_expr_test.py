@@ -50,6 +50,26 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
             await client.get(key, ["brand", "year"], policy=rp)
         assert exc_info.value.result_code == ResultCode.FILTERED_OUT
 
+    async def test_matching_filter_exp_with_absent_bin_returns_no_bins(self, client, key):
+        """A matching filter that projects an absent bin is not a filter miss.
+
+        The record was found and the filter matched; there is simply nothing to
+        return for the requested bin, which is the same outcome as the read
+        without a filter. Inferring a filter miss from an empty bin map instead
+        of the server's result code gets this backwards -- and the caller cannot
+        tell the fabricated error from a real one, since it arrives on the same
+        path.
+        """
+        rp = ReadPolicy()
+        rp.filter_expression = fe.eq(fe.string_bin("brand"), fe.string_val("Ford"))
+        rec = await client.get(key, ["no_such_bin"], policy=rp)
+        assert rec.bins == {}
+
+        # Identical read without the filter, to show the filter is not what
+        # makes the bin map empty.
+        unfiltered = await client.get(key, ["no_such_bin"], policy=ReadPolicy())
+        assert unfiltered.bins == {}
+
 
 class TestFilterExprListVal(TestFixtureInsertRecord):
     """Test list_val filter expression usage."""

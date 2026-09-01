@@ -452,19 +452,12 @@ use crate::operations::{
                         }
                         None => base_ap,
                     };
-                    let has_filter_expression = filter_expression.is_some()
-                        || policy.base_policy.filter_expression.is_some();
                     apply_read_overrides(&mut policy, filter_expression, txn);
                     let res = client
                         .get(&policy, &key_as, bins_flag(bins))
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
-                    if res.bins.is_empty() && has_filter_expression {
-                        return Err(PyException::new_err(
-                            "Filter expression did not match any records",
-                        ));
-                    }
-                    Ok(res)
+                    Ok::<_, PyErr>(res)
                 })
             })?;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
@@ -1240,18 +1233,11 @@ use crate::operations::{
                     }
                     None => base_ap,
                 };
-                let has_filter_expression = filter_expression.is_some()
-                    || policy.base_policy.filter_expression.is_some();
                 apply_read_overrides(&mut policy, filter_expression, txn);
                 let res = client
                     .get(&policy, &key_as, bins_flag(bins))
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
-                }
                 Ok(res)
             })?;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
@@ -2627,17 +2613,12 @@ use crate::operations::{
                     }
                     None => base_ap,
                 };
-                let has_filter_expression = filter_expression.is_some()
-                    || policy.base_policy.filter_expression.is_some();
                 apply_read_overrides(&mut policy, filter_expression, txn);
                 let res = client
                     .get(&policy, &key_as, bins_flag(bins))
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err("Filter expression did not match any records"));
-                }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
