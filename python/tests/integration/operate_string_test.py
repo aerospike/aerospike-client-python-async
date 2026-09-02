@@ -261,6 +261,33 @@ class TestStringReads:
         )
         assert rec.bins.get("s") == [True, False]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "is_upper/is_lower reject any string containing a non-cased "
+            "character -- a space, digit or punctuation mark makes an "
+            "otherwise-uppercase string report False. Tracked as SERVER-1603. "
+            "Strict so this trips the moment the server is fixed, since a "
+            "silently-passing xfail would leave the corrected behavior "
+            "unasserted."
+        ),
+    )
+    async def test_classifiers_ignore_non_cased_characters(self, string_client_813):
+        """Classification should consider only the cased characters.
+
+        Measured on 8.1.3.0-104: "HELLO" is True, but "HELLO WORLD", "ABC123"
+        and "HELLO!" are all False. The empty string is True, which rules out
+        the "no cased characters" reading -- it is the *presence* of a
+        non-cased character that flips the answer.
+        """
+        key = _key("case_non_cased")
+        for value in ("HELLO WORLD", "ABC123", "HELLO!"):
+            await _put_str(string_client_813, key, "s", value)
+            rec = await string_client_813.operate(
+                key, [StringOperation.is_upper("s")], policy=WritePolicy(),
+            )
+            assert rec.bins.get("s") is True, f"is_upper({value!r}) should be True"
+
     async def test_split_with_separator(self, string_client_813):
         key = _key("split")
         await _put_str(string_client_813, key, "s", "a,b,c")
