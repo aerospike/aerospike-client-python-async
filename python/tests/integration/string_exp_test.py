@@ -387,6 +387,29 @@ class TestStringModifyExpressions:
         )
         assert out == "hello"
 
+    async def test_snip_from_truncates_to_end(self, string_client_813):
+        """The 1-arg snip form removes everything from ``start`` on.
+
+        A mispacked 2-element ``[start, flags]`` payload is accepted by the
+        server as ``[start, end]`` and evaluates to the unchanged string, so
+        the truncated result is the whole assertion.
+        """
+        key = _key("snip_from_exp")
+        await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_snip_from(Exp.int_val(5), Exp.string_bin("s")),
+        )
+        assert out == "hello"
+        # Negative start counts from the end of the string.
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_snip_from(Exp.int_val(-6), Exp.string_bin("s")),
+        )
+        assert out == "hello"
+
     async def test_pad_end_appends_to_the_target_length(self, string_client_813):
         key = _key("pad_end_exp")
         await string_client_813.put(key, {"s": "ab"}, policy=WritePolicy())

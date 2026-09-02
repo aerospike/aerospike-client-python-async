@@ -3826,8 +3826,16 @@ class FilterExpression:
     def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
-        ``end`` is required (server's snip table has no 1-arg form — see
-        the matching ``StringOperation.snip`` note).
+        Use ``string_snip_from`` to snip from `start` through the end.
+        """
+    @staticmethod
+    def string_snip_from(start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with codepoints from `start` through the end
+        removed (truncate-to-end). Takes no write flags: the server reads
+        the snip arguments by position — `start`, `end`, then flags — so
+        this form packs ``[53, start]`` only; use ``string_snip`` with an
+        explicit `end` when the flags have to be honored.
         """
     @staticmethod
     def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -5797,16 +5805,17 @@ class StringOperation:
         — this is the server's dedicated prepend sub-op (68).
         """
     @staticmethod
-    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+    def snip(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Remove the half-open codepoint range ``[start, end)`` from the bin.
+        Remove the half-open codepoint range ``[start, end)`` from the bin,
+        or everything from ``start`` through the end when ``end`` is None —
+        ``snip("s", 5)`` truncates ``"hello world"`` to ``"hello"``.
 
-        Note: ``end`` is required. The server's snip op table cannot dispatch
-        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
-        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
-        producing an empty range and a silent no-op. To snip from ``start``
-        through the end of the bin, the caller must supply the codepoint
-        length explicitly (via a ``strlen`` read).
+        ``flags`` require an explicit ``end``. The server reads the snip
+        arguments by position — ``start``, ``end``, then flags — so the 1-arg
+        form is packed as ``[53, start]`` with no flags element; a 2-element
+        ``[start, flags]`` wire would land the flags in the ``end`` slot and
+        silently snip the empty range ``[start, 0)``.
         """
     @staticmethod
     def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
@@ -7115,21 +7124,37 @@ class StringRegexFlags(enum.Enum):
 @typing.final
 class StringWriteFlags(enum.Enum):
     r"""
-    Per-operation write flags for string modify ops.
+    Per-operation write flags for string modify ops. Combine with bitwise OR.
 
-    Two values are valid; the server-side enumeration was trimmed in commit
-    `fe5a346e` (2026-04-17). `CREATE_ONLY` and `UPDATE_ONLY` previously
-    existed but are no longer recognized.
+    ``CREATE_ONLY`` and ``UPDATE_ONLY`` are mutually exclusive; sending both
+    is a server ``ParameterError``.
     """
     DEFAULT = ...
     r"""
     Default. Allow create or update.
     """
+    CREATE_ONLY = ...
+    r"""
+    Apply only if the bin does not already exist; a live bin raises
+    ``BinExistsError`` (suppressible with ``NO_FAIL``). Valid only on the
+    additive ops (insert, overwrite, concat, append, prepend, pad_start,
+    pad_end, repeat) and never with a CTX path — either misuse is a
+    server ``ParameterError``, which ``NO_FAIL`` does not suppress.
+    """
+    UPDATE_ONLY = ...
+    r"""
+    Apply only to an existing bin: on a missing bin the op is a silent
+    no-op instead of creating it. Valid on all string modify ops.
+    """
     NO_FAIL = ...
     r"""
-    Do not raise an error if the operation cannot be applied (e.g. wrong
-    bin type). The bin is left unchanged and the op result is the
-    canonical null value.
+    Suppress in-op execution failures — e.g. the ``BinExistsError`` from
+    ``CREATE_ONLY`` on a live bin, or ``OpNotApplicable`` from an
+    unreachable CTX path: the op becomes a no-op and the bin keeps its
+    current value. Does NOT suppress wrong-bin-type or invalid
+    UTF-8 errors, and has no effect on missing bins — a missing bin is
+    never an error for string ops (additive ops create it from empty,
+    the other modifies no-op), with or without this flag.
     """
 
 @typing.final
