@@ -3680,6 +3680,24 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
+        /// Returns STRING — `src` with `value` joined onto its end.
+        pub fn string_append(flags: u8, value: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::append(&policy, src._as, value._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with `value` joined onto its front.
+        pub fn string_prepend(flags: u8, value: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
+            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            FilterExpression { _as: str_exp::prepend(&policy, src._as, value._as) }
+        }
+
+        #[staticmethod]
         /// Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
         /// ``end`` is required (server's snip table has no 1-arg form — see
         /// the matching ``StringOperation.snip`` note).

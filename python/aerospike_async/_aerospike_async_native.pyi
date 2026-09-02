@@ -3813,6 +3813,16 @@ class FilterExpression:
         single-string callers must wrap via ``FilterExpression.list_val([s])``.
         """
     @staticmethod
+    def string_append(flags: builtins.int, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` joined onto its end.
+        """
+    @staticmethod
+    def string_prepend(flags: builtins.int, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` joined onto its front.
+        """
+    @staticmethod
     def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.

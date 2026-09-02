@@ -353,6 +353,30 @@ class TestStringModifyExpressions:
         )
         assert out == "hello-world"
 
+    async def test_append_and_prepend_join_onto_the_subject(self, string_client_813):
+        """Which side the value lands on is the whole distinction between them.
+
+        Asymmetric halves, so a subject/value transposition changes the result
+        rather than producing the same string by coincidence.
+        """
+        key = _key("append_prepend_exp")
+        await string_client_813.put(key, {"s": "hello"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_append(0, Exp.string_val("-world"), Exp.string_bin("s")),
+        )
+        assert out == "hello-world"
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_prepend(0, Exp.string_val("say-"), Exp.string_bin("s")),
+        )
+        assert out == "say-hello"
+        # Neither persists: both are read expressions over the stored value.
+        rec = await string_client_813.get(key, policy=None)
+        assert rec.bins["s"] == "hello"
+
     async def test_snip_removes_a_half_open_range(self, string_client_813):
         key = _key("snip_exp")
         await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
