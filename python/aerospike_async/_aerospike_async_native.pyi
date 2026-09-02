@@ -3826,8 +3826,16 @@ class FilterExpression:
     def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
-        ``end`` is required (server's snip table has no 1-arg form — see
-        the matching ``StringOperation.snip`` note).
+        Use ``string_snip_from`` to snip from `start` through the end.
+        """
+    @staticmethod
+    def string_snip_from(start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with codepoints from `start` through the end
+        removed (truncate-to-end). Takes no write flags: the server reads
+        the snip arguments by position — `start`, `end`, then flags — so
+        this form packs ``[53, start]`` only; use ``string_snip`` with an
+        explicit `end` when the flags have to be honored.
         """
     @staticmethod
     def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -5797,16 +5805,17 @@ class StringOperation:
         — this is the server's dedicated prepend sub-op (68).
         """
     @staticmethod
-    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+    def snip(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Remove the half-open codepoint range ``[start, end)`` from the bin.
+        Remove the half-open codepoint range ``[start, end)`` from the bin,
+        or everything from ``start`` through the end when ``end`` is None —
+        ``snip("s", 5)`` truncates ``"hello world"`` to ``"hello"``.
 
-        Note: ``end`` is required. The server's snip op table cannot dispatch
-        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
-        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
-        producing an empty range and a silent no-op. To snip from ``start``
-        through the end of the bin, the caller must supply the codepoint
-        length explicitly (via a ``strlen`` read).
+        ``flags`` require an explicit ``end``. The server reads the snip
+        arguments by position — ``start``, ``end``, then flags — so the 1-arg
+        form is packed as ``[53, start]`` with no flags element; a 2-element
+        ``[start, flags]`` wire would land the flags in the ``end`` slot and
+        silently snip the empty range ``[start, 0)``.
         """
     @staticmethod
     def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:

@@ -3699,13 +3699,24 @@ use crate::string_ops::StringNumericType;
 
         #[staticmethod]
         /// Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
-        /// ``end`` is required (server's snip table has no 1-arg form — see
-        /// the matching ``StringOperation.snip`` note).
+        /// Use ``string_snip_from`` to snip from `start` through the end.
         pub fn string_snip(flags: u8, start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
             FilterExpression { _as: str_exp::snip(&policy, src._as, start._as, end._as) }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — `src` with codepoints from `start` through the end
+        /// removed (truncate-to-end). Takes no write flags: the server reads
+        /// the snip arguments by position — `start`, `end`, then flags — so
+        /// this form packs ``[53, start]`` only; use ``string_snip`` with an
+        /// explicit `end` when the flags have to be honored.
+        pub fn string_snip_from(start: FilterExpression, src: FilterExpression) -> Self {
+            use aerospike_core::expressions::string as str_exp;
+            use aerospike_core::operations::string::StringPolicy;
+            FilterExpression { _as: str_exp::snip_from(&StringPolicy::default(), src._as, start._as) }
         }
 
         #[staticmethod]

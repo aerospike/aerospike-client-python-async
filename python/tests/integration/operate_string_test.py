@@ -370,12 +370,6 @@ class TestStringModifies:
         assert await _read_str(string_client_813, key, "s") == "aXYZWV"
 
     async def test_snip_range_and_suffix(self, string_client_813):
-        """Snip always takes explicit (start, end). Per the updated spec
-        (and the underlying server constraint), there is no 1-arg form —
-        a wire ``[53, start, flags]`` is misparsed as ``[53, start, end]``.
-        Callers who want to drop a suffix supply the codepoint length as
-        ``end`` explicitly (typically via a paired ``strlen`` read).
-        """
         # Range form [start, end).
         key = _key("snip_range")
         await _put_str(string_client_813, key, "s", "abcdef")
@@ -386,6 +380,30 @@ class TestStringModifies:
         await _put_str(string_client_813, key, "s", "abcdef")
         await string_client_813.operate(key, [StringOperation.snip("s", 3, 6)])
         assert await _read_str(string_client_813, key, "s") == "abc"
+
+    async def test_snip_one_arg_truncates_to_end(self, string_client_813):
+        """The 1-arg form snips from ``start`` through the end of the string.
+
+        A wrong result here is a silent one: a mispacked 2-element
+        ``[start, flags]`` wire is accepted by the server as ``[start, end]``
+        and no-ops, so the bin coming back truncated is the whole assertion.
+        """
+        key = _key("snip_from")
+        await _put_str(string_client_813, key, "s", "hello world")
+        await string_client_813.operate(key, [StringOperation.snip("s", 5)])
+        assert await _read_str(string_client_813, key, "s") == "hello"
+
+    async def test_snip_one_arg_negative_start(self, string_client_813):
+        key = _key("snip_from_neg")
+        await _put_str(string_client_813, key, "s", "hello world")
+        await string_client_813.operate(key, [StringOperation.snip("s", -6)])
+        assert await _read_str(string_client_813, key, "s") == "hello"
+
+    async def test_snip_one_arg_rejects_flags(self, string_client_813):
+        # Flags ride in positional slot 2 behind ``end``, so the 1-arg form
+        # cannot carry them; the client refuses rather than dropping them.
+        with pytest.raises(ValueError, match="explicit end"):
+            StringOperation.snip("s", 5, flags=int(StringWriteFlags.NO_FAIL))
 
     async def test_replace_first_match_only(self, string_client_813):
         key = _key("replace")

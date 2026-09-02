@@ -614,18 +614,25 @@ impl StringOperation {
         StringOperation { op: OperationType::StringPrepend(bin, value, flags), ctx }
     }
 
-    /// Remove the half-open codepoint range ``[start, end)`` from the bin.
+    /// Remove the half-open codepoint range ``[start, end)`` from the bin,
+    /// or everything from ``start`` through the end when ``end`` is None —
+    /// ``snip("s", 5)`` truncates ``"hello world"`` to ``"hello"``.
     ///
-    /// Note: ``end`` is required. The server's snip op table cannot dispatch
-    /// a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
-    /// `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
-    /// producing an empty range and a silent no-op. To snip from ``start``
-    /// through the end of the bin, the caller must supply the codepoint
-    /// length explicitly (via a ``strlen`` read).
+    /// ``flags`` require an explicit ``end``. The server reads the snip
+    /// arguments by position — ``start``, ``end``, then flags — so the 1-arg
+    /// form is packed as ``[53, start]`` with no flags element; a 2-element
+    /// ``[start, flags]`` wire would land the flags in the ``end`` slot and
+    /// silently snip the empty range ``[start, 0)``.
     #[staticmethod]
-    #[pyo3(signature = (bin, start, end, *, flags=0, ctx=None))]
-    pub fn snip(bin: String, start: i64, end: i64, flags: u8, ctx: Option<Vec<CTX>>) -> Self {
-        StringOperation { op: OperationType::StringSnip(bin, start, end, flags), ctx }
+    #[pyo3(signature = (bin, start, end=None, *, flags=0, ctx=None))]
+    pub fn snip(bin: String, start: i64, end: Option<i64>, flags: u8, ctx: Option<Vec<CTX>>) -> PyResult<Self> {
+        if end.is_none() && flags != 0 {
+            return Err(PyValueError::new_err(
+                "snip flags require an explicit end: the server parses snip args by position, \
+                 so flags cannot be sent with the 1-arg truncate-to-end form",
+            ));
+        }
+        Ok(StringOperation { op: OperationType::StringSnip(bin, start, end, flags), ctx })
     }
 
     /// Replace the first occurrence of ``needle`` with ``replacement``.

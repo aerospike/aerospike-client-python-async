@@ -331,10 +331,12 @@ use crate::string_ops::{StringNumericType, StringOperation};
         StringAppend(String, String, u8),
         /// String prepend (bin, value, write_flags) — single-value form, sub-op 68.
         StringPrepend(String, String, u8),
-        /// String snip (bin, start, end, write_flags). ``end`` is REQUIRED — the server's
-        /// snip table has no 1-arg form (a 2-int wire is misparsed as start+end with
-        /// flags=DEFAULT=0, producing a silent no-op).
-        StringSnip(String, i64, i64, u8),
+        /// String snip (bin, start, end, write_flags). end=None means snip from
+        /// start through the end of the string; that form packs `[53, start]`
+        /// with no flags element — the server reads snip args by position, so a
+        /// 2-element `[start, flags]` wire would land the flags in the `end`
+        /// slot and silently snip the empty range `[start, 0)`.
+        StringSnip(String, i64, Option<i64>, u8),
         /// String replace (bin, needle, replacement, write_flags) — first match only.
         StringReplace(String, String, String, u8),
         /// String replace_all (bin, needle, replacement, write_flags) — all matches.
@@ -3373,7 +3375,10 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
                 let policy = StringPolicy::new(CoreSWF(*flags as i64));
-                str_op::snip(&policy, bin, *start, *end)
+                match end {
+                    Some(e) => str_op::snip(&policy, bin, *start, *e),
+                    None => str_op::snip_from(&policy, bin, *start),
+                }
             }
             OperationType::StringReplace(bin, needle, replacement, flags) => {
                 use aerospike_core::operations::string as str_op;
