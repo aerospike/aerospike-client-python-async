@@ -518,10 +518,31 @@ jobs:
         run: python3 .github/assert-server.py
 
       - name: Install wheel
-        run: python3 -m pip install *.whl
+        # This job runs on a persistent bare-metal runner and the version
+        # string is stable across merges, so a plain install is a no-op
+        # against whatever build a previous run left behind.
+        run: python3 -m pip install --force-reinstall *.whl
         working-directory: aerospike_async
       - name: Install pytest
         run: python3 -m pip install pytest pytest-asyncio
+
+      - name: Assert the installed package matches the wheel under test
+        run: |
+          python3 - <<'EOF'
+          import hashlib, pathlib, zipfile
+          import aerospike_async
+          installed_init = pathlib.Path(aerospike_async.__file__).resolve()
+          [wheel] = pathlib.Path("aerospike_async").glob("*.whl")
+          with zipfile.ZipFile(wheel) as zf:
+              wheel_init = zf.read("aerospike_async/__init__.py")
+          digest = lambda b: hashlib.sha256(b).hexdigest()
+          installed, expected = digest(installed_init.read_bytes()), digest(wheel_init)
+          assert installed == expected, (
+              f"{installed_init} ({installed[:12]}) is not from {wheel.name} "
+              f"({expected[:12]}) — a stale install is shadowing the wheel under test"
+          )
+          print(f"aerospike_async at {installed_init} matches {wheel.name} ({expected[:12]})")
+          EOF
 
       - name: Debug module contents
         run: |
