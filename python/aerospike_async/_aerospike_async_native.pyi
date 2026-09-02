@@ -7124,21 +7124,37 @@ class StringRegexFlags(enum.Enum):
 @typing.final
 class StringWriteFlags(enum.Enum):
     r"""
-    Per-operation write flags for string modify ops.
+    Per-operation write flags for string modify ops. Combine with bitwise OR.
 
-    Two values are valid; the server-side enumeration was trimmed in commit
-    `fe5a346e` (2026-04-17). `CREATE_ONLY` and `UPDATE_ONLY` previously
-    existed but are no longer recognized.
+    ``CREATE_ONLY`` and ``UPDATE_ONLY`` are mutually exclusive; sending both
+    is a server ``ParameterError``.
     """
     DEFAULT = ...
     r"""
     Default. Allow create or update.
     """
+    CREATE_ONLY = ...
+    r"""
+    Apply only if the bin does not already exist; a live bin raises
+    ``BinExistsError`` (suppressible with ``NO_FAIL``). Valid only on the
+    additive ops (insert, overwrite, concat, append, prepend, pad_start,
+    pad_end, repeat) and never with a CTX path — either misuse is a
+    server ``ParameterError``, which ``NO_FAIL`` does not suppress.
+    """
+    UPDATE_ONLY = ...
+    r"""
+    Apply only to an existing bin: on a missing bin the op is a silent
+    no-op instead of creating it. Valid on all string modify ops.
+    """
     NO_FAIL = ...
     r"""
-    Do not raise an error if the operation cannot be applied (e.g. wrong
-    bin type). The bin is left unchanged and the op result is the
-    canonical null value.
+    Suppress in-op execution failures — e.g. the ``BinExistsError`` from
+    ``CREATE_ONLY`` on a live bin, or ``OpNotApplicable`` from an
+    unreachable CTX path: the op becomes a no-op and the bin keeps its
+    current value. Does NOT suppress wrong-bin-type or invalid
+    UTF-8 errors, and has no effect on missing bins — a missing bin is
+    never an error for string ops (additive ops create it from empty,
+    the other modifies no-op), with or without this flag.
     """
 
 @typing.final
