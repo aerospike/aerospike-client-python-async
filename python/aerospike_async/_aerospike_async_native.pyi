@@ -5870,9 +5870,9 @@ class StringOperation:
         replace every match.
 
         Note: ``flags`` here carries regex flags, NOT write flags. The wire
-        payload for ``regex_replace`` has no slot for write flags — the
-        server rejects messages that include one. This method accepts only
-        the regex-flags bitmask for that reason.
+        payload does carry a write-flags slot, but this method exposes no
+        parameter for it and sends the default, so ``CREATE_ONLY`` and
+        ``UPDATE_ONLY`` cannot be requested on a regex replace.
         """
     @staticmethod
     def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:

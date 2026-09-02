@@ -3481,7 +3481,7 @@ use crate::string_ops::StringNumericType;
         /// Substring of `src` from codepoint `start` to the end.
         pub fn string_substr(start: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::substr(start._as, src._as) }
+            FilterExpression { _as: str_exp::substr(src._as, start._as) }
         }
 
         #[staticmethod]
@@ -3491,49 +3491,49 @@ use crate::string_ops::StringNumericType;
         /// "length" in its docstring is misleading.
         pub fn string_substr_range(start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::substr_range(start._as, end._as, src._as) }
+            FilterExpression { _as: str_exp::substr_range(src._as, start._as, end._as) }
         }
 
         #[staticmethod]
         /// Codepoint at `index` (one-codepoint string).
         pub fn string_char_at(index: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::char_at(index._as, src._as) }
+            FilterExpression { _as: str_exp::char_at(src._as, index._as) }
         }
 
         #[staticmethod]
         /// First-match codepoint index of `needle` in `src` (-1 if absent).
         pub fn string_find(needle: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::find(needle._as, src._as) }
+            FilterExpression { _as: str_exp::find(src._as, needle._as) }
         }
 
         #[staticmethod]
         /// N-th-match codepoint index of `needle` in `src` (1 = first, -1 = last; -1 if absent).
         pub fn string_find_nth(needle: FilterExpression, occurrence: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::find_nth(needle._as, occurrence._as, src._as) }
+            FilterExpression { _as: str_exp::find_nth(src._as, needle._as, occurrence._as) }
         }
 
         #[staticmethod]
         /// Returns BOOL — `src` contains `needle` as a substring.
         pub fn string_contains(needle: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::contains(needle._as, src._as) }
+            FilterExpression { _as: str_exp::contains(src._as, needle._as) }
         }
 
         #[staticmethod]
         /// Returns BOOL — `src` starts with `prefix`.
         pub fn string_starts_with(prefix: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::starts_with(prefix._as, src._as) }
+            FilterExpression { _as: str_exp::starts_with(src._as, prefix._as) }
         }
 
         #[staticmethod]
         /// Returns BOOL — `src` ends with `suffix`.
         pub fn string_ends_with(suffix: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::ends_with(suffix._as, src._as) }
+            FilterExpression { _as: str_exp::ends_with(src._as, suffix._as) }
         }
 
         #[staticmethod]
@@ -3574,7 +3574,7 @@ use crate::string_ops::StringNumericType;
                 StringNumericType::Int => CoreNT::Int,
                 StringNumericType::Float => CoreNT::Float,
             };
-            FilterExpression { _as: str_exp::is_numeric_typed(core_nt, src._as) }
+            FilterExpression { _as: str_exp::is_numeric_typed(src._as, core_nt) }
         }
 
         #[staticmethod]
@@ -3609,7 +3609,7 @@ use crate::string_ops::StringNumericType;
         /// Returns LIST — `src` split by `separator`.
         pub fn string_split_by_separator(separator: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::split_by_separator(separator._as, src._as) }
+            FilterExpression { _as: str_exp::split_by_separator(src._as, separator._as) }
         }
 
         #[staticmethod]
@@ -3630,7 +3630,7 @@ use crate::string_ops::StringNumericType;
         /// OP_NOT_APPLICABLE (26). Only bin-sourced inputs are verified.
         pub fn string_regex_compare(pattern: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
-            FilterExpression { _as: str_exp::regex_compare(pattern._as, src._as) }
+            FilterExpression { _as: str_exp::regex_compare(src._as, pattern._as) }
         }
 
         #[staticmethod]
@@ -3640,7 +3640,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::StringRegexFlags as CoreSRF;
             FilterExpression {
-                _as: str_exp::regex_compare_with_flags(pattern._as, CoreSRF(regex_flags as i64), src._as),
+                _as: str_exp::regex_compare_with_flags(src._as, pattern._as, CoreSRF(regex_flags as i64)),
             }
         }
 
@@ -3656,7 +3656,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::insert(&policy, index._as, value._as, src._as) }
+            FilterExpression { _as: str_exp::insert(&policy, src._as, index._as, value._as) }
         }
 
         #[staticmethod]
@@ -3665,7 +3665,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::overwrite(&policy, index._as, value._as, src._as) }
+            FilterExpression { _as: str_exp::overwrite(&policy, src._as, index._as, value._as) }
         }
 
         #[staticmethod]
@@ -3676,7 +3676,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::concat(&policy, values._as, src._as) }
+            FilterExpression { _as: str_exp::concat(&policy, src._as, values._as) }
         }
 
         #[staticmethod]
@@ -3687,7 +3687,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::snip(&policy, start._as, end._as, src._as) }
+            FilterExpression { _as: str_exp::snip(&policy, src._as, start._as, end._as) }
         }
 
         #[staticmethod]
@@ -3696,7 +3696,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::replace(&policy, needle._as, replacement._as, src._as) }
+            FilterExpression { _as: str_exp::replace(&policy, src._as, needle._as, replacement._as) }
         }
 
         #[staticmethod]
@@ -3705,7 +3705,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::replace_all(&policy, needle._as, replacement._as, src._as) }
+            FilterExpression { _as: str_exp::replace_all(&policy, src._as, needle._as, replacement._as) }
         }
 
         #[staticmethod]
@@ -3770,7 +3770,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::pad_start(&policy, target_length._as, pad_string._as, src._as) }
+            FilterExpression { _as: str_exp::pad_start(&policy, src._as, target_length._as, pad_string._as) }
         }
 
         #[staticmethod]
@@ -3779,7 +3779,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::pad_end(&policy, target_length._as, pad_string._as, src._as) }
+            FilterExpression { _as: str_exp::pad_end(&policy, src._as, target_length._as, pad_string._as) }
         }
 
         #[staticmethod]
@@ -3788,7 +3788,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
             let policy = StringPolicy::new(CoreSWF(flags as i64));
-            FilterExpression { _as: str_exp::repeat(&policy, count._as, src._as) }
+            FilterExpression { _as: str_exp::repeat(&policy, src._as, count._as) }
         }
 
         #[staticmethod]
@@ -3804,7 +3804,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
             let policy = StringPolicy::default();
             FilterExpression {
-                _as: str_exp::regex_replace(&policy, pattern._as, replacement._as, CoreSRF(regex_flags as i64), src._as),
+                _as: str_exp::regex_replace(&policy, src._as, pattern._as, replacement._as, CoreSRF(regex_flags as i64)),
             }
         }
 

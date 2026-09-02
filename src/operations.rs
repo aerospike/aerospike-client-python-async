@@ -3443,9 +3443,10 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::StringRegexReplace(bin, pattern, replacement, regex_flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
-                // Per spec §2.5: regex_replace has no write-flags slot on the wire; the
-                // server rejects messages that pack write flags here. Pass a default
-                // StringPolicy that the rust-core builder is documented to ignore.
+                // regex_replace now carries a write-flags slot on the wire, but this
+                // op type has no parameter to fill it, so send the default. Widening
+                // the Python signature is the only way to expose CREATE_ONLY /
+                // UPDATE_ONLY here.
                 let policy = StringPolicy::default();
                 str_op::regex_replace(&policy, bin, pattern, replacement, CoreSRF(*regex_flags as i64))
             }
