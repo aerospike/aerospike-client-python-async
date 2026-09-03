@@ -29,7 +29,6 @@ jobs:
           # Don't run a virtual machine for x86_64 artifacts
           # maturin platform, Docker platform
           [x86_64, _],
-          [x86, linux/386],
           # aarch64 and armv7 disabled due to aws-lc-sys cross-compilation issues:
           #
           # Bindgen Feature Issue:
