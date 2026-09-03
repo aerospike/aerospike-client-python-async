@@ -78,6 +78,9 @@ jobs:
           # wheels are installable on day one of 3.15.0 final; switch the -dev
           # spellings to plain "3.15"/"3.15t" once the final release is out.
           - name: linux-x86_64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-22.04
             package-kind: wheel
             python-version: "3.15-dev"
@@ -113,6 +116,9 @@ jobs:
             maturin-target: ""
             manylinux: auto
           - name: linux-aarch64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
             python-version: "3.15-dev"
@@ -148,6 +154,9 @@ jobs:
             maturin-target: ""
             manylinux: ""
           - name: macos-x86_64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: macos-latest-large
             package-kind: wheel
             python-version: "3.15-dev"
@@ -183,6 +192,9 @@ jobs:
             maturin-target: ""
             manylinux: ""
           - name: macos-arm64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: macos-latest
             package-kind: wheel
             python-version: "3.15-dev"
@@ -197,6 +209,9 @@ jobs:
             maturin-target: ""
             manylinux: ""
           - name: macos-arm64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: macos-latest
             package-kind: wheel
             python-version: "3.15t-dev"
@@ -211,6 +226,9 @@ jobs:
             maturin-target: ""
             manylinux: auto
           - name: linux-x86_64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-22.04
             package-kind: wheel
             python-version: "3.15t-dev"
@@ -225,6 +243,9 @@ jobs:
             maturin-target: ""
             manylinux: auto
           - name: linux-aarch64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
             python-version: "3.15t-dev"
@@ -263,6 +284,9 @@ jobs:
             maturin-target: ""
             manylinux: ""
           - name: windows-x64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
             runs-on: windows-2022
             package-kind: wheel
             python-version: "3.15-dev"
@@ -334,7 +358,7 @@ jobs:
 
         maturin "${args[@]}"
       gh-artifact-directory: build
-      gh-artifact-name: build-artifacts-${{ matrix.name }}
+      gh-artifact-name: ${{ matrix.artifact-prefix || 'build-artifacts' }}-${{ matrix.name }}
       gh-retention-days: 1
       publish-build-info: true
       oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
