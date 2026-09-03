@@ -62,7 +62,6 @@ jobs:
           # [armv7, linux/arm/v7]
         ]
         python: [
-          'python3.10',
           'python3.11',
           'python3.12',
           'python3.13',
@@ -212,7 +211,6 @@ jobs:
     strategy:
       matrix:
         python: [
-          'python3.10',
           'python3.11',
           'python3.12',
           'python3.13',
@@ -305,7 +303,7 @@ jobs:
     strategy:
       matrix:
         target: [x64, x86]
-        python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python: ['3.11', '3.12', '3.13', '3.14']
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -375,7 +373,6 @@ jobs:
     strategy:
       matrix:
         python: [
-          'python3.10',
           'python3.11',
           'python3.12',
           'python3.13',
@@ -429,7 +426,6 @@ jobs:
     strategy:
       matrix:
         python: [
-          'python3.10',
           'python3.11',
           'python3.12',
           'python3.13',
@@ -481,7 +477,6 @@ jobs:
     strategy:
       matrix:
         python: [
-          '3.10',
           '3.11',
           '3.12',
           '3.13',

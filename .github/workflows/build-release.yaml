@@ -46,13 +46,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x86_64-py310
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
-            maturin-target: ""
-            manylinux: auto
           - name: linux-x86_64-py311
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -79,13 +72,6 @@ jobs:
             package-kind: wheel
             python-version: "3.14"
             python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py310
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
             maturin-target: ""
             manylinux: auto
           - name: linux-aarch64-py311
@@ -116,13 +102,6 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: auto
-          - name: macos-x86_64-py310
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
-            maturin-target: ""
-            manylinux: ""
           - name: macos-x86_64-py311
             runs-on: macos-latest-large
             package-kind: wheel
@@ -149,13 +128,6 @@ jobs:
             package-kind: wheel
             python-version: "3.14"
             python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py310
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
             maturin-target: ""
             manylinux: ""
           - name: macos-arm64-py311
@@ -208,15 +180,8 @@ jobs:
             maturin-target: ""
             manylinux: auto
           # One leg per interpreter, like every other platform. Building the whole
-          # 3.10-3.14 set in a single job serialized five release compiles and made
+          # 3.11-3.14 set in a single job serialized five release compiles and made
           # this the longest job in the pipeline by a factor of three.
-          - name: windows-x64-py310
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
           - name: windows-x64-py311
             runs-on: windows-2022
             package-kind: wheel
@@ -323,7 +288,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -408,7 +373,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
