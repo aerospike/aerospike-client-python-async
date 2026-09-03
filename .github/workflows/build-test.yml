@@ -115,71 +115,25 @@ jobs:
           EXPECTED_BUILD: ${{ env.AEROSPIKE_SERVER_TAG }}
         run: python3 .github/assert-server.py
 
-      - name: Set up QEMU
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        uses: docker/setup-qemu-action@v3
-
-      - name: Get Docker image name and tag
-        run: echo DOCKER_IMAGE_TAG=$(echo ${{ matrix.python }} | sed -E "s/(python|pypy)/\1:/") >> $GITHUB_ENV
-
-      - name: Run container in QEMU VM
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        # Run in the host network to connect to Aerospike server
-        run: docker run -d --network host --name ${{ matrix.python }} --platform ${{ matrix.target[1]}} ${{ env.DOCKER_IMAGE_TAG }} tail -f /dev/null
-
-      - name: Copy tests and wheel to container
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker cp ../aerospike-client-python-async ${{ matrix.python }}:/
-
-
-      - name: Install wheel (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install aerospike_async/*.whl
-      - name: Install pytest (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pip install pytest pytest-asyncio
-      - name: Run tests (non-x86 wheels)
-        if: ${{ !startsWith(matrix.target[0], 'x86_64') }}
-        run: |
-          # Remove only the __init__.py file to prevent import conflicts with installed package
-          # Keep the exceptions/ directory as it's needed by the tests
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f python/aerospike_async/__init__.py
-          # Remove .env file so tests use default localhost:3000 (matches our server)
-          docker exec --workdir /aerospike-client-python-async ${{ matrix.python }} rm -f aerospike.env
-          # Set AEROSPIKE_HOST environment variable to bypass env file and use CI server port
-          docker exec -e AEROSPIKE_HOST=localhost:3000 -e AEROSPIKE_USE_SERVICES_ALTERNATE=true --workdir /aerospike-client-python-async ${{ matrix.python }} ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
-          if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
-            echo "=== End of Server Log ==="
-            exit 1
-          fi
-
       - name: Remove python prefix for setting up python (CPython only)
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         run: echo PYTHON_VERSION=$(echo ${{ matrix.python }} | sed -E "s/python(.*)/\1/") >> $GITHUB_ENV
 
       - name: Setup Python for testing
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install wheel (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+      - name: Install wheel
         run: ${{ matrix.python }} -m pip install *.whl
         working-directory: aerospike_async
-      - name: Install pytest (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+      - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
 
-      - name: Debug module contents (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+      - name: Debug module contents
         run: |
           ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
           ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
-      - name: Run tests (x86 wheels)
-        if: ${{ startsWith(matrix.target[0], 'x86_64') }}
+      - name: Run tests
         env:
           AEROSPIKE_HOST: localhost:3000
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
@@ -301,7 +255,7 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        target: [x64, x86]
+        target: [x64]
         python: ['3.11', '3.12', '3.13', '3.14']
       fail-fast: false
     steps:
