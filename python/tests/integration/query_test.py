@@ -30,7 +30,7 @@ from aerospike_async import (
     WritePolicy,
 )
 from aerospike_async.exceptions import InvalidNamespaceError
-from fixtures import TestFixtureInsertRecord, TestFixtureConnection
+from fixtures import TestFixtureInsertRecord, TestFixtureConnection, wait_for_scan_visible
 
 
 class TestQuery(TestFixtureInsertRecord):
@@ -193,11 +193,19 @@ class TestQueryBlobIndex(TestFixtureConnection):
         # comparison would over-match.
         needle = b"\xde\xad\xbe\xef"
         blobs = [b"\x01\x02", needle, b"\xff", b"\xde\xad"]
-        for i, blob in enumerate(blobs):
-            key = Key("test", self.set_name, i)
-            await client.put(key, {self.bin_name: blob}, policy=wp)
 
-        await client.create_index(
+        async def write_blobs():
+            for i, blob in enumerate(blobs):
+                key = Key("test", self.set_name, i)
+                await client.put(key, {self.bin_name: blob}, policy=wp)
+
+        await write_blobs()
+        # cleanup() truncated this set; a same-clock-tick write is silently
+        # expired with the truncate. Verify visibility, re-seeding if eaten.
+        await wait_for_scan_visible(
+            client, "test", self.set_name, len(blobs), write_blobs)
+
+        task = await client.create_index(
             "test",
             self.set_name,
             self.bin_name,
@@ -205,6 +213,7 @@ class TestQueryBlobIndex(TestFixtureConnection):
             IndexType.BLOB,
             cit=CollectionIndexType.DEFAULT,
         )
+        await task.wait_till_complete()
         flt = Filter.equal(self.bin_name, needle)
         await wait_for_index(client, "test", self.set_name, flt, bins=[self.bin_name])
 
@@ -241,11 +250,19 @@ class TestQueryFilterContext(TestFixtureConnection):
     async def test_query_list_element_context_filter(self, client, wait_for_index):
         await self.cleanup(client)
         wp = WritePolicy()
-        for i in range(5):
-            key = Key("test", self.set_name, i)
-            await client.put(key, {self.bin_name: [i]}, policy=wp)
 
-        await client.create_index(
+        async def write_rows():
+            for i in range(5):
+                key = Key("test", self.set_name, i)
+                await client.put(key, {self.bin_name: [i]}, policy=wp)
+
+        await write_rows()
+        # cleanup() truncated this set; a same-clock-tick write is silently
+        # expired with the truncate. Verify visibility, re-seeding if eaten.
+        await wait_for_scan_visible(
+            client, "test", self.set_name, 5, write_rows)
+
+        task = await client.create_index(
             "test",
             self.set_name,
             self.bin_name,
@@ -254,6 +271,7 @@ class TestQueryFilterContext(TestFixtureConnection):
             cit=CollectionIndexType.DEFAULT,
             ctx=[CTX.list_index(0)],
         )
+        await task.wait_till_complete()
         flt = Filter.range(self.bin_name, 0, 4).context([CTX.list_index(0)])
         await wait_for_index(
             client, "test", self.set_name, flt, bins=[self.bin_name])

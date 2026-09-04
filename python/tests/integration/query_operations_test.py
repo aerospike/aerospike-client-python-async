@@ -56,6 +56,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
+from fixtures import wait_for_scan_visible
 
 
 _NAMESPACE = "test"
@@ -86,7 +87,7 @@ async def _seed_query_dataset(client):
         await task.wait_till_complete()
     except Exception:
         pass
-    await client.create_index(
+    task = await client.create_index(
         _NAMESPACE,
         _SET,
         _BIN1,
@@ -94,7 +95,17 @@ async def _seed_query_dataset(client):
         IndexType.NUMERIC,
         cit=CollectionIndexType.DEFAULT,
     )
+    await task.wait_till_complete()
 
+    await _write_query_dataset(client)
+    # The truncate above can silently expire writes landing in the same
+    # clock tick; verify the dataset is scan-visible and re-seed if not.
+    await wait_for_scan_visible(
+        client, _NAMESPACE, _SET, _SIZE, lambda: _write_query_dataset(client)
+    )
+
+
+async def _write_query_dataset(client):
     wp = WritePolicy()
     for i in range(1, _SIZE + 1):
         key = Key(_NAMESPACE, _SET, f"{_KEY_PREFIX}{i}")

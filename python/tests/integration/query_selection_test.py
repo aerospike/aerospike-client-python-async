@@ -18,6 +18,8 @@ Requires Aerospike Server >= 8.1.3; tests self-skip via
 
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -159,7 +161,7 @@ async def _create_qsel_indexes(setup_client) -> None:
         (SCORE_INDEX_NAME, SCORE_BIN),
     ):
         try:
-            await setup_client.create_index(
+            task = await setup_client.create_index(
                 NAMESPACE,
                 SET_NAME,
                 bin_name,
@@ -167,7 +169,9 @@ async def _create_qsel_indexes(setup_client) -> None:
                 IndexType.NUMERIC,
                 cit=CollectionIndexType.DEFAULT,
             )
+            await task.wait_till_complete()
         except IndexFoundError:
+            # Left by a prior run; the readiness probes below cover it.
             pass
 
 
@@ -197,6 +201,24 @@ async def qsel_fixture(aerospike_host, use_services_alternate, supports_query_se
             SET_NAME,
             Filter.range(SCORE_BIN, 51, 52),
         )
+        # Queryability precedes planner adoption: while an index is still
+        # building, explain declines it silently and reports PRIMARY_INDEX.
+        # The explain tests assert adoption, so wait on that same property.
+        deadline = time.monotonic() + 10.0
+        plan = None
+        while True:
+            plan = await setup_client.query_explain(
+                NAMESPACE,
+                f"$.{AGE_BIN} >= 14 and $.{AGE_BIN} <= 18",
+                set_name=SET_NAME,
+            )
+            if plan.selection == QuerySelection.SECONDARY_INDEX:
+                break
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"planner never selected a secondary index (last plan: {plan})"
+                )
+            await asyncio.sleep(0.25)
         yield
     finally:
         await _drop_indexes(setup_client)

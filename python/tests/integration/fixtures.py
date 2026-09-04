@@ -59,10 +59,11 @@ async def wait_for_index_ready(
         except ServerError as exc:
             # Both are transient states of a just-created index: INDEX_NOT_FOUND
             # (201) = the create has not yet registered on this node, and
-            # INDEX_NOT_READABLE (203) = registered but still building. Under
-            # full-suite churn the 201 window widens and this probe can race it.
-            # (Proper fix: have create_index return an IndexTask and
-            # wait_till_complete on build status — see pre-GA TODO.)
+            # INDEX_NOT_READABLE (203) = registered but still building. Call
+            # sites that own the index creation should first await the
+            # IndexTask create_index returns (closing the 201 window); this
+            # probe then covers the post-task readability tail — the server
+            # can report the build task done before the index is queryable.
             if exc.result_code not in (
                 ResultCode.INDEX_NOT_READABLE,
                 ResultCode.INDEX_NOT_FOUND,
@@ -74,6 +75,44 @@ async def wait_for_index_ready(
     if last_err is not None:
         raise TimeoutError(msg) from last_err
     raise TimeoutError(msg)
+
+
+async def wait_for_scan_visible(
+    client,
+    ns,
+    set_name,
+    expected,
+    rewrite,
+    *,
+    attempts=5,
+    interval=0.5,
+):
+    """Verify a just-seeded set is scan-visible, re-issuing the writes if not.
+
+    Truncate sets a server-side last-update-time watermark with clock-tick
+    granularity; writes landing within the same tick are silently expired
+    with it, so a truncate-then-seed sequence can lose every record without
+    an error. Waiting alone cannot recover them — ``rewrite`` must re-issue
+    the (idempotent) seed writes, which by then land past the watermark.
+    """
+    count = 0
+    for _ in range(attempts):
+        stmt = Statement(ns, set_name, [])
+        records = await client.query(
+            stmt,
+            PartitionFilter.all(),
+            policy=QueryPolicy(),
+        )
+        count = 0
+        async for _rec in records:
+            count += 1
+        if count >= expected:
+            return
+        await asyncio.sleep(interval)
+        await rewrite()
+    raise TimeoutError(
+        f"{ns}.{set_name}: only {count}/{expected} records scan-visible after seeding"
+    )
 
 
 class TestFixtureConnection:
@@ -105,6 +144,10 @@ class TestFixtureCleanDB(TestFixtureConnection):
         except Exception:
             # Truncate may fail due to permissions or server config, continue anyway
             pass
+        # Truncate's last-update-time watermark has clock-tick granularity;
+        # a write landing in the same tick is silently expired with it. Step
+        # past the tick so the records this fixture's consumers write survive.
+        await asyncio.sleep(0.005)
         
         yield client
         await client.close()
@@ -163,6 +206,10 @@ class TestFixtureInsertRecord(TestFixtureCleanDB):
         except Exception:
             # Truncate may fail due to permissions or server config, continue anyway
             pass
+        # Truncate's last-update-time watermark has clock-tick granularity;
+        # a write landing in the same tick is silently expired with it. Step
+        # past the tick so the records this fixture's consumers write survive.
+        await asyncio.sleep(0.005)
         
         # Insert test record
         wp = WritePolicy()
