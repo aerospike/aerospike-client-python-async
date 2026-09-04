@@ -101,7 +101,7 @@ jobs:
 
       - name: Run Aerospike server
         id: aerospike
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@91bde550339d432d99123d871c7eee628aa39587 # self-hosted macOS support (#229)
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
         with:
           server-tag: ${{ env.AEROSPIKE_SERVER_TAG }}
           server-container-repo: ${{ env.AEROSPIKE_SERVER_REPO }}
@@ -195,7 +195,7 @@ jobs:
 
       - name: Run Aerospike server
         id: aerospike
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@91bde550339d432d99123d871c7eee628aa39587 # self-hosted macOS support (#229)
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
         with:
           server-tag: ${{ env.AEROSPIKE_SERVER_TAG }}
           server-container-repo: ${{ env.AEROSPIKE_SERVER_REPO }}
@@ -451,7 +451,7 @@ jobs:
 
       - name: Run Aerospike server
         id: aerospike
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@91bde550339d432d99123d871c7eee628aa39587 # self-hosted macOS support (#229)
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
         with:
           server-tag: ${{ env.AEROSPIKE_SERVER_TAG }}
           server-container-repo: ${{ env.AEROSPIKE_SERVER_REPO }}
@@ -619,7 +619,7 @@ jobs:
           AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
       - name: Run Aerospike server
         id: aerospike
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@91bde550339d432d99123d871c7eee628aa39587 # self-hosted macOS support (#229)
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
         with:
           server-tag: ${{ env.AEROSPIKE_SERVER_TAG }}
           server-container-repo: ${{ env.AEROSPIKE_SERVER_REPO }}
