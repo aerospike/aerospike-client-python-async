@@ -860,7 +860,13 @@ async def test_batch_mixed_read_write_delete(client_and_keys):
 
 
 async def test_batch_mixed_with_invalid_namespace(client_and_keys):
-    """Batch with an invalid namespace fails at the client routing level."""
+    """One unroutable key does not cost the batch its other results.
+
+    A key whose namespace has no entry in the partition map cannot be routed,
+    so core stamps it at its own index and sends the rest. The guarantee worth
+    holding is that the routable keys still report: the failure is confined to
+    the row that caused it, not raised for the whole command.
+    """
     client, keys, _, bin_name = client_and_keys
 
     k_good = keys[0]
@@ -869,18 +875,25 @@ async def test_batch_mixed_with_invalid_namespace(client_and_keys):
     good_op = BatchWriteOp(k_good, [Operation.put(bin_name, "updated")])
     bad_op = BatchWriteOp(k_bad, [Operation.put(bin_name, "should_fail")])
 
-    with pytest.raises(InvalidNodeError):
-        await client.batch(None, [good_op, bad_op])
+    results = await client.batch(None, [good_op, bad_op])
+
+    assert len(results) == 2
+    assert results[0].result_code == ResultCode.OK
+    assert results[1].result_code == ResultCode.PARTITION_UNAVAILABLE
+    # Never sent, so it cannot be in doubt.
+    assert results[1].in_doubt is False
 
 
-@pytest.mark.xfail(
-    reason="Rust core rejects entire batch when any key targets an unknown namespace; "
-           "per-key INVALID_NAMESPACE not yet supported",
-    raises=InvalidNodeError,
-    strict=True,
-)
 async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
-    """Mixed batch with one invalid namespace key; expect per-key INVALID_NAMESPACE when supported."""
+    """A mixed batch reports the unroutable key positionally, at its own index.
+
+    The code is PARTITION_UNAVAILABLE rather than INVALID_NAMESPACE: an
+    unknown namespace has no partition-map entry, so core resolves no node and
+    stamps the row without sending it, and the server never gets to name the
+    namespace as the problem. Pinned deliberately -- if core starts
+    distinguishing an unknown namespace from an unreachable one, this should
+    fail and be updated rather than quietly accept either.
+    """
     client, keys, delete_keys, bin_name = client_and_keys
 
     k_good = keys[0]
@@ -897,7 +910,7 @@ async def test_batch_mixed_invalid_namespace_per_key(client_and_keys):
 
     assert len(results) == 4
     assert results[0].result_code == ResultCode.OK
-    assert results[1].result_code == ResultCode.INVALID_NAMESPACE
+    assert results[1].result_code == ResultCode.PARTITION_UNAVAILABLE
     assert results[2].result_code == ResultCode.OK
     assert results[3].result_code == ResultCode.OK
 

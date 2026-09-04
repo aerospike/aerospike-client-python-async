@@ -24,8 +24,13 @@ import os
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
-PROPAGATION_RETRIES = 5
-PROPAGATION_DELAY = 0.01
+# Security metadata is eventually consistent: a role is not in query_roles the
+# instant create_role returns, nor gone the instant drop_role does. Measured
+# well over 0.5s, and past 3s when the host is loaded, against a former budget
+# of 5 x 0.01s = 0.05s. These are ceilings, not sleeps -- the waits return as
+# soon as the condition holds, so the common case still costs one poll.
+PROPAGATION_RETRIES = 100
+PROPAGATION_DELAY = 0.1
 
 
 async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
@@ -136,22 +141,32 @@ class TestSecurityFeatures:
             except:
                 pass
 
+    TEST_ROLES = ["test_role_1", "test_role_2", "test_app_role", "test_analytics_role",
+                  "test_role_check_quotas", "test_role_quota_zero",
+                  "test_role_quota_set"]
+
     @pytest.fixture(autouse=True)
     async def cleanup_roles(self, client):
-        """Clean up test roles before and after each test."""
-        test_roles = ["test_role_1", "test_role_2", "test_app_role", "test_analytics_role",
-                       "test_role_check_quotas", "test_role_invalid_quota"]
-        for role_name in test_roles:
-            try:
-                await client.drop_role(role_name)
-            except:
-                pass
+        """Clean up test roles before and after each test.
+
+        Waits for the drops to become visible. A dropped role lingers in
+        query_roles briefly after drop_role returns, so proceeding immediately
+        let the next test's create hit RoleAlreadyExists -- a failure whose
+        appearance depended on how much wall-clock the preceding test burned.
+        """
+        await self._drop_roles_and_wait(client, self.TEST_ROLES)
         yield
-        for role_name in test_roles:
+        await self._drop_roles_and_wait(client, self.TEST_ROLES)
+
+    @staticmethod
+    async def _drop_roles_and_wait(client, names):
+        """Drop each role, then wait until each one is really gone."""
+        for role_name in names:
             try:
                 await client.drop_role(role_name)
-            except:
-                pass
+            except Exception:
+                continue
+            await wait_for_role_gone(client, role_name)
 
     @pytest.mark.asyncio
     async def test_create_user_basic(self, client):
@@ -384,7 +399,13 @@ class TestSecurityFeatures:
 
     @pytest.mark.asyncio
     async def test_create_role_duplicate(self, client):
-        """Test creating duplicate role fails."""
+        """Creating a role that already exists is rejected.
+
+        The duplicate has to wait for the first create to be visible. Issued
+        back to back both calls succeed, because the second is evaluated before
+        the role appears -- so the interesting assertion needs the role
+        confirmed present first, otherwise it passes or fails on timing.
+        """
         role_name = "test_role_1"
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -398,8 +419,13 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        with pytest.raises(Exception):
+        await wait_for_role(client, role_name)
+
+        with pytest.raises(ServerError) as exc_info:
             await client.create_role(role_name, privileges, allowlist, read_quota, write_quota)
+        # The security result codes have no named ResultCode member to compare
+        # against, so the rendered code is the only handle on which error it is.
+        assert "RoleAlreadyExists" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_query_roles_all(self, client):
@@ -632,8 +658,15 @@ class TestSecurityFeatures:
             await client.set_quotas("nonexistent_role", 1000, 500)
 
     @pytest.mark.asyncio
-    async def test_create_role_invalid_quota(self, client):
-        """Test that creating a role with invalid quota values raises an error."""
+    async def test_create_role_quota_zero_means_no_limit(self, client):
+        """Quota 0 is the documented "no limit" sentinel, not a rejected value.
+
+        There is no invalid-quota case to assert on this path: the parameters
+        are unsigned, and 0, 1 and the u32 maximum all create successfully. So
+        what is worth holding is that 0 survives the round trip as 0 rather
+        than being rewritten to a default, and that a real pair comes back
+        exactly as sent.
+        """
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
 
@@ -645,12 +678,17 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        with pytest.raises(ServerError) as exc_info:
-            await client.create_role("test_role_invalid_quota", privileges, allowlist, 0, 0)
+        await client.create_role("test_role_quota_zero", privileges, allowlist, 0, 0)
+        await client.create_role("test_role_quota_set", privileges, allowlist, 1000, 500)
 
-        error_str = str(exc_info.value)
-        assert "InvalidQuota" in error_str
-        assert "QuotasNotEnabled" not in error_str
+        zero = (await wait_for_role(client, "test_role_quota_zero"))[0]
+        pair = (await wait_for_role(client, "test_role_quota_set"))[0]
+
+        assert zero.read_quota == 0
+        assert zero.write_quota == 0
+        assert pair.read_quota == 1000
+        assert pair.write_quota == 500
+
 
 
 class TestAuthentication:

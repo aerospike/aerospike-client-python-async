@@ -42,6 +42,10 @@ from ._aerospike_async_native import *
 
 try:
     from importlib.metadata import version as _pkg_version
-    __version__ = _pkg_version("aerospike_async")
+    # Must match [project] name in pyproject.toml. This maintenance line
+    # publishes under its own distribution name, so the dev-line name resolves
+    # to nothing and every build silently reported the fallback -- or worse, the
+    # version of a dev-line wheel that happened to be installed alongside it.
+    __version__ = _pkg_version("aerospike-async-core-v2")
 except Exception:
     __version__ = "0.0.0-dev"
