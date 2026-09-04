@@ -7,8 +7,13 @@ name = "aerospike_async"
 description = "Aerospike Python Async Client — async I/O over the Aerospike Rust client core (PyO3)"
 readme = "README.md"
 dynamic = ["version"]
-requires-python = ">=3.10"
-dependencies = ["uvloop>=0.17; sys_platform != 'win32'"]
+requires-python = ">=3.11"
+# uvloop is installed by default where it benefits (see __init__.py's guarded
+# import — the code runs fine without it, as every Windows install proves).
+# The python_version bound exists only because uvloop publishes no cp315
+# wheels yet, which would fail 3.15 installs on uvloop's sdist build; delete
+# the bound as soon as uvloop ships 3.15 wheels.
+dependencies = ["uvloop>=0.17; sys_platform != 'win32' and python_version < '3.15'"]
 python-packages = ["aerospike_async"]
 classifiers = [
     "Programming Language :: Rust",

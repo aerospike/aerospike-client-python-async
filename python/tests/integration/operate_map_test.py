@@ -16,6 +16,7 @@
 import pytest
 import pytest_asyncio
 
+from aerospike_async import SortedMap  # noqa: F401  (dict subclass, Python layer)
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, MapOperation,
                              MapPolicy, MapOrder, MapWriteMode, MapWriteFlags, MapReturnType, ResultCode, CTX, Operation)
 from aerospike_async.exceptions import ServerError, RecordNotFound
@@ -1969,3 +1970,83 @@ async def test_operate_map_put_items_partial(client_and_key):
     assert rec.bins.get("mapbin2") is not None
     assert len(rec.bins["mapbin2"]) == 4
 
+
+
+class TestSortedMapWrapper:
+    """``SortedMap`` declares a plain bin write as key-ordered.
+
+    A plain ``dict`` is written unordered. The server stores the entries sorted
+    either way, so a read-back cannot distinguish the two -- the flag is only
+    observable in how the server then accesses the map, and in its refusal to
+    accept a key-ordered map whose entries arrive out of order.
+
+    The flag is persisted and survives later modification, so it governs the
+    cost of every subsequent access, not just the write that set it.
+    """
+
+    async def test_sorted_map_round_trips_as_a_plain_dict(self, client_and_key):
+        client, key = client_and_key
+        wp = WritePolicy()
+        data = {"zebra": 26, "apple": 1, "mango": 13}
+
+        await client.put(key, {"m": SortedMap(data)}, policy=wp)
+        rec = await client.get(key)
+
+        # Symmetric: a key-ordered map reads back as the type it was written as,
+        # and being a dict subclass it stays a drop-in for a plain dict.
+        assert isinstance(rec.bins["m"], SortedMap)
+        assert isinstance(rec.bins["m"], dict)
+        assert rec.bins["m"] == data
+        assert rec.bins["m"]["alice" if "alice" in data else "apple"] == data["apple"]
+
+    async def test_sorted_map_is_accepted_by_the_server(self, client_and_key):
+        """The server rejects a key-ordered map whose entries arrive unsorted.
+
+        Packing therefore has to sort before setting the flag; that this write
+        succeeds at all is the evidence it does.
+        """
+        client, key = client_and_key
+        wp = WritePolicy()
+        # Insertion order deliberately reversed against key order.
+        data = {f"k{i:03d}": i for i in reversed(range(50))}
+
+        await client.put(key, {"m": SortedMap(data)}, policy=wp)
+        rec = await client.get(key)
+
+        assert list(rec.bins["m"]) == sorted(data)
+
+    async def test_sorted_map_nests(self, client_and_key):
+        client, key = client_and_key
+        wp = WritePolicy()
+
+        await client.put(
+            key, {"cfg": {"limits": SortedMap({"z": 1, "a": 2})}}, policy=wp,
+        )
+        rec = await client.get(key)
+
+        assert rec.bins["cfg"]["limits"] == {"a": 2, "z": 1}
+
+    async def test_key_ordered_read_is_a_dict_in_every_way(self, client_and_key):
+        client, key = client_and_key
+        wp = WritePolicy()
+        data = {"b": 2, "a": 1, "c": 3}
+
+        await client.put(key, {"m": SortedMap(data)}, policy=wp)
+        got = (await client.get(key)).bins["m"]
+
+        assert got == data and dict(got) == data
+        assert list(got) == sorted(data)
+        assert len(got) == 3 and "a" in got
+        assert list(got.keys()) == sorted(data)
+
+    async def test_plain_dict_is_unaffected(self, client_and_key):
+        client, key = client_and_key
+        wp = WritePolicy()
+        data = {"b": 2, "a": 1}
+
+        await client.put(key, {"m": data}, policy=wp)
+        rec = await client.get(key)
+
+        # An undeclared map stays a plain dict on the way back.
+        assert type(rec.bins["m"]) is dict
+        assert rec.bins["m"] == data

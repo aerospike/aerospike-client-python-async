@@ -195,6 +195,35 @@ class TestStringReadExpressions:
             await _eval_exp(string_client_813, key, Exp.string_is_lower(Exp.string_bin("l")))
         ) is True
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "is_upper/is_lower reject any string containing a non-cased "
+            "character -- a space, digit or punctuation mark makes an "
+            "otherwise-uppercase string report False. A server-side defect. "
+            "Strict, so the corrected behavior is asserted the moment the "
+            "server is fixed rather than passing silently."
+        ),
+    )
+    async def test_classifiers_observe_a_chained_case_op(self, string_client_813):
+        """A case op chained into a classifier.
+
+        The chaining itself is fine -- upper("hello") then is_upper() is True.
+        What fails is the space: measured on 8.1.3.0-104, "HELLO" is True while
+        "HELLO WORLD", "ABC123" and "HELLO!" are all False, and the empty
+        string is True. So the defect is the presence of a non-cased character,
+        not the case op being ignored.
+        """
+        key = _key("case_chained")
+        await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
+        assert (
+            await _eval_exp(
+                string_client_813,
+                key,
+                Exp.string_is_upper(Exp.string_upper(0, Exp.string_bin("s"))),
+            )
+        ) is True
+
     async def test_split_with_and_without_separator(self, string_client_813):
         key = _key("split")
         await string_client_813.put(key, {"s": "a,b,c"}, policy=WritePolicy())
@@ -289,6 +318,107 @@ class TestStringModifyExpressions:
             ),
         )
         assert out == "Z Z Z"
+
+    async def test_insert_and_overwrite_splice_at_a_codepoint_index(self, string_client_813):
+        """Both take the bin as their subject and the literal as their argument.
+
+        Every argument here is an expression of the same type, so an encoder
+        that transposed subject and argument would still build a valid message
+        -- the asymmetric inputs are what make the transposition visible.
+        """
+        key = _key("insert_overwrite_exp")
+        await string_client_813.put(key, {"s": "abcdef"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_insert(0, Exp.int_val(2), Exp.string_val("XY"), Exp.string_bin("s")),
+        )
+        assert out == "abXYcdef"
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_overwrite(0, Exp.int_val(2), Exp.string_val("XY"), Exp.string_bin("s")),
+        )
+        assert out == "abXYef"
+
+    async def test_concat_appends_a_list_in_order(self, string_client_813):
+        key = _key("concat_exp")
+        await string_client_813.put(key, {"s": "hello"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_concat(
+                0, Exp.list_val(["-", "world"]), Exp.string_bin("s")
+            ),
+        )
+        assert out == "hello-world"
+
+    async def test_append_and_prepend_join_onto_the_subject(self, string_client_813):
+        """Which side the value lands on is the whole distinction between them.
+
+        Asymmetric halves, so a subject/value transposition changes the result
+        rather than producing the same string by coincidence.
+        """
+        key = _key("append_prepend_exp")
+        await string_client_813.put(key, {"s": "hello"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_append(0, Exp.string_val("-world"), Exp.string_bin("s")),
+        )
+        assert out == "hello-world"
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_prepend(0, Exp.string_val("say-"), Exp.string_bin("s")),
+        )
+        assert out == "say-hello"
+        # Neither persists: both are read expressions over the stored value.
+        rec = await string_client_813.get(key, policy=None)
+        assert rec.bins["s"] == "hello"
+
+    async def test_snip_removes_a_half_open_range(self, string_client_813):
+        key = _key("snip_exp")
+        await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_snip(0, Exp.int_val(5), Exp.int_val(11), Exp.string_bin("s")),
+        )
+        assert out == "hello"
+
+    async def test_snip_from_truncates_to_end(self, string_client_813):
+        """The 1-arg snip form removes everything from ``start`` on.
+
+        A mispacked 2-element ``[start, flags]`` payload is accepted by the
+        server as ``[start, end]`` and evaluates to the unchanged string, so
+        the truncated result is the whole assertion.
+        """
+        key = _key("snip_from_exp")
+        await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_snip_from(Exp.int_val(5), Exp.string_bin("s")),
+        )
+        assert out == "hello"
+        # Negative start counts from the end of the string.
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_snip_from(Exp.int_val(-6), Exp.string_bin("s")),
+        )
+        assert out == "hello"
+
+    async def test_pad_end_appends_to_the_target_length(self, string_client_813):
+        key = _key("pad_end_exp")
+        await string_client_813.put(key, {"s": "ab"}, policy=WritePolicy())
+        out = await _eval_exp(
+            string_client_813,
+            key,
+            Exp.string_pad_end(0, Exp.int_val(5), Exp.string_val("."), Exp.string_bin("s")),
+        )
+        assert out == "ab..."
 
     async def test_regex_replace_global_flag(self, string_client_813):
         key = _key("regex_replace_exp")

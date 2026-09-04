@@ -23,26 +23,62 @@ import contextlib
 import pytest
 import pytest_asyncio
 import os
+import time
 import uuid
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
 PROPAGATION_RETRIES = 10
 PROPAGATION_DELAY = 0.5
+# Deadline-based polling for role/user propagation: a retry count hides how
+# long the wait actually is, and the interesting failure is "visible but not
+# settled", not "absent".
+PROPAGATION_TIMEOUT = 5.0
+PROPAGATION_INTERVAL = 0.1
 
 
-async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
-    """Retry query_roles until the role is visible. Returns the role list."""
-    for attempt in range(retries):
+async def wait_for_role(
+    client, role_name, *, until=None, timeout=PROPAGATION_TIMEOUT,
+    interval=PROPAGATION_INTERVAL,
+):
+    """Poll query_roles until the role is visible. Returns the role list.
+
+    Visibility is not the same as completeness: a role appears in
+    ``query_roles`` before all of its fields have propagated. Measured on
+    8.1.3, a role created with quotas is queryable after ~5 ms but still
+    reports ``read_quota``/``write_quota`` of 0 for a further ~200 ms. A test
+    that waits only for existence therefore reads a half-populated role and
+    asserts against zeros -- an ordinary-looking assertion that fails on
+    timing, not on behavior.
+
+    Pass ``until`` to wait for the property being asserted rather than for
+    mere existence::
+
+        roles = await wait_for_role(
+            client, name, until=lambda r: r.write_quota == 500,
+        )
+
+    ``until`` receives the first role and returns truthy when the state is
+    settled. Without it the check is existence only, which is correct for
+    callers that assert nothing about the role's contents.
+    """
+    deadline = time.monotonic() + timeout
+    last_seen = None
+    while time.monotonic() < deadline:
         try:
             roles = await client.query_roles(role_name)
-            if len(roles) > 0:
+            if roles and (until is None or until(roles[0])):
                 return roles
+            last_seen = roles[0] if roles else None
         except ServerError:
             pass
-        if attempt < retries - 1:
-            await asyncio.sleep(PROPAGATION_DELAY)
-    pytest.fail(f"Role {role_name!r} not visible after {retries} retries")
+        await asyncio.sleep(interval)
+    detail = "never became visible" if last_seen is None else (
+        f"was visible but never satisfied the condition; last saw "
+        f"allowlist={last_seen.allowlist!r} read_quota={last_seen.read_quota} "
+        f"write_quota={last_seen.write_quota}"
+    )
+    raise TimeoutError(f"Role {role_name!r} {detail} within {timeout}s")
 
 
 async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
@@ -574,14 +610,23 @@ class TestSecurityFeatures:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        roles = await wait_for_role(client, quota_role)
+        # Wait for the quotas themselves: the role is queryable ~200ms before
+        # they propagate, so waiting on existence alone reads zeros.
+        roles = await wait_for_role(
+            client, quota_role,
+            until=lambda r: r.read_quota == 1000 and r.write_quota == 500,
+        )
         assert roles[0].allowlist == allowlist
         assert roles[0].read_quota == 1000
         assert roles[0].write_quota == 500
 
         # Zero quotas mean "no limit" and must be accepted.
         await client.create_role(unlimited_role, privileges, allowlist, 0, 0)
-        roles = await wait_for_role(client, unlimited_role)
+        # 0 is indistinguishable from "not yet propagated", so settle on the
+        # allowlist instead -- it lands with the role and is asserted below.
+        roles = await wait_for_role(
+            client, unlimited_role, until=lambda r: r.allowlist == allowlist,
+        )
         assert roles[0].allowlist == allowlist
         assert roles[0].read_quota == 0
         assert roles[0].write_quota == 0

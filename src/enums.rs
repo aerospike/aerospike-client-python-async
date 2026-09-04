@@ -1085,6 +1085,71 @@ pub enum Concurrency {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  CommitErrorType
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Which stage of a transaction commit failed.
+    ///
+    /// Carried on :exc:`aerospike_async.exceptions.CommitFailedError` as
+    /// ``commit_error_type``. The distinction matters for recovery: a plain
+    /// verify failure leaves nothing applied, while the abandoned variants mean
+    /// the client stopped tracking a transaction the server will finish
+    /// resolving on its own.
+    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum CommitErrorType {
+        #[pyo3(name = "VERIFY_FAIL")]
+        VerifyFail,
+        #[pyo3(name = "VERIFY_FAIL_CLOSE_ABANDONED")]
+        VerifyFailCloseAbandoned,
+        #[pyo3(name = "VERIFY_FAIL_ABORT_ABANDONED")]
+        VerifyFailAbortAbandoned,
+        #[pyo3(name = "MARK_ROLL_FORWARD_ABANDONED")]
+        MarkRollForwardAbandoned,
+    }
+
+    #[pymethods]
+    impl CommitErrorType {
+        fn __richcmp__(
+            &self, other: &CommitErrorType, op: pyo3::class::basic::CompareOp,
+        ) -> pyo3::PyResult<bool> {
+            match op {
+                pyo3::class::basic::CompareOp::Eq => Ok(self == other),
+                pyo3::class::basic::CompareOp::Ne => Ok(self != other),
+                _ => Ok(false),
+            }
+        }
+
+        fn __hash__(&self) -> u64 {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            self.hash(&mut hasher);
+            hasher.finish()
+        }
+    }
+
+    impl From<aerospike_core::txn::CommitErrorType> for CommitErrorType {
+        fn from(s: aerospike_core::txn::CommitErrorType) -> Self {
+            match s {
+                aerospike_core::txn::CommitErrorType::VerifyFail => CommitErrorType::VerifyFail,
+                aerospike_core::txn::CommitErrorType::VerifyFailCloseAbandoned => {
+                    CommitErrorType::VerifyFailCloseAbandoned
+                }
+                aerospike_core::txn::CommitErrorType::VerifyFailAbortAbandoned => {
+                    CommitErrorType::VerifyFailAbortAbandoned
+                }
+                aerospike_core::txn::CommitErrorType::MarkRollForwardAbandoned => {
+                    CommitErrorType::MarkRollForwardAbandoned
+                }
+            }
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  AbortStatus
     //
     ////////////////////////////////////////////////////////////////////////////////////////////

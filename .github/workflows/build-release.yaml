@@ -24,7 +24,7 @@ on:
         default: ''
 
 env:
-  SHARED_WORKFLOWS_REF: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+  SHARED_WORKFLOWS_REF: 3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
 
 jobs:
   extract-version:
@@ -46,13 +46,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x86_64-py310
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
-            maturin-target: ""
-            manylinux: auto
           - name: linux-x86_64-py311
             runs-on: ubuntu-22.04
             package-kind: wheel
@@ -81,11 +74,17 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: auto
-          - name: linux-aarch64-py310
-            runs-on: ubuntu-24.04-arm
+          # 3.15 rows build against the release candidate (ABI-frozen at rc1) so
+          # wheels are installable on day one of 3.15.0 final; switch the -dev
+          # spellings to plain "3.15"/"3.15t" once the final release is out.
+          - name: linux-x86_64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: ubuntu-22.04
             package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
+            python-version: "3.15-dev"
+            python-interpreter: python3.15
             maturin-target: ""
             manylinux: auto
           - name: linux-aarch64-py311
@@ -116,13 +115,16 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: auto
-          - name: macos-x86_64-py310
-            runs-on: macos-latest-large
+          - name: linux-aarch64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: ubuntu-24.04-arm
             package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
+            python-version: "3.15-dev"
+            python-interpreter: python3.15
             maturin-target: ""
-            manylinux: ""
+            manylinux: auto
           - name: macos-x86_64-py311
             runs-on: macos-latest-large
             package-kind: wheel
@@ -151,11 +153,14 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: ""
-          - name: macos-arm64-py310
-            runs-on: macos-latest
+          - name: macos-x86_64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: macos-latest-large
             package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python3.10
+            python-version: "3.15-dev"
+            python-interpreter: python3.15
             maturin-target: ""
             manylinux: ""
           - name: macos-arm64-py311
@@ -186,11 +191,31 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: ""
+          - name: macos-arm64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.15-dev"
+            python-interpreter: python3.15
+            maturin-target: ""
+            manylinux: ""
           - name: macos-arm64-py314t
             runs-on: macos-latest
             package-kind: wheel
             python-version: "3.14t"
             python-interpreter: python3.14t
+            maturin-target: ""
+            manylinux: ""
+          - name: macos-arm64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: macos-latest
+            package-kind: wheel
+            python-version: "3.15t-dev"
+            python-interpreter: python3.15t
             maturin-target: ""
             manylinux: ""
           - name: linux-x86_64-py314t
@@ -200,6 +225,16 @@ jobs:
             python-interpreter: python3.14t
             maturin-target: ""
             manylinux: auto
+          - name: linux-x86_64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: ubuntu-22.04
+            package-kind: wheel
+            python-version: "3.15t-dev"
+            python-interpreter: python3.15t
+            maturin-target: ""
+            manylinux: auto
           - name: linux-aarch64-py314t
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
@@ -207,16 +242,19 @@ jobs:
             python-interpreter: python3.14t
             maturin-target: ""
             manylinux: auto
-          # One leg per interpreter, like every other platform. Building the whole
-          # 3.10-3.14 set in a single job serialized five release compiles and made
-          # this the longest job in the pipeline by a factor of three.
-          - name: windows-x64-py310
-            runs-on: windows-2022
+          - name: linux-aarch64-py315t
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: ubuntu-24.04-arm
             package-kind: wheel
-            python-version: "3.10"
-            python-interpreter: python
+            python-version: "3.15t-dev"
+            python-interpreter: python3.15t
             maturin-target: ""
-            manylinux: ""
+            manylinux: auto
+          # One leg per interpreter, like every other platform. Building the whole
+          # 3.11-3.14 set in a single job serialized five release compiles and made
+          # this the longest job in the pipeline by a factor of three.
           - name: windows-x64-py311
             runs-on: windows-2022
             package-kind: wheel
@@ -245,6 +283,16 @@ jobs:
             python-interpreter: python
             maturin-target: ""
             manylinux: ""
+          - name: windows-x64-py315
+            # Build-verify only until 3.15.0 final + a cp315 uvloop:
+            # excluded from collect/deploy by the artifact prefix.
+            artifact-prefix: verify-only-artifacts
+            runs-on: windows-2022
+            package-kind: wheel
+            python-version: "3.15-dev"
+            python-interpreter: python
+            maturin-target: ""
+            manylinux: ""
           - name: sdist
             runs-on: ubuntu-22.04
             package-kind: sdist
@@ -252,9 +300,9 @@ jobs:
             python-interpreter: ""
             maturin-target: ""
             manylinux: ""
-    uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
     with:
-      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      gh-workflows-ref: 3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
       runs-on: ${{ matrix.runs-on }}
       jf-project: ${{ vars.JFROG_PROJECT }}
       jf-build-name: aerospike-client-python-async
@@ -264,6 +312,7 @@ jobs:
       working-directory: aerospike-client-python-async
       setup-python: true
       python-version: ${{ matrix.python-version }}
+      job-name: ${{ matrix.name }}
       build-env: PACKAGE_KIND=${{ matrix.package-kind }};PYTHON_INTERPRETER=${{ matrix.python-interpreter }};MATURIN_TARGET=${{ matrix.maturin-target }};MANYLINUX=${{ matrix.manylinux }};VERSION_OVERRIDE=${{ inputs.version-override }}
       build-script: |
         set -euo pipefail
@@ -310,170 +359,16 @@ jobs:
 
         maturin "${args[@]}"
       gh-artifact-directory: build
-      gh-artifact-name: build-artifacts-${{ matrix.name }}
+      gh-artifact-name: ${{ matrix.artifact-prefix || 'build-artifacts' }}-${{ matrix.name }}
       gh-retention-days: 1
       publish-build-info: true
       oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
       oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
 
-  build-windows-x86:
-    name: build (windows-x86-py${{ matrix.python-version }})
-    needs: extract-version
-    runs-on: windows-2022
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
 
-      - uses: actions/checkout@v5
-
-      - name: Set up 32-bit Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x86
-
-      - name: Apply version override
-        if: ${{ inputs.version-override != '' }}
-        shell: bash
-        run: python .github/scripts/stamp_version.py "${{ inputs.version-override }}"
-
-      - name: Build win32 wheel
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python -m pip install --upgrade pip
-          python -m pip install "maturin>=1.9.0,<2.0"
-          rustup toolchain install 1.90.0 --profile minimal
-          rustup default 1.90.0
-          rustup target add i686-pc-windows-msvc
-
-          # Retry: the Chocolatey community feed rate-limits concurrent matrix
-          # jobs, intermittently failing with "package not found".
-          for i in 1 2 3 4 5; do
-            choco install nasm -y && break
-            echo "choco nasm attempt $i failed; retrying in $((i*10))s"
-            sleep $((i*10))
-          done
-          export PATH="/c/Program Files/NASM:/c/ProgramData/chocolatey/bin:$PATH"
-
-          export AWS_LC_SYS_CMAKE_BUILDER=0
-          export AWS_LC_SYS_EXTERNAL_BINDGEN=0
-          export AWS_LC_SYS_NO_PREGENERATED_SRC=0
-
-          rm -rf build
-          mkdir -p build
-
-          maturin build --release --out build \
-            --target i686-pc-windows-msvc \
-            --interpreter python
-
-          python - <<'PY'
-          import pathlib
-          import sys
-          import zipfile
-
-          wheels = list(pathlib.Path("build").glob("*-win32.whl"))
-          if len(wheels) != 1:
-              print(f"::error::expected exactly one win32 wheel, found {len(wheels)}")
-              for wheel in pathlib.Path("build").glob("*.whl"):
-                  print(f"found wheel: {wheel}")
-              sys.exit(1)
-
-          with zipfile.ZipFile(wheels[0]) as zf:
-              bad = zf.testzip()
-          if bad:
-              print(f"::error::{wheels[0].name} has corrupt member {bad}")
-              sys.exit(1)
-          print(f"Built and verified {wheels[0].name}")
-          PY
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: build-artifacts-windows-x86-py${{ matrix.python-version }}
-          path: build
-          retention-days: 1
-
-  build-linux-i686:
-    name: build (linux-i686-py${{ matrix.python-version }})
-    needs: extract-version
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@v5
-
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.90.0
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Apply version override
-        if: ${{ inputs.version-override != '' }}
-        run: python .github/scripts/stamp_version.py "${{ inputs.version-override }}"
-
-      - name: Build Linux i686 wheel
-        uses: PyO3/maturin-action@v1
-        env:
-          AWS_LC_SYS_CMAKE_BUILDER: "0"
-          AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
-          AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
-        with:
-          target: x86
-          args: --release --out build --interpreter python${{ matrix.python-version }}
-          manylinux: auto
-
-      - name: Verify Linux i686 wheel
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import pathlib
-          import sys
-          import zipfile
-
-          wheels = list(pathlib.Path("build").glob("*i686*.whl"))
-          if len(wheels) != 1:
-              print(f"::error::expected exactly one Linux i686 wheel, found {len(wheels)}")
-              for wheel in pathlib.Path("build").glob("*.whl"):
-                  print(f"found wheel: {wheel}")
-              sys.exit(1)
-
-          with zipfile.ZipFile(wheels[0]) as zf:
-              bad = zf.testzip()
-          if bad:
-              print(f"::error::{wheels[0].name} has corrupt member {bad}")
-              sys.exit(1)
-          print(f"Built and verified {wheels[0].name}")
-          PY
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: build-artifacts-linux-i686-py${{ matrix.python-version }}
-          path: build
-          retention-days: 1
 
   collect-artifacts:
-    needs: [build-packages, build-windows-x86, build-linux-i686]
+    needs: [build-packages]
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -502,15 +397,17 @@ jobs:
 
   deploy-artifacts:
     needs: [extract-version, collect-artifacts]
-    uses: aerospike/shared-workflows/.github/workflows/reusable_deploy-artifacts.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    uses: aerospike/shared-workflows/.github/workflows/reusable_deploy-artifacts.yaml@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
     with:
-      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      gh-workflows-ref: 3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
       runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
       jf-project: ${{ vars.JFROG_PROJECT }}
       jf-build-name: aerospike-client-python-async
       jf-metadata-build-id: ${{ github.run_number }}-buildinfo
       jf-build-id: ${{ github.run_number }}
       gh-artifact-name: build-artifacts
+      # Python wheels produce no Maven metadata; explicit per the v4.0.0 upgrade table.
+      gh-upload-bundle-metadata: false
       version: ${{ needs.extract-version.outputs.version }}
       gh-retention-days: 1
       oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
@@ -519,9 +416,9 @@ jobs:
 
   create-release-bundle:
     needs: [extract-version, deploy-artifacts]
-    uses: aerospike/shared-workflows/.github/workflows/reusable_create-release-bundle.yaml@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+    uses: aerospike/shared-workflows/.github/workflows/reusable_create-release-bundle.yaml@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
     with:
-      gh-workflows-ref: 7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+      gh-workflows-ref: 3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
       runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
       jf-project: ${{ vars.JFROG_PROJECT }}
       jf-build-names: aerospike-client-python-async:${{ github.run_number }}
@@ -545,7 +442,7 @@ jobs:
           oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
           oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
       - name: Promote release bundle to DEV
-        uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@7b61b675476430553f09b94419ca18802d697e98 # v3.4.0
+        uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
         with:
           bundle-name: aerospike-client-python-async
           version: ${{ needs.extract-version.outputs.version }}

@@ -3,7 +3,7 @@
 
 import builtins
 import typing
-from .._aerospike_async_native import ResultCode
+from .._aerospike_async_native import BatchRecord, ResultCode
 
 # Exception classes
 class AerospikeError(builtins.Exception):
@@ -114,6 +114,17 @@ class CommitFailedError(AerospikeError):
     """Exception raised when a multi-record transaction commit fails."""
     def __init__(self, message: builtins.str) -> None: ...
 
+class BatchFailedError(ClientError):
+    """A batch command failed as a whole.
+
+    ``records`` carries the per-key ``BatchRecord`` outcomes attached to the
+    failure: rows the server answered keep their result, unanswered rows
+    carry the stamped result code (``TIMEOUT`` on client timeouts) and the
+    per-row in-doubt flag.
+    """
+    records: typing.Optional[builtins.list[BatchRecord]]
+    def __init__(self, message: builtins.str) -> None: ...
+
 class MaxErrorRate(AerospikeError):
     """Per-node circuit breaker tripped (client-side, not sent to server)."""
     def __init__(self, message: builtins.str) -> None: ...
@@ -176,6 +187,7 @@ __all__ = [
     "InvalidNamespaceError",
     "NoMoreConnections",
     "CommitFailedError",
+    "BatchFailedError",
     "RecvError",
     "Base64DecodeError",
     "InvalidUTF8",

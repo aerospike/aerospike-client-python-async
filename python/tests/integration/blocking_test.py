@@ -46,16 +46,17 @@ from aerospike_async import (
     Filter,
     IndexType,
     Key,
+    new_client,
+    new_client_blocking,
     Operation,
     PartitionFilter,
     QueryPolicy,
     QuerySelection,
     ReadPolicy,
     ResultCode,
+    SortedMap,
     Statement,
     WritePolicy,
-    new_client,
-    new_client_blocking,
 )
 from aerospike_async.exceptions import IndexFoundError, IndexNotFound, ServerError
 
@@ -448,6 +449,28 @@ def _wait_for_index_blocking(client, ns, set_name, sindex_filter, *, bins=None,
     raise TimeoutError(msg)
 
 
+def _wait_for_planner_selection_blocking(client, ns, ael, set_name, *,
+                                         timeout=10.0, interval=0.25):
+    """Poll until the query planner actually selects a secondary index.
+
+    Index *queryability* (what ``_wait_for_index_blocking`` proves) precedes
+    planner *adoption*: while the index is still building, an explain
+    declines it silently and reports PRIMARY_INDEX. The explain tests assert
+    adoption, so readiness must be measured on that same property.
+    """
+    deadline = time.monotonic() + timeout
+    plan = None
+    while time.monotonic() < deadline:
+        plan = client.query_explain_blocking(ns, ael, set_name=set_name)
+        if plan.selection == QuerySelection.SECONDARY_INDEX:
+            return
+        time.sleep(interval)
+    raise TimeoutError(
+        f"planner never selected a secondary index within {timeout}s "
+        f"(last plan: {plan})"
+    )
+
+
 def _collect_int_bin_blocking(recordset, bin_name: str) -> list[int]:
     values = []
     for record in recordset:
@@ -478,7 +501,7 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
             )
 
         try:
-            client.create_index_blocking(
+            task = client.create_index_blocking(
                 QSEL_NAMESPACE,
                 QSEL_SET_NAME,
                 QSEL_AGE_BIN,
@@ -486,7 +509,9 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
                 IndexType.NUMERIC,
                 cit=CollectionIndexType.DEFAULT,
             )
+            task.wait_till_complete_blocking()
         except IndexFoundError:
+            # Left by a prior run; the adoption probe below covers readiness.
             pass
 
         _wait_for_index_blocking(
@@ -495,6 +520,12 @@ def qsel_blocking_fixture(aerospike_host, use_services_alternate, supports_query
             QSEL_SET_NAME,
             Filter.range(QSEL_AGE_BIN, 0, 100),
             bins=[QSEL_AGE_BIN],
+        )
+        _wait_for_planner_selection_blocking(
+            client,
+            QSEL_NAMESPACE,
+            f"$.{QSEL_AGE_BIN} >= 14 and $.{QSEL_AGE_BIN} <= 18",
+            QSEL_SET_NAME,
         )
 
         yield {
@@ -593,3 +624,38 @@ def test_blocking_execute_mismatched_plan_set_raises(qsel_blocking_fixture):
             policy=QueryPolicy(),
         )
 
+
+
+def test_blocking_sorted_map_round_trip(aerospike_host, use_services_alternate):
+    """SortedMap through the blocking surface.
+
+    The value conversion is shared with the async path, but the blocking
+    entries are a separate surface -- this pins that a key-ordered map
+    survives a blocking write/read as the type it was written as.
+    """
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        key = Key("test", "blocking", "sortedmap-1")
+        data = {"zebra": 26, "apple": 1, "mango": 13}
+
+        client.put_blocking(key, {"m": SortedMap(data)}, policy=WritePolicy())
+        rec = client.get_blocking(key, policy=ReadPolicy())
+
+        got = rec.bins["m"]
+        assert isinstance(got, SortedMap)
+        # Still a dict in every way a caller would use one.
+        assert isinstance(got, dict)
+        assert got == data
+        assert list(got) == sorted(data)
+
+        # An undeclared map is not promoted on this surface either.
+        plain_key = Key("test", "blocking", "sortedmap-2")
+        client.put_blocking(plain_key, {"m": data}, policy=WritePolicy())
+        plain = client.get_blocking(plain_key, policy=ReadPolicy()).bins["m"]
+        assert type(plain) is dict
+        assert plain == data
+
+        client.delete_blocking(key, policy=WritePolicy())
+        client.delete_blocking(plain_key, policy=WritePolicy())
+    finally:
+        client.close_blocking()

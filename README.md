@@ -5,7 +5,7 @@ Ultra-high performance Python bindings for the Aerospike Rust client core
 Python support for parallel-thread throughput well past what GIL-bound
 clients can sustain. Built with [PyO3](https://pyo3.rs/); ships pre-built
 wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
-(x86_64) on Python 3.10–3.14, including the free-threaded build (`cp314t`).
+(x86_64) on Python 3.11–3.15, including the free-threaded builds (`cp314t`, `cp315t`).
 
 > **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
 > via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-async/issues).
@@ -38,7 +38,7 @@ pip install aerospike-async==0.6.0a1  # latest on PyPI as of this writing
 ```
 
 Pre-built wheels are published for every supported platform/Python combination
-on regular CPython (3.10 – 3.14, ABI tags `cp310`–`cp314`) **and on the
+on regular CPython (3.11 – 3.15, ABI tags `cp311`–`cp315`) **and on the
 free-threaded build** (`cp314t`), so no Rust toolchain is required
 for ordinary use. If pip resolves to an sdist on your platform, see
 [Building from source](#building-from-source) below.
@@ -304,7 +304,9 @@ package.
 This project uses [PyO3](https://pyo3.rs/) to build a Rust extension for
 Python. You will need:
 
-- **Python** 3.10 - 3.14, **or** 3.14t (free-threaded) for high-throughput / PSDK `AsyncPool` work.
+- **Python** 3.11 - 3.14, **or** 3.14t (free-threaded) for high-throughput / PSDK `AsyncPool` work.
+  The client supports every CPython version under upstream security support; the
+  floor rises in minor releases as versions reach end-of-life.
   Recommended installer: [`uv`](https://docs.astral.sh/uv/) (`uv python install 3.14.5+freethreaded`)
   or [`pyenv`](https://github.com/pyenv/pyenv) with a dedicated environment.
 - **Rust toolchain** (`rustc` + `cargo`) — always required when building from source

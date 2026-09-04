@@ -452,19 +452,12 @@ use crate::operations::{
                         }
                         None => base_ap,
                     };
-                    let has_filter_expression = filter_expression.is_some()
-                        || policy.base_policy.filter_expression.is_some();
                     apply_read_overrides(&mut policy, filter_expression, txn);
                     let res = client
                         .get(&policy, &key_as, bins_flag(bins))
                         .await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
-                    if res.bins.is_empty() && has_filter_expression {
-                        return Err(PyException::new_err(
-                            "Filter expression did not match any records",
-                        ));
-                    }
-                    Ok(res)
+                    Ok::<_, PyErr>(res)
                 })
             })?;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
@@ -1240,18 +1233,11 @@ use crate::operations::{
                     }
                     None => base_ap,
                 };
-                let has_filter_expression = filter_expression.is_some()
-                    || policy.base_policy.filter_expression.is_some();
                 apply_read_overrides(&mut policy, filter_expression, txn);
                 let res = client
                     .get(&policy, &key_as, bins_flag(bins))
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
-                if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err(
-                        "Filter expression did not match any records",
-                    ));
-                }
                 Ok(res)
             })?;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
@@ -2627,17 +2613,12 @@ use crate::operations::{
                     }
                     None => base_ap,
                 };
-                let has_filter_expression = filter_expression.is_some()
-                    || policy.base_policy.filter_expression.is_some();
                 apply_read_overrides(&mut policy, filter_expression, txn);
                 let res = client
                     .get(&policy, &key_as, bins_flag(bins))
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-                if res.bins.is_empty() && has_filter_expression {
-                    return Err(PyException::new_err("Filter expression did not match any records"));
-                }
 
                 Ok(Record { _as: res, cached_bins: None, cached_results: None })
             })
@@ -4974,6 +4955,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<TxnState>()?;
     m.add_class::<CommitStatus>()?;
     m.add_class::<AbortStatus>()?;
+    m.add_class::<CommitErrorType>()?;
     m.add_class::<LoopVarPart>()?;
     m.add_class::<SelectFlags>()?;
     m.add_class::<ModifyFlags>()?;
@@ -4994,6 +4976,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
 
     m.add_class::<List>()?;
     m.add_class::<Map>()?;
+    m.add_class::<SortedMap>()?;
     m.add_class::<Blob>()?;
     m.add_class::<GeoJSON>()?;
     m.add_class::<HLL>()?;
@@ -5123,6 +5106,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     exceptions_module.add("InvalidRustClientArgs", py.get_type::<InvalidRustClientArgs>())?;
     exceptions_module.add("ClientError", py.get_type::<ClientError>())?;
     exceptions_module.add("CommitFailedError", py.get_type::<CommitFailedError>())?;
+    exceptions_module.add("BatchFailedError", py.get_type::<BatchFailedError>())?;
     exceptions_module.add("MaxErrorRate", py.get_type::<MaxErrorRate>())?;
     exceptions_module.add("ResultCode", py.get_type::<ResultCode>())?;
     m.add_submodule(&exceptions_module)?;

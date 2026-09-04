@@ -435,6 +435,119 @@ impl<T: PyTypeInfo + 'static> PyErrArguments for RetryCtxArgs<T> {
     }
 }
 
+// Deferred arguments for a batch-wide failure. Same lazy contract as
+// `RetryCtxArgs` (materialized on the event-loop/drainer thread, never on a
+// Tokio worker), plus the per-key `BatchRecord` outcomes that core attaches
+// to the failure so callers can report truthful per-row results.
+struct BatchFailedArgs {
+    message: String,
+    in_doubt: bool,
+    ctx: RetryContext,
+    records: Vec<aerospike_core::BatchRecord>,
+}
+
+impl PyErrArguments for BatchFailedArgs {
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        match py.get_type::<BatchFailedError>().call1((self.message,)) {
+            Ok(obj) => {
+                if self.in_doubt {
+                    let _ = obj.setattr("in_doubt", true);
+                }
+                if let Some(node) = &self.ctx.node {
+                    let _ = obj.setattr("node", node);
+                }
+                if let Some(iteration) = self.ctx.iteration {
+                    let _ = obj.setattr("iteration", iteration);
+                }
+                let _ = obj.setattr("base_message", &self.ctx.base_message);
+                if let Some(subs) = materialize_sub_exceptions(py, &self.ctx.subs) {
+                    let _ = obj.setattr("sub_exceptions", subs);
+                }
+                let rows: Vec<Py<PyAny>> = self
+                    .records
+                    .into_iter()
+                    .filter_map(|r| {
+                        Py::new(py, crate::policies::BatchRecord { _as: r })
+                            .ok()
+                            .map(pyo3::Py::into_any)
+                    })
+                    .collect();
+                if let Ok(list) = pyo3::types::PyList::new(py, rows) {
+                    let _ = obj.setattr("records", list);
+                }
+                obj.unbind()
+            }
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
+// Commit failures carry what the reference clients expose: which stage failed,
+// and the per-key verify/roll outcomes so a caller can do selective recovery.
+// No result code is attached: PAC distinguishes client-side failures by
+// exception type, and the client-side code family is not part of the Python
+// `ResultCode` surface. Callers classify a commit failure by catching this
+// type, not by comparing a code.
+struct CommitFailedArgs {
+    message: String,
+    in_doubt: bool,
+    ctx: RetryContext,
+    error_type: aerospike_core::txn::CommitErrorType,
+    verify_records: Vec<aerospike_core::BatchRecord>,
+    roll_records: Vec<aerospike_core::BatchRecord>,
+    // The code that tripped verify or roll, when it came from the server.
+    // Reporting the commit failure ahead of the cause chain would otherwise
+    // drop it, and it is what retry logic classifies on.
+    cause_result_code: Option<CoreResultCode>,
+}
+
+impl PyErrArguments for CommitFailedArgs {
+    fn arguments(self, py: Python<'_>) -> Py<PyAny> {
+        match py.get_type::<CommitFailedError>().call1((self.message,)) {
+            Ok(obj) => {
+                if self.in_doubt {
+                    let _ = obj.setattr("in_doubt", true);
+                }
+                if let Some(node) = &self.ctx.node {
+                    let _ = obj.setattr("node", node);
+                }
+                if let Some(iteration) = self.ctx.iteration {
+                    let _ = obj.setattr("iteration", iteration);
+                }
+                let _ = obj.setattr("base_message", &self.ctx.base_message);
+                if let Some(subs) = materialize_sub_exceptions(py, &self.ctx.subs) {
+                    let _ = obj.setattr("sub_exceptions", subs);
+                }
+                if let Some(rc) = self.cause_result_code {
+                    let _ = obj.setattr("result_code", ResultCode(rc));
+                }
+                let _ = obj.setattr(
+                    "commit_error_type",
+                    crate::enums::CommitErrorType::from(self.error_type),
+                );
+                for (attr, records) in [
+                    ("verify_records", self.verify_records),
+                    ("roll_records", self.roll_records),
+                ] {
+                    let rows: Vec<Py<PyAny>> = records
+                        .into_iter()
+                        .filter_map(|r| {
+                            Py::new(py, crate::policies::BatchRecord { _as: r })
+                                .ok()
+                                .map(pyo3::Py::into_any)
+                        })
+                        .collect();
+                    if let Ok(list) = pyo3::types::PyList::new(py, rows) {
+                        let _ = obj.setattr(attr, list);
+                    }
+                }
+                obj.unbind()
+            }
+            Err(e) => e.into_value(py).into_any(),
+        }
+    }
+}
+
 // A bare failure with nothing to report beyond its message stays on the
 // existing fast path: no setattr, no extra allocation, identical to
 // `T::new_err(msg)`.  Anything carrying retry context takes the lazy path.
@@ -487,6 +600,13 @@ create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeEr
 create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
 create_exception!(aerospike_async.exceptions, CommitFailedError, AerospikeError);
 
+// A batch command failed as a whole. Subclasses ClientError so existing
+// `except ClientError` handlers keep matching. Carries `records`: the
+// per-key `BatchRecord` outcomes core attached to the failure — rows the
+// server answered keep their result, unanswered rows carry the stamped
+// result code (TIMEOUT on client timeouts) and per-row in-doubt flag.
+create_exception!(aerospike_async.exceptions, BatchFailedError, ClientError);
+
 // Per-node circuit breaker tripped (client-side, not sent to server). Carries
 // the offending node identifier in the exception message. Raised when a node
 // exceeds the policy's `max_error_rate` over `error_rate_window` ticks, so the
@@ -509,6 +629,37 @@ impl From<RustClientError> for PyErr {
         // server code, and `Display` renders the full context (iteration,
         // node, sub-errors, cause) for the message.
         let err = value.0;
+
+        // A commit failure reports itself, ahead of the cause-chain rule below.
+        // Core wraps the error that tripped verify or roll as the cause, and
+        // that cause carries a server result code -- so deferring to the chain
+        // would report a bare version mismatch and drop the two things only
+        // this wrapper has: which stage failed, and the per-key outcomes that
+        // say whether anything landed. The triggering code stays reachable on
+        // `__cause__` and in the message.
+        if let ErrorKind::Commit {
+            error_type,
+            verify_records,
+            roll_records,
+        } = err.kind()
+        {
+            let in_doubt = err.in_doubt();
+            let ctx = capture_retry_context(&err);
+            let cause_result_code = err.server_result_code();
+            let message = match cause_result_code {
+                Some(rc) => format!("{error_type} (in_doubt={in_doubt}, cause: {rc:?})"),
+                None => format!("{error_type} (in_doubt={in_doubt})"),
+            };
+            return PyErr::new::<CommitFailedError, _>(CommitFailedArgs {
+                message,
+                in_doubt,
+                ctx,
+                error_type: error_type.clone(),
+                verify_records: verify_records.clone(),
+                roll_records: roll_records.clone(),
+                cause_result_code,
+            });
+        }
 
         // A server result code reachable anywhere in the cause chain wins: it
         // carries the typed ResultCode + extended detail + in-doubt + node,
@@ -553,18 +704,21 @@ impl From<RustClientError> for PyErr {
                 client_err::<BadResponse>(msg, in_doubt, ctx)
             }
             ErrorKind::UdfBadResponse => client_err::<UDFBadResponse>(msg, in_doubt, ctx),
-            ErrorKind::Commit { error_type, .. } => {
-                client_err::<CommitFailedError>(
-                    format!("{error_type} (in_doubt={in_doubt})"), in_doubt, ctx,
-                )
-            }
             ErrorKind::Base64(e) => Base64DecodeError::new_err(e.to_string()),
             ErrorKind::InvalidUtf8(e) => InvalidUTF8::new_err(e.to_string()),
             ErrorKind::Io(e) => IoError::new_err(e.to_string()),
             ErrorKind::ParseAddr(e) => ParseAddressError::new_err(e.to_string()),
             ErrorKind::ParseInt(e) => ParseIntError::new_err(e.to_string()),
             ErrorKind::PwHash(e) => PasswordHashError::new_err(e.to_string()),
-            // Client / StreamTerminated / BatchFailed / BatchRow / Async and
+            ErrorKind::BatchFailed { records } => PyErr::new::<BatchFailedError, _>(
+                BatchFailedArgs {
+                    message: msg,
+                    in_doubt,
+                    ctx,
+                    records: records.clone(),
+                },
+            ),
+            // Client / StreamTerminated / BatchRow / Async and
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection
             // etc. are handled above.)

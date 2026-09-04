@@ -429,8 +429,11 @@ class TestQueryPartitionEdgeCases(TestFixtureInsertRecord):
         async for _ in records2:
             count2 += 1
 
-        assert count1 > 0
-        assert count2 > 0
+        # This test owns the set's exact contents (fixed keys 1..10), so a
+        # partial or empty drain — e.g. a query racing a degraded cluster
+        # view — must fail loudly rather than pass on "anything > 0".
+        assert count1 == 10
+        assert count2 == count1
 
     async def test_query_partition_filter_active_recordset(self, client):
         """Test partition_filter() behavior with active recordsets."""

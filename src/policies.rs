@@ -532,7 +532,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, records_per_second=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -550,6 +550,7 @@ use crate::TlsConfig;
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
             error_detail_verbosity: Option<u8>,
+            records_per_second: Option<u32>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
             wp.base_policy.populate_positional_results = true;
@@ -584,6 +585,7 @@ use crate::TlsConfig;
             if let Some(v) = use_compression { wp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { wp.base_policy.compression_threshold = v; }
             if let Some(v) = error_detail_verbosity { wp.base_policy.error_detail_verbosity = v; }
+            if let Some(v) = records_per_second { wp.records_per_second = v; }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -633,6 +635,23 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_commit_level(&mut self, commit_level: CommitLevel) {
             self._as.commit_level = (&commit_level).into();
+        }
+
+        /// Records-per-second cap for background jobs, applied **per node**.
+        ///
+        /// Read only by background ``query_operate`` / ``query_execute_udf``
+        /// jobs; every other command type ignores it. Zero (the default)
+        /// applies no limit. The server bounds the effective rate by its own
+        /// ``background-query-max-rps`` config, so a larger value is clamped
+        /// rather than rejected.
+        #[getter]
+        pub fn get_records_per_second(&self) -> u32 {
+            self._as.records_per_second
+        }
+
+        #[setter]
+        pub fn set_records_per_second(&mut self, records_per_second: u32) {
+            self._as.records_per_second = records_per_second;
         }
 
         #[getter]

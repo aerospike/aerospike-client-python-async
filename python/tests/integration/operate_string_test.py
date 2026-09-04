@@ -37,12 +37,14 @@ from aerospike_async import (
     MapPolicy,
     MapWriteFlags,
     new_client,
+    ResultCode,
     StringNumericType,
     StringOperation,
     StringRegexFlags,
     StringWriteFlags,
     WritePolicy,
 )
+from aerospike_async.exceptions import ServerError
 
 
 # Module-level loop scope keeps the shared ``string_client_813`` fixture
@@ -260,6 +262,33 @@ class TestStringReads:
         )
         assert rec.bins.get("s") == [True, False]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "is_upper/is_lower reject any string containing a non-cased "
+            "character -- a space, digit or punctuation mark makes an "
+            "otherwise-uppercase string report False. A server-side defect. "
+            "Strict so this trips the moment the server is fixed, since a "
+            "silently-passing xfail would leave the corrected behavior "
+            "unasserted."
+        ),
+    )
+    async def test_classifiers_ignore_non_cased_characters(self, string_client_813):
+        """Classification should consider only the cased characters.
+
+        Measured on 8.1.3.0-104: "HELLO" is True, but "HELLO WORLD", "ABC123"
+        and "HELLO!" are all False. The empty string is True, which rules out
+        the "no cased characters" reading -- it is the *presence* of a
+        non-cased character that flips the answer.
+        """
+        key = _key("case_non_cased")
+        for value in ("HELLO WORLD", "ABC123", "HELLO!"):
+            await _put_str(string_client_813, key, "s", value)
+            rec = await string_client_813.operate(
+                key, [StringOperation.is_upper("s")], policy=WritePolicy(),
+            )
+            assert rec.bins.get("s") is True, f"is_upper({value!r}) should be True"
+
     async def test_split_with_separator(self, string_client_813):
         key = _key("split")
         await _put_str(string_client_813, key, "s", "a,b,c")
@@ -343,12 +372,6 @@ class TestStringModifies:
         assert await _read_str(string_client_813, key, "s") == "aXYZWV"
 
     async def test_snip_range_and_suffix(self, string_client_813):
-        """Snip always takes explicit (start, end). Per the updated spec
-        (and the underlying server constraint), there is no 1-arg form —
-        a wire ``[53, start, flags]`` is misparsed as ``[53, start, end]``.
-        Callers who want to drop a suffix supply the codepoint length as
-        ``end`` explicitly (typically via a paired ``strlen`` read).
-        """
         # Range form [start, end).
         key = _key("snip_range")
         await _put_str(string_client_813, key, "s", "abcdef")
@@ -359,6 +382,30 @@ class TestStringModifies:
         await _put_str(string_client_813, key, "s", "abcdef")
         await string_client_813.operate(key, [StringOperation.snip("s", 3, 6)])
         assert await _read_str(string_client_813, key, "s") == "abc"
+
+    async def test_snip_one_arg_truncates_to_end(self, string_client_813):
+        """The 1-arg form snips from ``start`` through the end of the string.
+
+        A wrong result here is a silent one: a mispacked 2-element
+        ``[start, flags]`` wire is accepted by the server as ``[start, end]``
+        and no-ops, so the bin coming back truncated is the whole assertion.
+        """
+        key = _key("snip_from")
+        await _put_str(string_client_813, key, "s", "hello world")
+        await string_client_813.operate(key, [StringOperation.snip("s", 5)])
+        assert await _read_str(string_client_813, key, "s") == "hello"
+
+    async def test_snip_one_arg_negative_start(self, string_client_813):
+        key = _key("snip_from_neg")
+        await _put_str(string_client_813, key, "s", "hello world")
+        await string_client_813.operate(key, [StringOperation.snip("s", -6)])
+        assert await _read_str(string_client_813, key, "s") == "hello"
+
+    async def test_snip_one_arg_rejects_flags(self, string_client_813):
+        # Flags ride in positional slot 2 behind ``end``, so the 1-arg form
+        # cannot carry them; the client refuses rather than dropping them.
+        with pytest.raises(ValueError, match="explicit end"):
+            StringOperation.snip("s", 5, flags=int(StringWriteFlags.NO_FAIL))
 
     async def test_replace_first_match_only(self, string_client_813):
         key = _key("replace")
@@ -569,9 +616,10 @@ class TestToString:
 class TestStringWithCtx:
     """String ops on values nested inside list / map bins.
 
-    The PAC encoder emits the §2.3.1 CTX-wrapper envelope when ctx is
-    non-empty and omits it entirely when ctx is None (server expects
-    distinct dispatch paths — see spec §2.3.1).
+    The encoder emits the CTX-wrapper envelope when ctx is non-empty and omits
+    it entirely when ctx is None, which the server dispatches on separately.
+    The envelope nests the inner op — [0xFF, ctx_list, [inner_op, args...]] —
+    so a regression that flattens it back surfaces here as PARAMETER_ERROR.
     """
 
     async def test_strlen_on_string_at_list_index(self, string_client_813):
@@ -680,6 +728,142 @@ class TestMissingBinBehavior:
         rec = await string_client_813.get(key)
         assert rec.bins.get("missing_bin") == "hello"
         assert rec.bins.get("other") == "x"
+
+
+# ---------------------------------------------------------------------------
+# CREATE_ONLY / UPDATE_ONLY write flags
+# ---------------------------------------------------------------------------
+
+
+class TestCreateUpdateOnlyFlags:
+    """Bin-existence gating via ``CREATE_ONLY`` (additive ops only) and
+    ``UPDATE_ONLY`` (all modify ops). The two are mutually exclusive."""
+
+    async def test_create_only_creates_a_missing_bin(self, string_client_813):
+        key = _key("create_only_fresh")
+        await string_client_813.delete(key, policy=WritePolicy())
+        await string_client_813.put(key, {"other": "x"}, policy=WritePolicy())
+        await string_client_813.operate(
+            key,
+            [StringOperation.insert("s", 0, "new", flags=int(StringWriteFlags.CREATE_ONLY))],
+        )
+        rec = await string_client_813.get(key)
+        assert rec.bins.get("s") == "new"
+
+    async def test_create_only_on_a_live_bin_raises_bin_exists(self, string_client_813):
+        key = _key("create_only_live")
+        await _put_str(string_client_813, key, "s", "live")
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.insert("s", 0, "x", flags=int(StringWriteFlags.CREATE_ONLY))],
+            )
+        assert exc_info.value.result_code == ResultCode.BIN_EXISTS_ERROR
+        assert await _read_str(string_client_813, key, "s") == "live"
+
+    async def test_create_only_with_no_fail_is_a_silent_no_op_on_a_live_bin(self, string_client_813):
+        key = _key("create_only_nofail")
+        await _put_str(string_client_813, key, "s", "live")
+        await string_client_813.operate(
+            key,
+            [StringOperation.insert(
+                "s", 0, "x",
+                flags=StringWriteFlags.CREATE_ONLY | StringWriteFlags.NO_FAIL,
+            )],
+        )
+        assert await _read_str(string_client_813, key, "s") == "live"
+
+    async def test_update_only_does_not_create_a_missing_bin(self, string_client_813):
+        key = _key("update_only_missing")
+        await string_client_813.delete(key, policy=WritePolicy())
+        await string_client_813.put(key, {"other": "x"}, policy=WritePolicy())
+        await string_client_813.operate(
+            key,
+            [StringOperation.insert("s", 0, "x", flags=int(StringWriteFlags.UPDATE_ONLY))],
+        )
+        rec = await string_client_813.get(key)
+        assert "s" not in (rec.bins or {})
+
+    async def test_update_only_applies_to_a_live_bin(self, string_client_813):
+        key = _key("update_only_live")
+        await _put_str(string_client_813, key, "s", "live")
+        await string_client_813.operate(
+            key,
+            [StringOperation.insert("s", 0, "x", flags=int(StringWriteFlags.UPDATE_ONLY))],
+        )
+        assert await _read_str(string_client_813, key, "s") == "xlive"
+
+    async def test_create_only_and_update_only_together_is_a_parameter_error(self, string_client_813):
+        key = _key("flags_exclusive")
+        await _put_str(string_client_813, key, "s", "live")
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.insert(
+                    "s", 0, "x",
+                    flags=StringWriteFlags.CREATE_ONLY | StringWriteFlags.UPDATE_ONLY,
+                )],
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+
+    async def test_create_only_on_a_non_additive_op_is_a_parameter_error(self, string_client_813):
+        key = _key("create_only_bad_op")
+        await _put_str(string_client_813, key, "s", "live")
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.upper("s", flags=int(StringWriteFlags.CREATE_ONLY))],
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+
+    async def test_create_only_with_a_ctx_path_is_a_parameter_error(self, string_client_813):
+        key = _key("create_only_ctx")
+        await string_client_813.put(key, {"lst": ["a", "b"]}, policy=WritePolicy())
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.insert(
+                    "lst", 0, "x",
+                    flags=int(StringWriteFlags.CREATE_ONLY),
+                    ctx=[CTX.list_index(1)],
+                )],
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+
+    async def test_no_fail_decides_outcome_on_unreachable_ctx_path(self, string_client_813):
+        """An out-of-range CTX path is an in-op execution failure, so NO_FAIL
+        flips it from ``OpNotApplicable`` to a silent no-op."""
+        key = _key("nofail_ctx_unreachable")
+        await string_client_813.put(key, {"lst": ["alpha", "beta"]}, policy=WritePolicy())
+        await string_client_813.operate(
+            key,
+            [StringOperation.append(
+                "lst", "!",
+                flags=int(StringWriteFlags.NO_FAIL),
+                ctx=[CTX.list_index(99)],
+            )],
+        )
+        rec = await string_client_813.get(key)
+        assert rec.bins["lst"] == ["alpha", "beta"]
+
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.append("lst", "!", ctx=[CTX.list_index(99)])],
+            )
+        assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
+
+    async def test_no_fail_does_not_suppress_a_wrong_type_error(self, string_client_813):
+        # NO_FAIL covers in-op execution failures only; the bin-type check
+        # runs during argument validation and raises regardless.
+        key = _key("nofail_wrong_type")
+        await string_client_813.put(key, {"s": 42}, policy=WritePolicy())
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_813.operate(
+                key,
+                [StringOperation.upper("s", flags=int(StringWriteFlags.NO_FAIL))],
+            )
+        assert exc_info.value.result_code == ResultCode.BIN_TYPE_ERROR
 
 
 # ---------------------------------------------------------------------------

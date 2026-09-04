@@ -35,6 +35,7 @@ __all__ = [
     "CollectionIndexType",
     "CommandMetric",
     "CommandType",
+    "CommitErrorType",
     "CommitLevel",
     "CommitStatus",
     "Concurrency",
@@ -108,6 +109,7 @@ __all__ = [
     "Sampler",
     "SelectFlags",
     "ServerError",
+    "SortedMap",
     "SpecialValue",
     "Statement",
     "StringNumericType",
@@ -238,7 +240,77 @@ class BatchDeletePolicy:
     def __new__(cls) -> _aerospike_async_native.BatchDeletePolicy: ...
 
 class BatchPolicy(_aerospike_async_native.BasePolicy):
-    ...
+    def __new__(cls) -> _aerospike_async_native.BatchPolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, allow_inline: typing.Optional[builtins.bool] = None, allow_inline_ssd: typing.Optional[builtins.bool] = None, respond_all_keys: typing.Optional[builtins.bool] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, concurrency: typing.Optional[_aerospike_async_native.Concurrency] = None) -> _aerospike_async_native.BatchPolicy: ...
+    @property
+    def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
+    @base_policy.setter
+    def base_policy(self, value: _aerospike_async_native.BasePolicy) -> None: ...
+    @property
+    def concurrency(self) -> _aerospike_async_native.Concurrency: ...
+    @concurrency.setter
+    def concurrency(self, value: _aerospike_async_native.Concurrency) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int: ...
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def read_mode_ap(self) -> _aerospike_async_native.ReadModeAP: ...
+    @read_mode_ap.setter
+    def read_mode_ap(self, value: _aerospike_async_native.ReadModeAP) -> None: ...
+    @property
+    def read_mode_sc(self) -> _aerospike_async_native.ReadModeSC: ...
+    @read_mode_sc.setter
+    def read_mode_sc(self, value: _aerospike_async_native.ReadModeSC) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def use_compression(self) -> builtins.bool: ...
+    @use_compression.setter
+    def use_compression(self, value: builtins.bool) -> None: ...
+    @property
+    def compression_threshold(self) -> builtins.int: ...
+    @compression_threshold.setter
+    def compression_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def txn(self) -> typing.Optional[_aerospike_async_native.Txn]: ...
+    @txn.setter
+    def txn(self, value: typing.Optional[_aerospike_async_native.Txn]) -> None: ...
+    @property
+    def allow_inline(self) -> builtins.bool: ...
+    @allow_inline.setter
+    def allow_inline(self, value: builtins.bool) -> None: ...
+    @property
+    def allow_inline_ssd(self) -> builtins.bool: ...
+    @allow_inline_ssd.setter
+    def allow_inline_ssd(self, value: builtins.bool) -> None: ...
+    @property
+    def respond_all_keys(self) -> builtins.bool: ...
+    @respond_all_keys.setter
+    def respond_all_keys(self, value: builtins.bool) -> None: ...
+    @property
+    def filter_expression(self) -> typing.Optional[_aerospike_async_native.FilterExpression]: ...
+    @filter_expression.setter
+    def filter_expression(self, value: typing.Optional[_aerospike_async_native.FilterExpression]) -> None: ...
+    @property
+    def replica(self) -> _aerospike_async_native.Replica: ...
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
 
 @typing.final
 class BatchReadOp:
@@ -3803,11 +3875,29 @@ class FilterExpression:
         single-string callers must wrap via ``FilterExpression.list_val([s])``.
         """
     @staticmethod
+    def string_append(flags: builtins.int, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` joined onto its end.
+        """
+    @staticmethod
+    def string_prepend(flags: builtins.int, value: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with `value` joined onto its front.
+        """
+    @staticmethod
     def string_snip(flags: builtins.int, start: _aerospike_async_native.FilterExpression, end: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns STRING — `src` with the half-open codepoint range ``[start, end)`` removed.
-        ``end`` is required (server's snip table has no 1-arg form — see
-        the matching ``StringOperation.snip`` note).
+        Use ``string_snip_from`` to snip from `start` through the end.
+        """
+    @staticmethod
+    def string_snip_from(start: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — `src` with codepoints from `start` through the end
+        removed (truncate-to-end). Takes no write flags: the server reads
+        the snip arguments by position — `start`, `end`, then flags — so
+        this form packs ``[53, start]`` only; use ``string_snip`` with an
+        explicit `end` when the flags have to be honored.
         """
     @staticmethod
     def string_replace(flags: builtins.int, needle: _aerospike_async_native.FilterExpression, replacement: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -5056,7 +5146,83 @@ class QueryPlan:
     def __repr__(self) -> builtins.str: ...
 
 class QueryPolicy(_aerospike_async_native.BasePolicy):
-    ...
+    def __new__(cls) -> _aerospike_async_native.QueryPolicy: ...
+    @property
+    def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
+    @base_policy.setter
+    def base_policy(self, value: _aerospike_async_native.BasePolicy) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int: ...
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def read_mode_ap(self) -> _aerospike_async_native.ReadModeAP: ...
+    @read_mode_ap.setter
+    def read_mode_ap(self, value: _aerospike_async_native.ReadModeAP) -> None: ...
+    @property
+    def read_mode_sc(self) -> _aerospike_async_native.ReadModeSC: ...
+    @read_mode_sc.setter
+    def read_mode_sc(self, value: _aerospike_async_native.ReadModeSC) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def use_compression(self) -> builtins.bool: ...
+    @use_compression.setter
+    def use_compression(self, value: builtins.bool) -> None: ...
+    @property
+    def compression_threshold(self) -> builtins.int: ...
+    @compression_threshold.setter
+    def compression_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def txn(self) -> typing.Optional[_aerospike_async_native.Txn]: ...
+    @txn.setter
+    def txn(self, value: typing.Optional[_aerospike_async_native.Txn]) -> None: ...
+    @property
+    def filter_expression(self) -> typing.Optional[_aerospike_async_native.FilterExpression]: ...
+    @filter_expression.setter
+    def filter_expression(self, value: typing.Optional[_aerospike_async_native.FilterExpression]) -> None: ...
+    @property
+    def max_concurrent_nodes(self) -> builtins.int: ...
+    @max_concurrent_nodes.setter
+    def max_concurrent_nodes(self, value: builtins.int) -> None: ...
+    @property
+    def record_queue_size(self) -> builtins.int: ...
+    @record_queue_size.setter
+    def record_queue_size(self, value: builtins.int) -> None: ...
+    @property
+    def records_per_second(self) -> builtins.int: ...
+    @records_per_second.setter
+    def records_per_second(self, value: builtins.int) -> None: ...
+    @property
+    def max_records(self) -> builtins.int: ...
+    @max_records.setter
+    def max_records(self, value: builtins.int) -> None: ...
+    @property
+    def include_bin_data(self) -> builtins.bool: ...
+    @include_bin_data.setter
+    def include_bin_data(self, value: builtins.bool) -> None: ...
+    @property
+    def expected_duration(self) -> _aerospike_async_native.QueryDuration: ...
+    @expected_duration.setter
+    def expected_duration(self, value: _aerospike_async_native.QueryDuration) -> None: ...
+    @property
+    def replica(self) -> _aerospike_async_native.Replica: ...
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
 
 @typing.final
 class QueryWhereFlags:
@@ -5089,7 +5255,65 @@ class QueryWhereFlags:
     """
 
 class ReadPolicy(_aerospike_async_native.BasePolicy):
-    ...
+    def __new__(cls) -> _aerospike_async_native.ReadPolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, read_touch_ttl: typing.Optional[builtins.int] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None) -> _aerospike_async_native.ReadPolicy: ...
+    @property
+    def replica(self) -> _aerospike_async_native.Replica: ...
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    @property
+    def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
+    @base_policy.setter
+    def base_policy(self, value: _aerospike_async_native.BasePolicy) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int: ...
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def read_mode_ap(self) -> _aerospike_async_native.ReadModeAP: ...
+    @read_mode_ap.setter
+    def read_mode_ap(self, value: _aerospike_async_native.ReadModeAP) -> None: ...
+    @property
+    def read_mode_sc(self) -> _aerospike_async_native.ReadModeSC: ...
+    @read_mode_sc.setter
+    def read_mode_sc(self, value: _aerospike_async_native.ReadModeSC) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def use_compression(self) -> builtins.bool: ...
+    @use_compression.setter
+    def use_compression(self, value: builtins.bool) -> None: ...
+    @property
+    def compression_threshold(self) -> builtins.int: ...
+    @compression_threshold.setter
+    def compression_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def txn(self) -> typing.Optional[_aerospike_async_native.Txn]: ...
+    @txn.setter
+    def txn(self, value: typing.Optional[_aerospike_async_native.Txn]) -> None: ...
+    @property
+    def filter_expression(self) -> typing.Optional[_aerospike_async_native.FilterExpression]: ...
+    @filter_expression.setter
+    def filter_expression(self, value: typing.Optional[_aerospike_async_native.FilterExpression]) -> None: ...
+    @property
+    def read_touch_ttl(self) -> builtins.int: ...
+    @read_touch_ttl.setter
+    def read_touch_ttl(self, value: builtins.int) -> None: ...
 
 class Record:
     @property
@@ -5441,6 +5665,37 @@ class ServerError(builtins.Exception):
         structured accessor.
         """
 
+@typing.final
+class SortedMap(dict):
+    r"""
+    A map to be stored key-ordered (``MapOrder.KEY_ORDERED``).
+
+    A plain ``dict`` is written as an unordered map. The server stores the
+    entries sorted either way, so a read cannot tell the two apart by
+    looking at them -- but it will not binary-search a map that was not
+    *declared* ordered, so keyed and range access on one fall back to a
+    scan. Wrapping the dict declares the order, and the client packs the
+    entries sorted, which the server requires: it rejects a map that claims
+    ``K_ORDERED`` and arrives out of order.
+
+    The effect is durable, not confined to the write. The order flag is
+    stored with the record and survives later modification, so it governs
+    the cost of every subsequent access, by any client, until the map is
+    rewritten unordered.
+
+    Reads of a key-ordered map return this type, so the round trip is
+    symmetric. It subclasses ``dict``, so it behaves as one everywhere.
+
+    Example::
+
+        await client.put(key, {"scores": SortedMap({"zoe": 3, "amy": 1})})
+
+        scores = (await client.get(key)).bins["scores"]
+        scores["amy"]                   # 1
+        scores == {"amy": 1, "zoe": 3}  # True
+    """
+    ...
+
 class Statement:
     r"""
     Query statement parameters.
@@ -5643,16 +5898,17 @@ class StringOperation:
         — this is the server's dedicated prepend sub-op (68).
         """
     @staticmethod
-    def snip(bin: builtins.str, start: builtins.int, end: builtins.int, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+    def snip(bin: builtins.str, start: builtins.int, end: typing.Optional[builtins.int] = None, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Remove the half-open codepoint range ``[start, end)`` from the bin.
+        Remove the half-open codepoint range ``[start, end)`` from the bin,
+        or everything from ``start`` through the end when ``end`` is None —
+        ``snip("s", 5)`` truncates ``"hello world"`` to ``"hello"``.
 
-        Note: ``end`` is required. The server's snip op table cannot dispatch
-        a 1-arg form — a wire `[53, start, flags]` is silently misparsed as
-        `[53, start, end]` with the ``DEFAULT=0`` flag treated as ``end``,
-        producing an empty range and a silent no-op. To snip from ``start``
-        through the end of the bin, the caller must supply the codepoint
-        length explicitly (via a ``strlen`` read).
+        ``flags`` require an explicit ``end``. The server reads the snip
+        arguments by position — ``start``, ``end``, then flags — so the 1-arg
+        form is packed as ``[53, start]`` with no flags element; a 2-element
+        ``[start, flags]`` wire would land the flags in the ``end`` slot and
+        silently snip the empty range ``[start, 0)``.
         """
     @staticmethod
     def replace(bin: builtins.str, needle: builtins.str, replacement: builtins.str, *, flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
@@ -5726,9 +5982,9 @@ class StringOperation:
         replace every match.
 
         Note: ``flags`` here carries regex flags, NOT write flags. The wire
-        payload for ``regex_replace`` has no slot for write flags — the
-        server rejects messages that include one. This method accepts only
-        the regex-flags bitmask for that reason.
+        payload does carry a write-flags slot, but this method exposes no
+        parameter for it and sends the default, so ``CREATE_ONLY`` and
+        ``UPDATE_ONLY`` cannot be requested on a regex replace.
         """
     @staticmethod
     def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:
@@ -5921,28 +6177,38 @@ class SubCode:
     """
 
 class TlsConfig:
-    def __new__(cls, cafile: builtins.str) -> _aerospike_async_native.TlsConfig:
+    def __new__(cls, cafile: typing.Optional[builtins.str] = None, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
         r"""
-        Create a new TlsConfig from CA certificate file.
+        Create a TlsConfig.
 
         Args:
-            cafile: Path to the CA certificate file (PEM format)
+            cafile: Path to a CA certificate file (PEM). Optional -- when
+                omitted the server is verified against the system trust
+                store alone, which is what a ``tls_name``-only setup needs.
+            protocols: Allowed TLS versions, e.g. ``["TLSv1.3"]``. Omit for
+                the rustls default (TLS 1.2 and 1.3).
+            ciphers: Allowed cipher suites by rustls name, e.g.
+                ``["TLS13_AES_256_GCM_SHA384"]``. Omit for the provider
+                default. Unknown names raise rather than being ignored.
 
         Returns:
-            TlsConfig instance configured with the CA certificate
+            TlsConfig
         """
     @staticmethod
-    def with_client_auth(cafile: builtins.str, certfile: builtins.str, keyfile: builtins.str) -> _aerospike_async_native.TlsConfig:
+    def with_client_auth(cafile: typing.Optional[builtins.str], certfile: builtins.str, keyfile: builtins.str, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
         r"""
-        Create a TlsConfig with client authentication from certificate and key files.
+        Create a TlsConfig with client (mutual) authentication.
 
         Args:
-            cafile: Path to the CA certificate file (PEM format)
-            certfile: Path to the client certificate file (PEM format)
-            keyfile: Path to the client private key file (PEM format)
+            cafile: Path to a CA certificate file (PEM), or ``None`` to
+                verify against the system trust store alone.
+            certfile: Path to the client certificate file (PEM).
+            keyfile: Path to the client private key file (PEM, PKCS#8).
+            protocols: Allowed TLS versions; see :meth:`TlsConfig`.
+            ciphers: Allowed cipher suites; see :meth:`TlsConfig`.
 
         Returns:
-            TlsConfig instance configured with CA and client certificates
+            TlsConfig
         """
 
 @typing.final
@@ -6228,7 +6494,97 @@ class Version:
     def __repr__(self) -> builtins.str: ...
 
 class WritePolicy(_aerospike_async_native.BasePolicy):
-    ...
+    def __new__(cls) -> _aerospike_async_native.WritePolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy: ...
+    @property
+    def record_exists_action(self) -> _aerospike_async_native.RecordExistsAction: ...
+    @record_exists_action.setter
+    def record_exists_action(self, value: _aerospike_async_native.RecordExistsAction) -> None: ...
+    @property
+    def generation_policy(self) -> _aerospike_async_native.GenerationPolicy: ...
+    @generation_policy.setter
+    def generation_policy(self, value: _aerospike_async_native.GenerationPolicy) -> None: ...
+    @property
+    def commit_level(self) -> _aerospike_async_native.CommitLevel: ...
+    @commit_level.setter
+    def commit_level(self, value: _aerospike_async_native.CommitLevel) -> None: ...
+    @property
+    def records_per_second(self) -> builtins.int: ...
+    @records_per_second.setter
+    def records_per_second(self, value: builtins.int) -> None: ...
+    @property
+    def generation(self) -> builtins.int: ...
+    @generation.setter
+    def generation(self, value: builtins.int) -> None: ...
+    @property
+    def expiration(self) -> _aerospike_async_native.Expiration: ...
+    @expiration.setter
+    def expiration(self, value: _aerospike_async_native.Expiration) -> None: ...
+    @property
+    def send_key(self) -> builtins.bool: ...
+    @send_key.setter
+    def send_key(self, value: builtins.bool) -> None: ...
+    @property
+    def respond_per_each_op(self) -> builtins.bool: ...
+    @respond_per_each_op.setter
+    def respond_per_each_op(self, value: builtins.bool) -> None: ...
+    @property
+    def durable_delete(self) -> builtins.bool: ...
+    @durable_delete.setter
+    def durable_delete(self, value: builtins.bool) -> None: ...
+    @property
+    def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
+    @base_policy.setter
+    def base_policy(self, value: _aerospike_async_native.BasePolicy) -> None: ...
+    @property
+    def error_detail_verbosity(self) -> builtins.int: ...
+    @error_detail_verbosity.setter
+    def error_detail_verbosity(self, value: builtins.int) -> None: ...
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def read_mode_ap(self) -> _aerospike_async_native.ReadModeAP: ...
+    @read_mode_ap.setter
+    def read_mode_ap(self, value: _aerospike_async_native.ReadModeAP) -> None: ...
+    @property
+    def read_mode_sc(self) -> _aerospike_async_native.ReadModeSC: ...
+    @read_mode_sc.setter
+    def read_mode_sc(self, value: _aerospike_async_native.ReadModeSC) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def use_compression(self) -> builtins.bool: ...
+    @use_compression.setter
+    def use_compression(self, value: builtins.bool) -> None: ...
+    @property
+    def compression_threshold(self) -> builtins.int: ...
+    @compression_threshold.setter
+    def compression_threshold(self, value: builtins.int) -> None: ...
+    @property
+    def txn(self) -> typing.Optional[_aerospike_async_native.Txn]: ...
+    @txn.setter
+    def txn(self, value: typing.Optional[_aerospike_async_native.Txn]) -> None: ...
+    @property
+    def filter_expression(self) -> typing.Optional[_aerospike_async_native.FilterExpression]: ...
+    @filter_expression.setter
+    def filter_expression(self, value: typing.Optional[_aerospike_async_native.FilterExpression]) -> None: ...
+    @property
+    def read_touch_ttl(self) -> builtins.int: ...
+    @read_touch_ttl.setter
+    def read_touch_ttl(self, value: builtins.int) -> None: ...
 
 @typing.final
 class _LocalClient:
@@ -6392,6 +6748,22 @@ class CommandType(enum.Enum):
         r"""
         The name used as a key in serialized detailed metrics (e.g. "GetHeader", "UDF").
         """
+
+@typing.final
+class CommitErrorType(enum.Enum):
+    r"""
+    Which stage of a transaction commit failed.
+
+    Carried on :exc:`aerospike_async.exceptions.CommitFailedError` as
+    ``commit_error_type``. The distinction matters for recovery: a plain
+    verify failure leaves nothing applied, while the abandoned variants mean
+    the client stopped tracking a transaction the server will finish
+    resolving on its own.
+    """
+    VERIFY_FAIL = ...
+    VERIFY_FAIL_CLOSE_ABANDONED = ...
+    VERIFY_FAIL_ABORT_ABANDONED = ...
+    MARK_ROLL_FORWARD_ABANDONED = ...
 
 @typing.final
 class CommitLevel(enum.Enum):
@@ -6965,21 +7337,37 @@ class StringRegexFlags(enum.Enum):
 @typing.final
 class StringWriteFlags(enum.Enum):
     r"""
-    Per-operation write flags for string modify ops.
+    Per-operation write flags for string modify ops. Combine with bitwise OR.
 
-    Two values are valid; the server-side enumeration was trimmed in commit
-    `fe5a346e` (2026-04-17). `CREATE_ONLY` and `UPDATE_ONLY` previously
-    existed but are no longer recognized.
+    ``CREATE_ONLY`` and ``UPDATE_ONLY`` are mutually exclusive; sending both
+    is a server ``ParameterError``.
     """
     DEFAULT = ...
     r"""
     Default. Allow create or update.
     """
+    CREATE_ONLY = ...
+    r"""
+    Apply only if the bin does not already exist; a live bin raises
+    ``BinExistsError`` (suppressible with ``NO_FAIL``). Valid only on the
+    additive ops (insert, overwrite, concat, append, prepend, pad_start,
+    pad_end, repeat) and never with a CTX path — either misuse is a
+    server ``ParameterError``, which ``NO_FAIL`` does not suppress.
+    """
+    UPDATE_ONLY = ...
+    r"""
+    Apply only to an existing bin: on a missing bin the op is a silent
+    no-op instead of creating it. Valid on all string modify ops.
+    """
     NO_FAIL = ...
     r"""
-    Do not raise an error if the operation cannot be applied (e.g. wrong
-    bin type). The bin is left unchanged and the op result is the
-    canonical null value.
+    Suppress in-op execution failures — e.g. the ``BinExistsError`` from
+    ``CREATE_ONLY`` on a live bin, or ``OpNotApplicable`` from an
+    unreachable CTX path: the op becomes a no-op and the bin keeps its
+    current value. Does NOT suppress wrong-bin-type or invalid
+    UTF-8 errors, and has no effect on missing bins — a missing bin is
+    never an error for string ops (additive ops create it from empty,
+    the other modifies no-op), with or without this flag.
     """
 
 @typing.final
