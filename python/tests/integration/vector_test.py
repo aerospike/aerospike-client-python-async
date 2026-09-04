@@ -17,10 +17,9 @@
 Vector bin (``VECTOR`` particle type) round-trip integration tests.
 
 Vector similarity search (Top-K / distance expressions) is out of scope here
-— it is still work-in-progress server-side (see the README's "Vector bins and
-Top-K queries" section) and covered separately. This file only exercises
-storing and retrieving `Vector` bins: construction, put/get, element-type
-coverage, special float values, and nesting in list/map bins.
+— it is covered separately in ``vector_search_test.py``. This file only
+exercises storing and retrieving `Vector` bins: construction, put/get,
+element-type coverage, special float values, and nesting in list/map bins.
 
 Vector bins are an unreleased, dev-server-only feature. Support is gated via
 the `supports_vector_bins` fixture in conftest.py -- see the TODO on that
@@ -265,10 +264,8 @@ class TestVectorSize:
 # Storage permutations for the *supported* vector path.
 #
 # These exercise the VECTOR particle end to end through every record-level API
-# that does NOT involve server-side expression evaluation. Reading a vector via
-# an expression (filter/read-exp), vector-distance expressions, and Top-K
-# queries are unsupported server-side today -- see vector_search_test.py,
-# which keeps those documented but skipped.
+# that does NOT involve server-side expression evaluation. Vector-distance
+# expressions and Top-K queries are covered separately in vector_search_test.py.
 # ---------------------------------------------------------------------------
 
 # (element_type, sample values) for the three list-constructible types. FLOAT16
