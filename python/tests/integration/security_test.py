@@ -19,21 +19,24 @@ Security Tests - Tests for user management, role management, and authentication 
 These tests require a server with security enabled and proper authentication.
 """
 import asyncio
+import contextlib
 import pytest
+import pytest_asyncio
 import os
+import uuid
 from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
 from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
-# Security metadata is eventually consistent: a role is not in query_roles the
-# instant create_role returns, nor gone the instant drop_role does. Measured
-# well over 0.5s, and past 3s when the host is loaded, against a former budget
-# of 5 x 0.01s = 0.05s. These are ceilings, not sleeps -- the waits return as
-# soon as the condition holds, so the common case still costs one poll.
-PROPAGATION_RETRIES = 100
-PROPAGATION_DELAY = 0.1
+PROPAGATION_RETRIES = 10
+PROPAGATION_DELAY = 0.5
 
 
-async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
+def _short_id():
+    """8-char hex unique per invocation — avoids cross-test/cross-run SMD races."""
+    return uuid.uuid4().hex[:8]
+
+
+async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
     """Retry query_roles until the role is visible. Returns the role list."""
     for attempt in range(retries):
         try:
@@ -43,11 +46,11 @@ async def wait_for_role(client, role_name, *, retries=PROPAGATION_RETRIES):
         except ServerError:
             pass
         if attempt < retries - 1:
-            await asyncio.sleep(PROPAGATION_DELAY)
+            await asyncio.sleep(delay)
     pytest.fail(f"Role {role_name!r} not visible after {retries} retries")
 
 
-async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES):
+async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
     """Retry query_roles until it raises ServerError (role deleted)."""
     for attempt in range(retries):
         try:
@@ -55,11 +58,11 @@ async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES):
         except ServerError:
             return
         if attempt < retries - 1:
-            await asyncio.sleep(PROPAGATION_DELAY)
+            await asyncio.sleep(delay)
     pytest.fail(f"Role {role_name!r} still queryable after {retries} retries")
 
 
-async def wait_for_user_gone(client, username, *, retries=PROPAGATION_RETRIES):
+async def wait_for_user_gone(client, username, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
     """Retry query_users(username) until it raises ServerError (user deleted)."""
     for attempt in range(retries):
         try:
@@ -67,11 +70,11 @@ async def wait_for_user_gone(client, username, *, retries=PROPAGATION_RETRIES):
         except ServerError:
             return
         if attempt < retries - 1:
-            await asyncio.sleep(PROPAGATION_DELAY)
+            await asyncio.sleep(delay)
     pytest.fail(f"User {username!r} still queryable after {retries} retries")
 
 
-async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
+async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
     """Retry query_users until the user is visible. Returns the user list."""
     for attempt in range(retries):
         all_users = await client.query_users(None)
@@ -79,7 +82,7 @@ async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
         if username in user_names:
             return all_users
         if attempt < retries - 1:
-            await asyncio.sleep(PROPAGATION_DELAY)
+            await asyncio.sleep(delay)
     pytest.fail(f"User {username!r} not found in {user_names} after {retries} retries")
 
 
@@ -141,32 +144,28 @@ class TestSecurityFeatures:
             except:
                 pass
 
-    TEST_ROLES = ["test_role_1", "test_role_2", "test_app_role", "test_analytics_role",
-                  "test_role_check_quotas", "test_role_quota_zero",
-                  "test_role_quota_set"]
+    @pytest_asyncio.fixture
+    async def unique_role(self, client):
+        """Factory: returns unique role names and drops them at teardown.
 
-    @pytest.fixture(autouse=True)
-    async def cleanup_roles(self, client):
-        """Clean up test roles before and after each test.
-
-        Waits for the drops to become visible. A dropped role lingers in
-        query_roles briefly after drop_role returns, so proceeding immediately
-        let the next test's create hit RoleAlreadyExists -- a failure whose
-        appearance depended on how much wall-clock the preceding test burned.
+        Fixed names couple every test in this class through the security
+        metadata store, which settles asynchronously: a drop that has not
+        landed surfaces as RoleAlreadyExists in whichever test runs next, so
+        the outcome depends on test order. Unique names remove the coupling
+        instead of waiting it out.
         """
-        await self._drop_roles_and_wait(client, self.TEST_ROLES)
-        yield
-        await self._drop_roles_and_wait(client, self.TEST_ROLES)
+        created = []
 
-    @staticmethod
-    async def _drop_roles_and_wait(client, names):
-        """Drop each role, then wait until each one is really gone."""
-        for role_name in names:
-            try:
-                await client.drop_role(role_name)
-            except Exception:
-                continue
-            await wait_for_role_gone(client, role_name)
+        def _make(prefix="r"):
+            name = f"{prefix}_{_short_id()}"
+            created.append(name)
+            return name
+
+        yield _make
+
+        for name in created:
+            with contextlib.suppress(Exception):
+                await client.drop_role(name)
 
     @pytest.mark.asyncio
     async def test_create_user_basic(self, client):
@@ -345,9 +344,9 @@ class TestSecurityFeatures:
             await client.revoke_roles("nonexistent_user", ["read:test"])
 
     @pytest.mark.asyncio
-    async def test_create_role_basic(self, client):
+    async def test_create_role_basic(self, client, unique_role):
         """Test basic role creation."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [
             Privilege(PrivilegeCode.Read, "test", None),
             Privilege(PrivilegeCode.Write, "test", None)
@@ -367,9 +366,9 @@ class TestSecurityFeatures:
         assert roles[0].name == role_name
 
     @pytest.mark.asyncio
-    async def test_create_role_global_privileges(self, client):
+    async def test_create_role_global_privileges(self, client, unique_role):
         """Test role creation with global privileges."""
-        role_name = "test_role_2"
+        role_name = unique_role()
         privileges = [
             Privilege(PrivilegeCode.UserAdmin, None, None),
             Privilege(PrivilegeCode.SysAdmin, None, None)
@@ -398,7 +397,7 @@ class TestSecurityFeatures:
         assert roles[0].name == role_name
 
     @pytest.mark.asyncio
-    async def test_create_role_duplicate(self, client):
+    async def test_create_role_duplicate(self, client, unique_role):
         """Creating a role that already exists is rejected.
 
         The duplicate has to wait for the first create to be visible. Issued
@@ -406,7 +405,7 @@ class TestSecurityFeatures:
         the role appears -- so the interesting assertion needs the role
         confirmed present first, otherwise it passes or fails on timing.
         """
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
         read_quota = 1000
@@ -428,10 +427,12 @@ class TestSecurityFeatures:
         assert "RoleAlreadyExists" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_query_roles_all(self, client):
+    async def test_query_roles_all(self, client, unique_role):
         """Test querying all roles."""
+        role_a = unique_role()
+        role_b = unique_role()
         try:
-            await client.create_role("test_role_1", [Privilege(PrivilegeCode.Read, "test", None)],
+            await client.create_role(role_a, [Privilege(PrivilegeCode.Read, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
@@ -442,7 +443,7 @@ class TestSecurityFeatures:
                 raise
 
         try:
-            await client.create_role("test_role_2", [Privilege(PrivilegeCode.Write, "test", None)],
+            await client.create_role(role_b, [Privilege(PrivilegeCode.Write, "test", None)],
                                    ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
@@ -452,18 +453,18 @@ class TestSecurityFeatures:
             else:
                 raise
 
-        await wait_for_role(client, "test_role_1")
-        await wait_for_role(client, "test_role_2")
+        await wait_for_role(client, role_a)
+        await wait_for_role(client, role_b)
 
         roles = await client.query_roles(None)
         role_names = [r.name for r in roles]
-        assert "test_role_1" in role_names
-        assert "test_role_2" in role_names
+        assert role_a in role_names
+        assert role_b in role_names
 
     @pytest.mark.asyncio
-    async def test_query_roles_specific(self, client):
+    async def test_query_roles_specific(self, client, unique_role):
         """Test querying specific role."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
         read_quota = 1000
@@ -502,9 +503,9 @@ class TestSecurityFeatures:
             await client.query_roles("nonexistent_role")
 
     @pytest.mark.asyncio
-    async def test_drop_role(self, client):
+    async def test_drop_role(self, client, unique_role):
         """Test role deletion."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
         read_quota = 1000
@@ -529,9 +530,9 @@ class TestSecurityFeatures:
             await client.drop_role("nonexistent_role")
 
     @pytest.mark.asyncio
-    async def test_grant_privileges(self, client):
+    async def test_grant_privileges(self, client, unique_role):
         """Test granting privileges to role."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         initial_privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         new_privileges = [Privilege(PrivilegeCode.Write, "test", None)]
         allowlist = ["192.168.1.0/24"]
@@ -561,9 +562,9 @@ class TestSecurityFeatures:
             await client.grant_privileges("nonexistent_role", [Privilege(PrivilegeCode.Read, "test", None)])
 
     @pytest.mark.asyncio
-    async def test_revoke_privileges(self, client):
+    async def test_revoke_privileges(self, client, unique_role):
         """Test revoking privileges from role."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         initial_privileges = [
             Privilege(PrivilegeCode.Read, "test", None),
             Privilege(PrivilegeCode.Write, "test", None)
@@ -595,9 +596,9 @@ class TestSecurityFeatures:
             await client.revoke_privileges("nonexistent_role", [Privilege(PrivilegeCode.Read, "test", None)])
 
     @pytest.mark.asyncio
-    async def test_set_allowlist(self, client):
+    async def test_set_allowlist(self, client, unique_role):
         """Test setting IP allowlist for role."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         initial_allowlist = ["192.168.1.0/24"]
         new_allowlist = ["192.168.1.0/24", "10.0.0.0/8"]
@@ -626,9 +627,9 @@ class TestSecurityFeatures:
             await client.set_allowlist("nonexistent_role", ["192.168.1.0/24"])
 
     @pytest.mark.asyncio
-    async def test_set_quotas(self, client):
+    async def test_set_quotas(self, client, unique_role):
         """Test setting quotas for role."""
-        role_name = "test_role_1"
+        role_name = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
         initial_read_quota = 1000
@@ -658,7 +659,7 @@ class TestSecurityFeatures:
             await client.set_quotas("nonexistent_role", 1000, 500)
 
     @pytest.mark.asyncio
-    async def test_create_role_quota_zero_means_no_limit(self, client):
+    async def test_create_role_quota_zero_means_no_limit(self, client, unique_role):
         """Quota 0 is the documented "no limit" sentinel, not a rejected value.
 
         There is no invalid-quota case to assert on this path: the parameters
@@ -667,22 +668,25 @@ class TestSecurityFeatures:
         than being rewritten to a default, and that a real pair comes back
         exactly as sent.
         """
+        check_role = unique_role()
+        zero_role = unique_role()
+        pair_role = unique_role()
         privileges = [Privilege(PrivilegeCode.Read, "test", None)]
         allowlist = ["192.168.1.0/24"]
 
         # Verify quotas are enabled by creating and immediately dropping a check role.
         try:
-            await client.create_role("test_role_check_quotas", privileges, allowlist, 1000, 500)
+            await client.create_role(check_role, privileges, allowlist, 1000, 500)
         except ServerError as e:
             if "QuotasNotEnabled" in str(e):
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        await client.create_role("test_role_quota_zero", privileges, allowlist, 0, 0)
-        await client.create_role("test_role_quota_set", privileges, allowlist, 1000, 500)
+        await client.create_role(zero_role, privileges, allowlist, 0, 0)
+        await client.create_role(pair_role, privileges, allowlist, 1000, 500)
 
-        zero = (await wait_for_role(client, "test_role_quota_zero"))[0]
-        pair = (await wait_for_role(client, "test_role_quota_set"))[0]
+        zero = (await wait_for_role(client, zero_role))[0]
+        pair = (await wait_for_role(client, pair_role))[0]
 
         assert zero.read_quota == 0
         assert zero.write_quota == 0
