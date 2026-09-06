@@ -57,7 +57,6 @@ __all__ = [
     "HLLPolicy",
     "HLLWriteFlags",
     "Histogram",
-    "HistogramType",
     "HllOperation",
     "IndexTask",
     "IndexType",
@@ -1720,7 +1719,8 @@ class Client:
     def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
         r"""
         Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        microseconds/24-column scheme when no policy is given.
+        milliseconds/7-column scheme recording every command when no
+        policy is given.
 
         Re-enabling with a changed latency unit or histogram shape discards
         the accumulated latency samples; counters are always retained.
@@ -4695,15 +4695,13 @@ class MetricsPolicy:
     r"""
     Configuration for client metrics collection.
 
-    Defaults mirror the core: microseconds with 24 logarithmic columns
-    (base 2), sampling every command. `MetricsPolicy.millis()` selects the
-    classic milliseconds/7-column scheme. Re-enabling metrics with a changed
-    latency unit or histogram shape discards the accumulated latency samples.
+    Defaults are milliseconds with 7 range-layout columns and a shift of 1,
+    sampling every call.
+
+    `MetricsPolicy.micros()` selects microsecond resolution with 24 columns.
+    Re-enabling metrics with a changed latency unit or histogram shape discards
+    the accumulated latency samples.
     """
-    @property
-    def histogram_type(self) -> _aerospike_async_native.HistogramType: ...
-    @histogram_type.setter
-    def histogram_type(self, value: _aerospike_async_native.HistogramType) -> None: ...
     @property
     def latency_unit(self) -> _aerospike_async_native.LatencyUnit: ...
     @latency_unit.setter
@@ -4713,9 +4711,19 @@ class MetricsPolicy:
     @latency_columns.setter
     def latency_columns(self, value: builtins.int) -> None: ...
     @property
-    def latency_base(self) -> builtins.int: ...
-    @latency_base.setter
-    def latency_base(self, value: builtins.int) -> None: ...
+    def latency_shift(self) -> builtins.int:
+        r"""
+        Range-layout shift: each boundary after the first two (`<=1`, `>1`)
+        multiplies by ``2 ** latency_shift``.
+        """
+    @latency_shift.setter
+    def latency_shift(self, value: builtins.int) -> None: ...
+    @property
+    def latency_base(self) -> builtins.int:
+        r"""
+        Histogram multiplier, always ``2 ** latency_shift``. Read-only: set
+        :attr:`latency_shift` so the two cannot disagree.
+        """
     @property
     def labels(self) -> builtins.list[builtins.dict[builtins.str, builtins.str]]:
         r"""
@@ -4731,12 +4739,12 @@ class MetricsPolicy:
     @staticmethod
     def micros() -> _aerospike_async_native.MetricsPolicy:
         r"""
-        Microsecond resolution with 24 logarithmic columns (the default).
+        Microsecond resolution with 24 range-layout columns.
         """
     @staticmethod
     def millis() -> _aerospike_async_native.MetricsPolicy:
         r"""
-        Millisecond resolution with 7 logarithmic columns (classic scheme).
+        Millisecond resolution with 7 range-layout columns (the default).
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -6482,7 +6490,8 @@ class _LocalClient:
     def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
         r"""
         Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        microseconds/24-column scheme when no policy is given.
+        milliseconds/7-column scheme recording every command when no
+        policy is given.
         """
     def disable_metrics(self) -> None:
         r"""
@@ -6738,18 +6747,6 @@ class HLLWriteFlags(enum.Enum):
     r"""
     Allow the resulting set to be the minimum of provided index bits.
     """
-
-@typing.final
-class HistogramType(enum.Enum):
-    r"""
-    Bucket layout of latency histograms: logarithmic (each bucket boundary is
-    `latency_base` times the previous one) or linear (equal-width buckets).
-    """
-    LINEAR = ...
-    LOGARITHMIC = ...
-
-    def __richcmp__(self, other: _aerospike_async_native.HistogramType, op: int) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
 
 @typing.final
 class IndexType(enum.Enum):

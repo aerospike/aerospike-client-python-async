@@ -15,6 +15,7 @@
 
 use std::collections::HashMap;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::IntoPyObjectExt;
@@ -86,64 +87,6 @@ impl From<&aerospike_core::LatencyUnit> for LatencyUnit {
         match input {
             aerospike_core::LatencyUnit::Microseconds => LatencyUnit::Microseconds,
             aerospike_core::LatencyUnit::Milliseconds => LatencyUnit::Milliseconds,
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////
-//
-//  HistogramType
-//
-////////////////////////////////////////////////////////////////////////////////////////////
-
-/// Bucket layout of latency histograms: logarithmic (each bucket boundary is
-/// `latency_base` times the previous one) or linear (equal-width buckets).
-#[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-#[pyclass(from_py_object, module = "_aerospike_async_native")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HistogramType {
-    #[pyo3(name = "LINEAR")]
-    Linear,
-    #[pyo3(name = "LOGARITHMIC")]
-    Logarithmic,
-}
-
-#[gen_stub_pymethods]
-#[pymethods]
-impl HistogramType {
-    fn __richcmp__(&self, other: &HistogramType, op: pyo3::class::basic::CompareOp) -> PyResult<bool> {
-        match op {
-            pyo3::class::basic::CompareOp::Eq => Ok(self == other),
-            pyo3::class::basic::CompareOp::Ne => Ok(self != other),
-            _ => Err(pyo3::exceptions::PyNotImplementedError::new_err(
-                "Only == and != comparisons are supported",
-            )),
-        }
-    }
-
-    fn __hash__(&self) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-}
-
-impl From<&HistogramType> for aerospike_core::HistogramType {
-    fn from(input: &HistogramType) -> Self {
-        match input {
-            HistogramType::Linear => aerospike_core::HistogramType::Linear,
-            HistogramType::Logarithmic => aerospike_core::HistogramType::Logarithmic,
-        }
-    }
-}
-
-impl From<&aerospike_core::HistogramType> for HistogramType {
-    fn from(input: &aerospike_core::HistogramType) -> Self {
-        match input {
-            aerospike_core::HistogramType::Linear => HistogramType::Linear,
-            aerospike_core::HistogramType::Logarithmic => HistogramType::Logarithmic,
         }
     }
 }
@@ -341,10 +284,12 @@ impl Sampler {
 
 /// Configuration for client metrics collection.
 ///
-/// Defaults mirror the core: microseconds with 24 logarithmic columns
-/// (base 2), sampling every command. `MetricsPolicy.millis()` selects the
-/// classic milliseconds/7-column scheme. Re-enabling metrics with a changed
-/// latency unit or histogram shape discards the accumulated latency samples.
+/// Defaults are milliseconds with 7 range-layout columns and a shift of 1,
+/// sampling every call.
+///
+/// `MetricsPolicy.micros()` selects microsecond resolution with 24 columns.
+/// Re-enabling metrics with a changed latency unit or histogram shape discards
+/// the accumulated latency samples.
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
 #[pyclass(from_py_object, module = "_aerospike_async_native")]
 #[derive(Debug, Clone)]
@@ -363,12 +308,16 @@ impl Default for MetricsPolicy {
 impl MetricsPolicy {
     #[new]
     pub fn new() -> Self {
+        // The cross-SDK default is milliseconds / 7 columns / shift 1. Core's
+        // own default is the microsecond preset, so it is not inherited here:
+        // a binding that reported a different default from every other client
+        // would be a portability trap for anyone reading one config file.
         MetricsPolicy {
-            _as: aerospike_core::MetricsPolicy::default(),
+            _as: aerospike_core::MetricsPolicy::millis(),
         }
     }
 
-    /// Microsecond resolution with 24 logarithmic columns (the default).
+    /// Microsecond resolution with 24 range-layout columns.
     #[staticmethod]
     pub fn micros() -> Self {
         MetricsPolicy {
@@ -376,7 +325,7 @@ impl MetricsPolicy {
         }
     }
 
-    /// Millisecond resolution with 7 logarithmic columns (classic scheme).
+    /// Millisecond resolution with 7 range-layout columns (the default).
     #[staticmethod]
     pub fn millis() -> Self {
         MetricsPolicy {
@@ -384,15 +333,6 @@ impl MetricsPolicy {
         }
     }
 
-    #[getter]
-    pub fn get_histogram_type(&self) -> HistogramType {
-        (&self._as.histogram_type).into()
-    }
-
-    #[setter]
-    pub fn set_histogram_type(&mut self, histogram_type: HistogramType) {
-        self._as.histogram_type = (&histogram_type).into();
-    }
 
     #[getter]
     pub fn get_latency_unit(&self) -> LatencyUnit {
@@ -414,14 +354,32 @@ impl MetricsPolicy {
         self._as.latency_columns = latency_columns;
     }
 
+    /// Range-layout shift: each boundary after the first two (`<=1`, `>1`)
+    /// multiplies by ``2 ** latency_shift``.
     #[getter]
-    pub fn get_latency_base(&self) -> usize {
-        self._as.latency_base
+    pub fn get_latency_shift(&self) -> usize {
+        // Core stores the multiplier; the shift is its exponent. Kept in this
+        // binding so the Python surface speaks the spec's units without core
+        // having to change.
+        self._as.latency_base.trailing_zeros() as usize
     }
 
     #[setter]
-    pub fn set_latency_base(&mut self, latency_base: usize) {
-        self._as.latency_base = latency_base;
+    pub fn set_latency_shift(&mut self, latency_shift: usize) -> PyResult<()> {
+        // A shift of 0 gives a multiplier of 1, which is a degenerate
+        // histogram: every boundary equals the one before it.
+        if latency_shift < 1 {
+            return Err(PyValueError::new_err("latency_shift must be at least 1"));
+        }
+        self._as.latency_base = 1usize << latency_shift;
+        Ok(())
+    }
+
+    /// Histogram multiplier, always ``2 ** latency_shift``. Read-only: set
+    /// :attr:`latency_shift` so the two cannot disagree.
+    #[getter]
+    pub fn get_latency_base(&self) -> usize {
+        self._as.latency_base
     }
 
     /// Static label sets attached to every snapshot (e.g. `[{"team": "billing"}]`).
@@ -447,11 +405,11 @@ impl MetricsPolicy {
 
     fn __repr__(&self) -> String {
         format!(
-            "MetricsPolicy(histogram_type={:?}, latency_unit={}, latency_columns={}, latency_base={}, sampler=({}, {}))",
-            self._as.histogram_type,
+            "MetricsPolicy(latency_unit={}, latency_columns={}, latency_shift={}, \
+             sampler=({}, {}))",
             self._as.latency_unit.as_str(),
             self._as.latency_columns,
-            self._as.latency_base,
+            self.get_latency_shift(),
             self._as.sampler.range,
             self._as.sampler.threshold,
         )

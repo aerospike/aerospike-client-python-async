@@ -6,6 +6,7 @@ aerospike-rust-client.sublime-workspace
 .DS_Store
 bench.json
 .env
+*.bak
 
 /target
 
