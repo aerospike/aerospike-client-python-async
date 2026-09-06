@@ -29,11 +29,35 @@
 use std::sync::Arc;
 
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 use crate::errors::RustClientError;
 use crate::policies::ClientPolicy;
 use crate::Client;
+
+/// ``asyncio.events._get_running_loop``, resolved once per process.
+///
+/// This probe runs on every blocking op and every blocking-stream
+/// ``__next__``, so it must stay off the import machinery and off the
+/// exception path: a per-call ``py.import`` convoys free-threaded builds
+/// on the import mutex under many sync threads, and ``get_running_loop``
+/// raises when no loop is running, which would build and discard a
+/// ``RuntimeError`` per call. ``_get_running_loop`` returns ``None``
+/// instead (C-accelerated, stable since 3.5.3).
+static GET_RUNNING_LOOP: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// True when the calling thread has a running asyncio event loop.
+pub(crate) fn in_async_context(py: Python<'_>) -> PyResult<bool> {
+    let get_running_loop = GET_RUNNING_LOOP.get_or_try_init(py, || {
+        Ok::<_, PyErr>(
+            py.import("asyncio.events")?
+                .getattr("_get_running_loop")?
+                .unbind(),
+        )
+    })?;
+    Ok(!get_running_loop.bind(py).call0()?.is_none())
+}
 
 /// Reject a blocking call invoked from inside a running asyncio loop.
 ///
@@ -42,8 +66,7 @@ use crate::Client;
 /// calling ``block_on`` from a thread that already owns an asyncio loop —
 /// which would deadlock the loop or starve the caller's await.
 pub(crate) fn check_not_in_async_context(py: Python<'_>) -> PyResult<()> {
-    let asyncio = py.import("asyncio")?;
-    if asyncio.call_method0("get_running_loop").is_ok() {
+    if in_async_context(py)? {
         return Err(pyo3::exceptions::PyRuntimeError::new_err(
             "Cannot call a blocking method from within an async context \
              (a running asyncio event loop was detected). Use the async \

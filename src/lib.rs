@@ -792,8 +792,7 @@ use crate::operations::{
             }
             // Match Recordset's guard: blocking iteration from inside an
             // async event loop would block the loop. Tell the user clearly.
-            let asyncio = py.import("asyncio")?;
-            if asyncio.call_method0("get_running_loop").is_ok() {
+            if blocking::in_async_context(py)? {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "Cannot iterate a blocking BatchRecordStream from within an \
                      async context. Use `async for (idx, br) in stream:` instead.",

@@ -155,13 +155,24 @@ impl ServerError {
     }
 }
 
+// `aerospike_async.exceptions._get_server_error_class`, resolved once per
+// process: this runs on every server error, and a per-call `py.import`
+// convoys free-threaded builds on the import mutex under an error storm.
+static GET_SERVER_ERROR_CLASS: pyo3::sync::PyOnceLock<Py<PyAny>> =
+    pyo3::sync::PyOnceLock::new();
+
 // Resolve the Python ServerError subclass for the given result code (for dispatch).
 fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> PyResult<pyo3::Bound<'_, pyo3::types::PyAny>> {
-    let module = py.import("aerospike_async.exceptions")?;
-    let func = module.getattr("_get_server_error_class")?;
+    let func = GET_SERVER_ERROR_CLASS.get_or_try_init(py, || {
+        Ok::<_, PyErr>(
+            py.import("aerospike_async.exceptions")?
+                .getattr("_get_server_error_class")?
+                .unbind(),
+        )
+    })?;
     let rc_wrapper = ResultCode(result_code);
     let py_rc = Py::new(py, rc_wrapper)?;
-    func.call1((py_rc,))
+    func.bind(py).call1((py_rc,))
 }
 
 // Deferred arguments for a ServerError (or subclass) PyErr.  Holds only plain

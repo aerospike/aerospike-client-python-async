@@ -873,8 +873,7 @@ use crate::record::{Key, PythonValue, Record};
             // — the same pattern `__next__` uses. Core's `partition_filter()`
             // only locks the tracker and clones out the cursor (no network IO),
             // so blocking here is cheap.
-            let asyncio = py.import("asyncio")?;
-            if asyncio.call_method0("get_running_loop").is_ok() {
+            if crate::blocking::in_async_context(py)? {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "Cannot call partition_filter_sync() from within an async \
                      context. Use `await partition_filter()` instead.",
@@ -947,11 +946,8 @@ use crate::record::{Key, PythonValue, Record};
             // The async-context guard is checked here too, not just in
             // `query_blocking`: a user could legally create the Recordset
             // before entering an async context and then iterate it from
-            // inside one.  That guard lives in lib.rs as
-            // `check_not_in_async_context`; here we duplicate the same
-            // behavior via the canonical asyncio probe.
-            let asyncio = py.import("asyncio")?;
-            if asyncio.call_method0("get_running_loop").is_ok() {
+            // inside one.
+            if crate::blocking::in_async_context(py)? {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "Cannot iterate a blocking Recordset from within an async \
                      context.  Use `async for record in recordset:` instead.",
