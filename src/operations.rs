@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -251,6 +251,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
         BitRScan(String, i64, i64, bool),
         /// Bit get_int operation - gets integer value (read-only).
         BitGetInt(String, i64, i64, bool),
+        /// Bit b64_encode operation - returns base64 text of the blob (read-only).
+        BitB64Encode(String, Option<i64>, Option<i64>, bool),
         /// HLL init operation - creates or resets an HLL bin.
         HllInit(String, i64, i64, i64),
         /// HLL add operation - adds values to HLL.
@@ -1401,6 +1403,38 @@ use crate::string_ops::{StringNumericType, StringOperation};
                 op: OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed),
             }
         }
+
+        /// Create a Bit b64_encode operation (returns base64 text of the blob, read-only).
+        ///
+        /// Without a range, encodes the whole blob. With ``byte_offset`` and
+        /// ``byte_size`` (required together), encodes that byte range; a negative
+        /// ``byte_offset`` counts back from the end of the blob. When
+        /// ``invert_size`` is true, ``byte_size`` counts back from the end
+        /// instead, so an inverted size of 0 encodes through to the end.
+        ///
+        /// Requires Aerospike Server version 8.1.3 or later.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, byte_offset = None, byte_size = None, invert_size = false))]
+        pub fn b64_encode(
+            bin_name: String,
+            byte_offset: Option<i64>,
+            byte_size: Option<i64>,
+            invert_size: bool,
+        ) -> PyResult<Self> {
+            if byte_offset.is_some() != byte_size.is_some() {
+                return Err(PyValueError::new_err(
+                    "byte_offset and byte_size must be provided together",
+                ));
+            }
+            if invert_size && byte_size.is_none() {
+                return Err(PyValueError::new_err(
+                    "invert_size requires byte_offset and byte_size",
+                ));
+            }
+            Ok(BitOperation {
+                op: OperationType::BitB64Encode(bin_name, byte_offset, byte_size, invert_size),
+            })
+        }
     }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -2370,6 +2404,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::BitGet(_, _, _) | OperationType::BitCount(_, _, _) |
             OperationType::BitLScan(_, _, _, _) | OperationType::BitRScan(_, _, _, _) |
             OperationType::BitGetInt(_, _, _, _) |
+            OperationType::BitB64Encode(_, _, _, _) |
             OperationType::HllInit(_, _, _, _) |
             OperationType::HllGetCount(_) | OperationType::HllDescribe(_) |
             OperationType::HllRefreshCount(_) | OperationType::HllFold(_, _) => {
@@ -3149,6 +3184,15 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed) => {
                 use aerospike_core::operations::bitwise;
                 bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
+            }
+            OperationType::BitB64Encode(bin_name, byte_offset, byte_size, invert_size) => {
+                use aerospike_core::operations::bitwise;
+                match (byte_offset, byte_size) {
+                    (Some(offset), Some(size)) => {
+                        bitwise::b64_encode_range(bin_name, *offset, *size, *invert_size)
+                    }
+                    _ => bitwise::b64_encode(bin_name),
+                }
             }
             OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags) => {
                 use aerospike_core::operations::hll;

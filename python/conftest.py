@@ -158,6 +158,18 @@ async def supports_string_operations(server_version):
     return server_version is not None and server_version >= SERVER_8_1_3
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_bit_b64_encode(server_version):
+    """``True`` when the (default-host) cluster supports the bit b64_encode op.
+
+    Covers ``BitOperation.b64_encode`` and the ``bit_b64_encode`` /
+    ``bit_b64_encode_range`` filter expressions (server >= 8.1.3). Same
+    single-host model as ``supports_string_operations``; tests should
+    ``pytest.skip`` when this is ``False``.
+    """
+    return server_version is not None and server_version >= SERVER_8_1_3
+
+
 async def _probe_all_nodes_version_capability(
     aerospike_host,
     use_services_alternate,

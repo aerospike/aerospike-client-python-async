@@ -2925,6 +2925,33 @@ use crate::string_ops::StringNumericType;
             }
         }
 
+        #[staticmethod]
+        /// Create expression that returns the base64 text of the whole byte[] bin.
+        /// Requires Aerospike Server version 8.1.3 or later.
+        pub fn bit_b64_encode(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::b64_encode(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns the base64 text of a byte range of byte[] bin,
+        /// starting at byte_offset for byte_size. When invert_size is true, byte_size
+        /// counts back from the end of the blob, so an inverted size of 0 encodes
+        /// through to the end. Requires Aerospike Server version 8.1.3 or later.
+        pub fn bit_b64_encode_range(
+            byte_offset: FilterExpression,
+            byte_size: FilterExpression,
+            invert_size: bool,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::b64_encode_range(byte_offset._as, byte_size._as, invert_size, bin._as),
+            }
+        }
+
         //--------------------------------------------------
         // HLL Expressions
         //--------------------------------------------------
