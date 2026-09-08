@@ -46,85 +46,53 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x86_64-py311
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.11"
-            python-interpreter: python3.11
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-x86_64-py312
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.12"
-            python-interpreter: python3.12
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-x86_64-py313
+          # Linux wheels build inside quay.io/pypa/manylinux_2_28 so the wheel
+          # floor is the image's glibc (2.28), not the runner's (2.34 x86_64 /
+          # 2.38 aarch64). python-interpreter is a space-separated list of
+          # PEP 425 tags resolved to /opt/python/<tag>/bin/python in the image;
+          # python-version only picks the host interpreter for stamp_version.py.
+          # Dependency crates compile once per cell into a shared target/, so
+          # one cell per interpreter (the Windows shape) would multiply the
+          # image-pull + rustup overhead for little parallel win.
+          #
+          # Two cells per architecture, not one: the verify-only artifact
+          # prefix on the prerelease cell is the entire mechanism keeping
+          # cp315/cp315t wheels out of collect/deploy, and a shared build/
+          # directory would collapse the two artifact names into one.
+          - name: linux-x86_64-manylinux
             runs-on: ubuntu-22.04
             package-kind: wheel
             python-version: "3.13"
-            python-interpreter: python3.13
+            python-interpreter: "cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314 cp314-cp314t"
             maturin-target: ""
-            manylinux: auto
-          - name: linux-x86_64-py314
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.14"
-            python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: auto
-          # 3.15 rows build against the release candidate (ABI-frozen at rc1) so
-          # wheels are installable on day one of 3.15.0 final; switch the -dev
-          # spellings to plain "3.15"/"3.15t" once the final release is out.
-          - name: linux-x86_64-py315
+            manylinux: "2_28"
+          - name: linux-x86_64-manylinux-prerelease
             # Build-verify only until 3.15.0 final + a cp315 uvloop:
             # excluded from collect/deploy by the artifact prefix.
             artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-22.04
             package-kind: wheel
-            python-version: "3.15-dev"
-            python-interpreter: python3.15
+            python-version: "3.13"
+            python-interpreter: "cp315-cp315 cp315-cp315t"
             maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py311
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.11"
-            python-interpreter: python3.11
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py312
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.12"
-            python-interpreter: python3.12
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py313
+            manylinux: "2_28"
+          - name: linux-aarch64-manylinux
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
             python-version: "3.13"
-            python-interpreter: python3.13
+            python-interpreter: "cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314 cp314-cp314t"
             maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py314
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.14"
-            python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py315
+            manylinux: "2_28"
+          - name: linux-aarch64-manylinux-prerelease
             # Build-verify only until 3.15.0 final + a cp315 uvloop:
             # excluded from collect/deploy by the artifact prefix.
             artifact-prefix: verify-only-artifacts
             runs-on: ubuntu-24.04-arm
             package-kind: wheel
-            python-version: "3.15-dev"
-            python-interpreter: python3.15
+            python-version: "3.13"
+            python-interpreter: "cp315-cp315 cp315-cp315t"
             maturin-target: ""
-            manylinux: auto
+            manylinux: "2_28"
           - name: macos-x86_64-py311
             runs-on: macos-latest-large
             package-kind: wheel
@@ -153,6 +121,11 @@ jobs:
             python-interpreter: python3.14
             maturin-target: ""
             manylinux: ""
+          # 3.15 rows build against the release candidate (ABI-frozen at rc1) so
+          # wheels are installable on day one of 3.15.0 final; switch the -dev
+          # spellings to plain "3.15"/"3.15t" once the final release is out.
+          # (The Linux manylinux-prerelease cells build cp315/cp315t from the
+          # container's interpreters, so only macOS/Windows carry -dev rows.)
           - name: macos-x86_64-py315
             # Build-verify only until 3.15.0 final + a cp315 uvloop:
             # excluded from collect/deploy by the artifact prefix.
@@ -218,43 +191,12 @@ jobs:
             python-interpreter: python3.15t
             maturin-target: ""
             manylinux: ""
-          - name: linux-x86_64-py314t
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.14t"
-            python-interpreter: python3.14t
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-x86_64-py315t
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.15t-dev"
-            python-interpreter: python3.15t
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py314t
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.14t"
-            python-interpreter: python3.14t
-            maturin-target: ""
-            manylinux: auto
-          - name: linux-aarch64-py315t
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.15t-dev"
-            python-interpreter: python3.15t
-            maturin-target: ""
-            manylinux: auto
-          # One leg per interpreter, like every other platform. Building the whole
-          # 3.11-3.14 set in a single job serialized five release compiles and made
-          # this the longest job in the pipeline by a factor of three.
+          # One leg per interpreter, unlike the Linux container cells. Building
+          # the whole 3.11-3.14 set in a single job serialized five full release
+          # compiles (each also paying a choco nasm install) and made this the
+          # longest job in the pipeline by a factor of three. Linux escapes that:
+          # dependency crates compile once into a shared target/ and only pyo3
+          # and the client crate itself rebuild per interpreter.
           - name: windows-x64-py311
             runs-on: windows-2022
             package-kind: wheel
@@ -317,8 +259,46 @@ jobs:
       build-script: |
         set -euo pipefail
 
+        # Stamping runs on the host: the container mounts the workspace, so it
+        # builds the stamped tree.
         if [[ -n "${VERSION_OVERRIDE:-}" ]]; then
           python .github/scripts/stamp_version.py "$VERSION_OVERRIDE"
+        fi
+
+        if [[ "$RUNNER_OS" == "Linux" && "$PACKAGE_KIND" == "wheel" ]]; then
+          # Build inside the manylinux container: the image's glibc, not the
+          # runner's, sets the wheel floor. Pinned to a dated tag because the
+          # image contents change without warning (cp313-cp313t was removed
+          # on 2026-05-07); bump deliberately.
+          MANYLINUX_IMAGE_TAG=2026.09.05-1
+
+          # PYTHON_INTERPRETER holds PEP 425 tags; resolve them against the
+          # image's /opt/python tree.
+          interpreters=()
+          for tag in $PYTHON_INTERPRETER; do
+            interpreters+=("/opt/python/${tag}/bin/python")
+          done
+
+          rm -rf build
+          mkdir -p build
+
+          docker run --rm -v "$PWD:/io" -w /io \
+            -e AWS_LC_SYS_CMAKE_BUILDER=0 \
+            -e AWS_LC_SYS_EXTERNAL_BINDGEN=0 \
+            -e AWS_LC_SYS_NO_PREGENERATED_SRC=0 \
+            "quay.io/pypa/manylinux_${MANYLINUX}_$(uname -m):${MANYLINUX_IMAGE_TAG}" \
+            bash -euo pipefail -c "
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+                sh -s -- -y --profile minimal --default-toolchain 1.90.0
+              export PATH=\"\$HOME/.cargo/bin:\$PATH\"
+              pipx install 'maturin>=1.9.0,<2.0'
+              maturin build --release --out build \
+                --compatibility manylinux_${MANYLINUX} \
+                --interpreter ${interpreters[*]}
+            "
+          # The container writes as root; the upload step runs as the runner user.
+          sudo chown -R "$(id -u):$(id -g)" build
+          exit 0
         fi
 
         python -m pip install --upgrade pip
@@ -352,9 +332,6 @@ jobs:
         args=(build --release --out build --interpreter "$PYTHON_INTERPRETER")
         if [[ -n "$MATURIN_TARGET" ]]; then
           args+=(--target "$MATURIN_TARGET")
-        fi
-        if [[ -n "$MANYLINUX" && "$MANYLINUX" != "auto" ]]; then
-          args+=(--compatibility "$MANYLINUX")
         fi
 
         maturin "${args[@]}"

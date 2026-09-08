@@ -93,7 +93,9 @@ jobs:
         env:
           # Force aws-lc-sys to use pre-generated bindings instead of bindgen/CMake
           # This avoids needing libclang and system headers in manylinux Docker containers
-          # Note: These environment variables should be passed into the Docker container
+          # Caveat: maturin-action forwards only a prefix allowlist (CARGO_,
+          # MATURIN_, PYO3_, RUST*, ...) into its container; AWS_LC_SYS_*
+          # matches none of them, so these reach only host-side builds.
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
           # Ensure pre-generated bindings are used (don't skip them)
@@ -635,9 +637,11 @@ jobs:
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
           sccache: 'true'
           # Build against the host Python installed by setup-python above.
-          # The default manylinux Docker container does not include
-          # free-threaded CPython builds (3.14t), so spinning one up causes
-          # maturin to fail with "Couldn't find any python interpreters".
+          # The container `manylinux: auto` selects (manylinux2014) has no
+          # free-threaded CPython builds, so spinning one up causes maturin
+          # to fail with "Couldn't find any python interpreters". The
+          # manylinux_2_28 image release builds use *does* ship cp314t and
+          # cp315t; this test leg just wants the host interpreter.
           # (3.13t was dropped — PyO3 0.29 removed support; FT now starts
           # at 3.14t.)
           manylinux: off
