@@ -267,12 +267,14 @@ with an index filter (`Statement.filters`) or a record filter expression
 [`python/examples/vector_topk_query.py`](python/examples/vector_topk_query.py)
 for a full example.
 
-**Work in progress:** Top-K's wire encode is capability-gated in the
-underlying client and has no assigned minimum server version yet, so a query
-with `order_by`/`top_k` set currently fails fast client-side (`ValueError`)
-regardless of the server behind it. The vector distance expressions'
-wire contract is likewise implemented and unit-tested for packing, but not
-yet verified against server code.
+Top-K supports server pushdown and client-side reduction. This client currently
+uses bounded client-side reducers; it does not yet encode pushdown requests.
+Results are deduplicated by record digest and deterministically ordered by order
+key, then digest.
+
+Distance expressions require VECTOR support. Missing or incompatible vectors
+evaluate to unknown; use `ExpReadFlags.EVAL_NO_FAIL` with
+`ExpOperation.read` to receive an absent result bin.
 
 ## Versioning
 

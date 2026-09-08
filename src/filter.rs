@@ -471,11 +471,8 @@ use crate::{Order, OrderByFlags, OrderByType};
         /// returned records, never which records match. ``flags`` currently only defines
         /// ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
         ///
-        /// # Work in progress
-        ///
-        /// Top-K's wire encode is capability-gated in the underlying client and has no assigned
-        /// minimum server version yet — a query with ``order_by``/``top_k`` set currently fails
-        /// fast client-side regardless of the server behind it.
+        /// Top-K currently runs client-side. Server pushdown is not yet encoded by this client.
+        /// Results are deduplicated by digest and ordered by order key, then digest.
         #[pyo3(signature = (bin_name, order_type, direction, flags = None))]
         pub fn set_order_by(
             &mut self,

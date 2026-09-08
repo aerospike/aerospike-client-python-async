@@ -18,12 +18,8 @@
 Vector bin + Top-K ("ORDER BY <bin> LIMIT k") hybrid search example, using
 cosine similarity as the distance metric.
 
-WORK IN PROGRESS: Top-K's wire encode is capability-gated in the underlying
-Rust client and has no assigned minimum server version yet, so any query
-below that sets ``order_by``/``top_k`` will currently fail fast client-side
-with a ValueError, regardless of the server it targets. Kept here so the
-Python-level API surface (which is fully implemented and unit-tested) is
-documented and easy to try again once the server-side capability lands.
+Top-K uses client-side reduction. Server pushdown is not yet encoded by this
+client. Distance expressions require VECTOR support.
 """
 
 import asyncio
@@ -112,16 +108,10 @@ async def main():
         )
 
         print("--- Top-K by cosine_similarity ---")
-        try:
-            await vector_topk_example(client)
-        except Exception as e:
-            print(f"Query failed (expected until the server-side Top-K capability gate is set): {e}")
+        await vector_topk_example(client)
 
         print("\n--- Hybrid search (category filter + Top-K by cosine_similarity) ---")
-        try:
-            await hybrid_search_example(client)
-        except Exception as e:
-            print(f"Query failed (expected until the server-side Top-K capability gate is set): {e}")
+        await hybrid_search_example(client)
 
     finally:
         await client.close()

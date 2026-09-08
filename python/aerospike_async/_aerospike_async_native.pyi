@@ -2469,15 +2469,10 @@ class FilterExpression:
     @staticmethod
     def vector_bin(name: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
-        Create a vector bin expression, for use with :meth:`euclidean_squared_distance`,
-        :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
-        the expression level.
+        Create a vector bin expression for use with :meth:`euclidean_squared_distance`,
+        :meth:`dot_product`, and :meth:`cosine_similarity`.
 
-        # Work in progress
-
-        The vector distance wire contract has not yet been double-checked against current
-        server code and has no integration test coverage — see the caveats on
-        :meth:`cosine_similarity`.
+        Use with vector-distance expressions.
         """
     @staticmethod
     def euclidean_squared_distance(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -2485,15 +2480,9 @@ class FilterExpression:
         Create an expression that returns the squared Euclidean distance between a stored
         vector bin and ``query``, as a 64-bit float. Smaller is closer.
 
-        The query vector's element type and dimension count must match the stored vector;
-        otherwise the expression evaluates to unknown. ``bin`` is typically
+        Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         :meth:`vector_bin`.
-
-        # Work in progress
-
-        This expression's wire contract has not yet been double-checked against current
-        server code and has no integration test coverage. It also depends on the same
-        unassigned server-version capability gate as :meth:`Statement.set_order_by`.
         """
     @staticmethod
     def dot_product(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -2501,13 +2490,9 @@ class FilterExpression:
         Create an expression that returns the dot product between a stored vector bin and
         ``query``, as a 64-bit float. Larger is more similar.
 
-        The query vector's element type and dimension count must match the stored vector;
-        otherwise the expression evaluates to unknown. ``bin`` is typically
+        Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         :meth:`vector_bin`.
-
-        # Work in progress
-
-        See the caveats on :meth:`euclidean_squared_distance`.
         """
     @staticmethod
     def cosine_similarity(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -2515,13 +2500,9 @@ class FilterExpression:
         Create an expression that returns the cosine similarity between a stored vector bin
         and ``query``, as a 64-bit float. Larger is more similar.
 
-        The query vector's element type and dimension count must match the stored vector;
-        otherwise the expression evaluates to unknown. ``bin`` is typically
+        Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         :meth:`vector_bin`.
-
-        # Work in progress
-
-        See the caveats on :meth:`euclidean_squared_distance`.
         """
     @staticmethod
     def bin_exists(name: builtins.str) -> _aerospike_async_native.FilterExpression:
@@ -5748,11 +5729,8 @@ class Statement:
         returned records, never which records match. ``flags`` currently only defines
         ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
 
-        # Work in progress
-
-        Top-K's wire encode is capability-gated in the underlying client and has no assigned
-        minimum server version yet — a query with ``order_by``/``top_k`` set currently fails
-        fast client-side regardless of the server behind it.
+        Top-K currently runs client-side. Server pushdown is not yet encoded by this client.
+        Results are deduplicated by digest and ordered by order key, then digest.
         """
     def set_top_k(self, k: builtins.int) -> None:
         r"""

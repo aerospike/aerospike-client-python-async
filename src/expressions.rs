@@ -524,15 +524,10 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Create a vector bin expression, for use with :meth:`euclidean_squared_distance`,
-        /// :meth:`dot_product`, and :meth:`cosine_similarity`. A vector bin is read as a blob at
-        /// the expression level.
+        /// Create a vector bin expression for use with :meth:`euclidean_squared_distance`,
+        /// :meth:`dot_product`, and :meth:`cosine_similarity`.
         ///
-        /// # Work in progress
-        ///
-        /// The vector distance wire contract has not yet been double-checked against current
-        /// server code and has no integration test coverage — see the caveats on
-        /// :meth:`cosine_similarity`.
+        /// Use with vector-distance expressions.
         pub fn vector_bin(name: String) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector_bin(name),
@@ -543,15 +538,9 @@ use crate::string_ops::StringNumericType;
         /// Create an expression that returns the squared Euclidean distance between a stored
         /// vector bin and ``query``, as a 64-bit float. Smaller is closer.
         ///
-        /// The query vector's element type and dimension count must match the stored vector;
-        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        /// ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         /// :meth:`vector_bin`.
-        ///
-        /// # Work in progress
-        ///
-        /// This expression's wire contract has not yet been double-checked against current
-        /// server code and has no integration test coverage. It also depends on the same
-        /// unassigned server-version capability gate as :meth:`Statement.set_order_by`.
         pub fn euclidean_squared_distance(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector::euclidean_squared_distance(&query.v, bin._as),
@@ -562,13 +551,9 @@ use crate::string_ops::StringNumericType;
         /// Create an expression that returns the dot product between a stored vector bin and
         /// ``query``, as a 64-bit float. Larger is more similar.
         ///
-        /// The query vector's element type and dimension count must match the stored vector;
-        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        /// ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         /// :meth:`vector_bin`.
-        ///
-        /// # Work in progress
-        ///
-        /// See the caveats on :meth:`euclidean_squared_distance`.
         pub fn dot_product(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector::dot_product(&query.v, bin._as),
@@ -579,13 +564,9 @@ use crate::string_ops::StringNumericType;
         /// Create an expression that returns the cosine similarity between a stored vector bin
         /// and ``query``, as a 64-bit float. Larger is more similar.
         ///
-        /// The query vector's element type and dimension count must match the stored vector;
-        /// otherwise the expression evaluates to unknown. ``bin`` is typically
+        /// Incompatible vectors evaluate to unknown. Use ``ExpReadFlags.EVAL_NO_FAIL`` with
+        /// ``ExpOperation.read`` to return an absent result bin. ``bin`` is typically
         /// :meth:`vector_bin`.
-        ///
-        /// # Work in progress
-        ///
-        /// See the caveats on :meth:`euclidean_squared_distance`.
         pub fn cosine_similarity(query: &Vector, bin: FilterExpression) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector::cosine_similarity(&query.v, bin._as),
@@ -3893,10 +3874,8 @@ use crate::string_ops::StringNumericType;
         /// Returns STRING — `src` with the first match of `pattern` replaced by
         /// `replacement`. Set the `GLOBAL` bit in `regex_flags` to replace every match.
         ///
-        /// Note: rust-core's signature includes `_policy` for API symmetry; the
-        /// wire payload has no write-flags slot (the server rejects messages
-        /// that pack one). PAC passes the default policy and surfaces only
-        /// `regex_flags` here.
+        /// The Rust core also takes string write flags. This API preserves its
+        /// existing Python signature by passing the default policy.
         pub fn string_regex_replace(pattern: FilterExpression, replacement: FilterExpression, regex_flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
