@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import pytest
+
 from aerospike_async import (
     Operation,
     ListOperation,
@@ -345,6 +347,24 @@ class TestBitOperation:
         bp = BitPolicy(None)
         op = BitOperation.set_int("bitbin", 0, 8, 42, bp)
         assert isinstance(op, BitOperation)
+
+    def test_b64_encode_whole_and_range(self):
+        op = BitOperation.b64_encode("bitbin")
+        assert isinstance(op, BitOperation)
+        op = BitOperation.b64_encode("bitbin", 0, 2)
+        assert isinstance(op, BitOperation)
+        op = BitOperation.b64_encode("bitbin", 1, 0, invert_size=True)
+        assert isinstance(op, BitOperation)
+
+    def test_b64_encode_offset_and_size_come_together(self):
+        with pytest.raises(ValueError):
+            BitOperation.b64_encode("bitbin", byte_offset=1)
+        with pytest.raises(ValueError):
+            BitOperation.b64_encode("bitbin", byte_size=2)
+
+    def test_b64_encode_invert_size_requires_range(self):
+        with pytest.raises(ValueError):
+            BitOperation.b64_encode("bitbin", invert_size=True)
 
 
 

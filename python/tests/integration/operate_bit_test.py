@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import base64
+
 import pytest
 import pytest_asyncio
 
@@ -838,6 +840,41 @@ async def test_operate_bit_get_int(client_and_key):
     assert results[0] == 15  # 4 bits from offset 4, unsigned
     assert results[2] == 15  # 8 bits from offset 0, unsigned
     assert results[3] == 15  # 8 bits from offset 0, signed
+
+
+async def test_operate_bit_b64_encode(client_and_key, supports_bit_b64_encode):
+    """Base64 read of a blob bin: whole, byte span, inverted size, negative offset.
+
+    The span is in bytes, not bits, unlike every other bit read op. With
+    invert_size the size counts back from the end, so 0 means "to the end".
+    """
+    if not supports_bit_b64_encode:
+        pytest.skip("bit b64_encode requires server >= 8.1.3")
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    initial = bytes([0x01, 0x42, 0x03])
+    await client.put(key, {"bitbin": initial}, policy=wp)
+
+    record = await client.operate(
+        key,
+        [
+            BitOperation.b64_encode("bitbin"),
+            BitOperation.b64_encode("bitbin", 0, 2),
+            BitOperation.b64_encode("bitbin", 1, 0, invert_size=True),
+            BitOperation.b64_encode("bitbin", -1, 1),
+        ],
+        policy=wp,
+    )
+
+    assert record is not None
+    results = record.bins.get("bitbin")
+    assert results == [
+        base64.b64encode(initial).decode(),
+        base64.b64encode(bytes([0x01, 0x42])).decode(),
+        base64.b64encode(bytes([0x42, 0x03])).decode(),
+        base64.b64encode(bytes([0x03])).decode(),
+    ]
 
 
 async def test_operate_bit_resize(client_and_key):

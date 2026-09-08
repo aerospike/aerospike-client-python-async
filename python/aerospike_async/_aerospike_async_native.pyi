@@ -604,6 +604,19 @@ class BitOperation:
         r"""
         Create a Bit get_int operation (gets integer value, read-only).
         """
+    @staticmethod
+    def b64_encode(bin_name: builtins.str, byte_offset: typing.Optional[builtins.int] = None, byte_size: typing.Optional[builtins.int] = None, invert_size: builtins.bool = False) -> _aerospike_async_native.BitOperation:
+        r"""
+        Create a Bit b64_encode operation (returns base64 text of the blob, read-only).
+
+        Without a range, encodes the whole blob. With ``byte_offset`` and
+        ``byte_size`` (required together), encodes that byte range; a negative
+        ``byte_offset`` counts back from the end of the blob. When
+        ``invert_size`` is true, ``byte_size`` counts back from the end
+        instead, so an inverted size of 0 encodes through to the end.
+
+        Requires Aerospike Server version 8.1.3 or later.
+        """
 
 class BitPolicy:
     def __new__(cls, write_flags: typing.Optional[typing.Any] = None) -> _aerospike_async_native.BitPolicy:
@@ -3409,6 +3422,20 @@ class FilterExpression:
         r"""
         Create expression that returns integer from byte[] bin starting at bit_offset for bit_size.
         Signed indicates if bits should be treated as a signed number.
+        """
+    @staticmethod
+    def bit_b64_encode(bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create expression that returns the base64 text of the whole byte[] bin.
+        Requires Aerospike Server version 8.1.3 or later.
+        """
+    @staticmethod
+    def bit_b64_encode_range(byte_offset: _aerospike_async_native.FilterExpression, byte_size: _aerospike_async_native.FilterExpression, invert_size: builtins.bool, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create expression that returns the base64 text of a byte range of byte[] bin,
+        starting at byte_offset for byte_size. When invert_size is true, byte_size
+        counts back from the end of the blob, so an inverted size of 0 encodes
+        through to the end. Requires Aerospike Server version 8.1.3 or later.
         """
     @staticmethod
     def hll_init(policy: _aerospike_async_native.HLLPolicy, index_bit_count: _aerospike_async_native.FilterExpression, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
