@@ -152,7 +152,7 @@ class TestBitExpRead(TestFixtureConnection):
         """bit_b64_encode / bit_b64_encode_range as filters: whole blob, byte
         span, inverted size (0 = through to the end), negative offset."""
         if not supports_bit_b64_encode:
-            pytest.skip("bit b64_encode requires server >= 8.1.3")
+            pytest.skip("bit b64_encode requires server >= 8.2.0")
         key = Key("test", "test", "bit_exp_b64_encode")
         wp = WritePolicy()
         rp = ReadPolicy()

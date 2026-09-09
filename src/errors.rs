@@ -91,7 +91,7 @@ impl ServerError {
 
     /// Server-supplied error subcode, present when the request asked for
     /// extended error detail (``error_detail_verbosity`` >= 1) and the
-    /// server (>= 8.1.3) attached one. Subcode values are scoped to their
+    /// server (>= 8.2.0) attached one. Subcode values are scoped to their
     /// parent result code — interpret the (result_code, sub_code) pair.
     #[getter]
     fn sub_code(&self) -> Option<u32> {
@@ -683,7 +683,7 @@ impl From<RustClientError> for PyErr {
             if let Some(detail) = detail {
                 // Extended server error detail (subcode / message / exp trace),
                 // present when error_detail_verbosity > 0 and the server
-                // (>= 8.1.3) attached one.
+                // (>= 8.2.0) attached one.
                 message.push_str(&format!(", Detail: {detail}"));
             }
             let ctx = capture_retry_context(&err);

@@ -284,7 +284,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// CDT path modify operation — writes nested CDT data by path expression.
         CdtModifyByPath(String, i64, FilterExpression, Vec<CTX>),
 
-        // ----- String operations (server 8.1.3+) -----
+        // ----- String operations (server 8.2.0+) -----
         // STRING_READ — sub-ops 0..16. No write_flags field.
         /// String strlen — codepoint count.
         StringStrlen(String),
@@ -1412,7 +1412,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// ``invert_size`` is true, ``byte_size`` counts back from the end
         /// instead, so an inverted size of 0 encodes through to the end.
         ///
-        /// Requires Aerospike Server version 8.1.3 or later.
+        /// Requires Aerospike Server version 8.2.0 or later.
         #[staticmethod]
         #[pyo3(signature = (bin_name, byte_offset = None, byte_size = None, invert_size = false))]
         pub fn b64_encode(
@@ -2429,7 +2429,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             | OperationType::CdtSelectByPath(_, _, _)
             | OperationType::CdtModifyByPath(_, _, _, _) => {}
 
-            // String ops (server 8.1.3+): args are owned in the variant; rust-core's
+            // String ops (server 8.2.0+): args are owned in the variant; rust-core's
             // builders take &str and copy/own internally. No pre-storage needed.
             OperationType::StringStrlen(_) | OperationType::StringSubstr(_, _, _)
             | OperationType::StringCharAt(_, _) | OperationType::StringFind(_, _, _)
@@ -3302,7 +3302,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 modify_by_path(bin_name, ModifyFlag(*flag), exp._as.clone(), &core_ctx)
             }
 
-            // ----- String ops (server 8.1.3+) -----
+            // ----- String ops (server 8.2.0+) -----
             // Performance notes:
             //   - `bin` and string args (`needle` / `pattern` / `value` / etc.) are passed
             //     to rust-core as &str via auto-deref. Zero per-op alloc beyond the args

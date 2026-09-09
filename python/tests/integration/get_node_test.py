@@ -220,7 +220,7 @@ class TestVersion(TestFixtureConnection):
 
         result = version.supports_query_selection()
         assert isinstance(result, bool)
-        if (version.major, version.minor, version.patch) >= (8, 1, 3):
+        if (version.major, version.minor, version.patch) >= (8, 2, 0):
             assert result is True
 
     async def test_version_supports_server_compiled_ael(self, client):
@@ -230,7 +230,7 @@ class TestVersion(TestFixtureConnection):
 
         result = version.supports_server_compiled_ael()
         assert isinstance(result, bool)
-        if (version.major, version.minor, version.patch) >= (8, 1, 3):
+        if (version.major, version.minor, version.patch) >= (8, 2, 0):
             assert result is True
 
 

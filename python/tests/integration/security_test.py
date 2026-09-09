@@ -45,7 +45,7 @@ async def wait_for_role(
 
     Visibility is not the same as completeness: a role appears in
     ``query_roles`` before all of its fields have propagated. Measured on
-    8.1.3, a role created with quotas is queryable after ~5 ms but still
+    8.2.0, a role created with quotas is queryable after ~5 ms but still
     reports ``read_quota``/``write_quota`` of 0 for a further ~200 ms. A test
     that waits only for existence therefore reads a half-populated role and
     asserts against zeros -- an ordinary-looking assertion that fails on

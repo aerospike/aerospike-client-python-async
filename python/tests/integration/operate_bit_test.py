@@ -849,7 +849,7 @@ async def test_operate_bit_b64_encode(client_and_key, supports_bit_b64_encode):
     invert_size the size counts back from the end, so 0 means "to the end".
     """
     if not supports_bit_b64_encode:
-        pytest.skip("bit b64_encode requires server >= 8.1.3")
+        pytest.skip("bit b64_encode requires server >= 8.2.0")
     client, key = client_and_key
 
     wp = WritePolicy()

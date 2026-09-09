@@ -226,7 +226,7 @@ class TestFilterExprBase64Query(TestFixtureConnection):
 
 
 class TestFilterExprServerCompiledAelQuery(TestFixtureConnection):
-    """Query with server-compiled AEL filters (server >= 8.1.3)."""
+    """Query with server-compiled AEL filters (server >= 8.2.0)."""
 
     NAMESPACE = "test"
     BIN_NAME = "bin"
@@ -236,8 +236,8 @@ class TestFilterExprServerCompiledAelQuery(TestFixtureConnection):
         """Create a set with records bin=0..19 for server-compiled AEL query tests."""
         if not supports_server_compiled_ael:
             pytest.skip(
-                "server-compiled AEL filters require server >= 8.1.3; point "
-                "AEROSPIKE_HOST at an 8.1.3+ build to run these"
+                "server-compiled AEL filters require server >= 8.2.0; point "
+                "AEROSPIKE_HOST at an 8.2.0+ build to run these"
             )
         set_name = f"sc_ael_{uuid.uuid4().hex[:8]}"
         wp = WritePolicy()

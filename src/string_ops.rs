@@ -31,7 +31,7 @@
 //! - `StringNumericType::{ANY, INT, FLOAT}` — passed as optional second arg
 //!   to `IS_NUMERIC` (sub-op id 10).
 //!
-//! Requires Aerospike Server 8.1.3+ at runtime; these tag types are version-
+//! Requires Aerospike Server 8.2.0+ at runtime; these tag types are version-
 //! independent and can be constructed against any cluster.
 
 use pyo3::exceptions::PyValueError;
@@ -405,7 +405,7 @@ impl StringNumericType {
 //
 //  StringOperation
 //
-//  Server-side string operations (server 8.1.3+). Spec sub-ops 0..16 (read,
+//  Server-side string operations (server 8.2.0+). Spec sub-ops 0..16 (read,
 //  STRING_READ op-type 17) and 50..66 (modify, STRING_MODIFY op-type 18),
 //  plus the top-level TO_STRING op-type 19. Wraps the rust-core surface in
 //  aerospike-core/src/operations/string.rs.
@@ -424,7 +424,7 @@ impl StringNumericType {
 //
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-/// String bin operations (server 8.1.3+). Use these to inspect or modify
+/// String bin operations (server 8.2.0+). Use these to inspect or modify
 /// string bins via the client's ``operate()`` method.
 ///
 /// Index orientation is left-to-right with codepoint addressing. Negative

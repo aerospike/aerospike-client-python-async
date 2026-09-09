@@ -12,7 +12,7 @@
 
 """End-to-end integration tests for server query selection (explain → execute).
 
-Requires Aerospike Server >= 8.1.3; tests self-skip via
+Requires Aerospike Server >= 8.2.0; tests self-skip via
 :func:`supports_query_selection`.
 """
 

@@ -371,7 +371,7 @@ async def supports_error_detail(server_version):
     """``True`` when the (default-host) cluster supplies extended error detail.
 
     Covers ``error_detail_verbosity`` and the resulting ``ServerError``
-    ``sub_code`` / ``server_message`` / ``exp_trace``. Server >= 8.1.3; older
+    ``sub_code`` / ``server_message`` / ``exp_trace``. Server >= 8.2.0; older
     servers ignore the request flags. Single-host model: point
     ``AEROSPIKE_HOST`` at an 8.2.0+ build to exercise these tests; CI covers
     the version spread via a server matrix rather than a dedicated host var.

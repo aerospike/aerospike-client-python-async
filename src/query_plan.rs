@@ -234,7 +234,7 @@ impl QueryPlan {
 /// Omit the argument (or pass ``None``) for default explain
 /// (``QueryWhereFlags.EXPLAIN`` only).
 ///
-/// Requires Aerospike Server version >= 8.1.3. Callers must verify
+/// Requires Aerospike Server version >= 8.2.0. Callers must verify
 /// :meth:`Version.supports_query_selection` before use.
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
 #[pyclass(name = "QueryWhereFlags", module = "_aerospike_async_native")]
