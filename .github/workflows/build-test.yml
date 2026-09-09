@@ -303,10 +303,10 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
 
-      # Windows can't run the Linux Aerospike server container, so there are no
-      # integration tests here (same as macOS). We still install + import the
-      # built wheel as a smoke check; full integration coverage is on the Linux
-      # jobs, which exercise the same Rust/Python logic.
+      # Windows can't run the Linux Aerospike server container, so this job is
+      # build + import smoke only (same as macOS). Integration coverage for the
+      # win_amd64 wheel runs in windows-integration below, against a server on
+      # the paired remote Docker host.
       - name: Import smoke test
         run: |
           $whl = (Get-ChildItem aerospike_async\*.whl | Select-Object -First 1).FullName
@@ -322,6 +322,154 @@ jobs:
         with:
           name: wheels-windows-${{ matrix.target }}-py${{ matrix.python }}
           path: aerospike_async
+
+  # Integration tests for the win_amd64 wheel, on the self-hosted GCP Windows
+  # fleet. Each Windows runner VM is paired with a Linux VM in the same VPC
+  # whose Docker daemon it reaches through a machine-level DOCKER_HOST, so
+  # every docker command below (the server action, docker logs) runs against
+  # that VM and the client connects to it across the VPC instead of localhost.
+  # Two constraints of that topology: only ports 3000/4333 are open from the
+  # runner to the Linux VM, and `docker run -v <host path>` would resolve on
+  # the Linux VM — the server action is safe (it ships configs into a named
+  # volume with `docker cp`), but don't add bind mounts here.
+  windows-integration:
+    needs: windows
+    # Skip (not queue) when the fleet isn't registered: a runs-on with no
+    # matching runner waits until the workflow times out. Set the repo
+    # variable WINDOWS_INTEGRATION_RUNNERS=true once the runners exist.
+    if: vars.WINDOWS_INTEGRATION_RUNNERS == 'true'
+    runs-on: [
+      self-hosted,
+      Windows,
+      X64
+    ]
+    # Advisory, same contract as macos-arm-integration: self-hosted failures
+    # here are more often environmental than defects in the wheel under test,
+    # so a red must not gate the matrix. The last step surfaces the failure
+    # as a warning annotation and a job-summary entry.
+    continue-on-error: true
+    timeout-minutes: 60
+    defaults:
+      run:
+        # Git Bash from the runner image; keeps these steps identical to the
+        # POSIX legs.
+        shell: bash
+    strategy:
+      matrix:
+        python: ['3.11', '3.12', '3.13', '3.14']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the remote Docker host
+        run: |
+          case "$DOCKER_HOST" in
+            tcp://*) ;;
+            *)
+              echo "::error::DOCKER_HOST is '${DOCKER_HOST:-unset}'; this runner is not paired with a remote Docker VM"
+              exit 1
+              ;;
+          esac
+          host="${DOCKER_HOST#tcp://}"
+          host="${host%%:*}"
+          echo "SERVER_HOST=$host" >> "$GITHUB_ENV"
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-windows-x64-py${{ matrix.python }}
+          path: aerospike_async
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+
+      - name: Run Aerospike server
+        id: aerospike
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
+        with:
+          server-tag: ${{ env.AEROSPIKE_SERVER_TAG }}
+          server-container-repo: ${{ env.AEROSPIKE_SERVER_REPO }}
+          num-nodes: 1
+          config-file: .github/aerospike.conf
+          oidc-provider: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
+
+      - name: Assert the server is the one we asked for
+        # SERVER_HOST from the resolve step points it at the remote VM.
+        env:
+          EXPECTED_BUILD: ${{ env.AEROSPIKE_SERVER_TAG }}
+        run: python .github/assert-server.py
+
+      - name: Install wheel
+        # This job runs on a persistent runner and the version string is
+        # stable across merges, so a plain install is a no-op against
+        # whatever build a previous run left behind.
+        run: python -m pip install --force-reinstall *.whl
+        working-directory: aerospike_async
+      - name: Install pytest
+        run: python -m pip install pytest pytest-asyncio
+
+      - name: Assert the installed package matches the wheel under test
+        run: |
+          python - <<'EOF'
+          import hashlib, pathlib, zipfile
+          import aerospike_async
+          installed_init = pathlib.Path(aerospike_async.__file__).resolve()
+          [wheel] = pathlib.Path("aerospike_async").glob("*.whl")
+          with zipfile.ZipFile(wheel) as zf:
+              wheel_init = zf.read("aerospike_async/__init__.py")
+          digest = lambda b: hashlib.sha256(b).hexdigest()
+          installed, expected = digest(installed_init.read_bytes()), digest(wheel_init)
+          assert installed == expected, (
+              f"{installed_init} ({installed[:12]}) is not from {wheel.name} "
+              f"({expected[:12]}) — a stale install is shadowing the wheel under test"
+          )
+          print(f"aerospike_async at {installed_init} matches {wheel.name} ({expected[:12]})")
+          EOF
+
+      - name: Debug module contents
+        run: |
+          python -c "import aerospike_async; print('Module imported successfully')"
+          python -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+
+      - name: Run tests
+        id: itest
+        continue-on-error: true
+        env:
+          # The server is on the paired Linux VM, not localhost. Single node,
+          # so the client keeps talking to this seed address throughout; the
+          # container-scoped addresses the server advertises are never needed.
+          AEROSPIKE_HOST: ${{ env.SERVER_HOST }}:3000
+          AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
+        run: |
+          # Remove only the __init__.py file to prevent import conflicts with installed package
+          rm -f python/aerospike_async/__init__.py
+          # Remove .env file so tests use the AEROSPIKE_HOST set above
+          rm -f aerospike.env
+          # Run all tests (excluding slow tests in CI)
+          python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
+          if [ "$TEST_FAILED" = "true" ]; then
+            echo "=== Aerospike Server Log (last 100 lines) ==="
+            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
+            echo "=== End of Server Log ==="
+            exit 1
+          fi
+      # GitHub has no "warn" job conclusion, so a soft-failed job would
+      # otherwise report as green with nothing to notice.
+      - name: Surface an advisory failure
+        if: steps.itest.outcome == 'failure'
+        run: |
+          echo "::warning title=Windows integration failed (advisory)::python ${{ matrix.python }} failed on the self-hosted Windows runner; not gating the matrix"
+          {
+            echo "### :warning: Windows integration failed - advisory"
+            echo ""
+            echo "Python ${{ matrix.python }} on the self-hosted GCP Windows runner."
+            echo "This does not gate the matrix. Check the runner and its paired"
+            echo "Docker VM before concluding the code under test is at fault, and"
+            echo "do not read a later green here as proof it was fixed."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   macos-x86:
     runs-on: macos-latest-large
