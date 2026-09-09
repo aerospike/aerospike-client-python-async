@@ -139,7 +139,7 @@ async def aerospike_host_812_required(aerospike_host, server_version):
 # here rather than inlining a tuple in a new ``supports_*`` gate.
 SERVER_8_1_1 = (8, 1, 1, 0)
 SERVER_8_1_2 = (8, 1, 2, 0)
-SERVER_8_1_3 = (8, 1, 3, 0)
+SERVER_8_2_0 = (8, 2, 0, 0)
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -149,13 +149,13 @@ async def supports_string_operations(server_version):
     Covers ``StringOperation`` (strlen / substr / find / concat / upper /
     replace / pad / to_string / masking) and the string filter expressions,
     gated server-side via the Rust core's
-    ``Node.version.supports_string_operations()`` (server >= 8.1.3). Single-host
-    model: point ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these; CI
+    ``Node.version.supports_string_operations()`` (server >= 8.2.0). Single-host
+    model: point ``AEROSPIKE_HOST`` at an 8.2.0+ build to exercise these; CI
     covers the version spread via a server matrix rather than a dedicated host
     var. Tests that need string ops should ``pytest.skip`` when this is
     ``False``.
     """
-    return server_version is not None and server_version >= SERVER_8_1_3
+    return server_version is not None and server_version >= SERVER_8_2_0
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -163,11 +163,11 @@ async def supports_bit_b64_encode(server_version):
     """``True`` when the (default-host) cluster supports the bit b64_encode op.
 
     Covers ``BitOperation.b64_encode`` and the ``bit_b64_encode`` /
-    ``bit_b64_encode_range`` filter expressions (server >= 8.1.3). Same
+    ``bit_b64_encode_range`` filter expressions (server >= 8.2.0). Same
     single-host model as ``supports_string_operations``; tests should
     ``pytest.skip`` when this is ``False``.
     """
-    return server_version is not None and server_version >= SERVER_8_1_3
+    return server_version is not None and server_version >= SERVER_8_2_0
 
 
 async def _probe_all_nodes_version_capability(
@@ -373,10 +373,10 @@ async def supports_error_detail(server_version):
     Covers ``error_detail_verbosity`` and the resulting ``ServerError``
     ``sub_code`` / ``server_message`` / ``exp_trace``. Server >= 8.1.3; older
     servers ignore the request flags. Single-host model: point
-    ``AEROSPIKE_HOST`` at an 8.1.3+ build to exercise these tests; CI covers
+    ``AEROSPIKE_HOST`` at an 8.2.0+ build to exercise these tests; CI covers
     the version spread via a server matrix rather than a dedicated host var.
     """
-    return server_version is not None and server_version >= SERVER_8_1_3
+    return server_version is not None and server_version >= SERVER_8_2_0
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")

@@ -186,6 +186,29 @@ async def admin_client(aerospike_host_sec):
         if exc.result_code == ResultCode.SECURITY_NOT_ENABLED or isinstance(exc, SecurityNotEnabled):
             pytest.skip("Security is not enabled on the 8.1.3+ cluster")
         raise
+    # Self-provision the admin roles this module needs: the default `admin`
+    # ships with `user-admin` only, and security users and roles live in a
+    # namespace, so a freshly created cluster has none of the rest.
+    #
+    # `masking-admin` authorizes the `masking;...` info command, `read-write`
+    # seeds records, `write-masked` covers the admin-modifies-a-masked-bin
+    # case, and `read-masked` is required because this client is the suite's
+    # oracle for real values -- without it the masking rule applies to its own
+    # reads and it sees `***********` where a test expects `hello world`.
+    #
+    # A role granted to the connected user is not in effect on the connection
+    # that granted it, so reconnect before handing the client out.
+    granted = False
+    for role in ("read-write", "masking-admin", "read-masked", "write-masked", "truncate"):
+        try:
+            await client.grant_roles(user, [role])
+            granted = True
+        except Exception:
+            pass  # already held, or not a role on this build
+    if granted:
+        await client.close()
+        client = await new_client(cp, aerospike_host_sec)
+        await asyncio.sleep(2)  # tend
     yield client
     await client.close()
 

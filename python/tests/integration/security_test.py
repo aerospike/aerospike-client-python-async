@@ -81,28 +81,82 @@ async def wait_for_role(
     raise TimeoutError(f"Role {role_name!r} {detail} within {timeout}s")
 
 
-async def wait_for_role_gone(client, role_name, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
-    """Retry query_roles until it raises ServerError (role deleted)."""
-    for attempt in range(retries):
-        try:
-            await client.query_roles(role_name)
-        except ServerError:
-            return
-        if attempt < retries - 1:
-            await asyncio.sleep(delay)
-    pytest.fail(f"Role {role_name!r} still queryable after {retries} retries")
+async def security_smd(client):
+    """The server's own view of security-metadata commit state.
+
+    ``smd-info`` reports a ``security:`` section carrying a monotonic
+    ``committed_tid`` and a ``settled`` flag. Security changes -- create/drop
+    role or user, grant/revoke -- land through the system-metadata subsystem,
+    so this is the authoritative answer to "has my change committed yet",
+    rather than inferring it from whether the effect happens to be visible.
+    """
+    response = await client.info("smd-info")
+    body = next((v for v in response.values() if v), "")
+    for section in str(body).split(";"):
+        name, _, fields = section.partition(":")
+        if name.strip() == "security":
+            out = {}
+            for pair in fields.split(","):
+                key, _, value = pair.partition("=")
+                out[key.strip()] = value.strip()
+            return out
+    raise AssertionError(f"smd-info carried no security section: {body!r}")
 
 
-async def wait_for_user_gone(client, username, *, retries=PROPAGATION_RETRIES, delay=PROPAGATION_DELAY):
-    """Retry query_users(username) until it raises ServerError (user deleted)."""
-    for attempt in range(retries):
-        try:
-            await client.query_users(username)
-        except ServerError:
-            return
-        if attempt < retries - 1:
-            await asyncio.sleep(delay)
-    pytest.fail(f"User {username!r} still queryable after {retries} retries")
+async def committed_tid(client):
+    """Current security-metadata commit id, or -1 when the server omits it."""
+    return int((await security_smd(client)).get("committed_tid", -1))
+
+
+async def wait_for_security_commit(client, *, after_tid, timeout=20.0, interval=0.05):
+    """Block until the security metadata has committed past *after_tid*.
+
+    Deterministic in the sense that matters: it waits on the server's commit
+    counter rather than retrying an observable side effect until it happens to
+    appear. Once this returns, a change issued before it is committed, so the
+    caller asserts the outcome exactly once instead of in a retry loop -- a
+    retry loop cannot distinguish "slow to commit" from "did not happen", and
+    that ambiguity is what makes these tests flaky.
+    """
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        smd = await security_smd(client)
+        last = smd
+        tid = int(smd.get("committed_tid", -1))
+        if tid > after_tid and smd.get("settled") == "true":
+            return tid
+        await asyncio.sleep(interval)
+    raise TimeoutError(
+        f"security metadata did not commit past tid {after_tid} within "
+        f"{timeout}s; last smd-info security section: {last!r}"
+    )
+
+
+async def assert_role_gone(client, role_name, *, after_tid):
+    """After the drop commits, the role must be gone -- asserted once.
+
+    Takes the commit id captured *before* the drop, waits for the metadata to
+    move past it, then checks a single time.
+    """
+    await wait_for_security_commit(client, after_tid=after_tid)
+    try:
+        roles = await client.query_roles(role_name)
+    except ServerError:
+        return
+    pytest.fail(
+        f"Role {role_name!r} survived a committed drop: {roles!r}"
+    )
+
+
+async def assert_user_gone(client, username, *, after_tid):
+    """After the drop commits, the user must be gone -- asserted once."""
+    await wait_for_security_commit(client, after_tid=after_tid)
+    try:
+        users = await client.query_users(username)
+    except ServerError:
+        return
+    pytest.fail(f"User {username!r} survived a committed drop: {users!r}")
 
 
 async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
@@ -264,8 +318,10 @@ class TestSecurityFeatures:
         await client.create_user(username, "test_password_123", ["read:test"])
         await wait_for_user(client, username)
 
+        # Capture the commit id first, so the wait is on *this* drop landing.
+        before = await committed_tid(client)
         await client.drop_user(username)
-        await wait_for_user_gone(client, username, retries=20, delay=1.0)
+        await assert_user_gone(client, username, after_tid=before)
 
     async def test_drop_user_nonexistent(self, client):
         """Test deleting non-existent user."""
@@ -476,8 +532,10 @@ class TestSecurityFeatures:
 
         await wait_for_role(client, role_name)
 
+        # Capture the commit id first, so the wait is on *this* drop landing.
+        before = await committed_tid(client)
         await client.drop_role(role_name)
-        await wait_for_role_gone(client, role_name, retries=20, delay=1.0)
+        await assert_role_gone(client, role_name, after_tid=before)
 
     async def test_drop_role_nonexistent(self, client):
         """Test deleting non-existent role."""

@@ -195,24 +195,11 @@ class TestStringReadExpressions:
             await _eval_exp(string_client_813, key, Exp.string_is_lower(Exp.string_bin("l")))
         ) is True
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "is_upper/is_lower reject any string containing a non-cased "
-            "character -- a space, digit or punctuation mark makes an "
-            "otherwise-uppercase string report False. A server-side defect. "
-            "Strict, so the corrected behavior is asserted the moment the "
-            "server is fixed rather than passing silently."
-        ),
-    )
     async def test_classifiers_observe_a_chained_case_op(self, string_client_813):
-        """A case op chained into a classifier.
+        """A classifier sees the result of a case op chained beneath it.
 
-        The chaining itself is fine -- upper("hello") then is_upper() is True.
-        What fails is the space: measured on 8.1.3.0-104, "HELLO" is True while
-        "HELLO WORLD", "ABC123" and "HELLO!" are all False, and the empty
-        string is True. So the defect is the presence of a non-cased character,
-        not the case op being ignored.
+        The subject contains a space, so this also covers a non-cased
+        character not defeating the classifier.
         """
         key = _key("case_chained")
         await string_client_813.put(key, {"s": "hello world"}, policy=WritePolicy())
