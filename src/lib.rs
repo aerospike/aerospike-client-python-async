@@ -639,7 +639,8 @@ use crate::operations::{
         // -- Metrics (collection lives in the core; these are synchronous) --
 
         /// Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        /// microseconds/24-column scheme when no policy is given.
+        /// milliseconds/7-column scheme recording every command when no
+        /// policy is given.
         #[pyo3(signature = (policy = None))]
         pub fn enable_metrics(&self, policy: Option<MetricsPolicy>) {
             self.client
@@ -792,8 +793,7 @@ use crate::operations::{
             }
             // Match Recordset's guard: blocking iteration from inside an
             // async event loop would block the loop. Tell the user clearly.
-            let asyncio = py.import("asyncio")?;
-            if asyncio.call_method0("get_running_loop").is_ok() {
+            if blocking::in_async_context(py)? {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "Cannot iterate a blocking BatchRecordStream from within an \
                      async context. Use `async for (idx, br) in stream:` instead.",
@@ -4713,7 +4713,8 @@ use crate::operations::{
         // no awaitable, usable on blocking-constructed clients too.
 
         /// Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        /// microseconds/24-column scheme when no policy is given.
+        /// milliseconds/7-column scheme recording every command when no
+        /// policy is given.
         ///
         /// Re-enabling with a changed latency unit or histogram shape discards
         /// the accumulated latency samples; counters are always retained.
@@ -5068,7 +5069,6 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<MetricsPolicy>()?;
     m.add_class::<Sampler>()?;
     m.add_class::<LatencyUnit>()?;
-    m.add_class::<HistogramType>()?;
     m.add_class::<CommandType>()?;
     m.add_class::<ClusterMetrics>()?;
     m.add_class::<NodeMetricsSnapshot>()?;

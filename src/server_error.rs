@@ -24,7 +24,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
     /// (result code, subcode) pair: subcode values are scoped to their parent
     /// result code and are not globally unique. NONE (0) means no subcode.
     /// The catalog is append-only and server-version-specific; treat an
-    /// unknown value as an opaque integer. Requires server 8.1.3+.
+    /// unknown value as an opaque integer. Requires server 8.2.0+.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "SubCode", module = "_aerospike_async_native", frozen)]
     pub struct SubCode;
@@ -211,7 +211,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
     /// requests the numeric subcode; MESSAGE (2) adds the server message;
     /// EXPRESSION_TRACE (3) adds an expression trace on expression build
     /// failures.
-    /// Higher levels are supersets. Requires server 8.1.3+; older servers
+    /// Higher levels are supersets. Requires server 8.2.0+; older servers
     /// ignore the request.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "ErrorDetailVerbosity", module = "_aerospike_async_native", frozen)]

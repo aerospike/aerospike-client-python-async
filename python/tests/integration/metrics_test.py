@@ -65,7 +65,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert len(m.nodes) == m.total_nodes
 
         agg = m.cluster_aggregated
-        assert agg.latency_unit == LatencyUnit.MICROSECONDS
+        assert agg.latency_unit == LatencyUnit.MILLISECONDS
         assert agg.command_histogram(CommandType.GET).count >= 5
         assert agg.command_histogram(CommandType.PUT).count >= 5
         # NONE has no histogram of its own.
@@ -97,7 +97,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
 
         agg = client.metrics().cluster_aggregated
         hist = agg.command_histogram(CommandType.GET)
-        assert len(hist.buckets) == 24
+        assert len(hist.buckets) == 7
         assert hist.count >= 2
         assert sum(hist.buckets) == hist.count
 
@@ -143,7 +143,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert "exceeded-total-timeout" in d
 
         agg = d["cluster-aggregated-metrics"]
-        assert agg["latency-unit"] == "us"
+        assert agg["latency-unit"] == "ms"
         get_hist = agg["get-metrics"]
         assert set(get_hist) == {"buckets", "min", "max", "sum", "count"}
         assert get_hist["count"] >= 2

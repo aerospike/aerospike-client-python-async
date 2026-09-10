@@ -200,7 +200,7 @@ use crate::TlsConfig;
 
         /// Extended server-error detail requested per command: 0 none,
         /// 1 subcode, 2 +message, 3 +expression trace on expression build
-        /// failures. Default: 0 (disabled). Requires server 8.1.3+; older
+        /// failures. Default: 0 (disabled). Requires server 8.2.0+; older
         /// servers ignore it.
         #[getter]
         pub fn get_error_detail_verbosity(&self) -> u8 {

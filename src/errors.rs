@@ -91,7 +91,7 @@ impl ServerError {
 
     /// Server-supplied error subcode, present when the request asked for
     /// extended error detail (``error_detail_verbosity`` >= 1) and the
-    /// server (>= 8.1.3) attached one. Subcode values are scoped to their
+    /// server (>= 8.2.0) attached one. Subcode values are scoped to their
     /// parent result code — interpret the (result_code, sub_code) pair.
     #[getter]
     fn sub_code(&self) -> Option<u32> {
@@ -155,13 +155,24 @@ impl ServerError {
     }
 }
 
+// `aerospike_async.exceptions._get_server_error_class`, resolved once per
+// process: this runs on every server error, and a per-call `py.import`
+// convoys free-threaded builds on the import mutex under an error storm.
+static GET_SERVER_ERROR_CLASS: pyo3::sync::PyOnceLock<Py<PyAny>> =
+    pyo3::sync::PyOnceLock::new();
+
 // Resolve the Python ServerError subclass for the given result code (for dispatch).
 fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> PyResult<pyo3::Bound<'_, pyo3::types::PyAny>> {
-    let module = py.import("aerospike_async.exceptions")?;
-    let func = module.getattr("_get_server_error_class")?;
+    let func = GET_SERVER_ERROR_CLASS.get_or_try_init(py, || {
+        Ok::<_, PyErr>(
+            py.import("aerospike_async.exceptions")?
+                .getattr("_get_server_error_class")?
+                .unbind(),
+        )
+    })?;
     let rc_wrapper = ResultCode(result_code);
     let py_rc = Py::new(py, rc_wrapper)?;
-    func.call1((py_rc,))
+    func.bind(py).call1((py_rc,))
 }
 
 // Deferred arguments for a ServerError (or subclass) PyErr.  Holds only plain
@@ -672,7 +683,7 @@ impl From<RustClientError> for PyErr {
             if let Some(detail) = detail {
                 // Extended server error detail (subcode / message / exp trace),
                 // present when error_detail_verbosity > 0 and the server
-                // (>= 8.1.3) attached one.
+                // (>= 8.2.0) attached one.
                 message.push_str(&format!(", Detail: {detail}"));
             }
             let ctx = capture_retry_context(&err);

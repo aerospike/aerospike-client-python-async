@@ -1300,7 +1300,7 @@ use crate::string_ops::StringNumericType;
 
         #[staticmethod]
         /// Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
-        /// server (8.1.3+) parses and compiles the Aerospike Expression Language string.
+        /// server (8.2.0+) parses and compiles the Aerospike Expression Language string.
         pub fn from_server_compiled_ael(ael: &str) -> PyResult<FilterExpression> {
             aerospike_core::expressions::pack_ael_server_filter(ael)
                 .map(|expr| FilterExpression { _as: expr })
@@ -2975,6 +2975,33 @@ use crate::string_ops::StringNumericType;
             }
         }
 
+        #[staticmethod]
+        /// Create expression that returns the base64 text of the whole byte[] bin.
+        /// Requires Aerospike Server version 8.2.0 or later.
+        pub fn bit_b64_encode(bin: FilterExpression) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::b64_encode(bin._as),
+            }
+        }
+
+        #[staticmethod]
+        /// Create expression that returns the base64 text of a byte range of byte[] bin,
+        /// starting at byte_offset for byte_size. When invert_size is true, byte_size
+        /// counts back from the end of the blob, so an inverted size of 0 encodes
+        /// through to the end. Requires Aerospike Server version 8.2.0 or later.
+        pub fn bit_b64_encode_range(
+            byte_offset: FilterExpression,
+            byte_size: FilterExpression,
+            invert_size: bool,
+            bin: FilterExpression,
+        ) -> Self {
+            use aerospike_core::expressions::bitwise;
+            FilterExpression {
+                _as: bitwise::b64_encode_range(byte_offset._as, byte_size._as, invert_size, bin._as),
+            }
+        }
+
         //--------------------------------------------------
         // HLL Expressions
         //--------------------------------------------------
@@ -3501,7 +3528,7 @@ use crate::string_ops::StringNumericType;
 
         ////////////////////////////////////////////////////////////////////////////////////////////
         //
-        //  String expressions (server 8.1.3+)
+        //  String expressions (server 8.2.0+)
         //
         //  Wraps aerospike-core/src/expressions/string.rs. Conventions:
         //    - `src` is the TRAILING argument (matches the existing `bit_*` /

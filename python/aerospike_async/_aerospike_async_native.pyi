@@ -57,7 +57,6 @@ __all__ = [
     "HLLPolicy",
     "HLLWriteFlags",
     "Histogram",
-    "HistogramType",
     "HllOperation",
     "IndexTask",
     "IndexType",
@@ -198,7 +197,7 @@ class BasePolicy:
         r"""
         Extended server-error detail requested per command: 0 none,
         1 subcode, 2 +message, 3 +expression trace on expression build
-        failures. Default: 0 (disabled). Requires server 8.1.3+; older
+        failures. Default: 0 (disabled). Requires server 8.2.0+; older
         servers ignore it.
         """
     @error_detail_verbosity.setter
@@ -609,6 +608,19 @@ class BitOperation:
     def get_int(bin_name: builtins.str, bit_offset: builtins.int, bit_size: builtins.int, signed: builtins.bool) -> _aerospike_async_native.BitOperation:
         r"""
         Create a Bit get_int operation (gets integer value, read-only).
+        """
+    @staticmethod
+    def b64_encode(bin_name: builtins.str, byte_offset: typing.Optional[builtins.int] = None, byte_size: typing.Optional[builtins.int] = None, invert_size: builtins.bool = False) -> _aerospike_async_native.BitOperation:
+        r"""
+        Create a Bit b64_encode operation (returns base64 text of the blob, read-only).
+
+        Without a range, encodes the whole blob. With ``byte_offset`` and
+        ``byte_size`` (required together), encodes that byte range; a negative
+        ``byte_offset`` counts back from the end of the blob. When
+        ``invert_size`` is true, ``byte_size`` counts back from the end
+        instead, so an inverted size of 0 encodes through to the end.
+
+        Requires Aerospike Server version 8.2.0 or later.
         """
 
 class BitPolicy:
@@ -1725,7 +1737,8 @@ class Client:
     def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
         r"""
         Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        microseconds/24-column scheme when no policy is given.
+        milliseconds/7-column scheme recording every command when no
+        policy is given.
 
         Re-enabling with a changed latency unit or histogram shape discards
         the accumulated latency samples; counters are always retained.
@@ -2147,7 +2160,7 @@ class ErrorDetailVerbosity:
     requests the numeric subcode; MESSAGE (2) adds the server message;
     EXPRESSION_TRACE (3) adds an expression trace on expression build
     failures.
-    Higher levels are supersets. Requires server 8.1.3+; older servers
+    Higher levels are supersets. Requires server 8.2.0+; older servers
     ignore the request.
     """
     NONE: builtins.int = 0
@@ -2931,7 +2944,7 @@ class FilterExpression:
     def from_server_compiled_ael(ael: builtins.str) -> _aerospike_async_native.FilterExpression:
         r"""
         Build a filter expression whose wire form is ``[128, "<ael>"]`` (MessagePack), so the
-        server (8.1.3+) parses and compiles the Aerospike Expression Language string.
+        server (8.2.0+) parses and compiles the Aerospike Expression Language string.
         """
     @staticmethod
     def unknown() -> _aerospike_async_native.FilterExpression:
@@ -3452,6 +3465,20 @@ class FilterExpression:
         r"""
         Create expression that returns integer from byte[] bin starting at bit_offset for bit_size.
         Signed indicates if bits should be treated as a signed number.
+        """
+    @staticmethod
+    def bit_b64_encode(bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create expression that returns the base64 text of the whole byte[] bin.
+        Requires Aerospike Server version 8.2.0 or later.
+        """
+    @staticmethod
+    def bit_b64_encode_range(byte_offset: _aerospike_async_native.FilterExpression, byte_size: _aerospike_async_native.FilterExpression, invert_size: builtins.bool, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create expression that returns the base64 text of a byte range of byte[] bin,
+        starting at byte_offset for byte_size. When invert_size is true, byte_size
+        counts back from the end of the blob, so an inverted size of 0 encodes
+        through to the end. Requires Aerospike Server version 8.2.0 or later.
         """
     @staticmethod
     def hll_init(policy: _aerospike_async_native.HLLPolicy, index_bit_count: _aerospike_async_native.FilterExpression, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -4738,15 +4765,13 @@ class MetricsPolicy:
     r"""
     Configuration for client metrics collection.
 
-    Defaults mirror the core: microseconds with 24 logarithmic columns
-    (base 2), sampling every command. `MetricsPolicy.millis()` selects the
-    classic milliseconds/7-column scheme. Re-enabling metrics with a changed
-    latency unit or histogram shape discards the accumulated latency samples.
+    Defaults are milliseconds with 7 range-layout columns and a shift of 1,
+    sampling every call.
+
+    `MetricsPolicy.micros()` selects microsecond resolution with 24 columns.
+    Re-enabling metrics with a changed latency unit or histogram shape discards
+    the accumulated latency samples.
     """
-    @property
-    def histogram_type(self) -> _aerospike_async_native.HistogramType: ...
-    @histogram_type.setter
-    def histogram_type(self, value: _aerospike_async_native.HistogramType) -> None: ...
     @property
     def latency_unit(self) -> _aerospike_async_native.LatencyUnit: ...
     @latency_unit.setter
@@ -4756,9 +4781,19 @@ class MetricsPolicy:
     @latency_columns.setter
     def latency_columns(self, value: builtins.int) -> None: ...
     @property
-    def latency_base(self) -> builtins.int: ...
-    @latency_base.setter
-    def latency_base(self, value: builtins.int) -> None: ...
+    def latency_shift(self) -> builtins.int:
+        r"""
+        Range-layout shift: each boundary after the first two (`<=1`, `>1`)
+        multiplies by ``2 ** latency_shift``.
+        """
+    @latency_shift.setter
+    def latency_shift(self, value: builtins.int) -> None: ...
+    @property
+    def latency_base(self) -> builtins.int:
+        r"""
+        Histogram multiplier, always ``2 ** latency_shift``. Read-only: set
+        :attr:`latency_shift` so the two cannot disagree.
+        """
     @property
     def labels(self) -> builtins.list[builtins.dict[builtins.str, builtins.str]]:
         r"""
@@ -4774,12 +4809,12 @@ class MetricsPolicy:
     @staticmethod
     def micros() -> _aerospike_async_native.MetricsPolicy:
         r"""
-        Microsecond resolution with 24 logarithmic columns (the default).
+        Microsecond resolution with 24 range-layout columns.
         """
     @staticmethod
     def millis() -> _aerospike_async_native.MetricsPolicy:
         r"""
-        Millisecond resolution with 7 logarithmic columns (classic scheme).
+        Millisecond resolution with 7 range-layout columns (the default).
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -5215,7 +5250,7 @@ class QueryWhereFlags:
     Omit the argument (or pass ``None``) for default explain
     (``QueryWhereFlags.EXPLAIN`` only).
 
-    Requires Aerospike Server version >= 8.1.3. Callers must verify
+    Requires Aerospike Server version >= 8.2.0. Callers must verify
     :meth:`Version.supports_query_selection` before use.
     """
     ENC_VARINT: builtins.int = 1
@@ -5596,7 +5631,7 @@ class ServerError(builtins.Exception):
         r"""
         Server-supplied error subcode, present when the request asked for
         extended error detail (``error_detail_verbosity`` >= 1) and the
-        server (>= 8.1.3) attached one. Subcode values are scoped to their
+        server (>= 8.2.0) attached one. Subcode values are scoped to their
         parent result code — interpret the (result_code, sub_code) pair.
         """
     @property
@@ -5741,7 +5776,7 @@ class Statement:
 
 class StringOperation:
     r"""
-    String bin operations (server 8.1.3+). Use these to inspect or modify
+    String bin operations (server 8.2.0+). Use these to inspect or modify
     string bins via the client's ``operate()`` method.
 
     Index orientation is left-to-right with codepoint addressing. Negative
@@ -5987,7 +6022,7 @@ class SubCode:
     (result code, subcode) pair: subcode values are scoped to their parent
     result code and are not globally unique. NONE (0) means no subcode.
     The catalog is append-only and server-version-specific; treat an
-    unknown value as an opaque integer. Requires server 8.1.3+.
+    unknown value as an opaque integer. Requires server 8.2.0+.
     """
     NONE: builtins.int = 0
     r"""
@@ -6453,16 +6488,16 @@ class Version:
         (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
         ``TO_STRING`` op-type 19), the ``CALL_STRING`` (module 3)
         string-expression dispatcher, and the dedicated ``TO_STRING``
-        expression opcode. Requires server >= 8.1.3.
+        expression opcode. Requires server >= 8.2.0.
         """
     def supports_server_compiled_ael(self) -> builtins.bool:
         r"""
-        Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
+        Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.2.0.0).
         """
     def supports_query_selection(self) -> builtins.bool:
         r"""
         Returns true if server supports two-phase server query selection
-        (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        (field ``44`` WHERE explain → execute). Requires server >= 8.2.0.
         """
     def supports_blob_index(self) -> builtins.bool:
         r"""
@@ -6609,7 +6644,8 @@ class _LocalClient:
     def enable_metrics(self, policy: typing.Optional[_aerospike_async_native.MetricsPolicy] = None) -> None:
         r"""
         Enable metrics collection. Defaults to :class:`MetricsPolicy`'s
-        microseconds/24-column scheme when no policy is given.
+        milliseconds/7-column scheme recording every command when no
+        policy is given.
         """
     def disable_metrics(self) -> None:
         r"""
@@ -6865,18 +6901,6 @@ class HLLWriteFlags(enum.Enum):
     r"""
     Allow the resulting set to be the minimum of provided index bits.
     """
-
-@typing.final
-class HistogramType(enum.Enum):
-    r"""
-    Bucket layout of latency histograms: logarithmic (each bucket boundary is
-    `latency_base` times the previous one) or linear (equal-width buckets).
-    """
-    LINEAR = ...
-    LOGARITHMIC = ...
-
-    def __richcmp__(self, other: _aerospike_async_native.HistogramType, op: int) -> builtins.bool: ...
-    def __hash__(self) -> builtins.int: ...
 
 @typing.final
 class IndexType(enum.Enum):

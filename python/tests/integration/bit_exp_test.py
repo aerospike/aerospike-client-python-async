@@ -15,6 +15,8 @@
 
 """Tests for bitwise FilterExpression methods."""
 
+import base64
+
 import pytest
 from aerospike_async import (
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
@@ -136,6 +138,68 @@ class TestBitExpRead(TestFixtureConnection):
             rp.filter_expression = fe.eq(
                 fe.bit_get_int(fe.int_val(32), fe.int_val(8), True, bb),
                 fe.int_val(0x05),
+            )
+            rec = await client.get(key, [bin_a], policy=rp)
+            assert rec is not None
+
+        finally:
+            try:
+                await client.delete(key, policy=wp)
+            except ServerError:
+                pass
+
+    async def test_b64_encode(self, client, supports_bit_b64_encode):
+        """bit_b64_encode / bit_b64_encode_range as filters: whole blob, byte
+        span, inverted size (0 = through to the end), negative offset."""
+        if not supports_bit_b64_encode:
+            pytest.skip("bit b64_encode requires server >= 8.2.0")
+        key = Key("test", "test", "bit_exp_b64_encode")
+        wp = WritePolicy()
+        rp = ReadPolicy()
+        bin_a = "A"
+        blob = bytes([0x01, 0x42, 0x03, 0x04, 0x05])
+
+        def b64(raw: bytes) -> str:
+            return base64.b64encode(raw).decode()
+
+        try:
+            await client.put(key, {bin_a: blob}, policy=wp)
+            bb = fe.blob_bin(bin_a)
+
+            # Negative: the whole-blob encode is not the span encode.
+            rp.filter_expression = fe.eq(
+                fe.bit_b64_encode(bb),
+                fe.string_val(b64(bytes([0x42, 0x03]))),
+            )
+            with pytest.raises(FilteredOut) as exc_info:
+                await client.get(key, [bin_a], policy=rp)
+            assert exc_info.value.result_code == ResultCode.FILTERED_OUT
+
+            # Positive: whole blob.
+            rp.filter_expression = fe.eq(fe.bit_b64_encode(bb), fe.string_val(b64(blob)))
+            rec = await client.get(key, [bin_a], policy=rp)
+            assert rec is not None
+
+            # Positive: byte span (1, 2).
+            rp.filter_expression = fe.eq(
+                fe.bit_b64_encode_range(fe.int_val(1), fe.int_val(2), False, bb),
+                fe.string_val(b64(bytes([0x42, 0x03]))),
+            )
+            rec = await client.get(key, [bin_a], policy=rp)
+            assert rec is not None
+
+            # Positive: inverted size 0 encodes from offset 1 through the end.
+            rp.filter_expression = fe.eq(
+                fe.bit_b64_encode_range(fe.int_val(1), fe.int_val(0), True, bb),
+                fe.string_val(b64(bytes([0x42, 0x03, 0x04, 0x05]))),
+            )
+            rec = await client.get(key, [bin_a], policy=rp)
+            assert rec is not None
+
+            # Positive: negative offset counts back from the end.
+            rp.filter_expression = fe.eq(
+                fe.bit_b64_encode_range(fe.int_val(-2), fe.int_val(2), False, bb),
+                fe.string_val(b64(bytes([0x04, 0x05]))),
             )
             rec = await client.get(key, [bin_a], policy=rp)
             assert rec is not None

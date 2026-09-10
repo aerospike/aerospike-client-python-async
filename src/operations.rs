@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -251,6 +251,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
         BitRScan(String, i64, i64, bool),
         /// Bit get_int operation - gets integer value (read-only).
         BitGetInt(String, i64, i64, bool),
+        /// Bit b64_encode operation - returns base64 text of the blob (read-only).
+        BitB64Encode(String, Option<i64>, Option<i64>, bool),
         /// HLL init operation - creates or resets an HLL bin.
         HllInit(String, i64, i64, i64),
         /// HLL add operation - adds values to HLL.
@@ -282,7 +284,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// CDT path modify operation — writes nested CDT data by path expression.
         CdtModifyByPath(String, i64, FilterExpression, Vec<CTX>),
 
-        // ----- String operations (server 8.1.3+) -----
+        // ----- String operations (server 8.2.0+) -----
         // STRING_READ — sub-ops 0..16. No write_flags field.
         /// String strlen — codepoint count.
         StringStrlen(String),
@@ -1401,6 +1403,38 @@ use crate::string_ops::{StringNumericType, StringOperation};
                 op: OperationType::BitGetInt(bin_name, bit_offset, bit_size, signed),
             }
         }
+
+        /// Create a Bit b64_encode operation (returns base64 text of the blob, read-only).
+        ///
+        /// Without a range, encodes the whole blob. With ``byte_offset`` and
+        /// ``byte_size`` (required together), encodes that byte range; a negative
+        /// ``byte_offset`` counts back from the end of the blob. When
+        /// ``invert_size`` is true, ``byte_size`` counts back from the end
+        /// instead, so an inverted size of 0 encodes through to the end.
+        ///
+        /// Requires Aerospike Server version 8.2.0 or later.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, byte_offset = None, byte_size = None, invert_size = false))]
+        pub fn b64_encode(
+            bin_name: String,
+            byte_offset: Option<i64>,
+            byte_size: Option<i64>,
+            invert_size: bool,
+        ) -> PyResult<Self> {
+            if byte_offset.is_some() != byte_size.is_some() {
+                return Err(PyValueError::new_err(
+                    "byte_offset and byte_size must be provided together",
+                ));
+            }
+            if invert_size && byte_size.is_none() {
+                return Err(PyValueError::new_err(
+                    "invert_size requires byte_offset and byte_size",
+                ));
+            }
+            Ok(BitOperation {
+                op: OperationType::BitB64Encode(bin_name, byte_offset, byte_size, invert_size),
+            })
+        }
     }
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -2370,6 +2404,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::BitGet(_, _, _) | OperationType::BitCount(_, _, _) |
             OperationType::BitLScan(_, _, _, _) | OperationType::BitRScan(_, _, _, _) |
             OperationType::BitGetInt(_, _, _, _) |
+            OperationType::BitB64Encode(_, _, _, _) |
             OperationType::HllInit(_, _, _, _) |
             OperationType::HllGetCount(_) | OperationType::HllDescribe(_) |
             OperationType::HllRefreshCount(_) | OperationType::HllFold(_, _) => {
@@ -2394,7 +2429,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             | OperationType::CdtSelectByPath(_, _, _)
             | OperationType::CdtModifyByPath(_, _, _, _) => {}
 
-            // String ops (server 8.1.3+): args are owned in the variant; rust-core's
+            // String ops (server 8.2.0+): args are owned in the variant; rust-core's
             // builders take &str and copy/own internally. No pre-storage needed.
             OperationType::StringStrlen(_) | OperationType::StringSubstr(_, _, _)
             | OperationType::StringCharAt(_, _) | OperationType::StringFind(_, _, _)
@@ -3150,6 +3185,15 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::bitwise;
                 bitwise::get_int(bin_name, *bit_offset, *bit_size, *signed)
             }
+            OperationType::BitB64Encode(bin_name, byte_offset, byte_size, invert_size) => {
+                use aerospike_core::operations::bitwise;
+                match (byte_offset, byte_size) {
+                    (Some(offset), Some(size)) => {
+                        bitwise::b64_encode_range(bin_name, *offset, *size, *invert_size)
+                    }
+                    _ => bitwise::b64_encode(bin_name),
+                }
+            }
             OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags) => {
                 use aerospike_core::operations::hll;
                 let policy = hll::HLLPolicy { flags: *flags };
@@ -3258,7 +3302,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 modify_by_path(bin_name, ModifyFlag(*flag), exp._as.clone(), &core_ctx)
             }
 
-            // ----- String ops (server 8.1.3+) -----
+            // ----- String ops (server 8.2.0+) -----
             // Performance notes:
             //   - `bin` and string args (`needle` / `pattern` / `value` / etc.) are passed
             //     to rust-core as &str via auto-deref. Zero per-op alloc beyond the args

@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for extended server error detail (server >= 8.1.3).
+"""Integration tests for extended server error detail (server >= 8.2.0).
 
 When ``error_detail_verbosity`` is raised on the operation's policy, a failing
 response carries a numeric subcode (verbosity 1+) and a human-readable message
@@ -62,7 +62,7 @@ async def edv_client(aerospike_host, use_services_alternate, supports_error_deta
 
     Single-host model: connects to the default ``AEROSPIKE_HOST`` and skips the
     whole suite unless that cluster supplies extended error detail (server
-    >= 8.1.3). Point ``AEROSPIKE_HOST`` at an 8.1.3+ build to run these; CI
+    >= 8.2.0). Point ``AEROSPIKE_HOST`` at an 8.2.0+ build to run these; CI
     covers the version spread with a server matrix rather than a dedicated
     host var. ``supports_error_detail`` is also ``False`` when the seed is
     unreachable (``server_version`` probes to ``None``), so a down cluster
@@ -71,7 +71,7 @@ async def edv_client(aerospike_host, use_services_alternate, supports_error_deta
     if not supports_error_detail:
         pytest.skip(
             "default cluster does not supply extended error detail "
-            "(server < 8.1.3, or unreachable)"
+            "(server < 8.2.0, or unreachable)"
         )
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate
@@ -243,8 +243,8 @@ class TestBatchErrorDetail:
         Pins the full batch error-detail surface end to end — subcode (NONE
         for an expression rejection), message, and expression trace — parsed
         through the same path the single-key commands use. Requires a server
-        that emits batch expression traces (8.1.3 build >= -75; earlier
-        preliminary 8.1.3 images returned the message without a trace).
+        that emits batch expression traces (8.2.0 build >= -75; earlier
+        preliminary 8.2.0 images returned the message without a trace).
         """
         keys = [
             Key("test", "test", "error-detail-batch-badexp-1"),

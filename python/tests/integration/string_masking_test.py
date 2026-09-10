@@ -21,8 +21,8 @@ string-ops spec §4.3. Masking is a security feature, so it targets the
 security-enabled host (``AEROSPIKE_HOST_SEC``), not the default seed. Tests
 are gated on THREE conditions:
 
-1. ``AEROSPIKE_HOST_SEC`` is set and the cluster is server >= 8.1.3
-   (string ops + masking are 8.1.3+ features)
+1. ``AEROSPIKE_HOST_SEC`` is set and the cluster is server >= 8.2.0
+   (string ops + masking are 8.2.0+ features)
 2. Security is enabled on that cluster (`query_users` succeeds)
 3. Admin credentials are supplied via ``AEROSPIKE_AUTH_USER`` /
    ``AEROSPIKE_AUTH_PASSWORD`` (or the cluster accepts the default
@@ -134,18 +134,18 @@ async def _remove_masking(admin_client, *, ns, set_name, bin_name):
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def admin_client(aerospike_host_sec):
-    """Admin-credentialed client on the security host; gates on 8.1.3 + security.
+    """Admin-credentialed client on the security host; gates on 8.2.0 + security.
 
-    Masking is both an 8.1.3+ feature and a security feature, so it targets
+    Masking is both an 8.2.0+ feature and a security feature, so it targets
     ``AEROSPIKE_HOST_SEC`` rather than the default seed. Skips the entire
     module cleanly if (a) ``AEROSPIKE_HOST_SEC`` is unset, (b) the cluster is
-    < 8.1.3, (c) security is not enabled, or (d) the credentials don't auth.
-    CI points ``AEROSPIKE_HOST_SEC`` at a security-enabled 8.1.3+ build.
+    < 8.2.0, (c) security is not enabled, or (d) the credentials don't auth.
+    CI points ``AEROSPIKE_HOST_SEC`` at a security-enabled 8.2.0+ build.
     """
     if not aerospike_host_sec:
         pytest.skip(
             "AEROSPIKE_HOST_SEC is unset; masking needs a security-enabled "
-            "8.1.3+ cluster"
+            "8.2.0+ cluster"
         )
     user = os.environ.get("AEROSPIKE_AUTH_USER", "admin")
     password = os.environ.get("AEROSPIKE_AUTH_PASSWORD", "admin")
@@ -158,7 +158,7 @@ async def admin_client(aerospike_host_sec):
     except Exception as exc:
         pytest.skip(f"Could not connect to {aerospike_host_sec} as admin: {exc}")
     await asyncio.sleep(2)  # tend
-    # Gate on server >= 8.1.3 (string ops + masking feature).
+    # Gate on server >= 8.2.0 (string ops + masking feature).
     def _ver_prefix(part: str) -> int:
         digits = ""
         for ch in part:
@@ -175,17 +175,40 @@ async def admin_client(aerospike_host_sec):
         version = tuple(_ver_prefix(p) for p in parts)
     except Exception:
         version = (0, 0, 0)
-    if version < (8, 1, 3):
+    if version < (8, 2, 0):
         await client.close()
-        pytest.skip(f"masking requires server >= 8.1.3; AEROSPIKE_HOST_SEC is {build!r}")
+        pytest.skip(f"masking requires server >= 8.2.0; AEROSPIKE_HOST_SEC is {build!r}")
     # Confirm security is enabled by issuing a privilege query
     try:
         await client.query_users(None)
     except ServerError as exc:
         await client.close()
         if exc.result_code == ResultCode.SECURITY_NOT_ENABLED or isinstance(exc, SecurityNotEnabled):
-            pytest.skip("Security is not enabled on the 8.1.3+ cluster")
+            pytest.skip("Security is not enabled on the 8.2.0+ cluster")
         raise
+    # Self-provision the admin roles this module needs: the default `admin`
+    # ships with `user-admin` only, and security users and roles live in a
+    # namespace, so a freshly created cluster has none of the rest.
+    #
+    # `masking-admin` authorizes the `masking;...` info command, `read-write`
+    # seeds records, `write-masked` covers the admin-modifies-a-masked-bin
+    # case, and `read-masked` is required because this client is the suite's
+    # oracle for real values -- without it the masking rule applies to its own
+    # reads and it sees `***********` where a test expects `hello world`.
+    #
+    # A role granted to the connected user is not in effect on the connection
+    # that granted it, so reconnect before handing the client out.
+    granted = False
+    for role in ("read-write", "masking-admin", "read-masked", "write-masked", "truncate"):
+        try:
+            await client.grant_roles(user, [role])
+            granted = True
+        except Exception:
+            pass  # already held, or not a role on this build
+    if granted:
+        await client.close()
+        client = await new_client(cp, aerospike_host_sec)
+        await asyncio.sleep(2)  # tend
     yield client
     await client.close()
 

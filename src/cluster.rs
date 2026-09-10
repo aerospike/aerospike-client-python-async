@@ -176,18 +176,18 @@ use crate::policies::AdminPolicy;
         /// (``STRING_READ`` op-type 17, ``STRING_MODIFY`` op-type 18,
         /// ``TO_STRING`` op-type 19), the ``CALL_STRING`` (module 3)
         /// string-expression dispatcher, and the dedicated ``TO_STRING``
-        /// expression opcode. Requires server >= 8.1.3.
+        /// expression opcode. Requires server >= 8.2.0.
         pub fn supports_string_operations(&self) -> bool {
             self._as.supports_string_operations()
         }
 
-        /// Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.1.3.0).
+        /// Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.2.0.0).
         pub fn supports_server_compiled_ael(&self) -> bool {
             self._as.supports_server_compiled_ael()
         }
 
         /// Returns true if server supports two-phase server query selection
-        /// (field ``44`` WHERE explain → execute). Requires server >= 8.1.3.
+        /// (field ``44`` WHERE explain → execute). Requires server >= 8.2.0.
         pub fn supports_query_selection(&self) -> bool {
             self._as.supports_query_selection()
         }
