@@ -22,7 +22,10 @@ from aerospike_async import (
     BatchPolicy,
     ClientPolicy,
     QueryPolicy,
+    ReadModeAP,
+    ReadModeSC,
     ReadPolicy,
+    Replica,
     WritePolicy,
 )
 
@@ -66,6 +69,28 @@ class TestCompressionThresholdFromFields:
         bp = BatchPolicy.from_fields(use_compression=True, compression_threshold=512)
         assert bp.use_compression is True
         assert bp.compression_threshold == 512
+
+
+class TestBatchPolicyRoutingFromFields:
+    """``BatchPolicy.from_fields`` accepts the routing fields; batch node
+    selection reads them from the parent policy, so they must survive the
+    bulk constructor."""
+
+    def test_routing_fields(self):
+        bp = BatchPolicy.from_fields(
+            replica=Replica.PREFER_RACK,
+            read_mode_ap=ReadModeAP.ALL,
+            read_mode_sc=ReadModeSC.LINEARIZE,
+        )
+        assert bp.replica == Replica.PREFER_RACK
+        assert bp.read_mode_ap == ReadModeAP.ALL
+        assert bp.read_mode_sc == ReadModeSC.LINEARIZE
+
+    def test_routing_defaults(self):
+        bp = BatchPolicy.from_fields()
+        assert bp.replica == Replica.SEQUENCE
+        assert bp.read_mode_ap == ReadModeAP.ONE
+        assert bp.read_mode_sc == ReadModeSC.SESSION
 
 
 class TestCircuitBreaker:
