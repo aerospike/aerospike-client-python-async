@@ -1284,6 +1284,37 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
+        /// Returns STRING — the string items of the list concatenated. The
+        /// list must hold only strings. The inverse of ``string_split``.
+        /// Requires server 8.2.0+.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_join(bin: FilterExpression, ctx: Vec<CTX>) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: lists::join(bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
+        /// Returns STRING — the string items of the list concatenated with
+        /// `separator` between consecutive items. The list must hold only
+        /// strings. The inverse of ``string_split_by_separator``.
+        /// Requires server 8.2.0+.
+        /// Supports nested CDT operations via optional CTX contexts.
+        pub fn list_join_by_separator(
+            separator: FilterExpression,
+            bin: FilterExpression,
+            ctx: Vec<CTX>,
+        ) -> Self {
+            use aerospike_core::expressions::lists;
+            let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
+            FilterExpression {
+                _as: lists::join_by_separator(separator._as, bin._as, &ctx_vec),
+            }
+        }
+
+        #[staticmethod]
         /// Create expression that selects list item identified by index and returns
         /// selected data specified by returnType.
         /// Supports nested CDT operations via optional CTX contexts.
