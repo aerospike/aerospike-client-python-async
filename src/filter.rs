@@ -458,21 +458,20 @@ use crate::{Order, OrderByFlags, OrderByType};
         /// (as it appears in the *returned* record — a physical bin, or one produced by a
         /// read-op/read-expression projection), its scalar type, and sort direction.
         ///
-        /// Must be paired with :meth:`set_top_k`. Request-time validation (raised as
-        /// :class:`ValueError` the first time this statement is used in a query — no network
-        /// round trip needed) rejects: an empty or over-length (>14 char) bin name, a
-        /// ``CASE_INSENSITIVE`` flag with a non-``STRING`` type, an order-by bin absent from the
-        /// query's projection (``bins``/``set_operations``) when one is set, ``set_top_k``
-        /// without a preceding ``set_order_by``, a ``k`` outside ``[1, 1000]``, or ``order_by``/
-        /// ``top_k`` combined with :meth:`set_aggregate_function`.
+        /// Must be paired with :meth:`set_top_k`. Query-time validation rejects an empty,
+        /// NUL-containing, or over-length (more than 15 UTF-8 bytes) bin name; invalid flags;
+        /// absent projected keys; invalid ``k`` values; and aggregate UDFs.
         ///
         /// Top-K runs *after* the index filter (``set_filters``) and the record filter
         /// expression (``QueryPolicy.filter_exp``); it only affects the order and count of
         /// returned records, never which records match. ``flags`` currently only defines
         /// ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
         ///
-        /// Top-K currently runs client-side. Server pushdown is not yet encoded by this client.
-        /// Results are deduplicated by digest and ordered by order key, then digest.
+        /// A missing bin, a wrong-type scalar, or any list/map value ranks as NIL and sorts
+        /// last in both directions; ``OrderByType.DOUBLE`` NaN sorts after all finite values.
+        ///
+        /// Top-K uses server pushdown when every target node supports it. Results are merged,
+        /// deduplicated by digest, and ordered by order key, then digest.
         #[pyo3(signature = (bin_name, order_type, direction, flags = None))]
         pub fn set_order_by(
             &mut self,

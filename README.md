@@ -258,6 +258,10 @@ record = await client.get(key)
 record.bins["embedding"].numpy_value  # typed numpy array
 ```
 
+Requests that contain a VECTOR value or vector-distance expression require every
+cluster node to run Aerospike Server 8.1.3 or later. Unsupported clusters fail
+client-side before the request is sent.
+
 `FilterExpression.vector_bin`/`euclidean_squared_distance`/`dot_product`/
 `cosine_similarity` build vector-distance expressions, and
 `Statement.set_order_by`/`set_top_k` build Top-K (`ORDER BY <bin> LIMIT k`)
@@ -267,8 +271,8 @@ with an index filter (`Statement.filters`) or a record filter expression
 [`python/examples/vector_topk_query.py`](python/examples/vector_topk_query.py)
 for a full example.
 
-Top-K supports server pushdown and client-side reduction. This client currently
-uses bounded client-side reducers; it does not yet encode pushdown requests.
+Top-K uses server pushdown when every target node supports it, then merges the
+per-node candidates client-side. Otherwise, it reduces the normal query stream.
 Results are deduplicated by record digest and deterministically ordered by order
 key, then digest.
 

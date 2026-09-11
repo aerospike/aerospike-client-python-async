@@ -21,11 +21,7 @@ Vector similarity search (Top-K / distance expressions) is out of scope here
 exercises storing and retrieving `Vector` bins: construction, put/get,
 element-type coverage, special float values, and nesting in list/map bins.
 
-Vector bins are an unreleased, dev-server-only feature. Support is gated via
-the `supports_vector_bins` fixture in conftest.py -- see the TODO on that
-fixture: it is an interim heuristic (reuses the 8.1.3 floor because current
-dev builds report that version), not a real assigned capability floor. Point
-`AEROSPIKE_HOST` at such a build to run these; they skip cleanly otherwise.
+Vector tests require all cluster nodes to support Top-K and VECTOR bins.
 """
 
 import pytest
@@ -43,7 +39,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import ResultCode
+from aerospike_async.exceptions import InvalidRequest, ResultCode
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -109,6 +105,14 @@ class TestVectorListRoundTrip:
 
         assert rec.bins["v"].element_type == VectorElementType.FLOAT32
         assert rec.bins["v"] == v
+
+    async def test_empty_vector_is_rejected_by_server(self, client_and_key):
+        client, key, wp = client_and_key
+
+        with pytest.raises(InvalidRequest) as exc_info:
+            await client.put(key, {"v": Vector([])}, policy=wp)
+
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
 
 class TestVectorNumpyRoundTrip:
@@ -183,9 +187,7 @@ class TestVectorMultiBinAndAbsence:
         assert rec.bins["scalar"] == 42
 
     async def test_absent_vector_bin_is_not_materialized_as_empty(self, client_and_key):
-        """A record with no vector bin must not surface one (empty vectors
-        cannot exist at all now, but this also guards against `None`/absent
-        being conflated with a zero-dimension vector)."""
+        """An absent bin is distinct from a zero-dimension vector."""
         client, key, wp = client_and_key
 
         await client.put(key, {"scalar": 1}, policy=wp)

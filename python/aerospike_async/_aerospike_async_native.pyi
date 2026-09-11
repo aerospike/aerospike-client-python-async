@@ -2484,8 +2484,6 @@ class FilterExpression:
         r"""
         Create a vector bin expression for use with :meth:`euclidean_squared_distance`,
         :meth:`dot_product`, and :meth:`cosine_similarity`.
-
-        Use with vector-distance expressions.
         """
     @staticmethod
     def euclidean_squared_distance(query: _aerospike_async_native.Vector, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -5751,21 +5749,20 @@ class Statement:
         (as it appears in the *returned* record — a physical bin, or one produced by a
         read-op/read-expression projection), its scalar type, and sort direction.
 
-        Must be paired with :meth:`set_top_k`. Request-time validation (raised as
-        :class:`ValueError` the first time this statement is used in a query — no network
-        round trip needed) rejects: an empty or over-length (>14 char) bin name, a
-        ``CASE_INSENSITIVE`` flag with a non-``STRING`` type, an order-by bin absent from the
-        query's projection (``bins``/``set_operations``) when one is set, ``set_top_k``
-        without a preceding ``set_order_by``, a ``k`` outside ``[1, 1000]``, or ``order_by``/
-        ``top_k`` combined with :meth:`set_aggregate_function`.
+        Must be paired with :meth:`set_top_k`. Query-time validation rejects an empty,
+        NUL-containing, or over-length (more than 15 UTF-8 bytes) bin name; invalid flags;
+        absent projected keys; invalid ``k`` values; and aggregate UDFs.
 
         Top-K runs *after* the index filter (``set_filters``) and the record filter
         expression (``QueryPolicy.filter_exp``); it only affects the order and count of
         returned records, never which records match. ``flags`` currently only defines
         ``OrderByFlags.CASE_INSENSITIVE`` (valid only with ``OrderByType.STRING``).
 
-        Top-K currently runs client-side. Server pushdown is not yet encoded by this client.
-        Results are deduplicated by digest and ordered by order key, then digest.
+        A missing bin, a wrong-type scalar, or any list/map value ranks as NIL and sorts
+        last in both directions; ``OrderByType.DOUBLE`` NaN sorts after all finite values.
+
+        Top-K uses server pushdown when every target node supports it. Results are merged,
+        deduplicated by digest, and ordered by order key, then digest.
         """
     def set_top_k(self, k: builtins.int) -> None:
         r"""
@@ -6494,6 +6491,10 @@ class Version:
         r"""
         Returns true if server accepts server-compiled AEL on filter field 43 (>= 8.2.0.0).
         """
+    def supports_query_top_k(self) -> builtins.bool:
+        r"""
+        Returns true if server supports Top-K query pushdown (>= 8.1.3.0).
+        """
     def supports_query_selection(self) -> builtins.bool:
         r"""
         Returns true if server supports two-phase server query selection
@@ -7081,11 +7082,6 @@ class OrderByType(enum.Enum):
     Aerospike has no schema, so the type of the order-by bin must be declared explicitly. Used
     with :meth:`Statement.set_order_by`.
 
-    # Work in progress
-
-    Top-K's wire encode is capability-gated in the underlying client and has no assigned
-    minimum server version yet — sending a query with ``order_by``/``top_k`` set currently
-    fails fast client-side regardless of the server behind it.
     """
     INTEGER = ...
     r"""

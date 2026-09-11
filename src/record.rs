@@ -1920,8 +1920,8 @@ use crate::errors::RustClientError;
         }
 
         #[test]
-        fn empty_vector_is_rejected_at_construction() {
-            assert!(aerospike_core::Vector::try_float32(vec![]).is_err());
+        fn empty_vector_is_allowed_at_construction() {
+            assert!(aerospike_core::Vector::try_float32(vec![]).is_ok());
         }
 
         #[test]
