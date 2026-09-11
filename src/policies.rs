@@ -1236,7 +1236,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, concurrency=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, read_mode_ap=None, read_mode_sc=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, concurrency=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -1247,6 +1247,8 @@ use crate::TlsConfig;
             allow_inline_ssd: Option<bool>,
             respond_all_keys: Option<bool>,
             replica: Option<Replica>,
+            read_mode_ap: Option<ReadModeAP>,
+            read_mode_sc: Option<ReadModeSC>,
             use_compression: Option<bool>,
             compression_threshold: Option<usize>,
             error_detail_verbosity: Option<u8>,
@@ -1264,6 +1266,8 @@ use crate::TlsConfig;
             if let Some(v) = allow_inline_ssd { bp.allow_inline_ssd = v; }
             if let Some(v) = respond_all_keys { bp.respond_all_keys = v; }
             if let Some(v) = replica { bp.replica = (&v).into(); }
+            if let Some(v) = read_mode_ap { bp.base_policy.read_mode_ap = (&v).into(); }
+            if let Some(v) = read_mode_sc { bp.base_policy.read_mode_sc = (&v).into(); }
             if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
             if let Some(v) = compression_threshold { bp.base_policy.compression_threshold = v; }
             if let Some(v) = error_detail_verbosity { bp.base_policy.error_detail_verbosity = v; }

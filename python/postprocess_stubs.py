@@ -1781,6 +1781,8 @@ def add_policy_stubs(content: str) -> str:
             ("allow_inline_ssd", "typing.Optional[builtins.bool]"),
             ("respond_all_keys", "typing.Optional[builtins.bool]"),
             ("replica", "typing.Optional[_aerospike_async_native.Replica]"),
+            ("read_mode_ap", "typing.Optional[_aerospike_async_native.ReadModeAP]"),
+            ("read_mode_sc", "typing.Optional[_aerospike_async_native.ReadModeSC]"),
             ("use_compression", "typing.Optional[builtins.bool]"),
             ("compression_threshold", "typing.Optional[builtins.int]"),
             ("error_detail_verbosity", "typing.Optional[builtins.int]"),
