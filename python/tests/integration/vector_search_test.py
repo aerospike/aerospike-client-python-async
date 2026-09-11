@@ -17,7 +17,7 @@
 Vector search — Top-K ordering and vector-distance expressions, executed
 against a live server.
 
-Top-K runs client-side. These tests require VECTOR support.
+Top-K uses server pushdown when available. These tests require VECTOR support.
 
 Generic vector expression reads are not covered here.
 """
@@ -73,27 +73,59 @@ async def _drain(recordset):
 
 
 class TestVectorTopKScalar:
-    async def test_topk_orders_and_limits_scalar_bin(self, search_client):
-        """Top-K returns the client-reduced result in the requested order."""
+    async def test_topk_pushdown_orders_and_limits_scalar_bin(self, search_client):
+        """Top-K returns the requested scalar rankings."""
         client, _key, wp = search_client
         ns, setname = "test", "vector_search"
-        keys = [Key(ns, setname, f"topk-{i}") for i in range(5)]
+        keys = [Key(ns, setname, f"topk-{i}") for i in range(25)]
         for i, k in enumerate(keys):
             await client.delete(k, policy=wp)
             await client.put(k, {"score": i * 10}, policy=wp)
         try:
-            stmt = Statement(ns, setname, ["score"])
-            stmt.set_order_by("score", OrderByType.INTEGER, Order.DESC)
-            stmt.set_top_k(3)
+            assert all(node.version.supports_query_top_k() for node in await client.nodes())
+            for direction in (Order.ASC, Order.DESC):
+                for k in (1, 5, 25):
+                    stmt = Statement(ns, setname, ["score"])
+                    stmt.set_order_by("score", OrderByType.INTEGER, direction)
+                    stmt.set_top_k(k)
 
-            rs = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
-            scores = [r.bins["score"] for r in await _drain(rs)]
-
-            # Observed contract: correctly ordered (desc) and limited to k=3.
-            assert scores == [40, 30, 20]
+                    rs = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
+                    scores = [record.bins["score"] for record in await _drain(rs)]
+                    expected = list(range(0, k * 10, 10))
+                    if direction is Order.DESC:
+                        expected = list(range(240, 240 - k * 10, -10))
+                    assert scores == expected
         finally:
             for k in keys:
                 await client.delete(k, policy=wp)
+
+    async def test_topk_pushdown_orders_nan_before_nil(self, search_client):
+        client, _key, wp = search_client
+        ns, setname = "test", "vector_search_nan"
+        keys = [Key(ns, setname, f"topk-{i}") for i in range(5)]
+        values = [1.0, 2.0, 3.0, float("nan"), None]
+
+        for i, (key, value) in enumerate(zip(keys, values)):
+            await client.delete(key, policy=wp)
+            bins = {"id": i}
+            if value is not None:
+                bins["score"] = value
+            await client.put(key, bins, policy=wp)
+
+        try:
+            for direction, expected in (
+                (Order.ASC, [0, 1, 2, 3, 4]),
+                (Order.DESC, [3, 2, 1, 0, 4]),
+            ):
+                stmt = Statement(ns, setname, ["id", "score"])
+                stmt.set_order_by("score", OrderByType.DOUBLE, direction)
+                stmt.set_top_k(5)
+
+                rs = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
+                assert [record.bins["id"] for record in await _drain(rs)] == expected
+        finally:
+            for key in keys:
+                await client.delete(key, policy=wp)
 
 
 class TestVectorDistanceExpressions:

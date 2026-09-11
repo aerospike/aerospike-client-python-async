@@ -139,6 +139,7 @@ async def aerospike_host_812_required(aerospike_host, server_version):
 # here rather than inlining a tuple in a new ``supports_*`` gate.
 SERVER_8_1_1 = (8, 1, 1, 0)
 SERVER_8_1_2 = (8, 1, 2, 0)
+SERVER_8_1_3 = (8, 1, 3, 0)
 SERVER_8_2_0 = (8, 2, 0, 0)
 
 
@@ -171,20 +172,19 @@ async def supports_bit_b64_encode(server_version):
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def supports_vector_bins(server_version):
-    """``True`` when the (default-host) cluster likely supports ``VECTOR`` bins.
-
-    TODO(vector-capability-gate): interim/temporary. Unlike the other
-    ``supports_*`` gates here, the Rust core has no
-    ``Version::supports_vector_bins()`` yet -- ``VECTOR`` particle support is
-    still an unreleased, dev-server-only feature with no assigned version
-    floor. This reuses the 8.1.3 floor only because current dev builds
-    happen to report that version (``git describe``-style, e.g.
-    ``8.1.3.0-76-g<hash>``); it will false-positive on a genuine (non-dev)
-    8.1.3+ release that lacks ``VECTOR`` support. Replace this with a real
-    capability check once the Rust core assigns one, and drop this TODO.
-    """
-    return server_version is not None and server_version >= SERVER_8_1_3
+async def supports_vector_bins(aerospike_host, use_services_alternate):
+    """``True`` when every node supports VECTOR values and expressions."""
+    return await _probe_all_nodes_version_capability(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: (
+            version.major,
+            version.minor,
+            version.patch,
+            version.build,
+        )
+        >= SERVER_8_1_3,
+    )
 
 
 async def _probe_all_nodes_version_capability(

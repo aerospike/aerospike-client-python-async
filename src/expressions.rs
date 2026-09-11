@@ -526,8 +526,6 @@ use crate::string_ops::StringNumericType;
         #[staticmethod]
         /// Create a vector bin expression for use with :meth:`euclidean_squared_distance`,
         /// :meth:`dot_product`, and :meth:`cosine_similarity`.
-        ///
-        /// Use with vector-distance expressions.
         pub fn vector_bin(name: String) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::vector_bin(name),

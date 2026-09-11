@@ -18,8 +18,8 @@
 Vector bin + Top-K ("ORDER BY <bin> LIMIT k") hybrid search example, using
 cosine similarity as the distance metric.
 
-Top-K uses client-side reduction. Server pushdown is not yet encoded by this
-client. Distance expressions require VECTOR support.
+Top-K uses server pushdown when available and merges results client-side.
+Distance expressions require VECTOR support.
 """
 
 import asyncio

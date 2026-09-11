@@ -186,6 +186,11 @@ use crate::policies::AdminPolicy;
             self._as.supports_server_compiled_ael()
         }
 
+        /// Returns true if server supports Top-K query pushdown (>= 8.1.3.0).
+        pub fn supports_query_top_k(&self) -> bool {
+            self._as.supports_query_top_k()
+        }
+
         /// Returns true if server supports two-phase server query selection
         /// (field ``44`` WHERE explain → execute). Requires server >= 8.2.0.
         pub fn supports_query_selection(&self) -> bool {

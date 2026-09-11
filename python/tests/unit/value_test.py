@@ -338,7 +338,7 @@ def test_blob_get_by_index_fail():
 
     blob = Blob(TEST_BLOB_DATA_1)
     with pytest.raises(IndexError) as exc_info:
-        test = blob[5]
+        _ = blob[5]
     assert exc_info.value.args[0] == "index out of bounds"
 
 def test_blob_set_by_index():
@@ -585,10 +585,10 @@ def test_vector_float32_value_round_trips_within_float32_precision():
     assert [round(x, 5) for x in v.value] == [0.12, 0.98, -0.34]
 
 
-def test_vector_empty_is_rejected():
-    """The server requires at least 1 dimension; empty vectors raise cleanly."""
-    with pytest.raises(AerospikeValueError):
-        Vector([])
+def test_empty_vector_is_allowed():
+    vector = Vector([])
+    assert vector.dimensions == 0
+    assert list(vector.value) == []
 
 
 def test_vector_equality():
@@ -734,12 +734,11 @@ def test_vector_float16_special_values_roundtrip():
 
 
 @pytest.mark.parametrize("np_dtype", ["float16", "float32", "float64", "int32"])
-def test_vector_empty_numpy_input_is_rejected(np_dtype):
-    """The server requires at least 1 dimension for every element type."""
+def test_empty_numpy_vector_is_allowed(np_dtype):
     np = pytest.importorskip("numpy")
 
-    with pytest.raises(AerospikeValueError):
-        Vector(np.array([], dtype=np_dtype))
+    vector = Vector(np.array([], dtype=np_dtype))
+    assert vector.dimensions == 0
 
 
 @pytest.mark.parametrize(

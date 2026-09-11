@@ -1345,12 +1345,6 @@ pub enum Concurrency {
     ///
     /// Aerospike has no schema, so the type of the order-by bin must be declared explicitly. Used
     /// with :meth:`Statement.set_order_by`.
-    ///
-    /// # Work in progress
-    ///
-    /// Top-K's wire encode is capability-gated in the underlying client and has no assigned
-    /// minimum server version yet — sending a query with ``order_by``/``top_k`` set currently
-    /// fails fast client-side regardless of the server behind it.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
