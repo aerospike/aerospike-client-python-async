@@ -2918,6 +2918,23 @@ class FilterExpression:
         Supports nested CDT operations via optional CTX contexts.
         """
     @staticmethod
+    def list_join(bin: _aerospike_async_native.FilterExpression, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — the string items of the list concatenated. The
+        list must hold only strings. The inverse of ``string_split``.
+        Requires server 8.2.0+.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
+    def list_join_by_separator(separator: _aerospike_async_native.FilterExpression, bin: _aerospike_async_native.FilterExpression, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Returns STRING — the string items of the list concatenated with
+        `separator` between consecutive items. The list must hold only
+        strings. The inverse of ``string_split_by_separator``.
+        Requires server 8.2.0+.
+        Supports nested CDT operations via optional CTX contexts.
+        """
+    @staticmethod
     def list_get_by_index(return_type: _aerospike_async_native.ListReturnType, value_type: _aerospike_async_native.ExpType, index: _aerospike_async_native.FilterExpression, bin: _aerospike_async_native.FilterExpression, ctx: typing.Sequence[_aerospike_async_native.CTX]) -> _aerospike_async_native.FilterExpression:
         r"""
         Create expression that selects list item identified by index and returns
@@ -4206,6 +4223,16 @@ class ListOperation:
     def size(bin_name: builtins.str) -> _aerospike_async_native.ListOperation:
         r"""
         Create a List size operation (gets list size).
+        """
+    @staticmethod
+    def join(bin_name: builtins.str, separator: typing.Optional[builtins.str] = None) -> _aerospike_async_native.ListOperation:
+        r"""
+        Create a List join operation (concatenates the string items into
+        one string). With ``separator`` set, it is inserted between
+        consecutive items; an empty list joins to an empty string. The
+        list must hold only strings — anything else fails with
+        ``PARAMETER_ERROR``. The inverse of ``StringOperation.split``.
+        Requires server 8.2.0+.
         """
     @staticmethod
     def pop(bin_name: builtins.str, index: builtins.int) -> _aerospike_async_native.ListOperation:

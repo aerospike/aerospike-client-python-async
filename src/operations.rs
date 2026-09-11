@@ -59,6 +59,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
         ListGet(String, i64),
         /// List size operation - gets list size.
         ListSize(String),
+        /// List join operation - concatenates the string items into one string, with an optional separator.
+        ListJoin(String, Option<String>),
         /// List pop operation - pops and returns element at index.
         ListPop(String, i64),
         /// List clear operation - clears the list.
@@ -525,6 +527,21 @@ use crate::string_ops::{StringNumericType, StringOperation};
             ListOperation {
                 ctx: None,
                 op: OperationType::ListSize(bin_name),
+            }
+        }
+
+        /// Create a List join operation (concatenates the string items into
+        /// one string). With ``separator`` set, it is inserted between
+        /// consecutive items; an empty list joins to an empty string. The
+        /// list must hold only strings — anything else fails with
+        /// ``PARAMETER_ERROR``. The inverse of ``StringOperation.split``.
+        /// Requires server 8.2.0+.
+        #[staticmethod]
+        #[pyo3(signature = (bin_name, separator=None))]
+        pub fn join(bin_name: String, separator: Option<String>) -> Self {
+            ListOperation {
+                ctx: None,
+                op: OperationType::ListJoin(bin_name, separator),
             }
         }
 
@@ -2374,7 +2391,8 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             // Operations that don't require storage in first pass
             OperationType::Get() | OperationType::GetBin(_) | OperationType::GetHeader() |
             OperationType::Delete() | OperationType::Touch() |
-            OperationType::ListGet(_, _) | OperationType::ListSize(_) | OperationType::ListPop(_, _) |
+            OperationType::ListGet(_, _) | OperationType::ListSize(_) | OperationType::ListJoin(_, _) |
+            OperationType::ListPop(_, _) |
             OperationType::ListClear(_) | OperationType::ListGetRange(_, _, _) |
             OperationType::ListRemove(_, _) | OperationType::ListRemoveRange(_, _, _) |
             OperationType::ListGetRangeFrom(_, _) | OperationType::ListPopRange(_, _, _) |
@@ -2517,6 +2535,13 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list size() function
                 use aerospike_core::operations::lists;
                 lists::size(bin_name)
+            }
+            OperationType::ListJoin(bin_name, separator) => {
+                use aerospike_core::operations::lists;
+                match separator {
+                    Some(sep) => lists::join_by_separator(bin_name, sep),
+                    None => lists::join(bin_name),
+                }
             }
             OperationType::ListPop(bin_name, index) => {
                 // Use the operations module's list pop() function

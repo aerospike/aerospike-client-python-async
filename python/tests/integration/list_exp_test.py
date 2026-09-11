@@ -202,3 +202,73 @@ class TestListExp(TestFixtureConnection):
                 await client.delete(key, policy=wp)
             except ServerError:
                 pass
+
+    async def test_list_join_read_with_and_without_separator(
+        self, client, supports_string_operations
+    ):
+        """list_join / list_join_by_separator read expressions (server >= 8.2.0)."""
+        if not supports_string_operations:
+            pytest.skip("list join requires server >= 8.2.0")
+        key = Key("test", "test", "list_exp_join")
+        wp = WritePolicy()
+
+        try:
+            await client.put(key, {"strs": ["one", "two", "three"]}, policy=wp)
+
+            rec = await client.operate(
+                key,
+                [ExpOperation.read("var", fe.list_join(fe.list_bin("strs"), []))],
+                policy=wp,
+            )
+            assert rec.bins["var"] == "onetwothree"
+
+            rec = await client.operate(
+                key,
+                [
+                ExpOperation.read(
+                    "var",
+                    fe.list_join_by_separator(
+                        fe.string_val("|"), fe.list_bin("strs"), [],
+                    ),
+                ),
+            ],
+                policy=wp,
+            )
+            assert rec.bins["var"] == "one|two|three"
+
+        finally:
+            try:
+                await client.delete(key, policy=wp)
+            except ServerError:
+                pass
+
+    async def test_list_join_as_filter_expression(self, client, supports_string_operations):
+        """Join used as a record filter: match passes, mismatch is filtered out."""
+        if not supports_string_operations:
+            pytest.skip("list join requires server >= 8.2.0")
+        key = Key("test", "test", "list_exp_join_filter")
+        wp = WritePolicy()
+        rp = ReadPolicy()
+
+        try:
+            await client.put(key, {"strs": ["a", "b"]}, policy=wp)
+
+            rp.filter_expression = fe.eq(
+                fe.list_join_by_separator(fe.string_val("-"), fe.list_bin("strs"), []),
+                fe.string_val("a-b"),
+            )
+            rec = await client.get(key, policy=rp)
+            assert rec is not None
+
+            rp.filter_expression = fe.eq(
+                fe.list_join(fe.list_bin("strs"), []),
+                fe.string_val("mismatch"),
+            )
+            with pytest.raises(FilteredOut):
+                await client.get(key, policy=rp)
+
+        finally:
+            try:
+                await client.delete(key, policy=wp)
+            except ServerError:
+                pass

@@ -18,7 +18,7 @@ import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
                              ListPolicy, ListOrderType, ListWriteFlags, ListReturnType, ListSortFlags, CTX)
-from aerospike_async.exceptions import BinTypeError, ResultCode
+from aerospike_async.exceptions import BinTypeError, ResultCode, ServerError
 
 
 @pytest_asyncio.fixture
@@ -1619,4 +1619,76 @@ async def test_list_append_with_combined_write_flags(client_and_key):
 
     rec = await client.get(key, ["listbin"], policy=rp)
     assert sorted(rec.bins["listbin"]) == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# List join (CDT list read op 28, server >= 8.2.0)
+# ---------------------------------------------------------------------------
+
+
+async def test_operate_list_join_with_and_without_separator(
+    client_and_key, supports_string_operations
+):
+    """Join concatenates the string items; separator is optional."""
+    if not supports_string_operations:
+        pytest.skip("list join requires server >= 8.2.0")
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    await client.put(key, {"listbin": ["one", "two", "three"]}, policy=wp)
+
+    rec = await client.operate(key, [ListOperation.join("listbin", ",")], policy=wp)
+    assert rec.bins.get("listbin") == "one,two,three"
+
+    rec = await client.operate(key, [ListOperation.join("listbin")], policy=wp)
+    assert rec.bins.get("listbin") == "onetwothree"
+
+
+async def test_operate_list_join_empty_list_is_empty_string(
+    client_and_key, supports_string_operations
+):
+    if not supports_string_operations:
+        pytest.skip("list join requires server >= 8.2.0")
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    await client.put(key, {"listbin": []}, policy=wp)
+
+    rec = await client.operate(key, [ListOperation.join("listbin", ",")], policy=wp)
+    assert rec.bins.get("listbin") == ""
+
+
+async def test_operate_list_join_non_string_element_is_parameter_error(
+    client_and_key, supports_string_operations
+):
+    """The list must hold only strings; anything else is PARAMETER_ERROR."""
+    if not supports_string_operations:
+        pytest.skip("list join requires server >= 8.2.0")
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    await client.put(key, {"listbin": ["one", 2, "three"]}, policy=wp)
+
+    with pytest.raises(ServerError) as excinfo:
+        await client.operate(key, [ListOperation.join("listbin", ",")], policy=wp)
+    assert excinfo.value.result_code == ResultCode.PARAMETER_ERROR
+
+
+async def test_operate_list_join_nested_via_context(
+    client_and_key, supports_string_operations
+):
+    """Join a list nested in a map via set_context."""
+    if not supports_string_operations:
+        pytest.skip("list join requires server >= 8.2.0")
+    client, key = client_and_key
+
+    wp = WritePolicy()
+    await client.put(key, {"mapbin": {"k": ["a", "b"]}}, policy=wp)
+
+    rec = await client.operate(
+        key,
+        [ListOperation.join("mapbin", "-").set_context([CTX.map_key("k")])],
+        policy=wp,
+    )
+    assert rec.bins.get("mapbin") == "a-b"
 
