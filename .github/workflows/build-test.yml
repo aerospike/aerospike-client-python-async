@@ -265,6 +265,28 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # Restores ~/.cargo and the dependency half of target/ from the previous
+      # run. Must come after the toolchain is installed -- the cache key
+      # includes the rustc version.
+      #
+      # This is not sccache by another name. sccache cached individual rustc
+      # invocations through a network API, which meant ~200 cache writes per
+      # job; at this matrix width that blew through GitHub's 200-writes-per-
+      # minute repository cap, every write failed, and the cache never
+      # populated. rust-cache is one restore and one save per job, so the cap
+      # is irrelevant. It also caches build-script output, which sccache did
+      # not -- aws-lc-sys and mimalloc-sys both compile C here.
+      #
+      # shared-key ties all four interpreter cells to one cache entry instead
+      # of four. The ~220 non-PyO3 dependencies are identical across them, and
+      # a per-job key would multiply a multi-GB archive by four against the
+      # 10 GB per-repository cache quota. Cargo rebuilds whatever the key
+      # over-shares (the pyo3 crates, which are interpreter-specific).
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: windows-x64
+
       - name: Install NASM
         run: |
           choco install nasm -y
