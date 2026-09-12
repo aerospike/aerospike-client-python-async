@@ -23,6 +23,10 @@ env:
 jobs:
   linux:
     runs-on: ubuntu-22.04
+    env:
+      # Job-scoped deliberately: a workflow-level CARGO_* would change the
+      # rust-cache key for the windows and macOS jobs and discard their caches.
+      CARGO_HOME: ${{ github.workspace }}/.cargo-home
     strategy:
       matrix:
         target: [
@@ -74,6 +78,17 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # The build runs inside the manylinux container, so the cargo dirs must
+      # live somewhere the host can see. target/ already does -- maturin-action
+      # bind-mounts $GITHUB_WORKSPACE and chowns target/ back to the runner.
+      # CARGO_HOME does not, hence the job-level override below pointing it into
+      # the workspace; CARGO_ is on maturin-action's env-forwarding allowlist, so
+      # the container picks it up.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: linux-x86_64
+
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
@@ -99,6 +114,12 @@ jobs:
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
           # Ensure pre-generated bindings are used (don't skip them)
           AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
+
+      # The container writes CARGO_HOME as root. rust-cache's save step prunes
+      # before archiving, which needs write access on those directories.
+      - name: Fix cargo-home ownership for the cache save
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$CARGO_HOME" || true
 
       - name: Run Aerospike server
         id: aerospike
@@ -162,6 +183,10 @@ jobs:
   # Native ARM64 Linux build (no cross-compilation needed)
   linux-arm:
     runs-on: ubuntu-24.04-arm
+    env:
+      # Job-scoped deliberately: a workflow-level CARGO_* would change the
+      # rust-cache key for the windows and macOS jobs and discard their caches.
+      CARGO_HOME: ${{ github.workspace }}/.cargo-home
     strategy:
       matrix:
         python: [
@@ -178,6 +203,17 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # The build runs inside the manylinux container, so the cargo dirs must
+      # live somewhere the host can see. target/ already does -- maturin-action
+      # bind-mounts $GITHUB_WORKSPACE and chowns target/ back to the runner.
+      # CARGO_HOME does not, hence the job-level override below pointing it into
+      # the workspace; CARGO_ is on maturin-action's env-forwarding allowlist, so
+      # the container picks it up.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: linux-aarch64
+
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
@@ -192,6 +228,12 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
           AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
+
+      # The container writes CARGO_HOME as root. rust-cache's save step prunes
+      # before archiving, which needs write access on those directories.
+      - name: Fix cargo-home ownership for the cache save
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$CARGO_HOME" || true
 
       - name: Run Aerospike server
         id: aerospike
@@ -794,6 +836,10 @@ jobs:
   # cross-loop asyncio primitives) fails here before it reaches users.
   linux-freethreaded:
     runs-on: ${{ matrix.runs-on }}
+    env:
+      # Job-scoped deliberately: a workflow-level CARGO_* would change the
+      # rust-cache key for the windows and macOS jobs and discard their caches.
+      CARGO_HOME: ${{ github.workspace }}/.cargo-home
     strategy:
       matrix:
         include:
@@ -814,6 +860,17 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # The build runs inside the manylinux container, so the cargo dirs must
+      # live somewhere the host can see. target/ already does -- maturin-action
+      # bind-mounts $GITHUB_WORKSPACE and chowns target/ back to the runner.
+      # CARGO_HOME does not, hence the job-level override below pointing it into
+      # the workspace; CARGO_ is on maturin-action's env-forwarding allowlist, so
+      # the container picks it up.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: linux-ft
+
       - name: Setup free-threaded Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
@@ -836,6 +893,12 @@ jobs:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
           AWS_LC_SYS_EXTERNAL_BINDGEN: "0"
           AWS_LC_SYS_NO_PREGENERATED_SRC: "0"
+      # The container writes CARGO_HOME as root. rust-cache's save step prunes
+      # before archiving, which needs write access on those directories.
+      - name: Fix cargo-home ownership for the cache save
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$CARGO_HOME" || true
+
       - name: Run Aerospike server
         id: aerospike
         uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@3737237b6907ccb1f0c9c9669c826631912252d8 # INFRA-723 job names (post-v4.1.0)
