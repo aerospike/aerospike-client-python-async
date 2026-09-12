@@ -513,6 +513,13 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # See the note on the windows job: one restore/save per job, caching
+      # the dependency half of target/ plus build-script output.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: macos-x86
+
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
@@ -560,6 +567,13 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # See the note on the windows job: one restore/save per job, caching
+      # the dependency half of target/ plus build-script output.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: macos-arm
+
       - name: Setup Python for maturin
         uses: actions/setup-python@v6
         with:
@@ -723,6 +737,16 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
+      # See the note on the windows job: one restore/save per job, caches the
+      # dependency half of target/ plus build-script output.
+      # Shares macos-arm's entry: same runner and toolchain, so the ~220
+      # non-PyO3 dependencies are identical. Cargo rebuilds the PyO3 crates,
+      # which differ between the free-threaded and GIL ABIs.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: macos-arm
+
       - name: Setup free-threaded Python ${{ matrix.python }}
         uses: actions/setup-python@v6
         with:
