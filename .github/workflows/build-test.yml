@@ -88,7 +88,6 @@ jobs:
         with:
           target: ${{ matrix.target[0] }}
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
           manylinux: auto
         env:
           # Force aws-lc-sys to use pre-generated bindings instead of bindgen/CMake
@@ -188,7 +187,6 @@ jobs:
         with:
           target: aarch64
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
           manylinux: auto
         env:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
@@ -297,7 +295,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out aerospike_async --interpreter ${{ steps.setup-python.outputs.python-path }}
-          sccache: 'true'
         env:
           # Force aws-lc-sys to use pre-generated bindings if available
           AWS_LC_SYS_CMAKE_BUILDER: "0"
@@ -503,7 +500,6 @@ jobs:
         with:
           target: x86_64
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
       # Zero-container smoke: verify the freshly built wheel installs and imports
       # on macOS (catches link/ABI/symbol breakage the build step alone can miss).
       - name: Set Python version for import smoke
@@ -551,7 +547,6 @@ jobs:
         with:
           target: aarch64
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
       # Zero-container smoke: verify the freshly built wheel installs and imports
       # on macOS (catches link/ABI/symbol breakage the build step alone can miss).
       - name: Set Python version for import smoke
@@ -715,7 +710,6 @@ jobs:
         with:
           target: aarch64
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
       # macOS GitHub runners can't run the Linux AS-server container, so this is
       # a build + import/GIL smoke only (no integration), like the GIL macos-arm job.
       - name: Import smoke + verify GIL stays disabled
@@ -783,7 +777,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out aerospike_async --interpreter ${{ matrix.python }}
-          sccache: 'true'
           # Build against the host Python installed by setup-python above.
           # The container `manylinux: auto` selects (manylinux2014) has no
           # free-threaded CPython builds, so spinning one up causes maturin
