@@ -20,24 +20,6 @@ env:
   AEROSPIKE_SERVER_TAG: "8.2.0.0"
   AEROSPIKE_SERVER_REPO: database-docker-test-local/aerospike-server-enterprise
 
-  # Wheels built here are test artifacts: the integration jobs install them,
-  # and `retention-days: 1` throws them away. Nothing published or benchmarked
-  # comes from this workflow -- release wheels are built by build-release.yaml
-  # and release.yml, which keep the committed profile untouched.
-  #
-  # So trade optimisation for build time here, where optimisation buys nothing.
-  # codegen-units = 1 (the committed value, right for a shipped artifact)
-  # serialises codegen onto a single core no matter how many the runner has;
-  # 16 lets it parallelise. Locally every cu=16 build beat every cu=1 build by
-  # a wide margin, at the cost of a ~28% larger wheel -- irrelevant for
-  # something we delete after the test run. (Local timings varied too much to
-  # quote a figure; the job durations here are the real measurement.)
-  # Overriding by env rather than in Cargo.toml keeps the committed
-  # profile the single source of truth for anything that ships. Note the
-  # CARGO_ prefix matters: it is on maturin-action's forwarding allowlist, so
-  # this reaches the manylinux container builds too.
-  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
-
 jobs:
   linux:
     runs-on: ubuntu-22.04
