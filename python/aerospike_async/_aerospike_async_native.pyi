@@ -1014,6 +1014,10 @@ class Client:
     def commit_blocking(self, txn: _aerospike_async_native.Txn) -> _aerospike_async_native.CommitStatus:
         r"""
         Synchronously commit a multi-record transaction.
+
+        Same outcomes as :meth:`commit`: success returns a
+        :class:`CommitStatus`; an abandoned roll-forward raises
+        :exc:`aerospike_async.exceptions.CommitFailedError`.
         """
     def abort_blocking(self, txn: _aerospike_async_native.Txn) -> _aerospike_async_native.AbortStatus:
         r"""
@@ -1673,9 +1677,14 @@ class Client:
         Commit a multi-record transaction.
 
         Verifies all transaction record versions, then applies all writes
-        atomically. Returns a :class:`CommitStatus` indicating the outcome.
-        Raises :exc:`aerospike_async.exceptions.CommitFailedError` if the
-        commit fails part-way through.
+        atomically. Returns a :class:`CommitStatus` indicating the outcome
+        (``OK``, ``ALREADY_COMMITTED``, or ``CLOSE_ABANDONED``). An
+        abandoned roll-forward raises
+        :exc:`aerospike_async.exceptions.CommitFailedError` with
+        ``commit_error_type=ROLL_FORWARD_ABANDONED`` rather than returning
+        that status: the writes are not yet visible, and returning
+        normally would present them as committed. The triggering
+        timeout or server code is on the exception.
 
         Args:
             txn: The transaction to commit.
@@ -1684,7 +1693,8 @@ class Client:
             CommitStatus: The outcome of the commit.
 
         Raises:
-            CommitFailedError: If the transaction could not be committed.
+            CommitFailedError: If the transaction could not be committed,
+                including when roll-forward was abandoned.
 
         Example::
 
@@ -6670,14 +6680,15 @@ class CommitErrorType(enum.Enum):
 
     Carried on :exc:`aerospike_async.exceptions.CommitFailedError` as
     ``commit_error_type``. The distinction matters for recovery: a plain
-    verify failure leaves nothing applied, while the abandoned variants mean
-    the client stopped tracking a transaction the server will finish
-    resolving on its own.
+    verify failure leaves nothing applied; ``MARK_ROLL_FORWARD_ABANDONED``
+    means the server will abort; ``ROLL_FORWARD_ABANDONED`` means the
+    writes are not yet visible and the server will eventually commit.
     """
     VERIFY_FAIL = ...
     VERIFY_FAIL_CLOSE_ABANDONED = ...
     VERIFY_FAIL_ABORT_ABANDONED = ...
     MARK_ROLL_FORWARD_ABANDONED = ...
+    ROLL_FORWARD_ABANDONED = ...
 
 @typing.final
 class CommitLevel(enum.Enum):

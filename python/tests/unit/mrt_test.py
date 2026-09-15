@@ -16,7 +16,7 @@
 """Unit tests for multi-record transaction types: Txn, TxnState, CommitStatus, AbortStatus."""
 
 import pytest
-from aerospike_async import Txn, TxnState, CommitStatus, AbortStatus
+from aerospike_async import Txn, TxnState, CommitStatus, AbortStatus, CommitErrorType
 
 
 class TestTxn:
@@ -158,6 +158,25 @@ class TestCommitStatus:
             CommitStatus.CLOSE_ABANDONED,
         ):
             assert repr(status) != ""
+
+
+class TestCommitErrorType:
+
+    def test_roll_forward_abandoned_exists(self):
+        assert CommitErrorType.ROLL_FORWARD_ABANDONED is not None
+        assert CommitErrorType.ROLL_FORWARD_ABANDONED != CommitErrorType.MARK_ROLL_FORWARD_ABANDONED
+
+    def test_all_types_distinct(self):
+        types = [
+            CommitErrorType.VERIFY_FAIL,
+            CommitErrorType.VERIFY_FAIL_CLOSE_ABANDONED,
+            CommitErrorType.VERIFY_FAIL_ABORT_ABANDONED,
+            CommitErrorType.MARK_ROLL_FORWARD_ABANDONED,
+            CommitErrorType.ROLL_FORWARD_ABANDONED,
+        ]
+        for i, a in enumerate(types):
+            for b in types[i + 1:]:
+                assert a != b
 
 
 class TestAbortStatus:

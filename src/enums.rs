@@ -1093,9 +1093,9 @@ pub enum Concurrency {
     ///
     /// Carried on :exc:`aerospike_async.exceptions.CommitFailedError` as
     /// ``commit_error_type``. The distinction matters for recovery: a plain
-    /// verify failure leaves nothing applied, while the abandoned variants mean
-    /// the client stopped tracking a transaction the server will finish
-    /// resolving on its own.
+    /// verify failure leaves nothing applied; ``MARK_ROLL_FORWARD_ABANDONED``
+    /// means the server will abort; ``ROLL_FORWARD_ABANDONED`` means the
+    /// writes are not yet visible and the server will eventually commit.
     #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1108,6 +1108,8 @@ pub enum Concurrency {
         VerifyFailAbortAbandoned,
         #[pyo3(name = "MARK_ROLL_FORWARD_ABANDONED")]
         MarkRollForwardAbandoned,
+        #[pyo3(name = "ROLL_FORWARD_ABANDONED")]
+        RollForwardAbandoned,
     }
 
     #[pymethods]
@@ -1143,6 +1145,9 @@ pub enum Concurrency {
                 }
                 aerospike_core::txn::CommitErrorType::MarkRollForwardAbandoned => {
                     CommitErrorType::MarkRollForwardAbandoned
+                }
+                aerospike_core::txn::CommitErrorType::RollForwardAbandoned => {
+                    CommitErrorType::RollForwardAbandoned
                 }
             }
         }

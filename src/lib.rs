@@ -1264,6 +1264,10 @@ use crate::operations::{
         }
 
         /// Synchronously commit a multi-record transaction.
+        ///
+        /// Same outcomes as :meth:`commit`: success returns a
+        /// :class:`CommitStatus`; an abandoned roll-forward raises
+        /// :exc:`aerospike_async.exceptions.CommitFailedError`.
         pub fn commit_blocking(&self, txn: &Txn, py: Python<'_>) -> PyResult<CommitStatus> {
             let client = self._as.clone();
             let txn_arc = txn._as.clone();
@@ -4585,9 +4589,14 @@ use crate::operations::{
         /// Commit a multi-record transaction.
         ///
         /// Verifies all transaction record versions, then applies all writes
-        /// atomically. Returns a :class:`CommitStatus` indicating the outcome.
-        /// Raises :exc:`aerospike_async.exceptions.CommitFailedError` if the
-        /// commit fails part-way through.
+        /// atomically. Returns a :class:`CommitStatus` indicating the outcome
+        /// (``OK``, ``ALREADY_COMMITTED``, or ``CLOSE_ABANDONED``). An
+        /// abandoned roll-forward raises
+        /// :exc:`aerospike_async.exceptions.CommitFailedError` with
+        /// ``commit_error_type=ROLL_FORWARD_ABANDONED`` rather than returning
+        /// that status: the writes are not yet visible, and returning
+        /// normally would present them as committed. The triggering
+        /// timeout or server code is on the exception.
         ///
         /// Args:
         ///     txn: The transaction to commit.
@@ -4596,7 +4605,8 @@ use crate::operations::{
         ///     CommitStatus: The outcome of the commit.
         ///
         /// Raises:
-        ///     CommitFailedError: If the transaction could not be committed.
+        ///     CommitFailedError: If the transaction could not be committed,
+        ///         including when roll-forward was abandoned.
         ///
         /// Example::
         ///
