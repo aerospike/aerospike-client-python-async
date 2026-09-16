@@ -614,8 +614,8 @@ def add_client_stubs(content: str) -> str:
     def node_names(self) -> typing.Awaitable[typing.List[builtins.str]]: ...
     def get_node(self, name: builtins.str) -> typing.Awaitable[Node]: ...
     def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...
-    def commit(self, txn: Txn) -> typing.Awaitable[CommitStatus]: ...
-    def abort(self, txn: Txn) -> typing.Awaitable[AbortStatus]: ...
+    def commit(self, txn: Txn, *, verify_policy: typing.Optional[TxnVerifyPolicy] = None, roll_policy: typing.Optional[TxnRollPolicy] = None) -> typing.Awaitable[CommitStatus]: ...
+    def abort(self, txn: Txn, *, roll_policy: typing.Optional[TxnRollPolicy] = None) -> typing.Awaitable[AbortStatus]: ...
     def info(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, builtins.str]]: ...
     def info_on_all_nodes(self, command: builtins.str) -> typing.Awaitable[typing.Dict[builtins.str, typing.Dict[builtins.str, builtins.str]]]: ...
     def create_user(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str]) -> typing.Awaitable[typing.Any]: ...
@@ -735,9 +735,9 @@ def add_client_stubs(content: str) -> str:
                     elif method == 'nodes':
                         method_stubs.append('    def nodes(self) -> typing.Awaitable[typing.List[Node]]: ...')
                     elif method == 'commit':
-                        method_stubs.append('    def commit(self, txn: Txn) -> typing.Awaitable[CommitStatus]: ...')
+                        method_stubs.append('    def commit(self, txn: Txn, *, verify_policy: typing.Optional[TxnVerifyPolicy] = None, roll_policy: typing.Optional[TxnRollPolicy] = None) -> typing.Awaitable[CommitStatus]: ...')
                     elif method == 'abort':
-                        method_stubs.append('    def abort(self, txn: Txn) -> typing.Awaitable[AbortStatus]: ...')
+                        method_stubs.append('    def abort(self, txn: Txn, *, roll_policy: typing.Optional[TxnRollPolicy] = None) -> typing.Awaitable[AbortStatus]: ...')
                     elif method == 'set_xdr_filter':
                         method_stubs.append('    def set_xdr_filter(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[FilterExpression] = None, *, policy: typing.Optional[AdminPolicy] = None) -> typing.Awaitable[typing.Any]: ...')
 
@@ -1668,6 +1668,7 @@ def add_policy_stubs(content: str) -> str:
             ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
             ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
             ("socket_timeout", "builtins.int"),
+            ("timeout_delay", "builtins.int"),
             ("use_compression", "builtins.bool"),
             ("compression_threshold", "builtins.int"),
             ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
@@ -1684,6 +1685,7 @@ def add_policy_stubs(content: str) -> str:
             ("send_key", "builtins.bool"),
             ("respond_per_each_op", "builtins.bool"),
             ("durable_delete", "builtins.bool"),
+            ("xdr", "builtins.bool"),
             ("base_policy", "_aerospike_async_native.BasePolicy"),
             ("error_detail_verbosity", "builtins.int"),
             ("total_timeout", "builtins.int"),
@@ -1692,6 +1694,7 @@ def add_policy_stubs(content: str) -> str:
             ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
             ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
             ("socket_timeout", "builtins.int"),
+            ("timeout_delay", "builtins.int"),
             ("use_compression", "builtins.bool"),
             ("compression_threshold", "builtins.int"),
             ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
@@ -1707,6 +1710,7 @@ def add_policy_stubs(content: str) -> str:
             ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
             ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
             ("socket_timeout", "builtins.int"),
+            ("timeout_delay", "builtins.int"),
             ("use_compression", "builtins.bool"),
             ("compression_threshold", "builtins.int"),
             ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
@@ -1729,6 +1733,7 @@ def add_policy_stubs(content: str) -> str:
             ("read_mode_ap", "_aerospike_async_native.ReadModeAP"),
             ("read_mode_sc", "_aerospike_async_native.ReadModeSC"),
             ("socket_timeout", "builtins.int"),
+            ("timeout_delay", "builtins.int"),
             ("use_compression", "builtins.bool"),
             ("compression_threshold", "builtins.int"),
             ("txn", "typing.Optional[_aerospike_async_native.Txn]"),
@@ -1744,6 +1749,7 @@ def add_policy_stubs(content: str) -> str:
         "ReadPolicy": [
             ("total_timeout", "typing.Optional[builtins.int]"),
             ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("timeout_delay", "typing.Optional[builtins.int]"),
             ("max_retries", "typing.Optional[builtins.int]"),
             ("sleep_between_retries", "typing.Optional[builtins.int]"),
             ("replica", "typing.Optional[_aerospike_async_native.Replica]"),
@@ -1757,6 +1763,7 @@ def add_policy_stubs(content: str) -> str:
         "WritePolicy": [
             ("total_timeout", "typing.Optional[builtins.int]"),
             ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("timeout_delay", "typing.Optional[builtins.int]"),
             ("max_retries", "typing.Optional[builtins.int]"),
             ("sleep_between_retries", "typing.Optional[builtins.int]"),
             ("record_exists_action", "typing.Optional[_aerospike_async_native.RecordExistsAction]"),
@@ -1775,6 +1782,7 @@ def add_policy_stubs(content: str) -> str:
         "BatchPolicy": [
             ("total_timeout", "typing.Optional[builtins.int]"),
             ("socket_timeout", "typing.Optional[builtins.int]"),
+            ("timeout_delay", "typing.Optional[builtins.int]"),
             ("max_retries", "typing.Optional[builtins.int]"),
             ("sleep_between_retries", "typing.Optional[builtins.int]"),
             ("allow_inline", "typing.Optional[builtins.bool]"),

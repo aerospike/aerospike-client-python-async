@@ -116,7 +116,9 @@ __all__ = [
     "TaskStatus",
     "TlsConfig",
     "Txn",
+    "TxnRollPolicy",
     "TxnState",
+    "TxnVerifyPolicy",
     "UDFLang",
     "UdfRemoveTask",
     "User",
@@ -166,6 +168,16 @@ class BasePolicy:
     def socket_timeout(self) -> builtins.int: ...
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def timeout_delay(self) -> builtins.int:
+        r"""
+        Post-timeout socket drain window (milliseconds). After a
+        client-side timeout, keep the socket and drain the pending
+        response for up to this long so the connection can be reused.
+        ``0`` (the default) closes the socket on timeout instead.
+        """
+    @timeout_delay.setter
+    def timeout_delay(self, value: builtins.int) -> None: ...
     @property
     def use_compression(self) -> builtins.bool: ...
     @use_compression.setter
@@ -236,7 +248,7 @@ class BatchDeletePolicy:
 class BatchPolicy(_aerospike_async_native.BasePolicy):
     def __new__(cls) -> _aerospike_async_native.BatchPolicy: ...
     @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, allow_inline: typing.Optional[builtins.bool] = None, allow_inline_ssd: typing.Optional[builtins.bool] = None, respond_all_keys: typing.Optional[builtins.bool] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, concurrency: typing.Optional[_aerospike_async_native.Concurrency] = None) -> _aerospike_async_native.BatchPolicy: ...
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, allow_inline: typing.Optional[builtins.bool] = None, allow_inline_ssd: typing.Optional[builtins.bool] = None, respond_all_keys: typing.Optional[builtins.bool] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, concurrency: typing.Optional[_aerospike_async_native.Concurrency] = None) -> _aerospike_async_native.BatchPolicy: ...
     @property
     def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
     @base_policy.setter
@@ -273,6 +285,10 @@ class BatchPolicy(_aerospike_async_native.BasePolicy):
     def socket_timeout(self) -> builtins.int: ...
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def timeout_delay(self) -> builtins.int: ...
+    @timeout_delay.setter
+    def timeout_delay(self, value: builtins.int) -> None: ...
     @property
     def use_compression(self) -> builtins.bool: ...
     @use_compression.setter
@@ -1011,17 +1027,22 @@ class Client:
         Returns ``True`` if the record existed on the server before the
         delete, ``False`` otherwise.
         """
-    def commit_blocking(self, txn: _aerospike_async_native.Txn) -> _aerospike_async_native.CommitStatus:
+    def commit_blocking(self, txn: _aerospike_async_native.Txn, *, verify_policy: typing.Optional[_aerospike_async_native.TxnVerifyPolicy] = None, roll_policy: typing.Optional[_aerospike_async_native.TxnRollPolicy] = None) -> _aerospike_async_native.CommitStatus:
         r"""
         Synchronously commit a multi-record transaction.
 
         Same outcomes as :meth:`commit`: success returns a
         :class:`CommitStatus`; an abandoned roll-forward raises
-        :exc:`aerospike_async.exceptions.CommitFailedError`.
+        :exc:`aerospike_async.exceptions.CommitFailedError`. The optional
+        ``verify_policy`` / ``roll_policy`` configure the verify and
+        roll-forward phases; ``None`` applies the default policies.
         """
-    def abort_blocking(self, txn: _aerospike_async_native.Txn) -> _aerospike_async_native.AbortStatus:
+    def abort_blocking(self, txn: _aerospike_async_native.Txn, *, roll_policy: typing.Optional[_aerospike_async_native.TxnRollPolicy] = None) -> _aerospike_async_native.AbortStatus:
         r"""
         Synchronously abort a multi-record transaction.
+
+        The optional ``roll_policy`` configures the roll-back phase;
+        ``None`` applies the default policy.
         """
     def add_blocking(self, key: _aerospike_async_native.Key, bins: typing.Mapping[builtins.str, typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> None:
         r"""
@@ -1672,7 +1693,7 @@ class Client:
         r"""
         Returns a list of all active server nodes in the cluster.
         """
-    def commit(self, txn: _aerospike_async_native.Txn) -> typing.Awaitable[CommitStatus]:
+    def commit(self, txn: _aerospike_async_native.Txn, *, verify_policy: typing.Optional[_aerospike_async_native.TxnVerifyPolicy] = None, roll_policy: typing.Optional[_aerospike_async_native.TxnRollPolicy] = None) -> typing.Awaitable[CommitStatus]:
         r"""
         Commit a multi-record transaction.
 
@@ -1688,6 +1709,10 @@ class Client:
 
         Args:
             txn: The transaction to commit.
+            verify_policy: Policy for the verify phase. ``None`` (the
+                default) applies the default verify policy.
+            roll_policy: Policy for the roll-forward phase. ``None`` (the
+                default) applies the default roll policy.
 
         Returns:
             CommitStatus: The outcome of the commit.
@@ -1701,12 +1726,14 @@ class Client:
             status = await client.commit(txn)
             assert status == CommitStatus.OK
         """
-    def abort(self, txn: _aerospike_async_native.Txn) -> typing.Awaitable[AbortStatus]:
+    def abort(self, txn: _aerospike_async_native.Txn, *, roll_policy: typing.Optional[_aerospike_async_native.TxnRollPolicy] = None) -> typing.Awaitable[AbortStatus]:
         r"""
         Abort a multi-record transaction, rolling back all writes.
 
         Args:
             txn: The transaction to abort.
+            roll_policy: Policy for the roll-back phase. ``None`` (the
+                default) applies the default roll policy.
 
         Returns:
             AbortStatus: The outcome of the abort.
@@ -5190,6 +5217,10 @@ class QueryPolicy(_aerospike_async_native.BasePolicy):
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
     @property
+    def timeout_delay(self) -> builtins.int: ...
+    @timeout_delay.setter
+    def timeout_delay(self, value: builtins.int) -> None: ...
+    @property
     def use_compression(self) -> builtins.bool: ...
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
@@ -5267,7 +5298,7 @@ class QueryWhereFlags:
 class ReadPolicy(_aerospike_async_native.BasePolicy):
     def __new__(cls) -> _aerospike_async_native.ReadPolicy: ...
     @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, read_touch_ttl: typing.Optional[builtins.int] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None) -> _aerospike_async_native.ReadPolicy: ...
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, read_touch_ttl: typing.Optional[builtins.int] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None) -> _aerospike_async_native.ReadPolicy: ...
     @property
     def replica(self) -> _aerospike_async_native.Replica: ...
     @replica.setter
@@ -5304,6 +5335,10 @@ class ReadPolicy(_aerospike_async_native.BasePolicy):
     def socket_timeout(self) -> builtins.int: ...
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def timeout_delay(self) -> builtins.int: ...
+    @timeout_delay.setter
+    def timeout_delay(self, value: builtins.int) -> None: ...
     @property
     def use_compression(self) -> builtins.bool: ...
     @use_compression.setter
@@ -6254,6 +6289,68 @@ class Txn:
         """
     def __repr__(self) -> builtins.str: ...
 
+class TxnRollPolicy:
+    r"""
+    Policy for the roll phase of a multi-record transaction: rolling
+    records forward on commit or back on abort. Rolling is sent to the
+    server as one batch command per node, so the exposed knobs configure
+    that batch.
+    """
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def replica(self) -> _aerospike_async_native.Replica: ...
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.TxnRollPolicy: ...
+
+class TxnVerifyPolicy:
+    r"""
+    Policy for the verify phase of a multi-record transaction: reading and
+    checking the versions of the records that took part in the transaction
+    before it is committed. Verification is sent to the server as one batch
+    command per node, so the exposed knobs configure that batch.
+    """
+    @property
+    def total_timeout(self) -> builtins.int: ...
+    @total_timeout.setter
+    def total_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def socket_timeout(self) -> builtins.int: ...
+    @socket_timeout.setter
+    def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def max_retries(self) -> builtins.int: ...
+    @max_retries.setter
+    def max_retries(self, value: builtins.int) -> None: ...
+    @property
+    def sleep_between_retries(self) -> builtins.int: ...
+    @sleep_between_retries.setter
+    def sleep_between_retries(self, value: builtins.int) -> None: ...
+    @property
+    def read_mode_sc(self) -> _aerospike_async_native.ReadModeSC: ...
+    @read_mode_sc.setter
+    def read_mode_sc(self, value: _aerospike_async_native.ReadModeSC) -> None: ...
+    @property
+    def replica(self) -> _aerospike_async_native.Replica: ...
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.TxnVerifyPolicy: ...
+
 class UdfRemoveTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]:
@@ -6419,7 +6516,7 @@ class Version:
 class WritePolicy(_aerospike_async_native.BasePolicy):
     def __new__(cls) -> _aerospike_async_native.WritePolicy: ...
     @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy: ...
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy: ...
     @property
     def record_exists_action(self) -> _aerospike_async_native.RecordExistsAction: ...
     @record_exists_action.setter
@@ -6457,6 +6554,10 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
     @property
+    def xdr(self) -> builtins.bool: ...
+    @xdr.setter
+    def xdr(self, value: builtins.bool) -> None: ...
+    @property
     def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
     @base_policy.setter
     def base_policy(self, value: _aerospike_async_native.BasePolicy) -> None: ...
@@ -6488,6 +6589,10 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     def socket_timeout(self) -> builtins.int: ...
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
+    @property
+    def timeout_delay(self) -> builtins.int: ...
+    @timeout_delay.setter
+    def timeout_delay(self, value: builtins.int) -> None: ...
     @property
     def use_compression(self) -> builtins.bool: ...
     @use_compression.setter

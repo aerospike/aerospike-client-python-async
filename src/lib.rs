@@ -1267,24 +1267,60 @@ use crate::operations::{
         ///
         /// Same outcomes as :meth:`commit`: success returns a
         /// :class:`CommitStatus`; an abandoned roll-forward raises
-        /// :exc:`aerospike_async.exceptions.CommitFailedError`.
-        pub fn commit_blocking(&self, txn: &Txn, py: Python<'_>) -> PyResult<CommitStatus> {
+        /// :exc:`aerospike_async.exceptions.CommitFailedError`. The optional
+        /// ``verify_policy`` / ``roll_policy`` configure the verify and
+        /// roll-forward phases; ``None`` applies the default policies.
+        #[pyo3(signature = (txn, *, verify_policy=None, roll_policy=None))]
+        pub fn commit_blocking(
+            &self,
+            txn: &Txn,
+            verify_policy: Option<TxnVerifyPolicy>,
+            roll_policy: Option<TxnRollPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<CommitStatus> {
             let client = self._as.clone();
             let txn_arc = txn._as.clone();
+            // Route through the explicit-policy entry only when a caller
+            // supplied one, so the no-policy call keeps core's defaults.
+            let policies = match (verify_policy, roll_policy) {
+                (None, None) => None,
+                (verify, roll) => Some((
+                    verify.map(|p| p._as).unwrap_or_default(),
+                    roll.map(|p| p._as).unwrap_or_default(),
+                )),
+            };
             let status = run_blocking(py, async move {
-                client.commit(&txn_arc).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                match &policies {
+                    Some((verify, roll)) => {
+                        client.commit_with_policies(verify, roll, &txn_arc).await
+                    }
+                    None => client.commit(&txn_arc).await,
+                }
+                .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(CommitStatus::from(status))
         }
 
         /// Synchronously abort a multi-record transaction.
-        pub fn abort_blocking(&self, txn: &Txn, py: Python<'_>) -> PyResult<AbortStatus> {
+        ///
+        /// The optional ``roll_policy`` configures the roll-back phase;
+        /// ``None`` applies the default policy.
+        #[pyo3(signature = (txn, *, roll_policy=None))]
+        pub fn abort_blocking(
+            &self,
+            txn: &Txn,
+            roll_policy: Option<TxnRollPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<AbortStatus> {
             let client = self._as.clone();
             let txn_arc = txn._as.clone();
+            let roll_policy = roll_policy.map(|p| p._as);
             let status = run_blocking(py, async move {
-                client.abort(&txn_arc).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                match &roll_policy {
+                    Some(roll) => client.abort_with_policy(roll, &txn_arc).await,
+                    None => client.abort(&txn_arc).await,
+                }
+                .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(AbortStatus::from(status))
         }
@@ -4600,6 +4636,10 @@ use crate::operations::{
         ///
         /// Args:
         ///     txn: The transaction to commit.
+        ///     verify_policy: Policy for the verify phase. ``None`` (the
+        ///         default) applies the default verify policy.
+        ///     roll_policy: Policy for the roll-forward phase. ``None`` (the
+        ///         default) applies the default roll policy.
         ///
         /// Returns:
         ///     CommitStatus: The outcome of the commit.
@@ -4613,14 +4653,33 @@ use crate::operations::{
         ///     status = await client.commit(txn)
         ///     assert status == CommitStatus.OK
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[CommitStatus]", imports=("typing")))]
-        pub fn commit<'a>(&self, txn: &Txn, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+        #[pyo3(signature = (txn, *, verify_policy=None, roll_policy=None))]
+        pub fn commit<'a>(
+            &self,
+            txn: &Txn,
+            verify_policy: Option<TxnVerifyPolicy>,
+            roll_policy: Option<TxnRollPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let txn_arc = txn._as.clone();
+            // Route through the explicit-policy entry only when a caller
+            // supplied one, so the no-policy call keeps core's defaults.
+            let policies = match (verify_policy, roll_policy) {
+                (None, None) => None,
+                (verify, roll) => Some((
+                    verify.map(|p| p._as).unwrap_or_default(),
+                    roll.map(|p| p._as).unwrap_or_default(),
+                )),
+            };
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let status = client
-                    .commit(&txn_arc)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                let status = match &policies {
+                    Some((verify, roll)) => {
+                        client.commit_with_policies(verify, roll, &txn_arc).await
+                    }
+                    None => client.commit(&txn_arc).await,
+                }
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(CommitStatus::from(status))
             })
         }
@@ -4629,6 +4688,8 @@ use crate::operations::{
         ///
         /// Args:
         ///     txn: The transaction to abort.
+        ///     roll_policy: Policy for the roll-back phase. ``None`` (the
+        ///         default) applies the default roll policy.
         ///
         /// Returns:
         ///     AbortStatus: The outcome of the abort.
@@ -4641,14 +4702,22 @@ use crate::operations::{
         ///     status = await client.abort(txn)
         ///     assert status == AbortStatus.OK
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[AbortStatus]", imports=("typing")))]
-        pub fn abort<'a>(&self, txn: &Txn, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+        #[pyo3(signature = (txn, *, roll_policy=None))]
+        pub fn abort<'a>(
+            &self,
+            txn: &Txn,
+            roll_policy: Option<TxnRollPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let txn_arc = txn._as.clone();
+            let roll_policy = roll_policy.map(|p| p._as);
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let status = client
-                    .abort(&txn_arc)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                let status = match &roll_policy {
+                    Some(roll) => client.abort_with_policy(roll, &txn_arc).await,
+                    None => client.abort(&txn_arc).await,
+                }
+                .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(AbortStatus::from(status))
             })
         }
@@ -5036,6 +5105,8 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<BatchWritePolicy>()?;
     m.add_class::<BatchDeletePolicy>()?;
     m.add_class::<BatchUDFPolicy>()?;
+    m.add_class::<TxnVerifyPolicy>()?;
+    m.add_class::<TxnRollPolicy>()?;
     m.add_class::<BatchReadOp>()?;
     m.add_class::<BatchWriteOp>()?;
     m.add_class::<BatchDeleteOp>()?;

@@ -143,6 +143,20 @@ use crate::TlsConfig;
             self._as.socket_timeout = socket_timeout;
         }
 
+        /// Post-timeout socket drain window (milliseconds). After a
+        /// client-side timeout, keep the socket and drain the pending
+        /// response for up to this long so the connection can be reused.
+        /// ``0`` (the default) closes the socket on timeout instead.
+        #[getter]
+        pub fn get_timeout_delay(&self) -> u32 {
+            self._as.timeout_delay
+        }
+
+        #[setter]
+        pub fn set_timeout_delay(&mut self, timeout_delay: u32) {
+            self._as.timeout_delay = timeout_delay;
+        }
+
         #[getter]
         pub fn get_use_compression(&self) -> bool {
             self._as.use_compression
@@ -285,11 +299,12 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, timeout_delay=None, max_retries=None, sleep_between_retries=None, replica=None, read_mode_ap=None, read_mode_sc=None, read_touch_ttl=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
             socket_timeout: Option<u32>,
+            timeout_delay: Option<u32>,
             max_retries: Option<usize>,
             sleep_between_retries: Option<u64>,
             replica: Option<Replica>,
@@ -304,6 +319,7 @@ use crate::TlsConfig;
             rp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { rp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { rp.base_policy.socket_timeout = v; }
+            if let Some(v) = timeout_delay { rp.base_policy.timeout_delay = v; }
             if let Some(v) = max_retries { rp.base_policy.max_retries = v; }
             if let Some(v) = sleep_between_retries {
                 rp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
@@ -427,6 +443,20 @@ use crate::TlsConfig;
             self._as.base_policy.socket_timeout = socket_timeout;
         }
 
+        /// Post-timeout socket drain window (milliseconds). After a
+        /// client-side timeout, keep the socket and drain the pending
+        /// response for up to this long so the connection can be reused.
+        /// ``0`` (the default) closes the socket on timeout instead.
+        #[getter]
+        pub fn get_timeout_delay(&self) -> u32 {
+            self._as.base_policy.timeout_delay
+        }
+
+        #[setter]
+        pub fn set_timeout_delay(&mut self, timeout_delay: u32) {
+            self._as.base_policy.timeout_delay = timeout_delay;
+        }
+
         #[getter]
         pub fn get_use_compression(&self) -> bool {
             self._as.base_policy.use_compression
@@ -532,11 +562,12 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, records_per_second=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, timeout_delay=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, records_per_second=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
             socket_timeout: Option<u32>,
+            timeout_delay: Option<u32>,
             max_retries: Option<usize>,
             sleep_between_retries: Option<u64>,
             record_exists_action: Option<RecordExistsAction>,
@@ -556,6 +587,7 @@ use crate::TlsConfig;
             wp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { wp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { wp.base_policy.socket_timeout = v; }
+            if let Some(v) = timeout_delay { wp.base_policy.timeout_delay = v; }
             if let Some(v) = max_retries { wp.base_policy.max_retries = v; }
             if let Some(v) = sleep_between_retries {
                 wp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
@@ -704,6 +736,20 @@ use crate::TlsConfig;
             self._as.durable_delete = durable_delete;
         }
 
+        /// Send the write as cross-datacenter replication traffic: sets the
+        /// XDR bit on the wire so the server treats it as an XDR write. For
+        /// connectors emulating cross-datacenter replication. Default:
+        /// ``False``.
+        #[getter]
+        pub fn get_xdr(&self) -> bool {
+            self._as.xdr
+        }
+
+        #[setter]
+        pub fn set_xdr(&mut self, xdr: bool) {
+            self._as.xdr = xdr;
+        }
+
         #[getter]
         pub fn get_base_policy(&self) -> BasePolicy {
             BasePolicy {
@@ -786,6 +832,20 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        /// Post-timeout socket drain window (milliseconds). After a
+        /// client-side timeout, keep the socket and drain the pending
+        /// response for up to this long so the connection can be reused.
+        /// ``0`` (the default) closes the socket on timeout instead.
+        #[getter]
+        pub fn get_timeout_delay(&self) -> u32 {
+            self._as.base_policy.timeout_delay
+        }
+
+        #[setter]
+        pub fn set_timeout_delay(&mut self, timeout_delay: u32) {
+            self._as.base_policy.timeout_delay = timeout_delay;
         }
 
         #[getter]
@@ -972,6 +1032,20 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        /// Post-timeout socket drain window (milliseconds). After a
+        /// client-side timeout, keep the socket and drain the pending
+        /// response for up to this long so the connection can be reused.
+        /// ``0`` (the default) closes the socket on timeout instead.
+        #[getter]
+        pub fn get_timeout_delay(&self) -> u32 {
+            self._as.base_policy.timeout_delay
+        }
+
+        #[setter]
+        pub fn set_timeout_delay(&mut self, timeout_delay: u32) {
+            self._as.base_policy.timeout_delay = timeout_delay;
         }
 
         #[getter]
@@ -1236,11 +1310,12 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, read_mode_ap=None, read_mode_sc=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, concurrency=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, timeout_delay=None, max_retries=None, sleep_between_retries=None, allow_inline=None, allow_inline_ssd=None, respond_all_keys=None, replica=None, read_mode_ap=None, read_mode_sc=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, concurrency=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
             socket_timeout: Option<u32>,
+            timeout_delay: Option<u32>,
             max_retries: Option<usize>,
             sleep_between_retries: Option<u64>,
             allow_inline: Option<bool>,
@@ -1258,6 +1333,7 @@ use crate::TlsConfig;
             bp.base_policy.populate_positional_results = true;
             if let Some(v) = total_timeout { bp.base_policy.total_timeout = v as u32; }
             if let Some(v) = socket_timeout { bp.base_policy.socket_timeout = v; }
+            if let Some(v) = timeout_delay { bp.base_policy.timeout_delay = v; }
             if let Some(v) = max_retries { bp.base_policy.max_retries = v; }
             if let Some(v) = sleep_between_retries {
                 bp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
@@ -1371,6 +1447,20 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
             self._as.base_policy.socket_timeout = socket_timeout;
+        }
+
+        /// Post-timeout socket drain window (milliseconds). After a
+        /// client-side timeout, keep the socket and drain the pending
+        /// response for up to this long so the connection can be reused.
+        /// ``0`` (the default) closes the socket on timeout instead.
+        #[getter]
+        pub fn get_timeout_delay(&self) -> u32 {
+            self._as.base_policy.timeout_delay
+        }
+
+        #[setter]
+        pub fn set_timeout_delay(&mut self, timeout_delay: u32) {
+            self._as.base_policy.timeout_delay = timeout_delay;
         }
 
         #[getter]
@@ -1839,6 +1929,178 @@ use crate::TlsConfig;
         #[setter]
         pub fn set_on_locking_only(&mut self, on_locking_only: bool) {
             self._as.on_locking_only = on_locking_only;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TxnVerifyPolicy / TxnRollPolicy
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Policy for the verify phase of a multi-record transaction: reading and
+    /// checking the versions of the records that took part in the transaction
+    /// before it is committed. Verification is sent to the server as one batch
+    /// command per node, so the exposed knobs configure that batch.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object,
+        name = "TxnVerifyPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct TxnVerifyPolicy {
+        pub(crate) _as: aerospike_core::TxnVerifyPolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl TxnVerifyPolicy {
+        #[new]
+        pub fn new() -> Self {
+            TxnVerifyPolicy {
+                _as: aerospike_core::TxnVerifyPolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.batch_policy.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.batch_policy.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.batch_policy.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.batch_policy.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.batch_policy.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.batch_policy.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as.batch_policy.base_policy.sleep_between_retries as u64
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            self._as.batch_policy.base_policy.sleep_between_retries =
+                sleep_between_retries_millis.min(u32::MAX as u64) as u32;
+        }
+
+        #[getter]
+        pub fn get_read_mode_sc(&self) -> ReadModeSC {
+            (&self._as.batch_policy.base_policy.read_mode_sc).into()
+        }
+
+        #[setter]
+        pub fn set_read_mode_sc(&mut self, mode: ReadModeSC) {
+            self._as.batch_policy.base_policy.read_mode_sc = (&mode).into();
+        }
+
+        #[getter]
+        pub fn get_replica(&self) -> Replica {
+            (&self._as.batch_policy.replica).into()
+        }
+
+        #[setter]
+        pub fn set_replica(&mut self, replica: Replica) {
+            self._as.batch_policy.replica = (&replica).into();
+        }
+    }
+
+    /// Policy for the roll phase of a multi-record transaction: rolling
+    /// records forward on commit or back on abort. Rolling is sent to the
+    /// server as one batch command per node, so the exposed knobs configure
+    /// that batch.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(from_py_object,
+        name = "TxnRollPolicy",
+        module = "_aerospike_async_native",
+        subclass,
+        freelist = 1000
+    )]
+    #[derive(Debug, Clone)]
+    pub struct TxnRollPolicy {
+        pub(crate) _as: aerospike_core::TxnRollPolicy,
+    }
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl TxnRollPolicy {
+        #[new]
+        pub fn new() -> Self {
+            TxnRollPolicy {
+                _as: aerospike_core::TxnRollPolicy::default(),
+            }
+        }
+
+        #[getter]
+        pub fn get_total_timeout(&self) -> u64 {
+            self._as.batch_policy.base_policy.total_timeout as u64
+        }
+
+        #[setter]
+        pub fn set_total_timeout(&mut self, timeout_millis: u64) {
+            self._as.batch_policy.base_policy.total_timeout = timeout_millis as u32;
+        }
+
+        #[getter]
+        pub fn get_socket_timeout(&self) -> u32 {
+            self._as.batch_policy.base_policy.socket_timeout
+        }
+
+        #[setter]
+        pub fn set_socket_timeout(&mut self, socket_timeout: u32) {
+            self._as.batch_policy.base_policy.socket_timeout = socket_timeout;
+        }
+
+        #[getter]
+        pub fn get_max_retries(&self) -> usize {
+            self._as.batch_policy.base_policy.max_retries
+        }
+
+        #[setter]
+        pub fn set_max_retries(&mut self, max_retries: usize) {
+            self._as.batch_policy.base_policy.max_retries = max_retries;
+        }
+
+        #[getter]
+        pub fn get_sleep_between_retries(&self) -> u64 {
+            self._as.batch_policy.base_policy.sleep_between_retries as u64
+        }
+
+        #[setter]
+        pub fn set_sleep_between_retries(&mut self, sleep_between_retries_millis: u64) {
+            self._as.batch_policy.base_policy.sleep_between_retries =
+                sleep_between_retries_millis.min(u32::MAX as u64) as u32;
+        }
+
+        #[getter]
+        pub fn get_replica(&self) -> Replica {
+            (&self._as.batch_policy.replica).into()
+        }
+
+        #[setter]
+        pub fn set_replica(&mut self, replica: Replica) {
+            self._as.batch_policy.replica = (&replica).into();
         }
     }
 
