@@ -434,11 +434,12 @@ class BatchRecordStream:
         the receiver together with any buffered-but-unconsumed results —
         deterministically, rather than waiting for garbage collection.
 
-        **Scope**: this does *not* cancel per-node batch requests already
-        in flight. Those complete in the background and release their
-        connections as they finish; ``close()`` only reclaims the consumer
-        side (receiver + buffer). Idempotent, and safe to call from either
-        an async or a blocking context.
+        **Scope**: dropping the receiver also aborts the batch's remaining
+        work — the first row delivered after the drop fails to send, and
+        the delivery hook's refusal tears down the running node groups.
+        A node response already being parsed finishes on its own.
+        Idempotent, and safe to call from either an async or a blocking
+        context.
 
         If a yield is in progress at the instant of the call (an internal
         lock is held), the eager receiver-drop is skipped and cleanup falls

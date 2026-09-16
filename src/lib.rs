@@ -683,12 +683,88 @@ use crate::operations::{
         bridge: Option<completion::CompletionBridge>,
     }
 
-    // Boxed receiver of the per-node-completion BatchRecord stream.
-    // aerospike-core's `Client::batch_stream` returns `impl Stream`; we erase
-    // that to a Box<dyn> so it can live inside the pyclass.
+    // Boxed receiver of the per-node-completion BatchRecord stream, bridged
+    // from core's `batch_foreach` exactly-once row hook. Rows arrive in
+    // completion order; a terminal `Err` item carries the batch's whole-node
+    // failure and raises from whichever yield reaches it.
     type BoxedBatchStream = Pin<Box<
-        dyn futures::Stream<Item = (usize, aerospike_core::BatchRecord)> + Send,
+        dyn futures::Stream<
+            Item = Result<(usize, aerospike_core::BatchRecord), aerospike_core::errors::Error>,
+        > + Send,
     >>;
+
+    /// Moves the result row out of a completed batch operation without cloning
+    /// the record. Exhaustive on purpose: a new core variant fails loudly here
+    /// instead of silently dropping its row.
+    fn take_batch_record(op: aerospike_core::BatchOperation) -> aerospike_core::BatchRecord {
+        use aerospike_core::BatchOperation as Op;
+        match op {
+            Op::Read { br, .. }
+            | Op::Write { br, .. }
+            | Op::Delete { br, .. }
+            | Op::UDF { br, .. }
+            | Op::TxnVerify { br, .. }
+            | Op::TxnRoll { br, .. } => br,
+        }
+    }
+
+    /// Converts a whole-batch failure into the Python error contract. The
+    /// batch left its per-key results in place on the ops; once any row
+    /// carries an outcome those results are part of the story and ride the
+    /// error as `BatchFailed` records (`BatchFailedError.records`). A failure
+    /// before anything was dispatched — every key unroutable, for example —
+    /// leaves every row untouched and surfaces the cause raw. Rows are moved,
+    /// not cloned; the ops are spent either way once the call has failed.
+    fn batch_failed_with_rows(
+        source: aerospike_core::errors::Error,
+        ops: Vec<aerospike_core::BatchOperation>,
+    ) -> PyErr {
+        if ops.iter().any(|op| op.result_code().is_some()) {
+            let records = ops.into_iter().map(take_batch_record).collect();
+            PyErr::from(RustClientError(aerospike_core::errors::Error::batch_failed(
+                records, source,
+            )))
+        } else {
+            PyErr::from(RustClientError(source))
+        }
+    }
+
+    /// Bridges core's push-style `batch_foreach` back into the lazily-pulled
+    /// stream shape the Python surface exposes. Returns the driver future to
+    /// spawn (per-Client runtime for the async entry, global runtime for the
+    /// blocking one) and the receiver the stream wraps.
+    ///
+    /// The channel is deliberately unbounded: the row count is bounded by the
+    /// input size, so the worst case buffers exactly the full result set —
+    /// what the non-streaming entry points materialize anyway — while the
+    /// per-row hook never blocks a node reader on a slow Python consumer.
+    /// Dropping the receiver makes the next send fail; the `false` the hook
+    /// then returns aborts the batch's remaining work.
+    fn batch_foreach_bridge(
+        client: std::sync::Arc<aerospike_core::Client>,
+        policy: aerospike_core::BatchPolicy,
+        ops: Vec<aerospike_core::BatchOperation>,
+    ) -> (impl std::future::Future<Output = ()> + Send + 'static, BoxedBatchStream) {
+        let (tx, rx) = futures::channel::mpsc::unbounded();
+        let driver = async move {
+            let hook_tx = tx.clone();
+            let result = client
+                .batch_foreach(&policy, ops, move |idx, row| {
+                    // Clone in the sync arm so the returned future is 'static;
+                    // the row must also stay on the op for core's in-place
+                    // contract, so a copy here is the price of streaming.
+                    let keep_going = hook_tx.unbounded_send(Ok((idx, row.clone()))).is_ok();
+                    std::future::ready(keep_going)
+                })
+                .await;
+            if let Err(e) = result {
+                let _ = tx.unbounded_send(Err(e));
+            }
+            // `tx` drops here, closing the channel: the consumer sees the end
+            // of the stream after the last row (or the terminal error).
+        };
+        (driver, Box::pin(rx) as BoxedBatchStream)
+    }
 
     /// Async/sync iterator over a streaming batch result.
     ///
@@ -776,7 +852,8 @@ use crate::operations::{
                 // free-threaded finalization teardown (see the invariant in
                 // waker.rs and the lazy pattern in errors.rs).
                 match next {
-                    Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
+                    Some(Ok((idx, br))) => Ok((idx, BatchRecord { _as: br })),
+                    Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
                     None => Err(PyStopAsyncIteration::new_err(())),
                 }
             })
@@ -812,7 +889,8 @@ use crate::operations::{
                 })
             });
             match next {
-                Some((idx, br)) => Ok((idx, BatchRecord { _as: br })),
+                Some(Ok((idx, br))) => Ok((idx, BatchRecord { _as: br })),
+                Some(Err(e)) => Err(PyErr::from(RustClientError(e))),
                 None => Err(pyo3::exceptions::PyStopIteration::new_err(())),
             }
         }
@@ -824,11 +902,12 @@ use crate::operations::{
         /// the receiver together with any buffered-but-unconsumed results —
         /// deterministically, rather than waiting for garbage collection.
         ///
-        /// **Scope**: this does *not* cancel per-node batch requests already
-        /// in flight. Those complete in the background and release their
-        /// connections as they finish; ``close()`` only reclaims the consumer
-        /// side (receiver + buffer). Idempotent, and safe to call from either
-        /// an async or a blocking context.
+        /// **Scope**: dropping the receiver also aborts the batch's remaining
+        /// work — the first row delivered after the drop fails to send, and
+        /// the delivery hook's refusal tears down the running node groups.
+        /// A node response already being parsed finishes on its own.
+        /// Idempotent, and safe to call from either an async or a blocking
+        /// context.
         ///
         /// If a yield is in progress at the instant of the call (an internal
         /// lock is held), the eager receiver-drop is skipped and cleanup falls
@@ -2223,10 +2302,12 @@ use crate::operations::{
                 for key in rust_keys {
                     batch_ops.push(BatchOperation::read(&read_policy, key, bf.clone()));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously write multiple records by key in one batch.
@@ -2261,10 +2342,12 @@ use crate::operations::{
                         .collect();
                     batch_ops.push(BatchOperation::write(&write_policy, key, ops));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously perform per-key ops on multiple records in one batch.
@@ -2304,10 +2387,12 @@ use crate::operations::{
                     };
                     batch_ops.push(batch_op);
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously delete multiple records by key in one batch.
@@ -2330,10 +2415,12 @@ use crate::operations::{
                 for key in rust_keys {
                     batch_ops.push(BatchOperation::delete(&delete_policy, key));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously check existence of multiple keys in one batch.
@@ -2357,10 +2444,12 @@ use crate::operations::{
                 for key in rust_keys {
                     batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| br.record.is_some()).collect())
+            Ok(raw.iter().map(|op| op.record().is_some()).collect())
         }
 
         /// Synchronously read multiple record headers (metadata only) in one batch.
@@ -2384,11 +2473,17 @@ use crate::operations::{
                 for key in rust_keys {
                     batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
             Ok(raw.into_iter()
-                .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
+                .map(|op| {
+                    take_batch_record(op)
+                        .record
+                        .map(|r| Record { _as: r, cached_bins: None, cached_results: None })
+                })
                 .collect())
         }
 
@@ -2420,10 +2515,12 @@ use crate::operations::{
                         &udf_policy, key, &udf_name, &function_name, rust_args_owned,
                     ));
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously execute a mixed batch of read/write/delete ops.
@@ -2534,10 +2631,12 @@ use crate::operations::{
                         }
                     }
                 }
-                client.batch(&batch_policy, &batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                Ok(batch_ops)
             })?;
-            Ok(raw.into_iter().map(|br| BatchRecord { _as: br }).collect())
+            Ok(raw.into_iter().map(|op| BatchRecord { _as: take_batch_record(op) }).collect())
         }
 
         /// Synchronously execute a streaming batch.
@@ -2558,14 +2657,14 @@ use crate::operations::{
             let client = self._as.clone();
             let extracted = extract_batch_ops_py(py, &ops)?;
 
-            let stream = run_blocking(py, async move {
-                let batch_ops = build_batch_operations(&extracted)?;
-                client.batch_stream(&batch_policy, batch_ops).await
-                    .map_err(|e| PyErr::from(RustClientError(e)))
-            })?;
+            let batch_ops = build_batch_operations(&extracted)?;
+            let (driver, stream) = batch_foreach_bridge(client, batch_policy, batch_ops);
+            // The global runtime is the one `__next__` drives, so the driver
+            // makes progress exactly while the consumer is pulling.
+            pyo3_async_runtimes::tokio::get_runtime().spawn(driver);
 
             Ok(BatchRecordStream {
-                inner: Arc::new(Mutex::new(Some(Box::pin(stream)))),
+                inner: Arc::new(Mutex::new(Some(stream))),
                 bridge: None,
                 closed: Arc::new(AtomicBool::new(false)),
             })
@@ -3209,14 +3308,14 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::read(&read_policy, key, bf.clone()));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3258,14 +3357,14 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::write(&write_policy, key, ops));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3313,14 +3412,14 @@ use crate::operations::{
                     batch_ops.push(batch_op);
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3350,14 +3449,14 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::delete(&delete_policy, key));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3388,14 +3487,14 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
-                    .into_iter()
-                    .map(|br| br.record.is_some())
+                    .iter()
+                    .map(|op| op.record().is_some())
                     .collect::<Vec<bool>>())
             })
         }
@@ -3426,14 +3525,18 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::read(&read_policy, key, Bins::None));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| br.record.map(|r| Record { _as: r, cached_bins: None, cached_results: None }))
+                    .map(|op| {
+                        take_batch_record(op)
+                            .record
+                            .map(|r| Record { _as: r, cached_bins: None, cached_results: None })
+                    })
                     .collect::<Vec<Option<Record>>>())
             })
         }
@@ -3473,14 +3576,14 @@ use crate::operations::{
                     batch_ops.push(BatchOperation::udf(&udf_policy, key, &udf_name, &function_name, rust_args_owned));
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3606,14 +3709,14 @@ use crate::operations::{
                     }
                 }
 
-                let results = client
-                    .batch(&batch_policy, &batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                if let Err(e) = client.batch(&batch_policy, &mut batch_ops).await {
+                    return Err(batch_failed_with_rows(e, batch_ops));
+                }
+                let results = batch_ops;
 
                 Ok(results
                     .into_iter()
-                    .map(|br| BatchRecord { _as: br })
+                    .map(|op| BatchRecord { _as: take_batch_record(op) })
                     .collect::<Vec<BatchRecord>>())
             })
         }
@@ -3649,12 +3752,12 @@ use crate::operations::{
 
             completion::batched_future_into_py(bridge, py, async move {
                 let batch_ops = build_batch_operations(&extracted)?;
-                let stream = client
-                    .batch_stream(&batch_policy, batch_ops)
-                    .await
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
+                let (driver, stream) = batch_foreach_bridge(client, batch_policy, batch_ops);
+                // Same reactor as the ops it drives (per-Client runtime under
+                // AsyncPool isolation, global otherwise).
+                stream_bridge.spawn(driver);
                 Ok(BatchRecordStream {
-                    inner: Arc::new(Mutex::new(Some(Box::pin(stream)))),
+                    inner: Arc::new(Mutex::new(Some(stream))),
                     bridge: Some(stream_bridge),
                     closed: Arc::new(AtomicBool::new(false)),
                 })

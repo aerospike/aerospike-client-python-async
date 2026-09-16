@@ -48,12 +48,29 @@ use crate::record::{Key, PythonValue, Record};
         pub(crate) _as: aerospike_core::query::PartitionStatus,
     }
 
-    // Note: We can't derive Clone because PartitionStatus has private fields
-    // If cloning is needed, we'd need to add a method in the Rust core
-
     // Note: PartitionStatus can be constructed from Python using PartitionStatus(id)
     // Users typically get PartitionStatus instances from query/scan operations,
     // but can also create new instances manually when needed.
+
+    /// Builds a core status carrying the given cursor. The delivery
+    /// accounting behind core's private fields starts zeroed, which is what a
+    /// rebuilt cursor needs: a (re)query round resets it before use.
+    fn core_partition_status(
+        id: u16,
+        retry: bool,
+        bval: Option<u64>,
+        digest: Option<[u8; 20]>,
+        node: Option<std::sync::Arc<aerospike_core::Node>>,
+        sequence: Option<u64>,
+    ) -> aerospike_core::query::PartitionStatus {
+        let mut status = aerospike_core::query::PartitionStatus::new(id as usize);
+        status.retry = retry;
+        status.bval = bval;
+        status.digest = digest;
+        status.node = node;
+        status.sequence = sequence;
+        status
+    }
 
     #[gen_stub_pymethods]
     #[pymethods]
@@ -64,14 +81,7 @@ use crate::record::{Key, PythonValue, Record};
         #[new]
         pub fn new(id: u16) -> Self {
             PartitionStatus {
-                _as: aerospike_core::query::PartitionStatus {
-                    id,
-                    retry: true,
-                    bval: None,
-                    digest: None,
-                    node: None,
-                    sequence: None,
-                },
+                _as: core_partition_status(id, true, None, None, None, None),
             }
         }
 
@@ -301,14 +311,14 @@ use crate::record::{Key, PythonValue, Record};
                         // handle is needed — works from a Python asyncio context.
                         let status = arc_mutex_status.lock();
                         let py_status = PartitionStatus {
-                            _as: aerospike_core::query::PartitionStatus {
-                                id: status.id,
-                                retry: status.retry,
-                                bval: status.bval,
-                                digest: status.digest,
-                                node: status.node.clone(),
-                                sequence: status.sequence,
-                            },
+                            _as: core_partition_status(
+                                status.id,
+                                status.retry,
+                                status.bval,
+                                status.digest,
+                                status.node.clone(),
+                                status.sequence,
+                            ),
                         };
                         py_partitions.push(Py::new(py, py_status)?);
                     }
@@ -331,16 +341,17 @@ use crate::record::{Key, PythonValue, Record};
                     let mut rust_partitions = Vec::new();
                     for item in py_partitions.iter() {
                         let status: PyRef<PartitionStatus> = item.extract()?;
-                        rust_partitions.push(parking_lot::Mutex::new(
-                            aerospike_core::query::PartitionStatus {
-                                id: status._as.id,
-                                retry: status._as.retry,
-                                bval: status._as.bval,
-                                digest: status._as.digest,
-                                node: None,
-                                sequence: None,
-                            },
-                        ));
+                        // node/sequence are deliberately dropped: they name
+                        // cluster topology from the cursor's previous life and
+                        // must be re-resolved by the query that resumes it.
+                        rust_partitions.push(parking_lot::Mutex::new(core_partition_status(
+                            status._as.id,
+                            status._as.retry,
+                            status._as.bval,
+                            status._as.digest,
+                            None,
+                            None,
+                        )));
                     }
                     self._as.partitions = Some(Arc::new(rust_partitions));
                 }
