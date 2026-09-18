@@ -5993,16 +5993,16 @@ class StringOperation:
         Repeat the bin contents ``count`` times. ``count`` must be non-negative.
         """
     @staticmethod
-    def regex_replace(bin: builtins.str, pattern: builtins.str, replacement: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
+    def regex_replace(bin: builtins.str, pattern: builtins.str, replacement: builtins.str, flags: builtins.int = 0, *, write_flags: builtins.int = 0, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
         Replace the first match of ``pattern`` (ICU regex) with
         ``replacement``. Pass ``StringRegexFlags.GLOBAL`` in ``flags`` to
         replace every match.
 
-        Note: ``flags`` here carries regex flags, NOT write flags. The wire
-        payload does carry a write-flags slot, but this method exposes no
-        parameter for it and sends the default, so ``CREATE_ONLY`` and
-        ``UPDATE_ONLY`` cannot be requested on a regex replace.
+        ``flags`` carries the regex flags; ``write_flags`` carries the
+        ``StringWriteFlags`` bitmask (``UPDATE_ONLY`` / ``NO_FAIL``). The
+        server rejects ``CREATE_ONLY`` here because a regex replace cannot
+        create a bin.
         """
     @staticmethod
     def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:

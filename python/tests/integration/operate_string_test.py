@@ -497,6 +497,39 @@ class TestStringModifies:
         )
         assert await _read_str(string_client_820, key, "s") == "Z Z Z"
 
+    async def test_regex_replace_write_flags_reach_the_wire(self, string_client_820):
+        """``write_flags`` fills the trailing policy slot: ``UPDATE_ONLY`` skips a
+        missing bin, applies to a live one, and ``CREATE_ONLY`` is rejected
+        because a regex replace cannot create."""
+        key = _key("regex_replace_wflags")
+        await string_client_820.delete(key, policy=WritePolicy())
+        await _put_str(string_client_820, key, "other", "keep")
+
+        await string_client_820.operate(
+            key,
+            [StringOperation.regex_replace(
+                "s", "a", "Z", write_flags=int(StringWriteFlags.UPDATE_ONLY))],
+        )
+        assert await _read_str(string_client_820, key, "s") is None
+
+        await _put_str(string_client_820, key, "s", "ab ab")
+        await string_client_820.operate(
+            key,
+            [StringOperation.regex_replace(
+                "s", "ab", "Z", int(StringRegexFlags.GLOBAL),
+                write_flags=int(StringWriteFlags.UPDATE_ONLY))],
+        )
+        assert await _read_str(string_client_820, key, "s") == "Z Z"
+
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_820.operate(
+                key,
+                [StringOperation.regex_replace(
+                    "s", "Z", "a", write_flags=int(StringWriteFlags.CREATE_ONLY))],
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+        assert await _read_str(string_client_820, key, "s") == "Z Z"
+
 
 # ---------------------------------------------------------------------------
 # Multi-op pipelines (spec §4.1)

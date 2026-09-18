@@ -741,14 +741,16 @@ impl StringOperation {
     /// ``replacement``. Pass ``StringRegexFlags.GLOBAL`` in ``flags`` to
     /// replace every match.
     ///
-    /// Note: ``flags`` here carries regex flags, NOT write flags. The wire
-    /// payload does carry a write-flags slot, but this method exposes no
-    /// parameter for it and sends the default, so ``CREATE_ONLY`` and
-    /// ``UPDATE_ONLY`` cannot be requested on a regex replace.
+    /// ``flags`` carries the regex flags; ``write_flags`` carries the
+    /// ``StringWriteFlags`` bitmask (``UPDATE_ONLY`` / ``NO_FAIL``). The
+    /// server rejects ``CREATE_ONLY`` here because a regex replace cannot
+    /// create a bin.
     #[staticmethod]
-    #[pyo3(signature = (bin, pattern, replacement, flags=0, *, ctx=None))]
-    pub fn regex_replace(bin: String, pattern: String, replacement: String, flags: u8, ctx: Option<Vec<CTX>>) -> Self {
-        StringOperation { op: OperationType::StringRegexReplace(bin, pattern, replacement, flags), ctx }
+    #[pyo3(signature = (bin, pattern, replacement, flags=0, *, write_flags=0, ctx=None))]
+    pub fn regex_replace(
+        bin: String, pattern: String, replacement: String, flags: u8, write_flags: u8, ctx: Option<Vec<CTX>>,
+    ) -> Self {
+        StringOperation { op: OperationType::StringRegexReplace(bin, pattern, replacement, flags, write_flags), ctx }
     }
 
     // -----------------------------------------------------------------

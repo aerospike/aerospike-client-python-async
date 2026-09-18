@@ -323,8 +323,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// String regex_compare (bin, pattern, regex_flags) — boolean return.
         StringRegexCompare(String, String, u8),
 
-        // STRING_MODIFY — sub-ops 50..66. Every variant carries write_flags as last u8,
-        // except StringRegexReplace which carries regex_flags (no write_flags slot per spec §2.5).
+        // STRING_MODIFY — sub-ops 50..66. Every variant carries write_flags as last u8;
+        // StringRegexReplace carries regex_flags before it.
         /// String insert (bin, index, value, write_flags).
         StringInsert(String, i64, String, u8),
         /// String overwrite (bin, index, value, write_flags).
@@ -365,10 +365,10 @@ use crate::string_ops::{StringNumericType, StringOperation};
         StringPadEnd(String, i64, String, u8),
         /// String repeat (bin, count, write_flags).
         StringRepeat(String, i64, u8),
-        /// String regex_replace (bin, pattern, replacement, regex_flags). NOTE: regex_flags,
-        /// not write_flags — spec §2.5 says no trailing flags slot; the server rejects
-        /// messages that pack write_flags here. The PSDK signature accepts regex flags only.
-        StringRegexReplace(String, String, String, u8),
+        /// String regex_replace (bin, pattern, replacement, regex_flags, write_flags).
+        /// Two flag words: the regex flags select ICU behavior, the write flags fill
+        /// the same trailing policy slot every other modify op carries.
+        StringRegexReplace(String, String, String, u8, u8),
 
         // TO_STRING — op-type 19. Top-level wire op, no payload, no sub-op id, no CTX.
         /// String to_string (bin) — convert non-string bin to string repr.
@@ -2194,7 +2194,7 @@ pub(crate) fn record_batch_ops_have_write(rust_ops: &[OpWithCtx]) -> bool {
             OperationType::StringTrimStart(_, _) | OperationType::StringTrimEnd(_, _) |
             OperationType::StringTrim(_, _) |
             OperationType::StringPadStart(_, _, _, _) | OperationType::StringPadEnd(_, _, _, _) |
-            OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _) => {
+            OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _, _) => {
                 return true;
             }
             _ => {}
@@ -2467,7 +2467,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             | OperationType::StringTrimStart(_, _) | OperationType::StringTrimEnd(_, _)
             | OperationType::StringTrim(_, _)
             | OperationType::StringPadStart(_, _, _, _) | OperationType::StringPadEnd(_, _, _, _)
-            | OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _)
+            | OperationType::StringRepeat(_, _, _) | OperationType::StringRegexReplace(_, _, _, _, _)
             | OperationType::StringToString(_) => {}
         }
     }
@@ -3514,14 +3514,12 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 let policy = StringPolicy::new(CoreSWF(*flags as i64));
                 str_op::repeat(&policy, bin, *count)
             }
-            OperationType::StringRegexReplace(bin, pattern, replacement, regex_flags) => {
+            OperationType::StringRegexReplace(bin, pattern, replacement, regex_flags, write_flags) => {
                 use aerospike_core::operations::string as str_op;
-                use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
-                // regex_replace now carries a write-flags slot on the wire, but this
-                // op type has no parameter to fill it, so send the default. Widening
-                // the Python signature is the only way to expose CREATE_ONLY /
-                // UPDATE_ONLY here.
-                let policy = StringPolicy::default();
+                use aerospike_core::operations::string::{
+                    StringPolicy, StringRegexFlags as CoreSRF, StringWriteFlags as CoreSWF,
+                };
+                let policy = StringPolicy::new(CoreSWF(*write_flags as i64));
                 str_op::regex_replace(&policy, bin, pattern, replacement, CoreSRF(*regex_flags as i64))
             }
 
