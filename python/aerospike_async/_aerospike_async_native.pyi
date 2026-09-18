@@ -1301,18 +1301,20 @@ class Client:
         op time and picks AP vs SC. `filter_expression` / `txn` are
         applied after the mode pick on a cloned policy.
         """
-    def _submit_many_read(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> typing.Awaitable[typing.Any]:
+    def _submit_many_read(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> typing.Awaitable[tuple[list[typing.Any], int]]:
         r"""
         Submit a window of independent single-record reads in one call.
 
         One crossing spawns all reads and one completion delivers all
         results, so per-op submission and wakeup overhead is amortized
         across the window. These stay independent wire ops — this is
-        client-side fusion, not a server batch request. Results are
-        positional: each slot is either a :class:`Record` or the
-        exception instance for that key (check with
-        ``isinstance(slot, Exception)``), so a missing record never
-        fails its window-mates.
+        client-side fusion, not a server batch request. Resolves to
+        ``(slots, failure_count)``. Slots are positional: each is either
+        a :class:`Record` or the exception instance for that key (check
+        with ``isinstance(slot, Exception)``), so a missing record never
+        fails its window-mates. ``failure_count`` is the number of
+        exception slots, so a failure-free window is recognizable
+        without scanning it.
 
         When `policy_sc` is provided, the namespace mode is resolved at
         op time per key and AP vs SC is picked, mirroring `get`.
@@ -1334,7 +1336,7 @@ class Client:
         direct :meth:`get`, including ``KEY_NOT_FOUND`` raising). `bins` is a
         shared projection; `policy_sc`, when set, picks AP vs SC per key.
         """
-    def _submit_many_write(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[typing.Any]:
+    def _submit_many_write(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[tuple[list[typing.Any], int]]:
         r"""
         Submit a window of independent single-record writes in one call.
 
@@ -1342,8 +1344,9 @@ class Client:
         spawns all writes and one completion delivers all results. The
         bin payload is converted once and shared across the window (the
         common benchmark/app shape writes the same record spec per key).
-        Each result slot is ``None`` on success or the exception instance
-        for that key.
+        Resolves to ``(slots, failure_count)``: each slot is ``None`` on
+        success or the exception instance for that key, and
+        ``failure_count`` is the number of exception slots.
         """
     def _submit_coalesced_write(self, keys: typing.Sequence[_aerospike_async_native.Key], futures: typing.Sequence[typing.Any], bins_list: typing.Sequence[typing.Any], *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> None:
         r"""

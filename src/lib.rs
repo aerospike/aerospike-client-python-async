@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use pyo3::exceptions::{PyException, PyStopAsyncIteration, PyValueError};
 use pyo3::exceptions::PyTypeError;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
@@ -272,6 +272,32 @@ use crate::operations::{
                 Ok(None) => Ok(py.None().into_bound(py)),
                 Err(e) => Ok(e.into_value(py).into_bound(py).into_any()),
             }
+        }
+    }
+
+    // Whole-window carrier: delivers `(slots, failure_count)`. The count is
+    // taken during the one pass that already converts each slot, so a caller
+    // that wants to post-process failed slots can skip failure-free windows
+    // with a single integer test instead of scanning every slot.
+    struct SlotWindow(Vec<SlotOutcome>);
+
+    impl<'py> IntoPyObject<'py> for SlotWindow {
+        type Target = PyTuple;
+        type Output = Bound<'py, PyTuple>;
+        type Error = PyErr;
+
+        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+            let mut failures: usize = 0;
+            let slots = PyList::new(
+                py,
+                self.0.into_iter().map(|slot| {
+                    if slot.0.is_err() {
+                        failures += 1;
+                    }
+                    slot.into_pyobject(py)
+                }).collect::<PyResult<Vec<_>>>()?,
+            )?;
+            PyTuple::new(py, [slots.into_any(), failures.into_bound_py_any(py)?])
         }
     }
 
@@ -2768,15 +2794,17 @@ use crate::operations::{
         /// One crossing spawns all reads and one completion delivers all
         /// results, so per-op submission and wakeup overhead is amortized
         /// across the window. These stay independent wire ops — this is
-        /// client-side fusion, not a server batch request. Results are
-        /// positional: each slot is either a :class:`Record` or the
-        /// exception instance for that key (check with
-        /// ``isinstance(slot, Exception)``), so a missing record never
-        /// fails its window-mates.
+        /// client-side fusion, not a server batch request. Resolves to
+        /// ``(slots, failure_count)``. Slots are positional: each is either
+        /// a :class:`Record` or the exception instance for that key (check
+        /// with ``isinstance(slot, Exception)``), so a missing record never
+        /// fails its window-mates. ``failure_count`` is the number of
+        /// exception slots, so a failure-free window is recognizable
+        /// without scanning it.
         ///
         /// When `policy_sc` is provided, the namespace mode is resolved at
         /// op time per key and AP vs SC is picked, mirroring `get`.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[tuple[list[typing.Any], int]]", imports=("typing")))]
         #[pyo3(name = "_submit_many_read", signature = (
             keys,
             bins=None,
@@ -2828,7 +2856,7 @@ use crate::operations::{
                         )
                     }
                 });
-                Ok(futures::future::join_all(slots).await)
+                Ok(SlotWindow(futures::future::join_all(slots).await))
             })
         }
 
@@ -2926,9 +2954,10 @@ use crate::operations::{
         /// spawns all writes and one completion delivers all results. The
         /// bin payload is converted once and shared across the window (the
         /// common benchmark/app shape writes the same record spec per key).
-        /// Each result slot is ``None`` on success or the exception instance
-        /// for that key.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
+        /// Resolves to ``(slots, failure_count)``: each slot is ``None`` on
+        /// success or the exception instance for that key, and
+        /// ``failure_count`` is the number of exception slots.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[tuple[list[typing.Any], int]]", imports=("typing")))]
         #[pyo3(name = "_submit_many_write", signature = (
             keys,
             bins,
@@ -2978,7 +3007,7 @@ use crate::operations::{
                         )
                     }
                 });
-                Ok(futures::future::join_all(slots).await)
+                Ok(SlotWindow(futures::future::join_all(slots).await))
             })
         }
 
