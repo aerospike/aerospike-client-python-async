@@ -216,6 +216,17 @@ use crate::operations::{
             self._as.set_state(core_state);
         }
 
+        /// Whether the transaction's outcome is in doubt.
+        ///
+        /// Set by the client when a commit fails without a definite result:
+        /// the server may still roll the transaction forward, so the outcome
+        /// is unknown. Recovery is to retry the commit rather than re-run the
+        /// transaction, which could apply the same writes twice.
+        #[getter]
+        pub fn in_doubt(&self) -> bool {
+            self._as.in_doubt()
+        }
+
         /// Transaction timeout in seconds. Zero means use the server default.
         #[getter]
         pub fn timeout(&self) -> u32 {

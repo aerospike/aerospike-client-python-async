@@ -42,6 +42,15 @@ class TestTxn:
         txn = Txn()
         assert txn.state == TxnState.OPEN
 
+    def test_txn_in_doubt_default_false(self):
+        txn = Txn()
+        assert txn.in_doubt is False
+
+    def test_txn_in_doubt_is_read_only(self):
+        txn = Txn()
+        with pytest.raises(AttributeError):
+            txn.in_doubt = True
+
     def test_txn_timeout_default(self):
         txn = Txn()
         assert isinstance(txn.timeout, int)

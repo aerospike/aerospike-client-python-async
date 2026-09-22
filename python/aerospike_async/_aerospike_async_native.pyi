@@ -6266,6 +6266,16 @@ class Txn:
         transitions.
         """
     @property
+    def in_doubt(self) -> builtins.bool:
+        r"""
+        Whether the transaction's outcome is in doubt.
+
+        Set by the client when a commit fails without a definite result:
+        the server may still roll the transaction forward, so the outcome
+        is unknown. Recovery is to retry the commit rather than re-run the
+        transaction, which could apply the same writes twice.
+        """
+    @property
     def timeout(self) -> builtins.int:
         r"""
         Transaction timeout in seconds. Zero means use the server default.
