@@ -64,7 +64,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
         const PARAM_STRING_OP_INVALID: u32 = aerospike_core::server_error::sub_code::PARAM_STRING_OP_INVALID;
         /// String context-eval path malformed.
         #[classattr]
-        const PARAM_STRING_CTX_NOT_APPLICABLE: u32 = aerospike_core::server_error::sub_code::PARAM_STRING_CTX_NOT_APPLICABLE;
+        const PARAM_STRING_CTX_MALFORMED: u32 = aerospike_core::server_error::sub_code::PARAM_STRING_CTX_MALFORMED;
         /// String modify/read index or code-point range out of bounds.
         #[classattr]
         const PARAM_STRING_INDEX_OUT_OF_BOUNDS: u32 = aerospike_core::server_error::sub_code::PARAM_STRING_INDEX_OUT_OF_BOUNDS;

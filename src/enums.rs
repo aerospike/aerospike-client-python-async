@@ -1001,6 +1001,11 @@ pub enum Concurrency {
         Committed,
         #[pyo3(name = "ABORTED")]
         Aborted,
+        /// A commit failed with an in-doubt outcome. The server may still be
+        /// rolling the transaction forward, so abort is refused; retry the
+        /// commit instead.
+        #[pyo3(name = "COMMIT_FAILED")]
+        CommitFailed,
     }
 
     #[pymethods]
@@ -1029,6 +1034,7 @@ pub enum Concurrency {
                 aerospike_core::TxnState::Verified => TxnState::Verified,
                 aerospike_core::TxnState::Committed => TxnState::Committed,
                 aerospike_core::TxnState::Aborted => TxnState::Aborted,
+                aerospike_core::TxnState::CommitFailed => TxnState::CommitFailed,
             }
         }
     }
@@ -1171,6 +1177,10 @@ pub enum Concurrency {
         RollBackAbandoned,
         #[pyo3(name = "CLOSE_ABANDONED")]
         CloseAbandoned,
+        /// Abort was refused because a commit already failed on this
+        /// transaction with an in-doubt outcome. Retry the commit instead.
+        #[pyo3(name = "COMMIT_FAILED")]
+        CommitFailed,
     }
 
     #[pymethods]
@@ -1199,6 +1209,7 @@ pub enum Concurrency {
                 aerospike_core::AbortStatus::AlreadyAborted => AbortStatus::AlreadyAborted,
                 aerospike_core::AbortStatus::RollBackAbandoned => AbortStatus::RollBackAbandoned,
                 aerospike_core::AbortStatus::CloseAbandoned => AbortStatus::CloseAbandoned,
+                aerospike_core::AbortStatus::CommitFailed => AbortStatus::CommitFailed,
             }
         }
     }

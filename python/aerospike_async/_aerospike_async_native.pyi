@@ -4798,6 +4798,16 @@ class MetricsPolicy:
     the accumulated latency samples.
     """
     @property
+    def operational(self) -> builtins.bool:
+        r"""
+        Whether the operational tier is recorded: latency and byte histograms,
+        result codes, and the command retry/error and connection failure
+        counters. Off by default, leaving only the always-on gauges -- pool
+        occupancy, connections opened and closed, tend and node counts.
+        """
+    @operational.setter
+    def operational(self, value: builtins.bool) -> None: ...
+    @property
     def latency_unit(self) -> _aerospike_async_native.LatencyUnit: ...
     @latency_unit.setter
     def latency_unit(self, value: _aerospike_async_native.LatencyUnit) -> None: ...
@@ -4954,7 +4964,13 @@ class NodeMetricsSnapshot:
     @property
     def connections_closed(self) -> builtins.int: ...
     @property
-    def connections_recovered(self) -> builtins.int: ...
+    def connections_recovering(self) -> builtins.int:
+        r"""
+        Connections currently being recovered after a timeout.
+
+        A point-in-time gauge stamped at snapshot, not a cumulative count: the
+        `connections_recovered` counter it replaces was never incremented.
+        """
     @property
     def tends_total(self) -> builtins.int: ...
     @property
@@ -6061,7 +6077,7 @@ class SubCode:
     r"""
     String op code or modifier/read class mismatch on the wire path.
     """
-    PARAM_STRING_CTX_NOT_APPLICABLE: builtins.int = 8
+    PARAM_STRING_CTX_MALFORMED: builtins.int = 8
     r"""
     String context-eval path malformed.
     """
@@ -6697,6 +6713,11 @@ class AbortStatus(enum.Enum):
     ALREADY_ABORTED = ...
     ROLL_BACK_ABANDONED = ...
     CLOSE_ABANDONED = ...
+    COMMIT_FAILED = ...
+    r"""
+    Abort was refused because a commit already failed on this
+    transaction with an in-doubt outcome. Retry the commit instead.
+    """
 
 @typing.final
 class AuthMode(enum.Enum):
@@ -7350,6 +7371,12 @@ class TxnState(enum.Enum):
     VERIFIED = ...
     COMMITTED = ...
     ABORTED = ...
+    COMMIT_FAILED = ...
+    r"""
+    A commit failed with an in-doubt outcome. The server may still be
+    rolling the transaction forward, so abort is refused; retry the
+    commit instead.
+    """
 
 @typing.final
 class UDFLang(enum.Enum):

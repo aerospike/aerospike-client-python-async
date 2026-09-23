@@ -212,6 +212,7 @@ use crate::operations::{
                 TxnState::Verified => aerospike_core::TxnState::Verified,
                 TxnState::Committed => aerospike_core::TxnState::Committed,
                 TxnState::Aborted => aerospike_core::TxnState::Aborted,
+                TxnState::CommitFailed => aerospike_core::TxnState::CommitFailed,
             };
             self._as.set_state(core_state);
         }
