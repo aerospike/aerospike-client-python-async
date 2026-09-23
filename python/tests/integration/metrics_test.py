@@ -153,6 +153,8 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert "open_connections" in d
         assert "exceeded_max_retries" in d
         assert "exceeded_total_timeout" in d
+        assert "recover_queue_size" in d
+        assert "nodes_invalid" in d
 
         agg = d["cluster_aggregated_metrics"]
         assert agg["latency_unit"] == "ms"
