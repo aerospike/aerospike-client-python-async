@@ -89,6 +89,10 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert detail.latency.count >= 5
         assert detail.bytes_sent.count >= 5
         assert detail.bytes_received.count >= 5
+        # Totals, not just sample counts: the received bytes were once counted
+        # but summed to zero, which a count-only assertion cannot see.
+        assert detail.bytes_sent.sum > 0
+        assert detail.bytes_received.sum > 0
 
         assert agg.result_code_count(NAMESPACE, CommandType.GET, ResultCode.OK) >= 5
         assert agg.result_code_count(NAMESPACE, CommandType.DELETE, ResultCode.OK) == 0
@@ -153,6 +157,8 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert "open_connections" in d
         assert "exceeded_max_retries" in d
         assert "exceeded_total_timeout" in d
+        assert "recover_queue_size" in d
+        assert "nodes_invalid" in d
 
         agg = d["cluster_aggregated_metrics"]
         assert agg["latency_unit"] == "ms"
@@ -173,6 +179,32 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         # Tier 0 is not gated: connections are still counted.
         assert client.metrics().open_connections >= 1
         assert agg.open_connections >= 1
+
+    async def test_batch_byte_totals_are_measured(self, client):
+        """Batch reads its response through its own path, so it is counted apart.
+
+        Bounded by the payload rather than pinned to an exact total: the
+        framing overhead tracks bin-name length and record metadata, so an
+        equality would fail on changes that have nothing to do with the
+        measurement. The bounds still catch the two ways this goes wrong --
+        undercounting to zero, and accumulating across commands.
+        """
+        client.enable_metrics(_operational())
+        payload = 4096
+        keys = [Key(NAMESPACE, SET_NAME, f"bytes-batch-{i}") for i in range(5)]
+        for key in keys:
+            await client.put(key, {"blob": "x" * payload}, policy=WritePolicy())
+        await client.batch_read(keys)
+
+        detail = client.metrics().cluster_aggregated.detailed_metric(
+            NAMESPACE, CommandType.BATCH_READ
+        )
+        assert detail is not None
+        assert detail.bytes_sent.sum > 0
+        # One batch command carried all five records, so the floor is the whole
+        # payload rather than a per-sample share.
+        assert detail.bytes_received.sum >= len(keys) * payload
+        assert detail.bytes_received.sum < len(keys) * (payload + 512)
 
     async def test_labels_carried_on_snapshot(self, client):
         policy = MetricsPolicy()

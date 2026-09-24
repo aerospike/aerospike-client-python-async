@@ -629,6 +629,18 @@ impl NodeMetricsSnapshot {
         self._as.counters.connections_other_errors
     }
 
+    /// Connection attempts that failed during the TLS handshake.
+    #[getter]
+    pub fn get_connections_tls_errors(&self) -> u64 {
+        self._as.counters.connections_tls_errors
+    }
+
+    /// Connection attempts that failed authenticating.
+    #[getter]
+    pub fn get_connections_auth_errors(&self) -> u64 {
+        self._as.counters.connections_auth_errors
+    }
+
     #[getter]
     pub fn get_circuit_breaker_hits(&self) -> u64 {
         self._as.counters.circuit_breaker_hits
@@ -649,9 +661,33 @@ impl NodeMetricsSnapshot {
         self._as.counters.connections_idle_dropped
     }
 
+    /// Connections checked out of the pool right now (point-in-time gauge).
+    #[getter]
+    pub fn get_connections_in_use(&self) -> u64 {
+        self._as.counters.connections_in_use
+    }
+
+    /// Connections sitting idle in the pool right now (point-in-time gauge).
+    #[getter]
+    pub fn get_connections_in_pool(&self) -> u64 {
+        self._as.counters.connections_in_pool
+    }
+
     #[getter]
     pub fn get_connections_closed(&self) -> u64 {
         self._as.counters.connections_closed
+    }
+
+    /// Connections closed because the connection itself errored.
+    #[getter]
+    pub fn get_connections_closed_error(&self) -> u64 {
+        self._as.counters.connections_closed_error
+    }
+
+    /// Connections closed because their node left the cluster.
+    #[getter]
+    pub fn get_connections_closed_node_removed(&self) -> u64 {
+        self._as.counters.connections_closed_node_removed
     }
 
     /// Connections currently being recovered after a timeout.
@@ -701,6 +737,13 @@ impl NodeMetricsSnapshot {
     #[getter]
     pub fn get_transaction_error_count(&self) -> u64 {
         self._as.counters.transaction_error_count
+    }
+
+    /// Errored commands as a fraction of commands attempted, stamped at
+    /// snapshot over the interval the snapshot covers.
+    #[getter]
+    pub fn get_error_rate(&self) -> u64 {
+        self._as.counters.error_rate
     }
 
     /// The full snapshot as a plain dict, using the cross-client-stable
@@ -761,6 +804,30 @@ impl ClusterMetrics {
     #[getter]
     pub fn get_open_connections(&self) -> u64 {
         self._as.open_connections
+    }
+
+    /// Connections checked out across the cluster (point-in-time gauge).
+    #[getter]
+    pub fn get_connections_in_use(&self) -> u64 {
+        self._as.connections_in_use
+    }
+
+    /// Connections idle in their pools across the cluster (point-in-time gauge).
+    #[getter]
+    pub fn get_connections_in_pool(&self) -> u64 {
+        self._as.connections_in_pool
+    }
+
+    /// Connections queued for recovery after a timeout (point-in-time gauge).
+    #[getter]
+    pub fn get_recover_queue_size(&self) -> u64 {
+        self._as.recover_queue_size
+    }
+
+    /// Nodes the tend loop currently considers unusable (point-in-time gauge).
+    #[getter]
+    pub fn get_nodes_invalid(&self) -> u64 {
+        self._as.nodes_invalid
     }
 
     /// Commands that failed after exhausting max retries (cumulative).

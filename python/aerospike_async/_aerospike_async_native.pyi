@@ -2110,6 +2110,26 @@ class ClusterMetrics:
         Open connections across the cluster (point-in-time gauge).
         """
     @property
+    def connections_in_use(self) -> builtins.int:
+        r"""
+        Connections checked out across the cluster (point-in-time gauge).
+        """
+    @property
+    def connections_in_pool(self) -> builtins.int:
+        r"""
+        Connections idle in their pools across the cluster (point-in-time gauge).
+        """
+    @property
+    def recover_queue_size(self) -> builtins.int:
+        r"""
+        Connections queued for recovery after a timeout (point-in-time gauge).
+        """
+    @property
+    def nodes_invalid(self) -> builtins.int:
+        r"""
+        Nodes the tend loop currently considers unusable (point-in-time gauge).
+        """
+    @property
     def exceeded_max_retries(self) -> builtins.int:
         r"""
         Commands that failed after exhausting max retries (cumulative).
@@ -4954,6 +4974,16 @@ class NodeMetricsSnapshot:
     @property
     def connections_other_errors(self) -> builtins.int: ...
     @property
+    def connections_tls_errors(self) -> builtins.int:
+        r"""
+        Connection attempts that failed during the TLS handshake.
+        """
+    @property
+    def connections_auth_errors(self) -> builtins.int:
+        r"""
+        Connection attempts that failed authenticating.
+        """
+    @property
     def circuit_breaker_hits(self) -> builtins.int: ...
     @property
     def connections_pool_empty(self) -> builtins.int: ...
@@ -4962,7 +4992,27 @@ class NodeMetricsSnapshot:
     @property
     def connections_idle_dropped(self) -> builtins.int: ...
     @property
+    def connections_in_use(self) -> builtins.int:
+        r"""
+        Connections checked out of the pool right now (point-in-time gauge).
+        """
+    @property
+    def connections_in_pool(self) -> builtins.int:
+        r"""
+        Connections sitting idle in the pool right now (point-in-time gauge).
+        """
+    @property
     def connections_closed(self) -> builtins.int: ...
+    @property
+    def connections_closed_error(self) -> builtins.int:
+        r"""
+        Connections closed because the connection itself errored.
+        """
+    @property
+    def connections_closed_node_removed(self) -> builtins.int:
+        r"""
+        Connections closed because their node left the cluster.
+        """
     @property
     def connections_recovering(self) -> builtins.int:
         r"""
@@ -4987,6 +5037,12 @@ class NodeMetricsSnapshot:
     def transaction_retry_count(self) -> builtins.int: ...
     @property
     def transaction_error_count(self) -> builtins.int: ...
+    @property
+    def error_rate(self) -> builtins.int:
+        r"""
+        Errored commands as a fraction of commands attempted, stamped at
+        snapshot over the interval the snapshot covers.
+        """
     def command_histogram(self, command_type: _aerospike_async_native.CommandType) -> typing.Optional[_aerospike_async_native.Histogram]:
         r"""
         Per-command-type latency histogram, or None for `CommandType.NONE`.
