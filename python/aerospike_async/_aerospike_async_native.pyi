@@ -5567,7 +5567,11 @@ class RegisterTask:
 @typing.final
 class ResultCode:
     r"""
-    Server result code, one constant per code the server can return.
+    One code from the result-code namespace every Aerospike client
+    shares. Non-negative values are the codes the server returns;
+    negative values are the codes the client assigns to a failure that
+    never got a server answer (``TXN_FAILED``, ``SERVER_NOT_AVAILABLE``,
+    ``MAX_RETRIES_EXCEEDED``, …).
 
     Behaves like an ``IntEnum`` member: ``repr`` shows the name and the
     wire value (``<ResultCode.KEY_EXISTS_ERROR: 5>``), ``str`` and ``int``
@@ -5657,6 +5661,21 @@ class ResultCode:
     INVALID_GEOJSON: _aerospike_async_native.ResultCode
     QUERY_NETIO_ERR: _aerospike_async_native.ResultCode
     QUERY_DUPLICATE: _aerospike_async_native.ResultCode
+    TXN_ALREADY_ABORTED: _aerospike_async_native.ResultCode
+    TXN_ALREADY_COMMITTED: _aerospike_async_native.ResultCode
+    TXN_FAILED: _aerospike_async_native.ResultCode
+    BATCH_FAILED: _aerospike_async_native.ResultCode
+    NO_RESPONSE: _aerospike_async_native.ResultCode
+    MAX_ERROR_RATE: _aerospike_async_native.ResultCode
+    MAX_RETRIES_EXCEEDED: _aerospike_async_native.ResultCode
+    SERIALIZE_ERROR: _aerospike_async_native.ResultCode
+    SERVER_NOT_AVAILABLE: _aerospike_async_native.ResultCode
+    NO_MORE_CONNECTIONS: _aerospike_async_native.ResultCode
+    QUERY_TERMINATED: _aerospike_async_native.ResultCode
+    SCAN_TERMINATED: _aerospike_async_native.ResultCode
+    INVALID_NODE_ERROR: _aerospike_async_native.ResultCode
+    PARSE_ERROR: _aerospike_async_native.ResultCode
+    CLIENT_ERROR: _aerospike_async_native.ResultCode
     @property
     def name(self) -> builtins.str:
         r"""
@@ -5666,14 +5685,15 @@ class ResultCode:
     @property
     def value(self) -> builtins.int:
         r"""
-        The numeric wire value (``5`` for ``KEY_EXISTS_ERROR``), the number
-        server logs and the result-code reference show.
+        The numeric value (``5`` for ``KEY_EXISTS_ERROR``, ``-17`` for
+        ``TXN_FAILED``), the number server logs and the result-code
+        reference show.
         """
     @property
     def description(self) -> builtins.str:
         r"""
         The code's descriptive string (``"Key already exists"``), the same
-        text a server failure carries as its base message.
+        text a failure carries as its base message.
         """
     def __richcmp__(self, other: typing.Any, op: int) -> typing.Any: ...
     def __hash__(self) -> builtins.int: ...

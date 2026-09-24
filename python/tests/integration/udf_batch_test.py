@@ -247,6 +247,7 @@ class TestBatchFailedError(TestFixtureConnection):
             )
         err = exc_info.value
         assert isinstance(err, ClientError)
+        assert err.result_code == ResultCode.BATCH_FAILED
         assert err.in_doubt is True
         assert err.records is not None and len(err.records) == len(keys)
         for row in err.records:

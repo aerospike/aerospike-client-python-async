@@ -13,8 +13,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import builtins
 import subprocess
 import sys
+
+import pytest
 
 from aerospike_async.exceptions import (
     AerospikeError,
@@ -155,6 +158,22 @@ class TestServerError:
         """Test that the message is preserved."""
         err = ServerError("something broke", ResultCode.SERVER_ERROR)
         assert "something broke" in str(err)
+
+    def test_rejects_a_client_code(self):
+        """A server error cannot carry a code the server never returns."""
+        # The built-in, not this package's ValueError: a bad argument to a
+        # constructor is an ordinary Python mistake.
+        with pytest.raises(builtins.ValueError):
+            ServerError("fail", ResultCode.TXN_FAILED)
+
+
+class TestClientErrorResultCode:
+    """Client-side errors answer ``result_code`` like server errors do."""
+
+    def test_class_default_is_none(self):
+        assert TimeoutError("x").result_code is None
+        assert ConnectionError("x").result_code is None
+        assert AerospikeError("x").result_code is None
 
 
 class TestServerErrorSubclasses:
