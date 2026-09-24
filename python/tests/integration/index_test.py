@@ -109,7 +109,13 @@ class TestIndex(TestFixtureConnection):
         # Try to create another index with same name should fail
         with pytest.raises(IndexFoundError) as exc_info:
             await client.create_index("test", "test", "year", "indexname", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
-        assert exc_info.value.result_code == ResultCode.INDEX_FOUND
+        err = exc_info.value
+        assert err.result_code == ResultCode.INDEX_FOUND
+        # The server's explanation is the base message, prefixed with the
+        # operation; it is not filed as the node.
+        assert err.base_message.startswith("Create index failed: ")
+        assert "already exists with different definition" in err.base_message
+        assert err.node is None
 
         await self.cleanup_index(client, "indexname")
 

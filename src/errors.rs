@@ -658,7 +658,7 @@ impl From<RustClientError> for PyErr {
             let ctx = capture_retry_context(&err);
             let cause_result_code = err.server_result_code();
             let message = match cause_result_code {
-                Some(rc) => format!("{error_type} (in_doubt={in_doubt}, cause: {rc:?})"),
+                Some(rc) => format!("{error_type} (in_doubt={in_doubt}, cause: {rc})"),
                 None => format!("{error_type} (in_doubt={in_doubt})"),
             };
             return PyErr::new::<CommitFailedError, _>(CommitFailedArgs {
@@ -678,14 +678,11 @@ impl From<RustClientError> for PyErr {
         if let Some(result_code) = err.server_result_code() {
             let in_doubt = err.in_doubt();
             let detail = err.server_error_detail();
-            let node = err.node().unwrap_or("");
-            let mut message = format!("Code: {:?}, In Doubt: {}, Node: {}", result_code, in_doubt, node);
-            if let Some(detail) = detail {
-                // Extended server error detail (subcode / message / exp trace),
-                // present when error_detail_verbosity > 0 and the server
-                // (>= 8.2.0) attached one.
-                message.push_str(&format!(", Detail: {detail}"));
-            }
+            // Core's Display is the message: `Error <code>[, SubCode: N]
+            // [, iter=N][, In Doubt: true][, node=X]: <base message>`, the
+            // base message carrying any extended detail. Client-side errors
+            // and prior-attempt sub-errors already render the same way.
+            let message = err.to_string();
             let ctx = capture_retry_context(&err);
             return create_server_error(message, result_code, in_doubt, detail, ctx);
         }

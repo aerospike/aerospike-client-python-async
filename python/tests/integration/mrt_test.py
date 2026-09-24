@@ -306,4 +306,4 @@ async def test_commit_verify_failure_carries_stage_and_records(sc_client, sc_key
     # Reporting the commit failure ahead of the cause chain must not lose the
     # code that tripped verify -- it is what retry logic classifies on.
     assert exc.result_code == ResultCode.MRT_VERSION_MISMATCH
-    assert "MrtVersionMismatch" in str(exc)
+    assert ResultCode.MRT_VERSION_MISMATCH.description in str(exc)
