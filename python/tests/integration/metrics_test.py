@@ -38,6 +38,18 @@ async def _do_some_ops(client, count=5):
         await client.get(key, policy=ReadPolicy())
 
 
+def _operational(policy=None):
+    """A policy with the operational tier switched on.
+
+    The tier is off by default, leaving only the always-on gauges, so any test
+    that reads a latency histogram, a detailed metric or a result-code count
+    has to ask for it explicitly.
+    """
+    policy = MetricsPolicy() if policy is None else policy
+    policy.operational = True
+    return policy
+
+
 class TestMetricsLifecycle(TestFixtureCleanDB):
 
     async def test_enable_disable_round_trip(self, client):
@@ -56,7 +68,7 @@ class TestMetricsLifecycle(TestFixtureCleanDB):
 class TestMetricsSnapshot(TestFixtureCleanDB):
 
     async def test_snapshot_after_ops(self, client):
-        client.enable_metrics()
+        client.enable_metrics(_operational())
         await _do_some_ops(client, count=5)
 
         m = client.metrics()
@@ -82,7 +94,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert agg.result_code_count(NAMESPACE, CommandType.DELETE, ResultCode.OK) == 0
 
     async def test_snapshot_accumulates_across_calls(self, client):
-        client.enable_metrics()
+        client.enable_metrics(_operational())
         await _do_some_ops(client, count=3)
         first = client.metrics().cluster_aggregated.command_histogram(CommandType.GET).count
         await _do_some_ops(client, count=3)
@@ -92,7 +104,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert second >= first + 3
 
     async def test_default_policy_shapes_histograms(self, client):
-        client.enable_metrics()
+        client.enable_metrics(_operational())
         await _do_some_ops(client, count=2)
 
         agg = client.metrics().cluster_aggregated
@@ -102,7 +114,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert sum(hist.buckets) == hist.count
 
     async def test_millis_policy_shapes_histograms(self, client):
-        client.enable_metrics(MetricsPolicy.millis())
+        client.enable_metrics(_operational(MetricsPolicy.millis()))
         await _do_some_ops(client, count=2)
 
         agg = client.metrics().cluster_aggregated
@@ -113,7 +125,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert sum(hist.buckets) == hist.count
 
     async def test_millis_detailed_metrics_survive_aggregation(self, client):
-        client.enable_metrics(MetricsPolicy.millis())
+        client.enable_metrics(_operational(MetricsPolicy.millis()))
         await _do_some_ops(client, count=3)
 
         agg = client.metrics().cluster_aggregated
@@ -123,7 +135,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert len(detail.latency.buckets) == 7
 
     async def test_never_sampler_gates_extended_metrics(self, client):
-        policy = MetricsPolicy()
+        policy = _operational()
         policy.sampler = Sampler.never()
         client.enable_metrics(policy)
         await _do_some_ops(client, count=3)
@@ -133,22 +145,34 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
         assert agg.detailed_metric(NAMESPACE, CommandType.GET) is None
 
     async def test_to_dict_uses_stable_serialized_names(self, client):
-        client.enable_metrics()
+        client.enable_metrics(_operational())
         await _do_some_ops(client, count=2)
 
         d = client.metrics().to_dict()
-        assert d["total-nodes"] >= 1
-        assert "open-connections" in d
-        assert "exceeded-max-retries" in d
-        assert "exceeded-total-timeout" in d
+        assert d["total_nodes"] >= 1
+        assert "open_connections" in d
+        assert "exceeded_max_retries" in d
+        assert "exceeded_total_timeout" in d
 
-        agg = d["cluster-aggregated-metrics"]
-        assert agg["latency-unit"] == "ms"
-        get_hist = agg["get-metrics"]
+        agg = d["cluster_aggregated_metrics"]
+        assert agg["latency_unit"] == "ms"
+        get_hist = agg["get_metrics"]
         assert set(get_hist) == {"buckets", "min", "max", "sum", "count"}
         assert get_hist["count"] >= 2
-        assert agg["detailed-metrics"][NAMESPACE]["Get"]["latency"]["count"] >= 2
-        assert agg["detailed-resultcode-counts"][NAMESPACE]["Get"]["ok"] >= 2
+        assert agg["detailed_metrics"][NAMESPACE]["Get"]["latency"]["count"] >= 2
+        assert agg["detailed_resultcode_counts"][NAMESPACE]["Get"]["ok"] >= 2
+
+    async def test_operational_tier_off_records_only_the_always_on_gauges(self, client):
+        """The default policy collects Tier 0 and nothing above it."""
+        client.enable_metrics()
+        await _do_some_ops(client, count=3)
+
+        agg = client.metrics().cluster_aggregated
+        assert agg.command_histogram(CommandType.GET).count == 0
+        assert agg.detailed_metric(NAMESPACE, CommandType.GET) is None
+        # Tier 0 is not gated: connections are still counted.
+        assert client.metrics().open_connections >= 1
+        assert agg.open_connections >= 1
 
     async def test_labels_carried_on_snapshot(self, client):
         policy = MetricsPolicy()
@@ -173,7 +197,7 @@ def test_local_client_metrics(aerospike_host, use_services_alternate):
     client = _LocalClient(cp, aerospike_host)
 
     assert client.metrics_enabled() is False
-    client.enable_metrics(MetricsPolicy.micros())
+    client.enable_metrics(_operational(MetricsPolicy.micros()))
     assert client.metrics_enabled() is True
 
     key = Key(NAMESPACE, SET_NAME, "metrics-local")
@@ -193,7 +217,7 @@ def test_blocking_client_metrics(aerospike_host, use_services_alternate):
     client = new_client_blocking(cp, aerospike_host)
     try:
         assert client.metrics_enabled() is False
-        client.enable_metrics()
+        client.enable_metrics(_operational())
 
         key = Key(NAMESPACE, SET_NAME, "metrics-blocking")
         client.put_blocking(key, {"n": 1}, policy=WritePolicy())

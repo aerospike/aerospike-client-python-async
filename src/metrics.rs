@@ -308,10 +308,9 @@ impl Default for MetricsPolicy {
 impl MetricsPolicy {
     #[new]
     pub fn new() -> Self {
-        // The cross-SDK default is milliseconds / 7 columns / shift 1. Core's
-        // own default is the microsecond preset, so it is not inherited here:
-        // a binding that reported a different default from every other client
-        // would be a portability trap for anyone reading one config file.
+        // The cross-SDK default is milliseconds / 7 columns / shift 1, with the
+        // operational tier off. Named rather than taken from core's `default()`
+        // so the binding's advertised default cannot drift with core's.
         MetricsPolicy {
             _as: aerospike_core::MetricsPolicy::millis(),
         }
@@ -333,6 +332,20 @@ impl MetricsPolicy {
         }
     }
 
+
+    /// Whether the operational tier is recorded: latency and byte histograms,
+    /// result codes, and the command retry/error and connection failure
+    /// counters. Off by default, leaving only the always-on gauges -- pool
+    /// occupancy, connections opened and closed, tend and node counts.
+    #[getter]
+    pub fn get_operational(&self) -> bool {
+        self._as.operational
+    }
+
+    #[setter]
+    pub fn set_operational(&mut self, operational: bool) {
+        self._as.operational = operational;
+    }
 
     #[getter]
     pub fn get_latency_unit(&self) -> LatencyUnit {
@@ -358,10 +371,7 @@ impl MetricsPolicy {
     /// multiplies by ``2 ** latency_shift``.
     #[getter]
     pub fn get_latency_shift(&self) -> usize {
-        // Core stores the multiplier; the shift is its exponent. Kept in this
-        // binding so the Python surface speaks the spec's units without core
-        // having to change.
-        self._as.latency_base.trailing_zeros() as usize
+        self._as.latency_shift as usize
     }
 
     #[setter]
@@ -371,7 +381,7 @@ impl MetricsPolicy {
         if latency_shift < 1 {
             return Err(PyValueError::new_err("latency_shift must be at least 1"));
         }
-        self._as.latency_base = 1usize << latency_shift;
+        self._as.latency_shift = latency_shift as u32;
         Ok(())
     }
 
@@ -379,7 +389,7 @@ impl MetricsPolicy {
     /// :attr:`latency_shift` so the two cannot disagree.
     #[getter]
     pub fn get_latency_base(&self) -> usize {
-        self._as.latency_base
+        1usize << self._as.latency_shift
     }
 
     /// Static label sets attached to every snapshot (e.g. `[{"team": "billing"}]`).
@@ -405,8 +415,9 @@ impl MetricsPolicy {
 
     fn __repr__(&self) -> String {
         format!(
-            "MetricsPolicy(latency_unit={}, latency_columns={}, latency_shift={}, \
-             sampler=({}, {}))",
+            "MetricsPolicy(operational={}, latency_unit={}, latency_columns={}, \
+             latency_shift={}, sampler=({}, {}))",
+            if self._as.operational { "True" } else { "False" },
             self._as.latency_unit.as_str(),
             self._as.latency_columns,
             self.get_latency_shift(),
@@ -643,9 +654,13 @@ impl NodeMetricsSnapshot {
         self._as.counters.connections_closed
     }
 
+    /// Connections currently being recovered after a timeout.
+    ///
+    /// A point-in-time gauge stamped at snapshot, not a cumulative count: the
+    /// `connections_recovered` counter it replaces was never incremented.
     #[getter]
-    pub fn get_connections_recovered(&self) -> u64 {
-        self._as.counters.connections_recovered
+    pub fn get_connections_recovering(&self) -> u64 {
+        self._as.counters.connections_recovering
     }
 
     #[getter]

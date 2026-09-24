@@ -24,12 +24,13 @@ from aerospike_async import (
 
 
 def test_default_policy_is_the_cross_sdk_default():
-    """Milliseconds / 7 columns / shift 1, not the core's microsecond preset.
+    """Milliseconds / 7 columns / shift 1, with the operational tier off.
 
-    Deliberately not inherited from the core: a binding whose default differed
-    from every other client would mislead anyone reading one shared config.
+    Named explicitly rather than taken from the core's own default, so that
+    the default this binding advertises cannot drift underneath it.
     """
     mp = MetricsPolicy()
+    assert mp.operational is False
     assert mp.latency_unit == LatencyUnit.MILLISECONDS
     assert mp.latency_columns == 7
     assert mp.latency_shift == 1
@@ -130,8 +131,23 @@ def test_command_type_str_matches_serialized_keys():
     assert str(CommandType.BATCH_WRITE) == "BatchWrite"
 
 
+def test_operational_tier_round_trips():
+    mp = MetricsPolicy()
+    mp.operational = True
+    assert mp.operational is True
+    mp.operational = False
+    assert mp.operational is False
+
+
+def test_presets_leave_the_operational_tier_off():
+    """The presets pick a histogram shape; they do not switch a tier on."""
+    assert MetricsPolicy.micros().operational is False
+    assert MetricsPolicy.millis().operational is False
+
+
 def test_policy_repr_names_the_essentials():
     text = repr(MetricsPolicy())
+    assert "operational=False" in text
     assert "latency_unit=ms" in text
     assert "latency_columns=7" in text
     assert "latency_shift=1" in text
