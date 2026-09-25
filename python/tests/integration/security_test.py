@@ -35,6 +35,8 @@ PROPAGATION_DELAY = 0.5
 # settled", not "absent".
 PROPAGATION_TIMEOUT = 5.0
 PROPAGATION_INTERVAL = 0.1
+# A drop lands 10-15 ms after its ack, so its wait polls at that grain.
+DROP_POLL_INTERVAL = 0.01
 
 
 async def wait_for_role(
@@ -82,13 +84,12 @@ async def wait_for_role(
 
 
 async def security_smd(client):
-    """The server's own view of security-metadata commit state.
+    """The server's own view of security-metadata state.
 
     ``smd-info`` reports a ``security:`` section carrying a monotonic
-    ``committed_tid`` and a ``settled`` flag. Security changes -- create/drop
-    role or user, grant/revoke -- land through the system-metadata subsystem,
-    so this is the authoritative answer to "has my change committed yet",
-    rather than inferring it from whether the effect happens to be visible.
+    ``committed_tid`` plus a key count. Security changes land through the
+    system-metadata subsystem, so this is where to look when a change has not
+    shown up: it says whether anything committed at all.
     """
     response = await client.info("smd-info")
     body = next((v for v in response.values() if v), "")
@@ -108,55 +109,61 @@ async def committed_tid(client):
     return int((await security_smd(client)).get("committed_tid", -1))
 
 
-async def wait_for_security_commit(client, *, after_tid, timeout=20.0, interval=0.05):
-    """Block until the security metadata has committed past *after_tid*.
+async def _wait_gone(client, query, what, *, after_tid, timeout, interval):
+    """Poll *query* until it reports the entity absent, then return.
 
-    Deterministic in the sense that matters: it waits on the server's commit
-    counter rather than retrying an observable side effect until it happens to
-    appear. Once this returns, a change issued before it is committed, so the
-    caller asserts the outcome exactly once instead of in a retry loop -- a
-    retry loop cannot distinguish "slow to commit" from "did not happen", and
-    that ambiguity is what makes these tests flaky.
+    A drop is acked before any of it has committed: the server answers the
+    command in under a millisecond and lands the change through system
+    metadata 10-15 ms later, as one commit per key the entity owns (a role
+    with privileges, an allowlist and quotas is several). Waiting on the
+    commit counter is therefore not enough -- it moves as soon as the first
+    key lands, while the entity is still queryable until its own key does.
+
+    Absence is the property the caller asserts, and it cannot be reported
+    early: once the query says gone, the drop has applied. A drop that never
+    applies fails here on the deadline, with the metadata state attached so
+    "still committing" and "did not happen" read differently.
     """
     deadline = time.monotonic() + timeout
-    last = None
     while time.monotonic() < deadline:
-        smd = await security_smd(client)
-        last = smd
-        tid = int(smd.get("committed_tid", -1))
-        if tid > after_tid and smd.get("settled") == "true":
-            return tid
+        try:
+            found = await query()
+        except ServerError:
+            return
+        if not found:
+            return
         await asyncio.sleep(interval)
-    raise TimeoutError(
-        f"security metadata did not commit past tid {after_tid} within "
-        f"{timeout}s; last smd-info security section: {last!r}"
-    )
-
-
-async def assert_role_gone(client, role_name, *, after_tid):
-    """After the drop commits, the role must be gone -- asserted once.
-
-    Takes the commit id captured *before* the drop, waits for the metadata to
-    move past it, then checks a single time.
-    """
-    await wait_for_security_commit(client, after_tid=after_tid)
-    try:
-        roles = await client.query_roles(role_name)
-    except ServerError:
-        return
+    smd = await security_smd(client)
+    tid = int(smd.get("committed_tid", -1))
     pytest.fail(
-        f"Role {role_name!r} survived a committed drop: {roles!r}"
+        f"{what} survived its drop for {timeout}s; security metadata "
+        f"{'moved past' if tid > after_tid else 'did not move past'} commit "
+        f"{after_tid} (now {tid}): {smd!r}"
     )
 
 
-async def assert_user_gone(client, username, *, after_tid):
-    """After the drop commits, the user must be gone -- asserted once."""
-    await wait_for_security_commit(client, after_tid=after_tid)
-    try:
-        users = await client.query_users(username)
-    except ServerError:
-        return
-    pytest.fail(f"User {username!r} survived a committed drop: {users!r}")
+async def assert_role_gone(
+    client, role_name, *, after_tid, timeout=PROPAGATION_TIMEOUT,
+    interval=DROP_POLL_INTERVAL,
+):
+    """After a drop, the role must disappear; *after_tid* is the commit id
+    captured before the drop, reported on failure."""
+    await _wait_gone(
+        client, lambda: client.query_roles(role_name), f"Role {role_name!r}",
+        after_tid=after_tid, timeout=timeout, interval=interval,
+    )
+
+
+async def assert_user_gone(
+    client, username, *, after_tid, timeout=PROPAGATION_TIMEOUT,
+    interval=DROP_POLL_INTERVAL,
+):
+    """After a drop, the user must disappear; *after_tid* is the commit id
+    captured before the drop, reported on failure."""
+    await _wait_gone(
+        client, lambda: client.query_users(username), f"User {username!r}",
+        after_tid=after_tid, timeout=timeout, interval=interval,
+    )
 
 
 async def wait_for_user(client, username, *, retries=PROPAGATION_RETRIES):
@@ -318,7 +325,8 @@ class TestSecurityFeatures:
         await client.create_user(username, "test_password_123", ["read:test"])
         await wait_for_user(client, username)
 
-        # Capture the commit id first, so the wait is on *this* drop landing.
+        # The commit id from before the drop tells a failure apart from a
+        # drop that never committed.
         before = await committed_tid(client)
         await client.drop_user(username)
         await assert_user_gone(client, username, after_tid=before)
@@ -532,7 +540,8 @@ class TestSecurityFeatures:
 
         await wait_for_role(client, role_name)
 
-        # Capture the commit id first, so the wait is on *this* drop landing.
+        # The commit id from before the drop tells a failure apart from a
+        # drop that never committed.
         before = await committed_tid(client)
         await client.drop_role(role_name)
         await assert_role_gone(client, role_name, after_tid=before)
