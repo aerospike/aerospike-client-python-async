@@ -2820,15 +2820,17 @@ use crate::TlsConfig;
         #[cfg(feature = "tls")]
         #[getter]
         pub fn get_tls_config(&self) -> Option<TlsConfig> {
-            self._as.tls_config.as_ref().map(|config| TlsConfig {
-                _as: config.clone(),
+            self._as.tls_policy.as_ref().map(|policy| TlsConfig {
+                _as: policy.config.clone(),
             })
         }
 
+        // The core policy wraps the config with its login-only switch; this
+        // surface sets the config alone, so the switch keeps core's default.
         #[cfg(feature = "tls")]
         #[setter]
         pub fn set_tls_config(&mut self, value: Option<TlsConfig>) {
-            self._as.tls_config = value.map(|tls| tls._as);
+            self._as.tls_policy = value.map(|tls| aerospike_core::TlsPolicy::new(tls._as));
         }
 
         fn __str__(&self) -> PyResult<String> {
