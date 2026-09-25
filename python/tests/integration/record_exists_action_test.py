@@ -254,7 +254,13 @@ class TestCreateOnly(TestFixtureConnection):
         with pytest.raises(RecordExistsError) as exc_info:
             await client.put(key, {"bin2": "value2"}, policy=wp)
 
-        assert exc_info.value.result_code == ResultCode.KEY_EXISTS_ERROR
+        err = exc_info.value
+        assert err.result_code == ResultCode.KEY_EXISTS_ERROR
+        # The message is the core rendering: numeric code, retry decoration,
+        # then the code's descriptive string, which is also the base message.
+        assert err.base_message == "Key already exists"
+        assert str(err).startswith("Error 5")
+        assert str(err).splitlines()[0].endswith(": Key already exists")
 
         # Verify original record is unchanged
         record = await client.get(key, policy=ReadPolicy())

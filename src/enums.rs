@@ -783,6 +783,15 @@ pub enum Concurrency {
     // We use the actual CoreResultCode in Rust code, and expose matching constants to Python
     // PyO3's #[pyclass] can't be used on external types, so we create a simple class with constants
     // ResultCode wrapper to expose enum values to Python
+    /// Server result code, one constant per code the server can return.
+    ///
+    /// Behaves like an ``IntEnum`` member: ``repr`` shows the name and the
+    /// wire value (``<ResultCode.KEY_EXISTS_ERROR: 5>``), ``str`` and ``int``
+    /// give the value alone (``"5"``, ``5``), ``name`` / ``value`` expose the
+    /// two halves, and ``description`` is the code's descriptive string.
+    /// Compares equal to another member with the same code and to that
+    /// code as an ``int`` (``ResultCode.KEY_EXISTS_ERROR == 5``), and hashes
+    /// like that ``int``.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, name = "ResultCode", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
@@ -792,24 +801,152 @@ pub enum Concurrency {
     #[pymethods]
     #[allow(non_snake_case)]  // Class attributes use PascalCase to match Rust enum variants
     impl ResultCode {
-        fn __richcmp__(&self, other: &ResultCode, op: CompareOp) -> PyResult<bool> {
+        // Compares by wire value, against another member or a plain int, the
+        // way an ``IntEnum`` member does. Comparing discriminants would make
+        // every ``Unknown(n)`` equal to every other ``Unknown(m)``.
+        fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<Py<PyAny>> {
+            let py = other.py();
+            let mine = u8::from(self.0);
+            let theirs: Option<u8> = if let Ok(rc) = other.extract::<ResultCode>() {
+                Some(u8::from(rc.0))
+            } else if let Ok(n) = other.extract::<i64>() {
+                u8::try_from(n).ok()
+            } else {
+                None
+            };
+            let Some(theirs) = theirs else {
+                return Ok(py.NotImplemented());
+            };
+            let eq = mine == theirs;
             match op {
-                CompareOp::Eq => Ok(std::mem::discriminant(&self.0) == std::mem::discriminant(&other.0)),
-                CompareOp::Ne => Ok(std::mem::discriminant(&self.0) != std::mem::discriminant(&other.0)),
-                _ => Ok(false),
+                CompareOp::Eq => Ok(eq.into_pyobject(py)?.to_owned().into_any().unbind()),
+                CompareOp::Ne => Ok((!eq).into_pyobject(py)?.to_owned().into_any().unbind()),
+                _ => Ok(py.NotImplemented()),
             }
         }
 
+        // Same hash as the int of equal value, so ``{5: ...}[rc]`` resolves.
         fn __hash__(&self) -> u64 {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            std::mem::discriminant(&self.0).hash(&mut hasher);
-            hasher.finish()
+            u64::from(u8::from(self.0))
+        }
+
+        /// The constant's name, as declared on this class (``"KEY_EXISTS_ERROR"``);
+        /// ``"UNKNOWN"`` for a wire value this build has no constant for.
+        #[getter]
+        fn name(&self) -> &'static str {
+            match self.0 {
+                CoreResultCode::Ok => "OK",
+                CoreResultCode::ServerError => "SERVER_ERROR",
+                CoreResultCode::KeyNotFoundError => "KEY_NOT_FOUND_ERROR",
+                CoreResultCode::GenerationError => "GENERATION_ERROR",
+                CoreResultCode::ParameterError => "PARAMETER_ERROR",
+                CoreResultCode::KeyExistsError => "KEY_EXISTS_ERROR",
+                CoreResultCode::BinExistsError => "BIN_EXISTS_ERROR",
+                CoreResultCode::ClusterKeyMismatch => "CLUSTER_KEY_MISMATCH",
+                CoreResultCode::ServerMemError => "SERVER_MEM_ERROR",
+                CoreResultCode::Timeout => "TIMEOUT",
+                CoreResultCode::AlwaysForbidden => "ALWAYS_FORBIDDEN",
+                CoreResultCode::PartitionUnavailable => "PARTITION_UNAVAILABLE",
+                CoreResultCode::BinTypeError => "BIN_TYPE_ERROR",
+                CoreResultCode::RecordTooBig => "RECORD_TOO_BIG",
+                CoreResultCode::KeyBusy => "KEY_BUSY",
+                CoreResultCode::ScanAbort => "SCAN_ABORT",
+                CoreResultCode::UnsupportedFeature => "UNSUPPORTED_FEATURE",
+                CoreResultCode::BinNotFound => "BIN_NOT_FOUND",
+                CoreResultCode::DeviceOverload => "DEVICE_OVERLOAD",
+                CoreResultCode::KeyMismatch => "KEY_MISMATCH",
+                CoreResultCode::InvalidNamespace => "INVALID_NAMESPACE",
+                CoreResultCode::BinNameTooLong => "BIN_NAME_TOO_LONG",
+                CoreResultCode::FailForbidden => "FAIL_FORBIDDEN",
+                CoreResultCode::ElementNotFound => "ELEMENT_NOT_FOUND",
+                CoreResultCode::ElementExists => "ELEMENT_EXISTS",
+                CoreResultCode::EnterpriseOnly => "ENTERPRISE_ONLY",
+                CoreResultCode::OpNotApplicable => "OP_NOT_APPLICABLE",
+                CoreResultCode::FilteredOut => "FILTERED_OUT",
+                CoreResultCode::LostConflict => "LOST_CONFLICT",
+                CoreResultCode::XDRKeyBusy => "XDR_KEY_BUSY",
+                CoreResultCode::QueryEnd => "QUERY_END",
+                CoreResultCode::SecurityNotSupported => "SECURITY_NOT_SUPPORTED",
+                CoreResultCode::SecurityNotEnabled => "SECURITY_NOT_ENABLED",
+                CoreResultCode::NotAuthenticated => "NOT_AUTHENTICATED",
+                CoreResultCode::SecuritySchemeNotSupported => "SECURITY_SCHEME_NOT_SUPPORTED",
+                CoreResultCode::InvalidCommand => "INVALID_COMMAND",
+                CoreResultCode::InvalidField => "INVALID_FIELD",
+                CoreResultCode::IllegalState => "ILLEGAL_STATE",
+                CoreResultCode::InvalidUser => "INVALID_USER",
+                CoreResultCode::UserAlreadyExists => "USER_ALREADY_EXISTS",
+                CoreResultCode::ForbiddenPassword => "FORBIDDEN_PASSWORD",
+                CoreResultCode::UdfBadResponse => "UDF_BAD_RESPONSE",
+                CoreResultCode::IndexFound => "INDEX_FOUND",
+                CoreResultCode::IndexNotFound => "INDEX_NOT_FOUND",
+                CoreResultCode::IndexOom => "INDEX_OOM",
+                CoreResultCode::IndexNotReadable => "INDEX_NOT_READABLE",
+                CoreResultCode::IndexGeneric => "INDEX_GENERIC",
+                CoreResultCode::IndexNameMaxLen => "INDEX_NAME_MAX_LEN",
+                CoreResultCode::IndexMaxCount => "INDEX_MAX_COUNT",
+                CoreResultCode::QueryAborted => "QUERY_ABORTED",
+                CoreResultCode::QueryQueueFull => "QUERY_QUEUE_FULL",
+                CoreResultCode::QueryTimeout => "QUERY_TIMEOUT",
+                CoreResultCode::QueryGeneric => "QUERY_GENERIC",
+                CoreResultCode::MrtBlocked => "MRT_BLOCKED",
+                CoreResultCode::MrtVersionMismatch => "MRT_VERSION_MISMATCH",
+                CoreResultCode::MrtExpired => "MRT_EXPIRED",
+                CoreResultCode::MrtTooManyWrites => "MRT_TOO_MANY_WRITES",
+                CoreResultCode::MrtCommitted => "MRT_COMMITTED",
+                CoreResultCode::MrtAborted => "MRT_ABORTED",
+                CoreResultCode::MrtAlreadyLocked => "MRT_ALREADY_LOCKED",
+                CoreResultCode::MrtMonitorExists => "MRT_MONITOR_EXISTS",
+                CoreResultCode::InvalidPassword => "INVALID_PASSWORD",
+                CoreResultCode::ExpiredPassword => "EXPIRED_PASSWORD",
+                CoreResultCode::InvalidCredential => "INVALID_CREDENTIAL",
+                CoreResultCode::ExpiredSession => "EXPIRED_SESSION",
+                CoreResultCode::InvalidRole => "INVALID_ROLE",
+                CoreResultCode::RoleAlreadyExists => "ROLE_ALREADY_EXISTS",
+                CoreResultCode::InvalidPrivilege => "INVALID_PRIVILEGE",
+                CoreResultCode::InvalidAllowlist => "INVALID_ALLOWLIST",
+                CoreResultCode::RoleViolation => "ROLE_VIOLATION",
+                CoreResultCode::NotAllowlisted => "NOT_ALLOWLISTED",
+                CoreResultCode::QuotasNotEnabled => "QUOTAS_NOT_ENABLED",
+                CoreResultCode::InvalidQuota => "INVALID_QUOTA",
+                CoreResultCode::QuotaExceeded => "QUOTA_EXCEEDED",
+                CoreResultCode::BatchDisabled => "BATCH_DISABLED",
+                CoreResultCode::BatchMaxRequestsExceeded => "BATCH_MAX_REQUESTS_EXCEEDED",
+                CoreResultCode::BatchQueuesFull => "BATCH_QUEUES_FULL",
+                CoreResultCode::InvalidGeojson => "INVALID_GEOJSON",
+                CoreResultCode::QueryNetioErr => "QUERY_NETIO_ERR",
+                CoreResultCode::QueryDuplicate => "QUERY_DUPLICATE",
+                CoreResultCode::Unknown(_) => "UNKNOWN",
+            }
+        }
+
+        /// The numeric wire value (``5`` for ``KEY_EXISTS_ERROR``), the number
+        /// server logs and the result-code reference show.
+        #[getter]
+        fn value(&self) -> u8 {
+            u8::from(self.0)
+        }
+
+        /// The code's descriptive string (``"Key already exists"``), the same
+        /// text a server failure carries as its base message.
+        #[getter]
+        fn description(&self) -> String {
+            self.0.into_string()
+        }
+
+        fn __int__(&self) -> u8 {
+            u8::from(self.0)
+        }
+
+        fn __index__(&self) -> u8 {
+            u8::from(self.0)
+        }
+
+        fn __str__(&self) -> String {
+            u8::from(self.0).to_string()
         }
 
         fn __repr__(&self) -> String {
-            format!("ResultCode({:?})", self.0)
+            format!("<ResultCode.{}: {}>", self.name(), u8::from(self.0))
         }
 
         // Expose enum instances as class attributes (UPPER_SNAKE_CASE for Pythonic constants)

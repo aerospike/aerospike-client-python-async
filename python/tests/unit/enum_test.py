@@ -282,14 +282,52 @@ class TestResultCodeCatalog:
     def test_every_core_server_code_is_exposed(self):
         from aerospike_async import ResultCode
 
-        exposed = {n for n in dir(ResultCode) if not n.startswith("_")}
+        exposed = {
+            n for n in dir(ResultCode) if isinstance(getattr(ResultCode, n), ResultCode)
+        }
         missing = [c for c in self.CORE_SERVER_CODES if c not in exposed]
         assert not missing, f"core server codes missing from ResultCode: {missing}"
+
+    def test_members_behave_like_int_enum_members(self):
+        from aerospike_async import ResultCode
+
+        rc = ResultCode.KEY_EXISTS_ERROR
+        assert repr(rc) == "<ResultCode.KEY_EXISTS_ERROR: 5>"
+        assert str(rc) == "5"
+        assert f"code {rc}" == "code 5"
+        assert int(rc) == 5
+        assert rc.name == "KEY_EXISTS_ERROR"
+        assert rc.value == 5
+        assert rc.description == "Key already exists"
+        assert repr(ResultCode.OK) == "<ResultCode.OK: 0>"
+
+    def test_members_compare_and_hash_like_their_int(self):
+        from aerospike_async import ResultCode
+
+        rc = ResultCode.KEY_EXISTS_ERROR
+        assert rc == 5 and 5 == rc
+        assert rc != 2 and rc != ResultCode.KEY_NOT_FOUND_ERROR
+        assert rc == ResultCode.KEY_EXISTS_ERROR
+        assert hash(rc) == hash(5)
+        assert {5: "hit"}[rc] == "hit"
+        assert {rc: "hit"}[5] == "hit"
+        assert (rc == "5") is False
+        assert (rc == 5.0) is False
+
+    def test_every_constant_reports_its_own_name(self):
+        from aerospike_async import ResultCode
+
+        for name in self.CORE_SERVER_CODES:
+            rc = getattr(ResultCode, name)
+            assert rc.name == name, f"{name} reports {rc.name!r}"
+            assert repr(rc) == f"<ResultCode.{name}: {int(rc)}>"
 
     def test_catalog_is_complete_against_this_pin(self):
         from aerospike_async import ResultCode
 
-        exposed = {n for n in dir(ResultCode) if not n.startswith("_")}
+        exposed = {
+            n for n in dir(ResultCode) if isinstance(getattr(ResultCode, n), ResultCode)
+        }
         extras = exposed - set(self.CORE_SERVER_CODES)
         assert not extras, (
             f"ResultCode exposes names not in the pinned core list: {extras} "

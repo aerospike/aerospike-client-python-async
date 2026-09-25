@@ -304,14 +304,14 @@ class TestRetryContextSurface:
         subs = [TimeoutError("attempt 1")]
         err = ServerError(
             "fail", ResultCode.GENERATION_ERROR, True, 2, "generation conflict",
-            None, "BB9020011AC4202", 3, "Server error: GenerationError", subs,
+            None, "BB9020011AC4202", 3, "Generation error", subs,
         )
         assert err.in_doubt is True
         assert err.sub_code == 2
         assert err.server_message == "generation conflict"
         assert err.node == "BB9020011AC4202"
         assert err.iteration == 3
-        assert err.base_message == "Server error: GenerationError"
+        assert err.base_message == "Generation error"
         assert len(err.sub_exceptions) == 1
         assert isinstance(err.sub_exceptions[0], TimeoutError)
 
@@ -321,11 +321,11 @@ class TestRetryContextSurface:
         # as a positional suffix with defaults.
         err = ServerError(
             "fail", ResultCode.SERVER_ERROR, False, None, None, None,
-            "BB9020011AC4202", 1, "Server error: ServerError",
+            "BB9020011AC4202", 1, "Server error",
         )
         assert err.node == "BB9020011AC4202"
         assert err.iteration == 1
-        assert err.base_message == "Server error: ServerError"
+        assert err.base_message == "Server error"
         assert err.sub_exceptions is None
 
     def test_server_error_subclass_inherits_retry_context(self):
@@ -375,7 +375,7 @@ class TestServerErrorStr:
     def test_str_is_message_only(self):
         err = ServerError(
             "something broke", ResultCode.SERVER_ERROR, True, 2, "detail",
-            None, "BB9020011AC4202", 3, "Server error: ServerError", None,
+            None, "BB9020011AC4202", 3, "Server error", None,
         )
         assert str(err) == "something broke"
 

@@ -5566,6 +5566,17 @@ class RegisterTask:
 
 @typing.final
 class ResultCode:
+    r"""
+    Server result code, one constant per code the server can return.
+
+    Behaves like an ``IntEnum`` member: ``repr`` shows the name and the
+    wire value (``<ResultCode.KEY_EXISTS_ERROR: 5>``), ``str`` and ``int``
+    give the value alone (``"5"``, ``5``), ``name`` / ``value`` expose the
+    two halves, and ``description`` is the code's descriptive string.
+    Compares equal to another member with the same code and to that
+    code as an ``int`` (``ResultCode.KEY_EXISTS_ERROR == 5``), and hashes
+    like that ``int``.
+    """
     OK: _aerospike_async_native.ResultCode
     SERVER_ERROR: _aerospike_async_native.ResultCode
     KEY_NOT_FOUND_ERROR: _aerospike_async_native.ResultCode
@@ -5646,8 +5657,29 @@ class ResultCode:
     INVALID_GEOJSON: _aerospike_async_native.ResultCode
     QUERY_NETIO_ERR: _aerospike_async_native.ResultCode
     QUERY_DUPLICATE: _aerospike_async_native.ResultCode
-    def __richcmp__(self, other: _aerospike_async_native.ResultCode, op: int) -> builtins.bool: ...
+    @property
+    def name(self) -> builtins.str:
+        r"""
+        The constant's name, as declared on this class (``"KEY_EXISTS_ERROR"``);
+        ``"UNKNOWN"`` for a wire value this build has no constant for.
+        """
+    @property
+    def value(self) -> builtins.int:
+        r"""
+        The numeric wire value (``5`` for ``KEY_EXISTS_ERROR``), the number
+        server logs and the result-code reference show.
+        """
+    @property
+    def description(self) -> builtins.str:
+        r"""
+        The code's descriptive string (``"Key already exists"``), the same
+        text a server failure carries as its base message.
+        """
+    def __richcmp__(self, other: typing.Any, op: int) -> typing.Any: ...
     def __hash__(self) -> builtins.int: ...
+    def __int__(self) -> builtins.int: ...
+    def __index__(self) -> builtins.int: ...
+    def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
 class Role:

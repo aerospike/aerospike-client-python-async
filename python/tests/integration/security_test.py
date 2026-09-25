@@ -406,7 +406,7 @@ class TestSecurityFeatures:
         try:
             await client.create_role(role_name, privileges, ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -424,14 +424,13 @@ class TestSecurityFeatures:
         try:
             await client.create_role(role_name, privileges, ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            error_str = str(e)
-            if "QuotasNotEnabled" in error_str:
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
-            if "InvalidQuota" in error_str:
+            if e.result_code == ResultCode.INVALID_QUOTA:
                 try:
                     await client.create_role(role_name, privileges, ["192.168.1.0/24"], 1, 1)
                 except ServerError as e2:
-                    if "QuotasNotEnabled" in str(e2):
+                    if e2.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                         pytest.skip("Quotas are not enabled on the server")
                     raise e
             else:
@@ -449,12 +448,13 @@ class TestSecurityFeatures:
             await client.create_role(role_name, privileges, ["192.168.1.0/24"], 1000, 500)
             await wait_for_role(client, role_name)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
-        with pytest.raises(ServerError, match="RoleAlreadyExists"):
+        with pytest.raises(ServerError) as excinfo:
             await client.create_role(role_name, privileges, ["192.168.1.0/24"], 1000, 500)
+        assert excinfo.value.result_code == ResultCode.ROLE_ALREADY_EXISTS
 
     async def test_query_roles_all(self, client, unique_role):
         """Test querying all roles."""
@@ -465,7 +465,7 @@ class TestSecurityFeatures:
             await client.create_role(role1, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -488,7 +488,7 @@ class TestSecurityFeatures:
             await client.create_role(role_name, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -526,7 +526,7 @@ class TestSecurityFeatures:
             await client.create_role(role_name, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -550,7 +550,7 @@ class TestSecurityFeatures:
             await client.create_role(role_name, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -580,7 +580,7 @@ class TestSecurityFeatures:
         try:
             await client.create_role(role_name, initial_privileges, ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -605,7 +605,7 @@ class TestSecurityFeatures:
             await client.create_role(role_name, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -630,7 +630,7 @@ class TestSecurityFeatures:
             await client.create_role(role_name, [Privilege(PrivilegeCode.Read, "test", None)],
                                      ["192.168.1.0/24"], 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
@@ -664,7 +664,7 @@ class TestSecurityFeatures:
         try:
             await client.create_role(quota_role, privileges, allowlist, 1000, 500)
         except ServerError as e:
-            if "QuotasNotEnabled" in str(e):
+            if e.result_code == ResultCode.QUOTAS_NOT_ENABLED:
                 pytest.skip("Quotas are not enabled on the server")
             raise
 
