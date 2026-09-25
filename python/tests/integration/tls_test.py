@@ -17,12 +17,17 @@
 
 import os
 import pytest
-from aerospike_async import new_client, ClientPolicy, TlsConfig, AuthMode
+from aerospike_async import new_client, ClientPolicy, TlsConfig, AuthMode, Key
 
 
 def _tls_host_env():
     """TLS host from AEROSPIKE_TLS_HOST or AEROSPIKE_HOST_TLS (aerospike.env)."""
     return os.environ.get("AEROSPIKE_TLS_HOST") or os.environ.get("AEROSPIKE_HOST_TLS")
+
+
+def _tls_login_host_env():
+    """A TLS node with security and a cleartext service port, for login-only TLS."""
+    return os.environ.get("AEROSPIKE_HOST_TLS_LOGIN")
 
 
 def _tls_ca_exists():
@@ -268,3 +273,61 @@ class TestTlsConfigOptions:
         with pytest.raises(ValueError) as exc:
             TlsConfig(ciphers=["NOT_A_SUITE"])
         assert "TLS13_AES_256_GCM_SHA384" in str(exc.value)
+
+
+@pytest.mark.skipif(
+    not _tls_login_host_env() or not _tls_ca_exists(),
+    reason="AEROSPIKE_HOST_TLS_LOGIN and AEROSPIKE_TLS_CA_FILE required",
+)
+class TestTlsForLoginOnly:
+    """TLS for the login exchange only; data connections are cleartext."""
+
+    def _policy(self, for_login_only):
+        policy = ClientPolicy()
+        policy.tls_config = TlsConfig(
+            os.environ.get("AEROSPIKE_TLS_CA_FILE"), for_login_only=for_login_only
+        )
+        policy.set_auth_mode(
+            AuthMode.INTERNAL,
+            user=os.environ.get("AEROSPIKE_USER", "admin"),
+            password=os.environ.get("AEROSPIKE_PASSWORD", "admin"),
+        )
+        policy.use_services_alternate = True
+        return policy
+
+    def _host(self):
+        host, _, port = _tls_login_host_env().rpartition(":")
+        tls_name = os.environ.get("AEROSPIKE_TLS_NAME")
+        return f"{host}:{tls_name}:{port}" if tls_name else f"{host}:{port}", int(port)
+
+    def test_flag_round_trips_through_the_policy(self):
+        policy = self._policy(True)
+        assert policy.tls_config.for_login_only is True
+        assert self._policy(False).tls_config.for_login_only is False
+
+    async def test_data_connections_move_to_the_cleartext_port(self):
+        """After a TLS login the node is reached on its cleartext service address."""
+        host, tls_port = self._host()
+        client = await new_client(self._policy(True), host)
+        try:
+            nodes = await client.nodes()
+            assert len(nodes) == 1
+            port = nodes[0].host[1]
+            assert port != tls_port, f"node still on the TLS port {tls_port}"
+            key = Key("test", "tls_login", "k")
+            await client.put(key, {"n": 1})
+            record = await client.get(key)
+            assert record.bins["n"] == 1
+        finally:
+            await client.close()
+
+    async def test_without_the_flag_the_node_stays_on_the_tls_port(self):
+        """The control: the same node with full TLS keeps the TLS port."""
+        host, tls_port = self._host()
+        client = await new_client(self._policy(False), host)
+        try:
+            nodes = await client.nodes()
+            assert nodes[0].host[1] == tls_port
+        finally:
+            await client.close()
+
