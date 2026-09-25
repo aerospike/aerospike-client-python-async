@@ -643,6 +643,10 @@ pub enum Concurrency {
         String,
         #[pyo3(name = "GEO2D_SPHERE")]
         Geo2DSphere,
+        /// Integer index, the server's own name for it from 8.1.3 on; older
+        /// servers reject it, where ``NUMERIC`` still creates the same index.
+        #[pyo3(name = "INTEGER")]
+        Integer,
         /// Blob (byte-array) index. Requires server 7.0+.
         #[pyo3(name = "BLOB")]
         Blob,
@@ -655,6 +659,7 @@ pub enum Concurrency {
                 IndexType::Numeric => aerospike_core::query::IndexType::Numeric,
                 IndexType::String => aerospike_core::query::IndexType::String,
                 IndexType::Geo2DSphere => aerospike_core::query::IndexType::Geo2DSphere,
+                IndexType::Integer => aerospike_core::query::IndexType::Integer,
                 IndexType::Blob => aerospike_core::query::IndexType::Blob,
             }
         }

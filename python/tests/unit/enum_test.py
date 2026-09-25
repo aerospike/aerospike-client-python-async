@@ -113,6 +113,7 @@ class TestIndexType:
 
     def test_variants_exist(self):
         assert IndexType.NUMERIC is not None
+        assert IndexType.INTEGER is not None
         assert IndexType.STRING is not None
         assert IndexType.GEO2D_SPHERE is not None
         assert IndexType.BLOB is not None
