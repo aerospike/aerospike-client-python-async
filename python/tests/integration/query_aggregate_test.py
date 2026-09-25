@@ -27,7 +27,7 @@ from aerospike_async import (
     Client, ClientPolicy, Statement, Filter, QueryPolicy,
     PartitionFilter, IndexType, WritePolicy, Key, UDFLang
 )
-from aerospike_async.exceptions import ServerError
+from aerospike_async.exceptions import ResultCode, ServerError
 from fixtures import TestFixtureConnection
 
 
@@ -63,7 +63,7 @@ class TestQueryAggregate(TestFixtureConnection):
                 )
                 await asyncio.sleep(1)
             except ServerError as e:
-                if "INDEX_ALREADY_EXISTS" not in str(e) and "200" not in str(e):
+                if e.result_code != ResultCode.INDEX_FOUND:
                     raise
 
             wp = WritePolicy()

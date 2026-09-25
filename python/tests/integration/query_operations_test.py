@@ -56,6 +56,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
+from aerospike_async.exceptions import ResultCode, ValueError as PacValueError
 from fixtures import wait_for_scan_visible
 
 
@@ -464,11 +465,11 @@ class TestQueryOpsRejects:
         stmt = _stmt(with_filter=flt)
         stmt.set_operations([Operation.put("foo", "bar")])
 
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(PacValueError) as excinfo:
             rs = await tqo_client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
             await _drain(rs)
-        # Server returns PARAMETER_ERROR with a "read-only" hint.
-        assert "read-only" in str(excinfo.value).lower() or "parameter" in str(excinfo.value).lower()
+        # Refused before the wire, under the shared parameter-error code.
+        assert excinfo.value.result_code == ResultCode.PARAMETER_ERROR
 
     async def test_query_rejects_exp_write_operation(
         self, tqo_client, wait_for_index
