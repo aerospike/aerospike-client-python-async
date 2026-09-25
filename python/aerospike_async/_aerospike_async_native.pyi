@@ -927,6 +927,18 @@ class Client:
         validation), not a server-reported value; it reads a cached field
         with no network or lock cost.
         """
+    @property
+    def server_cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Cluster name as the servers report it, or ``None`` when they are
+        configured without one.
+
+        Unlike :attr:`cluster_name` this does not require the client to
+        have asked for cluster-name validation -- it is read off the node
+        list, so it is available on any connected client. Setting a
+        validation name only rejects nodes that disagree; it does not make
+        the name readable, which is what this getter is for.
+        """
     def __new__(cls) -> _aerospike_async_native.Client: ...
     def seeds(self) -> builtins.str: ...
     @staticmethod
@@ -6727,6 +6739,12 @@ class _LocalClient:
     def cluster_name(self) -> typing.Optional[builtins.str]:
         r"""
         Configured cluster name (see :attr:`Client.cluster_name`).
+        """
+    @property
+    def server_cluster_name(self) -> typing.Optional[builtins.str]:
+        r"""
+        Server-reported cluster name (see
+        :attr:`Client.server_cluster_name`).
         """
     def __new__(cls, policy: _aerospike_async_native.ClientPolicy, seeds: builtins.str) -> _aerospike_async_native._LocalClient: ...
     def get_blocking(self, key: _aerospike_async_native.Key, bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.ReadPolicy] = None, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> _aerospike_async_native.Record: ...
