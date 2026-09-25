@@ -40,6 +40,8 @@ import re
 EXCEPTION_STUB_CLASSES = '''class AerospikeError(builtins.Exception):
     """Base exception class for all Aerospike-specific errors."""
     @property
+    def result_code(self) -> typing.Optional[ResultCode]: ...
+    @property
     def in_doubt(self) -> builtins.bool: ...
     @property
     def node(self) -> typing.Optional[builtins.str]: ...
@@ -1885,6 +1887,10 @@ def ensure_exceptions_submodule(package_dir: str):
         f.write('# ResultCode is in the main native module, not in exceptions submodule\n')
         f.write('ResultCode = _aerospike_async_native.ResultCode\n')
         f.write('\n')
+        f.write('# The result code lives on the base so every error answers it: the\n')
+        f.write('# native layer sets the instance attribute on each failure it raises,\n')
+        f.write('# server and client side alike, so only a hand-built instance is None.\n')
+        f.write('AerospikeError.result_code = None\n')
         f.write('# Typed in-doubt lives on the base so every error answers it; the native\n')
         f.write('# layer sets the instance attribute only when core reports the write may\n')
         f.write('# have landed.\n')

@@ -1231,7 +1231,7 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_result_code(&self) -> Option<ResultCode> {
-            self._as.result_code.map(ResultCode)
+            self._as.result_code.map(ResultCode::from)
         }
 
         #[getter]

@@ -18,7 +18,7 @@ import os
 import pytest
 
 from aerospike_async import new_client, ClientPolicy
-from aerospike_async.exceptions import ConnectionError
+from aerospike_async.exceptions import ConnectionError, ResultCode
 
 async def test_connect():
     """Test basic client connection."""
@@ -46,6 +46,9 @@ async def test_failed_connect():
     # the seed-failure breakdown, which is present regardless of how many
     # seeds failed — assert on that substring rather than a fixed prefix.
     assert "Failed to connect to" in exc_info.value.args[0]
+    # A client-side failure carries its code, the same negative number
+    # every Aerospike client reports for an unreachable cluster.
+    assert exc_info.value.result_code == ResultCode.SERVER_NOT_AVAILABLE
 
 async def test_close():
     """Test client connection and proper closing."""

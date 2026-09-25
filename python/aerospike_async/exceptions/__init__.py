@@ -35,6 +35,10 @@ MaxErrorRate = _exceptions.MaxErrorRate
 # ResultCode is in the main native module, not in exceptions submodule
 ResultCode = _aerospike_async_native.ResultCode
 
+# The result code lives on the base so every error answers it: the
+# native layer sets the instance attribute on each failure it raises,
+# server and client side alike, so only a hand-built instance is None.
+AerospikeError.result_code = None
 # Typed in-doubt lives on the base so every error answers it; the native
 # layer sets the instance attribute only when core reports the write may
 # have landed.

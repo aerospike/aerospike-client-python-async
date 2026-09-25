@@ -15,7 +15,7 @@
 
 import pytest
 from aerospike_async import WritePolicy, Expiration
-from aerospike_async.exceptions import TimeoutError
+from aerospike_async.exceptions import ResultCode, TimeoutError
 from fixtures import TestFixtureInsertRecord
 
 
@@ -45,3 +45,6 @@ class TestDelete(TestFixtureInsertRecord):
         with pytest.raises(TimeoutError) as exi:
             await client.delete(key_invalid_namespace, policy=wp)
         assert "Timeout" in str(exi.value)
+        # A client-side deadline reports the shared TIMEOUT code, not a
+        # client-only one, so retry logic classifies both timeouts alike.
+        assert exi.value.result_code == ResultCode.TIMEOUT

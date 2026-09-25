@@ -239,15 +239,14 @@ class TestUDFLang:
 
 
 class TestResultCodeCatalog:
-    """Drift guard: the Python-exposed ResultCode catalog covers every server
-    result code the Rust core defines.
+    """Drift guard: the Python-exposed ResultCode catalog covers every result
+    code the Rust core defines, server and client side.
 
-    The pinned list below is the core `ResultCode` enum (aerospike-core
-    `src/result_code.rs`, server codes only — `ClientResultCode` is a
-    separate core enum deliberately not exposed here; client-side failures
-    surface as typed exception classes instead). When core adds a code,
-    regenerate this list from that enum and add the matching classattr in
-    `src/enums.rs`.
+    The pinned lists below are the core `ResultCode` and `ClientResultCode`
+    enums (aerospike-core `src/result_code.rs`). Client codes are the
+    negative half of one flat namespace, the same numbering every Aerospike
+    client shares. When core adds a code, regenerate the list from that enum
+    and add the matching classattr in `src/enums.rs`.
     """
 
     CORE_SERVER_CODES = [
@@ -278,6 +277,57 @@ class TestResultCodeCatalog:
         "QUERY_ABORTED", "QUERY_QUEUE_FULL", "QUERY_TIMEOUT",
         "QUERY_GENERIC", "QUERY_NETIO_ERR", "QUERY_DUPLICATE",
     ]
+
+    # Negative, client-assigned codes with their wire values. ASYNC_QUEUE_FULL
+    # (-9) is reserved in core and never produced, so it has no constant.
+    CORE_CLIENT_CODES = {
+        "TXN_ALREADY_ABORTED": -19,
+        "TXN_ALREADY_COMMITTED": -18,
+        "TXN_FAILED": -17,
+        "BATCH_FAILED": -16,
+        "NO_RESPONSE": -15,
+        "MAX_ERROR_RATE": -12,
+        "MAX_RETRIES_EXCEEDED": -11,
+        "SERIALIZE_ERROR": -10,
+        "SERVER_NOT_AVAILABLE": -8,
+        "NO_MORE_CONNECTIONS": -7,
+        "QUERY_TERMINATED": -5,
+        "SCAN_TERMINATED": -4,
+        "INVALID_NODE_ERROR": -3,
+        "PARSE_ERROR": -2,
+        "CLIENT_ERROR": -1,
+    }
+
+    def test_every_core_client_code_is_exposed(self):
+        from aerospike_async import ResultCode
+
+        for name, value in self.CORE_CLIENT_CODES.items():
+            rc = getattr(ResultCode, name)
+            assert rc.name == name
+            assert rc.value == value
+            assert int(rc) == value
+            assert rc == value
+            assert repr(rc) == f"<ResultCode.{name}: {value}>"
+
+    def test_client_code_behaves_like_its_int(self):
+        from aerospike_async import ResultCode
+
+        rc = ResultCode.TXN_FAILED
+        assert rc == -17 and rc != -1 and rc != ResultCode.CLIENT_ERROR
+        assert hash(rc) == hash(-17)
+        assert {-17: "hit"}[rc] == "hit"
+        assert str(rc) == "-17"
+        assert rc.description == "Transaction failed"
+        # -1 is CPython's hash error sentinel; the member must still hash
+        # like the int, which CPython folds to -2.
+        assert hash(ResultCode.CLIENT_ERROR) == hash(-1)
+
+    def test_client_and_server_codes_never_collide(self):
+        from aerospike_async import ResultCode
+
+        assert ResultCode.TIMEOUT == 9 and ResultCode.TIMEOUT.value > 0
+        assert ResultCode.CLIENT_ERROR != ResultCode.OK
+        assert ResultCode.SERVER_NOT_AVAILABLE != ResultCode.SERVER_ERROR
 
     def test_every_core_server_code_is_exposed(self):
         from aerospike_async import ResultCode
@@ -328,7 +378,7 @@ class TestResultCodeCatalog:
         exposed = {
             n for n in dir(ResultCode) if isinstance(getattr(ResultCode, n), ResultCode)
         }
-        extras = exposed - set(self.CORE_SERVER_CODES)
+        extras = exposed - set(self.CORE_SERVER_CODES) - set(self.CORE_CLIENT_CODES)
         assert not extras, (
             f"ResultCode exposes names not in the pinned core list: {extras} "
             "— core probably added codes; regenerate the pinned list"

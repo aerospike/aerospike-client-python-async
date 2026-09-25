@@ -585,8 +585,10 @@ impl NodeMetricsSnapshot {
 
     /// Count recorded for a (namespace, command type, result code) triple.
     pub fn result_code_count(&self, namespace: &str, command_type: CommandType, result_code: &ResultCode) -> u64 {
-        self._as
-            .result_code_count(namespace, (&command_type).into(), result_code.0)
+        // Core counts server answers only; a client-side code has no slot.
+        result_code.server().map_or(0, |rc| {
+            self._as.result_code_count(namespace, (&command_type).into(), rc)
+        })
     }
 
     /// Namespaces that have detailed metrics recorded.

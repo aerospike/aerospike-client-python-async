@@ -16,7 +16,7 @@
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
-use aerospike_core::ResultCode as CoreResultCode;
+use aerospike_core::{ClientResultCode, ResultCode as CoreResultCode};
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -779,11 +779,21 @@ pub enum Concurrency {
             hasher.finish()
         }
     }
-    // Expose ResultCode constants from Rust core to Python
-    // We use the actual CoreResultCode in Rust code, and expose matching constants to Python
-    // PyO3's #[pyclass] can't be used on external types, so we create a simple class with constants
-    // ResultCode wrapper to expose enum values to Python
-    /// Server result code, one constant per code the server can return.
+    // Core keeps server and client codes as two enums; Python sees the one
+    // flat namespace every Aerospike client shares. Holding the two core
+    // enums rather than a bare i32 keeps the server half convertible to
+    // core's type without a range check at each use.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) enum AnyCode {
+        Server(CoreResultCode),
+        Client(ClientResultCode),
+    }
+
+    /// One code from the result-code namespace every Aerospike client
+    /// shares. Non-negative values are the codes the server returns;
+    /// negative values are the codes the client assigns to a failure that
+    /// never got a server answer (``TXN_FAILED``, ``SERVER_NOT_AVAILABLE``,
+    /// ``MAX_RETRIES_EXCEEDED``, …).
     ///
     /// Behaves like an ``IntEnum`` member: ``repr`` shows the name and the
     /// wire value (``<ResultCode.KEY_EXISTS_ERROR: 5>``), ``str`` and ``int``
@@ -795,7 +805,47 @@ pub enum Concurrency {
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, name = "ResultCode", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
-    pub struct ResultCode(pub(crate) CoreResultCode);
+    pub struct ResultCode(pub(crate) AnyCode);
+
+    impl From<CoreResultCode> for ResultCode {
+        fn from(rc: CoreResultCode) -> Self {
+            ResultCode(AnyCode::Server(rc))
+        }
+    }
+
+    impl From<ClientResultCode> for ResultCode {
+        fn from(rc: ClientResultCode) -> Self {
+            ResultCode(AnyCode::Client(rc))
+        }
+    }
+
+    impl ResultCode {
+        /// The member for a numeric code as core reports it: negative is a
+        /// client code, the byte range is a server code.
+        pub(crate) fn from_i32(code: i32) -> ResultCode {
+            match u8::try_from(code) {
+                Ok(byte) => ResultCode::from(CoreResultCode::from(byte)),
+                Err(_) => ResultCode::from(ClientResultCode::from(code)),
+            }
+        }
+
+        /// The numeric code in the shared namespace.
+        pub(crate) fn code(&self) -> i32 {
+            match self.0 {
+                AnyCode::Server(rc) => i32::from(u8::from(rc)),
+                AnyCode::Client(rc) => i32::from(rc),
+            }
+        }
+
+        /// The server half, for the paths that only make sense for a code
+        /// the server returned (server errors, per-code metrics).
+        pub(crate) fn server(&self) -> Option<CoreResultCode> {
+            match self.0 {
+                AnyCode::Server(rc) => Some(rc),
+                AnyCode::Client(_) => None,
+            }
+        }
+    }
 
     #[gen_stub_pymethods]
     #[pymethods]
@@ -806,11 +856,11 @@ pub enum Concurrency {
         // every ``Unknown(n)`` equal to every other ``Unknown(m)``.
         fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: CompareOp) -> PyResult<Py<PyAny>> {
             let py = other.py();
-            let mine = u8::from(self.0);
-            let theirs: Option<u8> = if let Ok(rc) = other.extract::<ResultCode>() {
-                Some(u8::from(rc.0))
+            let mine = i64::from(self.code());
+            let theirs: Option<i64> = if let Ok(rc) = other.extract::<ResultCode>() {
+                Some(i64::from(rc.code()))
             } else if let Ok(n) = other.extract::<i64>() {
-                u8::try_from(n).ok()
+                Some(n)
             } else {
                 None
             };
@@ -825,16 +875,43 @@ pub enum Concurrency {
             }
         }
 
-        // Same hash as the int of equal value, so ``{5: ...}[rc]`` resolves.
-        fn __hash__(&self) -> u64 {
-            u64::from(u8::from(self.0))
+        // Same hash as the int of equal value, so ``{5: ...}[rc]`` and
+        // ``{-17: ...}[rc]`` resolve. PyO3 folds a -1 result to -2 the way
+        // CPython does for ``hash(-1)``.
+        fn __hash__(&self) -> isize {
+            self.code() as isize
         }
 
         /// The constant's name, as declared on this class (``"KEY_EXISTS_ERROR"``);
         /// ``"UNKNOWN"`` for a wire value this build has no constant for.
         #[getter]
         fn name(&self) -> &'static str {
-            match self.0 {
+            let rc = match self.0 {
+                AnyCode::Server(rc) => rc,
+                // ASYNC_QUEUE_FULL is reserved in core and never produced, so
+                // like the other clients this class declares no constant for it.
+                AnyCode::Client(rc) => {
+                    return match rc {
+                        ClientResultCode::TxnAlreadyAborted => "TXN_ALREADY_ABORTED",
+                        ClientResultCode::TxnAlreadyCommitted => "TXN_ALREADY_COMMITTED",
+                        ClientResultCode::TxnFailed => "TXN_FAILED",
+                        ClientResultCode::BatchFailed => "BATCH_FAILED",
+                        ClientResultCode::NoResponse => "NO_RESPONSE",
+                        ClientResultCode::MaxErrorRate => "MAX_ERROR_RATE",
+                        ClientResultCode::MaxRetriesExceeded => "MAX_RETRIES_EXCEEDED",
+                        ClientResultCode::SerializeError => "SERIALIZE_ERROR",
+                        ClientResultCode::ServerNotAvailable => "SERVER_NOT_AVAILABLE",
+                        ClientResultCode::NoMoreConnections => "NO_MORE_CONNECTIONS",
+                        ClientResultCode::QueryTerminated => "QUERY_TERMINATED",
+                        ClientResultCode::ScanTerminated => "SCAN_TERMINATED",
+                        ClientResultCode::InvalidNodeError => "INVALID_NODE_ERROR",
+                        ClientResultCode::ParseError => "PARSE_ERROR",
+                        ClientResultCode::ClientError => "CLIENT_ERROR",
+                        ClientResultCode::AsyncQueueFull | ClientResultCode::Unknown(_) => "UNKNOWN",
+                    };
+                }
+            };
+            match rc {
                 CoreResultCode::Ok => "OK",
                 CoreResultCode::ServerError => "SERVER_ERROR",
                 CoreResultCode::KeyNotFoundError => "KEY_NOT_FOUND_ERROR",
@@ -919,205 +996,241 @@ pub enum Concurrency {
             }
         }
 
-        /// The numeric wire value (``5`` for ``KEY_EXISTS_ERROR``), the number
-        /// server logs and the result-code reference show.
+        /// The numeric value (``5`` for ``KEY_EXISTS_ERROR``, ``-17`` for
+        /// ``TXN_FAILED``), the number server logs and the result-code
+        /// reference show.
         #[getter]
-        fn value(&self) -> u8 {
-            u8::from(self.0)
+        fn value(&self) -> i32 {
+            self.code()
         }
 
         /// The code's descriptive string (``"Key already exists"``), the same
-        /// text a server failure carries as its base message.
+        /// text a failure carries as its base message.
         #[getter]
         fn description(&self) -> String {
-            self.0.into_string()
+            match self.0 {
+                AnyCode::Server(rc) => rc.into_string(),
+                AnyCode::Client(rc) => rc.into_string(),
+            }
         }
 
-        fn __int__(&self) -> u8 {
-            u8::from(self.0)
+        fn __int__(&self) -> i32 {
+            self.code()
         }
 
-        fn __index__(&self) -> u8 {
-            u8::from(self.0)
+        fn __index__(&self) -> i32 {
+            self.code()
         }
 
         fn __str__(&self) -> String {
-            u8::from(self.0).to_string()
+            self.code().to_string()
         }
 
         fn __repr__(&self) -> String {
-            format!("<ResultCode.{}: {}>", self.name(), u8::from(self.0))
+            format!("<ResultCode.{}: {}>", self.name(), self.code())
         }
 
         // Expose enum instances as class attributes (UPPER_SNAKE_CASE for Pythonic constants)
         #[classattr]
-        fn OK() -> ResultCode { ResultCode(CoreResultCode::Ok) }
+        fn OK() -> ResultCode { ResultCode::from(CoreResultCode::Ok) }
         #[classattr]
-        fn SERVER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerError) }
+        fn SERVER_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::ServerError) }
         #[classattr]
-        fn KEY_NOT_FOUND_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyNotFoundError) }
+        fn KEY_NOT_FOUND_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::KeyNotFoundError) }
         #[classattr]
-        fn GENERATION_ERROR() -> ResultCode { ResultCode(CoreResultCode::GenerationError) }
+        fn GENERATION_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::GenerationError) }
         #[classattr]
-        fn PARAMETER_ERROR() -> ResultCode { ResultCode(CoreResultCode::ParameterError) }
+        fn PARAMETER_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::ParameterError) }
         #[classattr]
-        fn KEY_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::KeyExistsError) }
+        fn KEY_EXISTS_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::KeyExistsError) }
         #[classattr]
-        fn BIN_EXISTS_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinExistsError) }
+        fn BIN_EXISTS_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::BinExistsError) }
         #[classattr]
-        fn CLUSTER_KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::ClusterKeyMismatch) }
+        fn CLUSTER_KEY_MISMATCH() -> ResultCode { ResultCode::from(CoreResultCode::ClusterKeyMismatch) }
         #[classattr]
-        fn SERVER_MEM_ERROR() -> ResultCode { ResultCode(CoreResultCode::ServerMemError) }
+        fn SERVER_MEM_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::ServerMemError) }
         #[classattr]
-        fn TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::Timeout) }
+        fn TIMEOUT() -> ResultCode { ResultCode::from(CoreResultCode::Timeout) }
         #[classattr]
-        fn ALWAYS_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::AlwaysForbidden) }
+        fn ALWAYS_FORBIDDEN() -> ResultCode { ResultCode::from(CoreResultCode::AlwaysForbidden) }
         #[classattr]
-        fn PARTITION_UNAVAILABLE() -> ResultCode { ResultCode(CoreResultCode::PartitionUnavailable) }
+        fn PARTITION_UNAVAILABLE() -> ResultCode { ResultCode::from(CoreResultCode::PartitionUnavailable) }
         #[classattr]
-        fn BIN_TYPE_ERROR() -> ResultCode { ResultCode(CoreResultCode::BinTypeError) }
+        fn BIN_TYPE_ERROR() -> ResultCode { ResultCode::from(CoreResultCode::BinTypeError) }
         #[classattr]
-        fn RECORD_TOO_BIG() -> ResultCode { ResultCode(CoreResultCode::RecordTooBig) }
+        fn RECORD_TOO_BIG() -> ResultCode { ResultCode::from(CoreResultCode::RecordTooBig) }
         #[classattr]
-        fn KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::KeyBusy) }
+        fn KEY_BUSY() -> ResultCode { ResultCode::from(CoreResultCode::KeyBusy) }
         #[classattr]
-        fn SCAN_ABORT() -> ResultCode { ResultCode(CoreResultCode::ScanAbort) }
+        fn SCAN_ABORT() -> ResultCode { ResultCode::from(CoreResultCode::ScanAbort) }
         #[classattr]
-        fn UNSUPPORTED_FEATURE() -> ResultCode { ResultCode(CoreResultCode::UnsupportedFeature) }
+        fn UNSUPPORTED_FEATURE() -> ResultCode { ResultCode::from(CoreResultCode::UnsupportedFeature) }
         #[classattr]
-        fn BIN_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::BinNotFound) }
+        fn BIN_NOT_FOUND() -> ResultCode { ResultCode::from(CoreResultCode::BinNotFound) }
         #[classattr]
-        fn DEVICE_OVERLOAD() -> ResultCode { ResultCode(CoreResultCode::DeviceOverload) }
+        fn DEVICE_OVERLOAD() -> ResultCode { ResultCode::from(CoreResultCode::DeviceOverload) }
         #[classattr]
-        fn KEY_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::KeyMismatch) }
+        fn KEY_MISMATCH() -> ResultCode { ResultCode::from(CoreResultCode::KeyMismatch) }
         #[classattr]
-        fn INVALID_NAMESPACE() -> ResultCode { ResultCode(CoreResultCode::InvalidNamespace) }
+        fn INVALID_NAMESPACE() -> ResultCode { ResultCode::from(CoreResultCode::InvalidNamespace) }
         #[classattr]
-        fn BIN_NAME_TOO_LONG() -> ResultCode { ResultCode(CoreResultCode::BinNameTooLong) }
+        fn BIN_NAME_TOO_LONG() -> ResultCode { ResultCode::from(CoreResultCode::BinNameTooLong) }
         #[classattr]
-        fn FAIL_FORBIDDEN() -> ResultCode { ResultCode(CoreResultCode::FailForbidden) }
+        fn FAIL_FORBIDDEN() -> ResultCode { ResultCode::from(CoreResultCode::FailForbidden) }
         #[classattr]
-        fn ELEMENT_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::ElementNotFound) }
+        fn ELEMENT_NOT_FOUND() -> ResultCode { ResultCode::from(CoreResultCode::ElementNotFound) }
         #[classattr]
-        fn ELEMENT_EXISTS() -> ResultCode { ResultCode(CoreResultCode::ElementExists) }
+        fn ELEMENT_EXISTS() -> ResultCode { ResultCode::from(CoreResultCode::ElementExists) }
         #[classattr]
-        fn ENTERPRISE_ONLY() -> ResultCode { ResultCode(CoreResultCode::EnterpriseOnly) }
+        fn ENTERPRISE_ONLY() -> ResultCode { ResultCode::from(CoreResultCode::EnterpriseOnly) }
         #[classattr]
-        fn OP_NOT_APPLICABLE() -> ResultCode { ResultCode(CoreResultCode::OpNotApplicable) }
+        fn OP_NOT_APPLICABLE() -> ResultCode { ResultCode::from(CoreResultCode::OpNotApplicable) }
         #[classattr]
-        fn FILTERED_OUT() -> ResultCode { ResultCode(CoreResultCode::FilteredOut) }
+        fn FILTERED_OUT() -> ResultCode { ResultCode::from(CoreResultCode::FilteredOut) }
         #[classattr]
-        fn LOST_CONFLICT() -> ResultCode { ResultCode(CoreResultCode::LostConflict) }
+        fn LOST_CONFLICT() -> ResultCode { ResultCode::from(CoreResultCode::LostConflict) }
         #[classattr]
-        fn XDR_KEY_BUSY() -> ResultCode { ResultCode(CoreResultCode::XDRKeyBusy) }
+        fn XDR_KEY_BUSY() -> ResultCode { ResultCode::from(CoreResultCode::XDRKeyBusy) }
         #[classattr]
-        fn QUERY_END() -> ResultCode { ResultCode(CoreResultCode::QueryEnd) }
+        fn QUERY_END() -> ResultCode { ResultCode::from(CoreResultCode::QueryEnd) }
         #[classattr]
-        fn SECURITY_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotSupported) }
+        fn SECURITY_NOT_SUPPORTED() -> ResultCode { ResultCode::from(CoreResultCode::SecurityNotSupported) }
         #[classattr]
-        fn SECURITY_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::SecurityNotEnabled) }
+        fn SECURITY_NOT_ENABLED() -> ResultCode { ResultCode::from(CoreResultCode::SecurityNotEnabled) }
         #[classattr]
-        fn NOT_AUTHENTICATED() -> ResultCode { ResultCode(CoreResultCode::NotAuthenticated) }
+        fn NOT_AUTHENTICATED() -> ResultCode { ResultCode::from(CoreResultCode::NotAuthenticated) }
         #[classattr]
-        fn SECURITY_SCHEME_NOT_SUPPORTED() -> ResultCode { ResultCode(CoreResultCode::SecuritySchemeNotSupported) }
+        fn SECURITY_SCHEME_NOT_SUPPORTED() -> ResultCode { ResultCode::from(CoreResultCode::SecuritySchemeNotSupported) }
         #[classattr]
-        fn INVALID_COMMAND() -> ResultCode { ResultCode(CoreResultCode::InvalidCommand) }
+        fn INVALID_COMMAND() -> ResultCode { ResultCode::from(CoreResultCode::InvalidCommand) }
         #[classattr]
-        fn INVALID_FIELD() -> ResultCode { ResultCode(CoreResultCode::InvalidField) }
+        fn INVALID_FIELD() -> ResultCode { ResultCode::from(CoreResultCode::InvalidField) }
         #[classattr]
-        fn ILLEGAL_STATE() -> ResultCode { ResultCode(CoreResultCode::IllegalState) }
+        fn ILLEGAL_STATE() -> ResultCode { ResultCode::from(CoreResultCode::IllegalState) }
         #[classattr]
-        fn INVALID_USER() -> ResultCode { ResultCode(CoreResultCode::InvalidUser) }
+        fn INVALID_USER() -> ResultCode { ResultCode::from(CoreResultCode::InvalidUser) }
         #[classattr]
-        fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::UserAlreadyExists) }
+        fn USER_ALREADY_EXISTS() -> ResultCode { ResultCode::from(CoreResultCode::UserAlreadyExists) }
         #[classattr]
-        fn FORBIDDEN_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::ForbiddenPassword) }
+        fn FORBIDDEN_PASSWORD() -> ResultCode { ResultCode::from(CoreResultCode::ForbiddenPassword) }
         #[classattr]
-        fn UDF_BAD_RESPONSE() -> ResultCode { ResultCode(CoreResultCode::UdfBadResponse) }
+        fn UDF_BAD_RESPONSE() -> ResultCode { ResultCode::from(CoreResultCode::UdfBadResponse) }
         #[classattr]
-        fn INDEX_FOUND() -> ResultCode { ResultCode(CoreResultCode::IndexFound) }
+        fn INDEX_FOUND() -> ResultCode { ResultCode::from(CoreResultCode::IndexFound) }
         #[classattr]
-        fn INDEX_NOT_FOUND() -> ResultCode { ResultCode(CoreResultCode::IndexNotFound) }
+        fn INDEX_NOT_FOUND() -> ResultCode { ResultCode::from(CoreResultCode::IndexNotFound) }
         #[classattr]
-        fn INDEX_OOM() -> ResultCode { ResultCode(CoreResultCode::IndexOom) }
+        fn INDEX_OOM() -> ResultCode { ResultCode::from(CoreResultCode::IndexOom) }
         #[classattr]
-        fn INDEX_NOT_READABLE() -> ResultCode { ResultCode(CoreResultCode::IndexNotReadable) }
+        fn INDEX_NOT_READABLE() -> ResultCode { ResultCode::from(CoreResultCode::IndexNotReadable) }
         #[classattr]
-        fn INDEX_GENERIC() -> ResultCode { ResultCode(CoreResultCode::IndexGeneric) }
+        fn INDEX_GENERIC() -> ResultCode { ResultCode::from(CoreResultCode::IndexGeneric) }
         #[classattr]
-        fn INDEX_NAME_MAX_LEN() -> ResultCode { ResultCode(CoreResultCode::IndexNameMaxLen) }
+        fn INDEX_NAME_MAX_LEN() -> ResultCode { ResultCode::from(CoreResultCode::IndexNameMaxLen) }
         #[classattr]
-        fn INDEX_MAX_COUNT() -> ResultCode { ResultCode(CoreResultCode::IndexMaxCount) }
+        fn INDEX_MAX_COUNT() -> ResultCode { ResultCode::from(CoreResultCode::IndexMaxCount) }
         #[classattr]
-        fn QUERY_ABORTED() -> ResultCode { ResultCode(CoreResultCode::QueryAborted) }
+        fn QUERY_ABORTED() -> ResultCode { ResultCode::from(CoreResultCode::QueryAborted) }
         #[classattr]
-        fn QUERY_QUEUE_FULL() -> ResultCode { ResultCode(CoreResultCode::QueryQueueFull) }
+        fn QUERY_QUEUE_FULL() -> ResultCode { ResultCode::from(CoreResultCode::QueryQueueFull) }
         #[classattr]
-        fn QUERY_TIMEOUT() -> ResultCode { ResultCode(CoreResultCode::QueryTimeout) }
+        fn QUERY_TIMEOUT() -> ResultCode { ResultCode::from(CoreResultCode::QueryTimeout) }
         #[classattr]
-        fn QUERY_GENERIC() -> ResultCode { ResultCode(CoreResultCode::QueryGeneric) }
+        fn QUERY_GENERIC() -> ResultCode { ResultCode::from(CoreResultCode::QueryGeneric) }
         #[classattr]
-        fn MRT_BLOCKED() -> ResultCode { ResultCode(CoreResultCode::MrtBlocked) }
+        fn MRT_BLOCKED() -> ResultCode { ResultCode::from(CoreResultCode::MrtBlocked) }
         #[classattr]
-        fn MRT_VERSION_MISMATCH() -> ResultCode { ResultCode(CoreResultCode::MrtVersionMismatch) }
+        fn MRT_VERSION_MISMATCH() -> ResultCode { ResultCode::from(CoreResultCode::MrtVersionMismatch) }
         #[classattr]
-        fn MRT_EXPIRED() -> ResultCode { ResultCode(CoreResultCode::MrtExpired) }
+        fn MRT_EXPIRED() -> ResultCode { ResultCode::from(CoreResultCode::MrtExpired) }
         #[classattr]
-        fn MRT_TOO_MANY_WRITES() -> ResultCode { ResultCode(CoreResultCode::MrtTooManyWrites) }
+        fn MRT_TOO_MANY_WRITES() -> ResultCode { ResultCode::from(CoreResultCode::MrtTooManyWrites) }
         #[classattr]
-        fn MRT_COMMITTED() -> ResultCode { ResultCode(CoreResultCode::MrtCommitted) }
+        fn MRT_COMMITTED() -> ResultCode { ResultCode::from(CoreResultCode::MrtCommitted) }
         #[classattr]
-        fn MRT_ABORTED() -> ResultCode { ResultCode(CoreResultCode::MrtAborted) }
+        fn MRT_ABORTED() -> ResultCode { ResultCode::from(CoreResultCode::MrtAborted) }
         #[classattr]
-        fn MRT_ALREADY_LOCKED() -> ResultCode { ResultCode(CoreResultCode::MrtAlreadyLocked) }
+        fn MRT_ALREADY_LOCKED() -> ResultCode { ResultCode::from(CoreResultCode::MrtAlreadyLocked) }
         #[classattr]
-        fn MRT_MONITOR_EXISTS() -> ResultCode { ResultCode(CoreResultCode::MrtMonitorExists) }
+        fn MRT_MONITOR_EXISTS() -> ResultCode { ResultCode::from(CoreResultCode::MrtMonitorExists) }
 
         // Security family
         #[classattr]
-        fn INVALID_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::InvalidPassword) }
+        fn INVALID_PASSWORD() -> ResultCode { ResultCode::from(CoreResultCode::InvalidPassword) }
         #[classattr]
-        fn EXPIRED_PASSWORD() -> ResultCode { ResultCode(CoreResultCode::ExpiredPassword) }
+        fn EXPIRED_PASSWORD() -> ResultCode { ResultCode::from(CoreResultCode::ExpiredPassword) }
         #[classattr]
-        fn INVALID_CREDENTIAL() -> ResultCode { ResultCode(CoreResultCode::InvalidCredential) }
+        fn INVALID_CREDENTIAL() -> ResultCode { ResultCode::from(CoreResultCode::InvalidCredential) }
         #[classattr]
-        fn EXPIRED_SESSION() -> ResultCode { ResultCode(CoreResultCode::ExpiredSession) }
+        fn EXPIRED_SESSION() -> ResultCode { ResultCode::from(CoreResultCode::ExpiredSession) }
         #[classattr]
-        fn INVALID_ROLE() -> ResultCode { ResultCode(CoreResultCode::InvalidRole) }
+        fn INVALID_ROLE() -> ResultCode { ResultCode::from(CoreResultCode::InvalidRole) }
         #[classattr]
-        fn ROLE_ALREADY_EXISTS() -> ResultCode { ResultCode(CoreResultCode::RoleAlreadyExists) }
+        fn ROLE_ALREADY_EXISTS() -> ResultCode { ResultCode::from(CoreResultCode::RoleAlreadyExists) }
         #[classattr]
-        fn INVALID_PRIVILEGE() -> ResultCode { ResultCode(CoreResultCode::InvalidPrivilege) }
+        fn INVALID_PRIVILEGE() -> ResultCode { ResultCode::from(CoreResultCode::InvalidPrivilege) }
         #[classattr]
-        fn INVALID_ALLOWLIST() -> ResultCode { ResultCode(CoreResultCode::InvalidAllowlist) }
+        fn INVALID_ALLOWLIST() -> ResultCode { ResultCode::from(CoreResultCode::InvalidAllowlist) }
         #[classattr]
-        fn ROLE_VIOLATION() -> ResultCode { ResultCode(CoreResultCode::RoleViolation) }
+        fn ROLE_VIOLATION() -> ResultCode { ResultCode::from(CoreResultCode::RoleViolation) }
         #[classattr]
-        fn NOT_ALLOWLISTED() -> ResultCode { ResultCode(CoreResultCode::NotAllowlisted) }
+        fn NOT_ALLOWLISTED() -> ResultCode { ResultCode::from(CoreResultCode::NotAllowlisted) }
 
         // Quota family
         #[classattr]
-        fn QUOTAS_NOT_ENABLED() -> ResultCode { ResultCode(CoreResultCode::QuotasNotEnabled) }
+        fn QUOTAS_NOT_ENABLED() -> ResultCode { ResultCode::from(CoreResultCode::QuotasNotEnabled) }
         #[classattr]
-        fn INVALID_QUOTA() -> ResultCode { ResultCode(CoreResultCode::InvalidQuota) }
+        fn INVALID_QUOTA() -> ResultCode { ResultCode::from(CoreResultCode::InvalidQuota) }
         #[classattr]
-        fn QUOTA_EXCEEDED() -> ResultCode { ResultCode(CoreResultCode::QuotaExceeded) }
+        fn QUOTA_EXCEEDED() -> ResultCode { ResultCode::from(CoreResultCode::QuotaExceeded) }
 
         // Batch family
         #[classattr]
-        fn BATCH_DISABLED() -> ResultCode { ResultCode(CoreResultCode::BatchDisabled) }
+        fn BATCH_DISABLED() -> ResultCode { ResultCode::from(CoreResultCode::BatchDisabled) }
         #[classattr]
-        fn BATCH_MAX_REQUESTS_EXCEEDED() -> ResultCode { ResultCode(CoreResultCode::BatchMaxRequestsExceeded) }
+        fn BATCH_MAX_REQUESTS_EXCEEDED() -> ResultCode { ResultCode::from(CoreResultCode::BatchMaxRequestsExceeded) }
         #[classattr]
-        fn BATCH_QUEUES_FULL() -> ResultCode { ResultCode(CoreResultCode::BatchQueuesFull) }
+        fn BATCH_QUEUES_FULL() -> ResultCode { ResultCode::from(CoreResultCode::BatchQueuesFull) }
 
         // Remaining server codes
         #[classattr]
-        fn INVALID_GEOJSON() -> ResultCode { ResultCode(CoreResultCode::InvalidGeojson) }
+        fn INVALID_GEOJSON() -> ResultCode { ResultCode::from(CoreResultCode::InvalidGeojson) }
         #[classattr]
-        fn QUERY_NETIO_ERR() -> ResultCode { ResultCode(CoreResultCode::QueryNetioErr) }
+        fn QUERY_NETIO_ERR() -> ResultCode { ResultCode::from(CoreResultCode::QueryNetioErr) }
         #[classattr]
-        fn QUERY_DUPLICATE() -> ResultCode { ResultCode(CoreResultCode::QueryDuplicate) }
+        fn QUERY_DUPLICATE() -> ResultCode { ResultCode::from(CoreResultCode::QueryDuplicate) }
+
+        // Client-assigned codes: the negative half of the namespace.
+        #[classattr]
+        fn TXN_ALREADY_ABORTED() -> ResultCode { ResultCode::from(ClientResultCode::TxnAlreadyAborted) }
+        #[classattr]
+        fn TXN_ALREADY_COMMITTED() -> ResultCode { ResultCode::from(ClientResultCode::TxnAlreadyCommitted) }
+        #[classattr]
+        fn TXN_FAILED() -> ResultCode { ResultCode::from(ClientResultCode::TxnFailed) }
+        #[classattr]
+        fn BATCH_FAILED() -> ResultCode { ResultCode::from(ClientResultCode::BatchFailed) }
+        #[classattr]
+        fn NO_RESPONSE() -> ResultCode { ResultCode::from(ClientResultCode::NoResponse) }
+        #[classattr]
+        fn MAX_ERROR_RATE() -> ResultCode { ResultCode::from(ClientResultCode::MaxErrorRate) }
+        #[classattr]
+        fn MAX_RETRIES_EXCEEDED() -> ResultCode { ResultCode::from(ClientResultCode::MaxRetriesExceeded) }
+        #[classattr]
+        fn SERIALIZE_ERROR() -> ResultCode { ResultCode::from(ClientResultCode::SerializeError) }
+        #[classattr]
+        fn SERVER_NOT_AVAILABLE() -> ResultCode { ResultCode::from(ClientResultCode::ServerNotAvailable) }
+        #[classattr]
+        fn NO_MORE_CONNECTIONS() -> ResultCode { ResultCode::from(ClientResultCode::NoMoreConnections) }
+        #[classattr]
+        fn QUERY_TERMINATED() -> ResultCode { ResultCode::from(ClientResultCode::QueryTerminated) }
+        #[classattr]
+        fn SCAN_TERMINATED() -> ResultCode { ResultCode::from(ClientResultCode::ScanTerminated) }
+        #[classattr]
+        fn INVALID_NODE_ERROR() -> ResultCode { ResultCode::from(ClientResultCode::InvalidNodeError) }
+        #[classattr]
+        fn PARSE_ERROR() -> ResultCode { ResultCode::from(ClientResultCode::ParseError) }
+        #[classattr]
+        fn CLIENT_ERROR() -> ResultCode { ResultCode::from(ClientResultCode::ClientError) }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
