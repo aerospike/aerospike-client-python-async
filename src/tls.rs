@@ -35,6 +35,8 @@ use crate::IoError;
     #[derive(Clone)]
     pub struct TlsConfig {
         pub(crate) _as: rustls::ClientConfig,
+        /// Encrypt only the login exchange; data connections are cleartext.
+        pub(crate) for_login_only: bool,
     }
 
     // Type alias to allow function signatures to compile when TLS is disabled
@@ -210,15 +212,24 @@ use crate::IoError;
         ///     ciphers: Allowed cipher suites by rustls name, e.g.
         ///         ``["TLS13_AES_256_GCM_SHA384"]``. Omit for the provider
         ///         default. Unknown names raise rather than being ignored.
+        ///     for_login_only: Use TLS for the login exchange only; every
+        ///         other connection to the server is cleartext. The login
+        ///         connection is closed once the session token is held and
+        ///         a new cleartext connection is opened to the node's
+        ///         cleartext address, so no socket is ever downgraded.
+        ///         Requires authentication; the client refuses it with no
+        ///         credentials, where it would only mean "no TLS at all".
+        ///         Default ``False``: TLS for all communication.
         ///
         /// Returns:
         ///     TlsConfig
         #[new]
-        #[pyo3(signature = (cafile=None, *, protocols=None, ciphers=None))]
+        #[pyo3(signature = (cafile=None, *, protocols=None, ciphers=None, for_login_only=false))]
         pub fn new(
             cafile: Option<String>,
             protocols: Option<Vec<String>>,
             ciphers: Option<Vec<String>>,
+            for_login_only: bool,
         ) -> PyResult<Self> {
             let root_store = build_root_store(cafile.as_deref())?;
             let config = build_client_config(
@@ -227,7 +238,18 @@ use crate::IoError;
                 ciphers.as_deref(),
                 None,
             )?;
-            Ok(TlsConfig { _as: config })
+            Ok(TlsConfig { _as: config, for_login_only })
+        }
+
+        /// Whether TLS covers the login exchange only; see the constructor.
+        #[getter]
+        pub fn get_for_login_only(&self) -> bool {
+            self.for_login_only
+        }
+
+        #[setter]
+        pub fn set_for_login_only(&mut self, value: bool) {
+            self.for_login_only = value;
         }
 
         /// Create a TlsConfig with client (mutual) authentication.
@@ -239,17 +261,20 @@ use crate::IoError;
         ///     keyfile: Path to the client private key file (PEM, PKCS#8).
         ///     protocols: Allowed TLS versions; see :meth:`TlsConfig`.
         ///     ciphers: Allowed cipher suites; see :meth:`TlsConfig`.
+        ///     for_login_only: TLS for the login exchange only; see
+        ///         :meth:`TlsConfig`.
         ///
         /// Returns:
         ///     TlsConfig
         #[staticmethod]
-        #[pyo3(signature = (cafile, certfile, keyfile, *, protocols=None, ciphers=None))]
+        #[pyo3(signature = (cafile, certfile, keyfile, *, protocols=None, ciphers=None, for_login_only=false))]
         pub fn with_client_auth(
             cafile: Option<String>,
             certfile: String,
             keyfile: String,
             protocols: Option<Vec<String>>,
             ciphers: Option<Vec<String>>,
+            for_login_only: bool,
         ) -> PyResult<Self> {
             use rustls::pki_types::{CertificateDer, PrivateKeyDer};
             use std::fs::File;
@@ -290,6 +315,6 @@ use crate::IoError;
                 ciphers.as_deref(),
                 Some((client_certs, PrivateKeyDer::Pkcs8(client_key))),
             )?;
-            Ok(TlsConfig { _as: config })
+            Ok(TlsConfig { _as: config, for_login_only })
         }
     }

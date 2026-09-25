@@ -6331,7 +6331,14 @@ class SubCode:
     """
 
 class TlsConfig:
-    def __new__(cls, cafile: typing.Optional[builtins.str] = None, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
+    @property
+    def for_login_only(self) -> builtins.bool:
+        r"""
+        Whether TLS covers the login exchange only; see the constructor.
+        """
+    @for_login_only.setter
+    def for_login_only(self, value: builtins.bool) -> None: ...
+    def __new__(cls, cafile: typing.Optional[builtins.str] = None, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None, for_login_only: builtins.bool = False) -> _aerospike_async_native.TlsConfig:
         r"""
         Create a TlsConfig.
 
@@ -6344,12 +6351,20 @@ class TlsConfig:
             ciphers: Allowed cipher suites by rustls name, e.g.
                 ``["TLS13_AES_256_GCM_SHA384"]``. Omit for the provider
                 default. Unknown names raise rather than being ignored.
+            for_login_only: Use TLS for the login exchange only; every
+                other connection to the server is cleartext. The login
+                connection is closed once the session token is held and
+                a new cleartext connection is opened to the node's
+                cleartext address, so no socket is ever downgraded.
+                Requires authentication; the client refuses it with no
+                credentials, where it would only mean "no TLS at all".
+                Default ``False``: TLS for all communication.
 
         Returns:
             TlsConfig
         """
     @staticmethod
-    def with_client_auth(cafile: typing.Optional[builtins.str], certfile: builtins.str, keyfile: builtins.str, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.TlsConfig:
+    def with_client_auth(cafile: typing.Optional[builtins.str], certfile: builtins.str, keyfile: builtins.str, *, protocols: typing.Optional[typing.Sequence[builtins.str]] = None, ciphers: typing.Optional[typing.Sequence[builtins.str]] = None, for_login_only: builtins.bool = False) -> _aerospike_async_native.TlsConfig:
         r"""
         Create a TlsConfig with client (mutual) authentication.
 
@@ -6360,6 +6375,8 @@ class TlsConfig:
             keyfile: Path to the client private key file (PEM, PKCS#8).
             protocols: Allowed TLS versions; see :meth:`TlsConfig`.
             ciphers: Allowed cipher suites; see :meth:`TlsConfig`.
+            for_login_only: TLS for the login exchange only; see
+                :meth:`TlsConfig`.
 
         Returns:
             TlsConfig
