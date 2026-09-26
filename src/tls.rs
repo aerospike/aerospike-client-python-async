@@ -30,8 +30,8 @@ use crate::IoError;
         name = "TlsConfig",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 100
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 100))]
     #[derive(Clone)]
     pub struct TlsConfig {
         pub(crate) _as: rustls::ClientConfig,

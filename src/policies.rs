@@ -40,9 +40,9 @@ use crate::TlsConfig;
     #[pyclass(from_py_object, 
         name = "BasePolicy",
         subclass,
-        freelist = 1000,
         module = "_aerospike_async_native"
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BasePolicy {
         pub(crate) _as: aerospike_core::policy::BasePolicy,
@@ -230,10 +230,10 @@ use crate::TlsConfig;
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object,
         name = "AdminPolicy",
-        freelist = 1000,
         module = "_aerospike_async_native",
         subclass
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct AdminPolicy {
         pub(crate) _as: aerospike_core::AdminPolicy,
@@ -269,11 +269,11 @@ use crate::TlsConfig;
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, 
         name = "ReadPolicy",
-        freelist = 1000,
         module = "_aerospike_async_native",
         extends = BasePolicy,
         subclass
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct ReadPolicy {
         pub(crate) _as: aerospike_core::ReadPolicy,
@@ -533,8 +533,8 @@ use crate::TlsConfig;
         module = "_aerospike_async_native",
         extends = BasePolicy,
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct WritePolicy {
         pub(crate) _as: aerospike_core::WritePolicy,
@@ -929,8 +929,8 @@ use crate::TlsConfig;
         module = "_aerospike_async_native",
         extends = BasePolicy,
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct QueryPolicy {
         pub(crate) _as: aerospike_core::QueryPolicy,
@@ -1187,8 +1187,8 @@ use crate::TlsConfig;
         name = "BatchRecord",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct BatchRecord {
         pub(crate) _as: aerospike_core::BatchRecord,
@@ -1284,8 +1284,8 @@ use crate::TlsConfig;
         module = "_aerospike_async_native",
         extends = BasePolicy,
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchPolicy {
         pub(crate) _as: aerospike_core::BatchPolicy,
@@ -1573,8 +1573,8 @@ use crate::TlsConfig;
         name = "BatchReadPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchReadPolicy {
         pub(crate) _as: aerospike_core::BatchReadPolicy,
@@ -1637,8 +1637,8 @@ use crate::TlsConfig;
         name = "BatchWritePolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchWritePolicy {
         pub(crate) _as: aerospike_core::BatchWritePolicy,
@@ -1759,8 +1759,8 @@ use crate::TlsConfig;
         name = "BatchDeletePolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchDeletePolicy {
         pub(crate) _as: aerospike_core::BatchDeletePolicy,
@@ -1851,8 +1851,8 @@ use crate::TlsConfig;
         name = "BatchUDFPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchUDFPolicy {
         pub(crate) _as: aerospike_core::BatchUDFPolicy,
@@ -1947,8 +1947,8 @@ use crate::TlsConfig;
         name = "TxnVerifyPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct TxnVerifyPolicy {
         pub(crate) _as: aerospike_core::TxnVerifyPolicy,
@@ -2035,8 +2035,8 @@ use crate::TlsConfig;
         name = "TxnRollPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct TxnRollPolicy {
         pub(crate) _as: aerospike_core::TxnRollPolicy,
@@ -2115,8 +2115,8 @@ use crate::TlsConfig;
     #[pyclass(from_py_object, 
         name = "BatchReadOp",
         module = "_aerospike_async_native",
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchReadOp {
         pub(crate) key: aerospike_core::Key,
@@ -2155,8 +2155,8 @@ use crate::TlsConfig;
     #[pyclass(from_py_object, 
         name = "BatchWriteOp",
         module = "_aerospike_async_native",
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchWriteOp {
         pub(crate) key: aerospike_core::Key,
@@ -2189,8 +2189,8 @@ use crate::TlsConfig;
     #[pyclass(from_py_object, 
         name = "BatchDeleteOp",
         module = "_aerospike_async_native",
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchDeleteOp {
         pub(crate) key: aerospike_core::Key,
@@ -2218,8 +2218,8 @@ use crate::TlsConfig;
     #[pyclass(from_py_object,
         name = "BatchUDFOp",
         module = "_aerospike_async_native",
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchUDFOp {
         pub(crate) key: aerospike_core::Key,
@@ -2265,8 +2265,8 @@ use crate::TlsConfig;
         name = "ClientPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone)]
     pub struct ClientPolicy {
         pub(crate) _as: aerospike_core::ClientPolicy,

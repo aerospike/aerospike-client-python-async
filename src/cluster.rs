@@ -91,7 +91,8 @@ use crate::policies::AdminPolicy;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Version {
         pub(crate) _as: aerospike_core::Version,
@@ -213,7 +214,8 @@ use crate::policies::AdminPolicy;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Node {
         pub(crate) _as: std::sync::Arc<aerospike_core::Node>,
@@ -359,7 +361,8 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct User {
         pub(crate) _as: aerospike_core::User,
@@ -422,7 +425,8 @@ use crate::policies::AdminPolicy;
      **********************************************************************************/
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Role {
         pub(crate) _as: aerospike_core::Role,
@@ -477,8 +481,8 @@ use crate::policies::AdminPolicy;
         name = "Privilege",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Privilege {
         pub(crate) _as: aerospike_core::Privilege,

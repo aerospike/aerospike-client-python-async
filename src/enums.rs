@@ -539,8 +539,8 @@ pub enum Concurrency {
         name = "Expiration",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct Expiration {
         v: _Expiration,

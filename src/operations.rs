@@ -377,7 +377,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
 
     /// Python wrapper for Operation enum.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct Operation {
         pub(crate) op: OperationType,
@@ -502,7 +503,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
 
     /// List bin operations. Create list operations used by the client's `operate()` method.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct ListOperation {
         pub(crate) op: OperationType,
@@ -926,7 +928,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
 
     /// Map bin operations. Create map operations used by the client's `operate()` method.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct MapOperation {
         pub(crate) op: OperationType,
@@ -1266,7 +1269,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
 
     /// Bit operations. Create bit operations used by the client's `operate()` method.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct BitOperation {
         pub(crate) op: OperationType,
@@ -1461,7 +1465,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
 
     /// HLL (HyperLogLog) operations. Create HLL operations used by the client's `operate()` method.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct HllOperation {
         pub(crate) op: OperationType,
@@ -1632,7 +1637,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
     /// Expression operations allow evaluating expressions on the server and optionally storing
     /// the result in a bin.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct ExpOperation {
         pub(crate) op: OperationType,
@@ -1712,7 +1718,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
     ///
     /// Requires Aerospike Server version >= 8.1.1.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1000, module = "_aerospike_async_native")]
+    #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct CdtOperation {
         pub(crate) op: OperationType,

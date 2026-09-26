@@ -1147,8 +1147,8 @@ use crate::record::PythonValue;
         name = "BitPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, Copy)]
     pub struct BitPolicy {
         pub(crate) _as: aerospike_core::operations::bitwise::BitPolicy,
@@ -1215,8 +1215,8 @@ use crate::record::PythonValue;
         name = "ListPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, Copy)]
     pub struct ListPolicy {
         pub(crate) _as: aerospike_core::operations::lists::ListPolicy,
@@ -1429,8 +1429,8 @@ use crate::record::PythonValue;
         name = "HLLPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, Copy)]
     pub struct HLLPolicy {
         pub(crate) _as: aerospike_core::operations::hll::HLLPolicy,
@@ -1482,8 +1482,8 @@ use crate::record::PythonValue;
         name = "MapPolicy",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, Copy)]
     pub struct MapPolicy {
         pub(crate) _as: aerospike_core::operations::maps::MapPolicy,

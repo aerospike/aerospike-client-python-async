@@ -195,8 +195,8 @@ use crate::record::{Key, PythonValue, Record};
     #[pyclass(from_py_object, 
         name = "PartitionFilter",
         module = "_aerospike_async_native",
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct PartitionFilter {
         pub(crate) _as: aerospike_core::query::PartitionFilter,
@@ -371,8 +371,8 @@ use crate::record::{Key, PythonValue, Record};
         name = "Statement",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone)]
     pub struct Statement {
         pub(crate) _as: aerospike_core::Statement,
@@ -486,8 +486,8 @@ use crate::record::{Key, PythonValue, Record};
         name = "Filter",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone, Debug)]
     pub struct Filter {
         pub(crate) _as: aerospike_core::query::Filter,
@@ -818,8 +818,8 @@ use crate::record::{Key, PythonValue, Record};
         name = "Recordset",
         module = "_aerospike_async_native",
         subclass,
-        freelist = 1000
     )]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     pub struct Recordset {
         pub(crate) _as: Arc<aerospike_core::Recordset>,
         pub(crate) _stream: Arc<Mutex<Option<Pin<Box<RecordStream>>>>>,

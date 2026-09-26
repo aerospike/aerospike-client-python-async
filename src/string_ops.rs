@@ -435,7 +435,8 @@ impl StringNumericType {
 /// trailing ``ctx`` argument selecting a string element nested inside a
 /// list/map bin. With ``ctx=None`` the op targets the bin itself.
 #[gen_stub_pyclass(module = "_aerospike_async_native")]
-#[pyclass(from_py_object, subclass, freelist = 1000)]
+#[pyclass(from_py_object, subclass)]
+#[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
 #[derive(Clone, Debug)]
 pub struct StringOperation {
     pub(crate) op: OperationType,

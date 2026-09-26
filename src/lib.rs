@@ -712,7 +712,8 @@ use crate::operations::{
     }
 
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, freelist = 1)]
+    #[pyclass(from_py_object, subclass)]
+    #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Client {
         _as: Arc<aerospike_core::Client>,
