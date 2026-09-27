@@ -276,12 +276,22 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             Some(hex::encode(self._as.digest))
         }
 
-        fn __richcmp__(&self, other: Key, op: CompareOp) -> bool {
+        fn __richcmp__(&self, other: PyRef<'_, Key>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => self._as.digest == other._as.digest,
                 CompareOp::Ne => self._as.digest != other._as.digest,
                 _ => false,
             }
+        }
+
+        /// Hash of the digest, consistent with ``==``, so keys can be set
+        /// members and dict keys.
+        fn __hash__(&self) -> u64 {
+            // The digest is already a uniformly distributed hash, so its
+            // leading bytes serve directly without rehashing.
+            let mut leading = [0u8; 8];
+            leading.copy_from_slice(&self._as.digest[..8]);
+            u64::from_le_bytes(leading)
         }
 
         fn __str__(&self) -> PyResult<String> {

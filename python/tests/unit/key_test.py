@@ -38,6 +38,23 @@ def test_key_eq():
     # because key1's set ("test") does not match key5's set ("test1"):
     assert key1 != key5
 
+def test_key_hash_follows_equality():
+    """Equal keys hash equal, so keys work as set members and dict keys."""
+    key = Key("test", "test", 1)
+    same = Key("test", "test", 1)
+    from_digest = Key.key_with_digest("test", "test", key.digest)
+    other = Key("test", "test", 2)
+
+    assert hash(key) == hash(same) == hash(from_digest)
+    assert len({key, same, from_digest, other}) == 2
+    assert {key: "first"}[same] == "first"
+
+def test_key_eq_with_non_key():
+    """Comparing with a non-Key is unequal rather than an error."""
+    key = Key("test", "test", 1)
+    assert key != "test"
+    assert not (key == 1)
+
 def test_key_with_digest():
     """Test creating a key from a digest."""
     # Create a regular key first to get its digest
