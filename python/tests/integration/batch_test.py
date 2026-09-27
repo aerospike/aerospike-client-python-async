@@ -1097,6 +1097,36 @@ async def test_batch_mixed_cdt_and_scalar(client_and_keys):
     assert rec.bins["mb"]["a"] == 1
 
 
+async def test_batch_write_bins_dict(client_and_keys):
+    """BatchWriteOp ``bins`` writes each entry as a put."""
+    client, _keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_write_bins_dict")
+    await client.delete(k, policy=WritePolicy())
+
+    results = await client.batch([BatchWriteOp(k, bins={"name": "Tim", "age": 31})])
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(k, policy=ReadPolicy())
+    assert rec.bins == {"name": "Tim", "age": 31}
+
+
+async def test_batch_write_bins_precede_operations(client_and_keys):
+    """BatchWriteOp applies ``bins`` before ``operations``, so a following add sees them."""
+    client, _keys, _, _bin_name = client_and_keys
+
+    k = Key("test", "test", "batch_write_bins_then_ops")
+    await client.delete(k, policy=WritePolicy())
+
+    results = await client.batch(
+        [BatchWriteOp(k, [Operation.add("visits", 1)], bins={"visits": 10})],
+    )
+    assert results[0].result_code == ResultCode.OK
+
+    rec = await client.get(k, policy=ReadPolicy())
+    assert rec.bins["visits"] == 11
+
+
 # ---------------------------------------------------------------------------
 # Streaming batch (Client.batch_stream)
 # ---------------------------------------------------------------------------

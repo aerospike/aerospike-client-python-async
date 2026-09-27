@@ -24,7 +24,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::enums::*;
 use crate::expressions::FilterExpression;
-use crate::operations::{extract_py_ops_with_ctx, OpWithCtx};
+use crate::operations::{extract_py_ops_with_ctx, OpWithCtx, OperationType};
 use crate::record::{Key, PythonValue, Record};
 use crate::Txn;
 #[cfg(feature = "tls")]
@@ -2167,15 +2167,31 @@ use crate::TlsConfig;
     #[gen_stub_pymethods]
     #[pymethods]
     impl BatchWriteOp {
+        /// ``bins`` maps bin names to values and writes each as a put ahead of
+        /// ``operations``. It converts directly to wire operations, skipping a
+        /// Python ``Operation`` object per bin.
         #[new]
-        #[pyo3(signature = (key, operations, policy=None))]
+        #[pyo3(signature = (key, operations=None, policy=None, *, bins=None))]
         pub fn new(
             py: Python<'_>,
             key: &Key,
-            operations: Vec<Py<PyAny>>,
+            operations: Option<Vec<Py<PyAny>>>,
             policy: Option<&BatchWritePolicy>,
+            bins: Option<&Bound<'_, PyDict>>,
         ) -> PyResult<Self> {
-            let ops = extract_py_ops_with_ctx(py, &operations)?;
+            let mut ops = Vec::new();
+            if let Some(bins) = bins {
+                ops.reserve(bins.len());
+                for (name, value) in bins.iter() {
+                    ops.push(OpWithCtx {
+                        op: OperationType::Put(name.extract()?, value.extract()?),
+                        ctx: None,
+                    });
+                }
+            }
+            if let Some(ref py_ops) = operations {
+                ops.extend(extract_py_ops_with_ctx(py, py_ops)?);
+            }
             Ok(BatchWriteOp {
                 key: key._as.clone(),
                 policy: policy.map(|p| p._as.clone()).unwrap_or_default(),

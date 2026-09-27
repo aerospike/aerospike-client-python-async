@@ -486,7 +486,12 @@ class BatchWriteOp:
     r"""
     A single write operation for use with :meth:`Client.batch`.
     """
-    def __new__(cls, key: _aerospike_async_native.Key, operations: typing.Sequence[typing.Any], policy: typing.Optional[_aerospike_async_native.BatchWritePolicy] = None) -> _aerospike_async_native.BatchWriteOp: ...
+    def __new__(cls, key: _aerospike_async_native.Key, operations: typing.Optional[typing.Sequence[typing.Any]] = None, policy: typing.Optional[_aerospike_async_native.BatchWritePolicy] = None, *, bins: typing.Optional[dict] = None) -> _aerospike_async_native.BatchWriteOp:
+        r"""
+        ``bins`` maps bin names to values and writes each as a put ahead of
+        ``operations``. It converts directly to wire operations, skipping a
+        Python ``Operation`` object per bin.
+        """
 
 class BatchWritePolicy:
     @property
