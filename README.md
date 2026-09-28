@@ -5,7 +5,8 @@ Ultra-high performance Python bindings for the Aerospike Rust client core
 Python support for parallel-thread throughput well past what GIL-bound
 clients can sustain. Built with [PyO3](https://pyo3.rs/); ships pre-built
 wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
-(x86_64) on Python 3.11–3.15, including the free-threaded builds (`cp314t`, `cp315t`).
+(x86_64) on Python 3.11–3.14, plus free-threaded 3.14 (`cp314t`) on Linux and
+macOS arm64.
 
 > **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
 > via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-async/issues).
@@ -34,14 +35,16 @@ pip install aerospike-async
 Pin to a specific release if you need reproducible builds:
 
 ```bash
-pip install aerospike-async==0.6.0a1  # latest on PyPI as of this writing
+pip install aerospike-async==0.6.0a6
 ```
 
 Pre-built wheels are published for every supported platform/Python combination
-on regular CPython (3.11 – 3.15, ABI tags `cp311`–`cp315`) **and on the
-free-threaded build** (`cp314t`), so no Rust toolchain is required
-for ordinary use. If pip resolves to an sdist on your platform, see
+on regular CPython (3.11 – 3.14, ABI tags `cp311`–`cp314`) **and on the
+free-threaded build** (`cp314t`, Linux and macOS arm64), so no Rust toolchain
+is required for ordinary use. If pip resolves to an sdist on your platform, see
 [Building from source](#building-from-source) below.
+
+Requires Aerospike Server 8.2.0+ (older servers may work but are not guaranteed).
 
 ## Quick start
 
@@ -111,7 +114,7 @@ client.close_blocking()
 ```
 
 Naming follows `<async_method>_blocking` — `get_blocking`, `put_blocking`,
-`operate_blocking`, `batch_read_blocking`, `query_execute_blocking`, etc.
+`operate_blocking`, `batch_read_blocking`, `query_blocking`, etc.
 
 Clients created with `new_client_blocking()` are blocking-only; async
 methods on them raise. If you want a single client that exposes both
@@ -203,15 +206,15 @@ from aerospike_async.exceptions import CommitFailedError
 txn = Txn()
 
 write = WritePolicy()
-write.set_txn(txn)
+write.txn = txn
 read = ReadPolicy()
-read.set_txn(txn)
+read.txn = txn
 
 try:
     await client.put(key_a, {"balance": 100}, policy=write)
     await client.put(key_b, {"balance": 200}, policy=write)
     status = await client.commit(txn)
-    assert status == CommitStatus.OK_VERIFIED
+    assert status == CommitStatus.OK
 except CommitFailedError:
     await client.abort(txn)
 ```
@@ -229,8 +232,8 @@ consistency on AP and SC namespaces respectively:
 from aerospike_async import ReadModeAP, ReadModeSC
 
 policy = ReadPolicy()
-policy.set_read_mode_ap(ReadModeAP.One)             # AP namespace
-policy.set_read_mode_sc(ReadModeSC.Linearize)       # SC namespace
+policy.read_mode_ap = ReadModeAP.ONE          # AP namespace
+policy.read_mode_sc = ReadModeSC.LINEARIZE    # SC namespace
 ```
 
 ## Wire-protocol compression
@@ -240,7 +243,7 @@ compression of request/response payloads on the wire:
 
 ```python
 policy = WritePolicy()
-policy.set_use_compression(True)
+policy.use_compression = True
 ```
 
 ## Versioning
@@ -322,15 +325,15 @@ make stubs
 
 ### Configuration
 
-Edit `aerospike.env` to match your Aerospike database node configuration:
+Copy `aerospike.env.example` to `aerospike.env` (gitignored) and edit it to
+match your Aerospike database node configuration:
 
 ```bash
 export AEROSPIKE_HOST=localhost:3000
 ```
 
-For local-only overrides (e.g. TLS certificate paths), create an
-`aerospike.env.local` file in the repo root. It is gitignored and automatically
-sourced by `aerospike.env`.
+`make test` and `make test-int` source `aerospike.env`, falling back to
+`aerospike.env.example`.
 
 ### Running tests
 
