@@ -440,9 +440,9 @@ use crate::operations::{
                 ))?;
             let as_policy = policy._as.clone();
             let cluster_name = as_policy.cluster_name.clone();
-            let client = rt.block_on(async move {
+            let client = crate::blocking::block_on(&rt, async move {
                 aerospike_core::Client::new(&as_policy, &seeds).await
-            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            })?.map_err(|e| PyErr::from(RustClientError(e)))?;
             Ok(LocalClient {
                 rt,
                 client: Arc::new(client),
@@ -489,7 +489,7 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self.client.clone();
             let raw = py.detach(|| {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
                             let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
@@ -504,7 +504,7 @@ use crate::operations::{
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     Ok::<_, PyErr>(res)
                 })
-            })?;
+            })??;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
 
@@ -527,7 +527,7 @@ use crate::operations::{
                 .map(|(name, val)| aerospike_core::Bin::new(name, val.into()))
                 .collect();
             py.detach(|| -> PyResult<()> {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
                             let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
@@ -541,7 +541,7 @@ use crate::operations::{
                     client.put(&policy, &key_as, &core_bins).await
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     Ok(())
-                })
+                })?
             })
         }
 
@@ -556,10 +556,10 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self.client.clone();
             py.detach(|| {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     client.delete(&policy, &key_as).await
                 })
-            }).map_err(|e| PyErr::from(RustClientError(e)))
+            })?.map_err(|e| PyErr::from(RustClientError(e)))
         }
 
         #[pyo3(signature = (key, *, policy=None))]
@@ -573,10 +573,10 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self.client.clone();
             py.detach(|| {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     client.touch(&policy, &key_as).await
                 })
-            }).map_err(|e| PyErr::from(RustClientError(e)))?;
+            })?.map_err(|e| PyErr::from(RustClientError(e)))?;
             Ok(())
         }
 
@@ -591,10 +591,10 @@ use crate::operations::{
             let key_as = key._as.clone();
             let client = self.client.clone();
             py.detach(|| {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     client.exists(&policy, &key_as).await
                 })
-            }).map_err(|e| PyErr::from(RustClientError(e)))
+            })?.map_err(|e| PyErr::from(RustClientError(e)))
         }
 
         #[pyo3(signature = (
@@ -630,7 +630,7 @@ use crate::operations::{
             let client = self.client.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let raw = py.detach(|| -> PyResult<aerospike_core::Record> {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
                             let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
@@ -650,7 +650,7 @@ use crate::operations::{
                     let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
                     client.operate(&policy, &key_as, &core_ops).await
                         .map_err(|e| PyErr::from(RustClientError(e)))
-                })
+                })?
             })?;
             Ok(Record { _as: raw, cached_bins: None, cached_results: None })
         }
@@ -671,14 +671,14 @@ use crate::operations::{
         ) -> PyResult<IndexMap<String, String>> {
             let client = self.client.clone();
             py.detach(|| {
-                self.rt.block_on(async move {
+                crate::blocking::block_on(&self.rt, async move {
                     let node = client.cluster.get_random_node()
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     let policy = aerospike_core::AdminPolicy::default();
                     node.info(&policy, &[&command]).await
                         .map_err(|e| PyErr::from(RustClientError(e)))
                 })
-            })
+            })?
         }
 
         // -- Metrics (collection lives in the core; these are synchronous) --
@@ -925,7 +925,7 @@ use crate::operations::{
             let inner = self.inner.clone();
             let rt = pyo3_async_runtimes::tokio::get_runtime();
             let next = py.detach(|| {
-                rt.block_on(async move {
+                blocking::block_on(rt, async move {
                     use futures::StreamExt;
                     let mut guard = inner.lock().await;
                     match guard.as_mut() {
@@ -933,7 +933,7 @@ use crate::operations::{
                         None => None,
                     }
                 })
-            });
+            })?;
             match next {
                 Some(Ok((idx, br))) => Ok((idx, BatchRecord { _as: br })),
                 Some(Err(e)) => Err(PyErr::from(RustClientError(e))),

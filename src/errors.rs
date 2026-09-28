@@ -592,6 +592,20 @@ where
     })
 }
 
+/// Convert a caught Rust panic into a lazy ``RuntimeError`` carrying the panic
+/// message. Lazy, so it is safe to build on a Tokio worker or with the GIL
+/// released.
+pub(crate) fn panic_to_pyerr(panic: Box<dyn std::any::Any + Send>) -> PyErr {
+    let msg = if let Some(s) = panic.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = panic.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "Rust panic".to_string()
+    };
+    pyo3::exceptions::PyRuntimeError::new_err(msg)
+}
+
 create_exception!(aerospike_async.exceptions, UDFBadResponse, AerospikeError);
 create_exception!(aerospike_async.exceptions, TimeoutError, AerospikeError);
 create_exception!(aerospike_async.exceptions, BadResponse, AerospikeError);

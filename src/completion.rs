@@ -541,19 +541,10 @@ where
                     future: future_ref,
                     result: Err(e),
                 },
-                Err(panic) => {
-                    let msg = if let Some(s) = panic.downcast_ref::<String>() {
-                        s.clone()
-                    } else if let Some(s) = panic.downcast_ref::<&str>() {
-                        s.to_string()
-                    } else {
-                        "Rust panic in async task".to_string()
-                    };
-                    PendingResult {
-                        future: future_ref,
-                        result: Err(pyo3::exceptions::PyRuntimeError::new_err(msg)),
-                    }
-                }
+                Err(panic) => PendingResult {
+                    future: future_ref,
+                    result: Err(crate::errors::panic_to_pyerr(panic)),
+                },
             };
             CompletionInner::enqueue(&inner, pr);
         }));

@@ -29,6 +29,8 @@ Covers:
   - Async client + sync method: a client created via `new_client` (async) can
     still have its `_blocking` siblings called from a sync context. This
     proves the bridge is orthogonal to the blocking surface.
+  - Core panic: a panic during a blocking op raises an ordinary `Exception`,
+    not a `BaseException`-derived `PanicException`.
 """
 
 import asyncio
@@ -37,15 +39,20 @@ import time
 import pytest
 
 from aerospike_async import (
+    _LocalClient,
     BatchDeleteOp,
     BatchPolicy,
     BatchReadOp,
     BatchWriteOp,
+    CdtOperation,
     ClientPolicy,
     CollectionIndexType,
+    CTX,
     Filter,
+    FilterExpression as fe,
     IndexType,
     Key,
+    LoopVarPart,
     MapOperation,
     MapReturnType,
     new_client,
@@ -56,6 +63,7 @@ from aerospike_async import (
     QuerySelection,
     ReadPolicy,
     ResultCode,
+    SelectFlags,
     SortedMap,
     Statement,
     WritePolicy,
@@ -692,3 +700,52 @@ def test_blocking_query_operate_map_operation(aerospike_host, use_services_alter
         for key in keys:
             client.delete_blocking(key, policy=WritePolicy())
         client.close_blocking()
+
+
+def _connect_local(aerospike_host, use_services_alternate):
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    return _LocalClient(cp, aerospike_host)
+
+
+@pytest.mark.parametrize(
+    "connect", [_connect_blocking, _connect_local], ids=["client", "local_client"],
+)
+def test_blocking_core_panic_is_catchable(
+    connect, aerospike_host, use_services_alternate, supports_enhanced_expression_api_sync,
+):
+    """A panic in the core surfaces as an ordinary ``Exception``.
+
+    An AND filter after a map index step makes the server return a truncated
+    bin payload, and the core's decoder panics on it. However that resolves,
+    it must not escape as ``PanicException``: that derives from
+    ``BaseException``, so ``except Exception`` would miss it.
+    """
+    if not supports_enhanced_expression_api_sync:
+        pytest.skip("CTX.and_filter requires server >= 8.1.2")
+    client = connect(aerospike_host, use_services_alternate)
+    key = Key("test", "blocking", "panic-1")
+    try:
+        client.put_blocking(key, {"m": {"x": 15, "y": 5}}, policy=WritePolicy())
+        op = CdtOperation.select_by_path(
+            "m",
+            SelectFlags.VALUE,
+            [
+                CTX.map_index(0),
+                CTX.and_filter(fe.gt(fe.int_loop_var(LoopVarPart.VALUE), fe.int_val(10))),
+            ],
+        )
+        try:
+            client.operate_blocking(key, [op], policy=WritePolicy())
+        except Exception:
+            pass
+        except BaseException as e:
+            pytest.fail(f"core panic escaped as {type(e).__name__}: {e}")
+
+        # The panic unwinds past a pooled connection; it must stay usable.
+        assert client.get_blocking(key, policy=ReadPolicy()).bins["m"] == {"x": 15, "y": 5}
+    finally:
+        client.delete_blocking(key, policy=WritePolicy())
+        # The local client owns its runtime and shuts down on drop.
+        if not isinstance(client, _LocalClient):
+            client.close_blocking()

@@ -26,13 +26,17 @@
 //! both ``lib.rs`` (client / op blocking methods) and ``tasks.rs`` (task
 //! blocking methods) without bumping their visibility past ``pub(crate)``.
 
+use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
+use futures::FutureExt;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
+use tokio::runtime::Runtime;
 
-use crate::errors::RustClientError;
+use crate::errors::{panic_to_pyerr, RustClientError};
 use crate::policies::ClientPolicy;
 use crate::Client;
 
@@ -76,6 +80,18 @@ pub(crate) fn check_not_in_async_context(py: Python<'_>) -> PyResult<()> {
     Ok(())
 }
 
+/// Drive ``fut`` to completion on ``rt``, converting a panic into
+/// ``RuntimeError``.
+///
+/// Every blocking call site must go through this rather than calling
+/// ``Runtime::block_on`` directly: a panic escaping ``block_on`` reaches the
+/// PyO3 trampoline as ``PanicException``, a ``BaseException`` that
+/// ``except Exception`` does not catch.
+pub(crate) fn block_on<F: Future>(rt: &Runtime, fut: F) -> PyResult<F::Output> {
+    rt.block_on(AssertUnwindSafe(fut).catch_unwind())
+        .map_err(panic_to_pyerr)
+}
+
 /// Run a ``Send`` future to completion on the global Tokio runtime while
 /// the GIL is released.
 ///
@@ -85,12 +101,12 @@ pub(crate) fn check_not_in_async_context(py: Python<'_>) -> PyResult<()> {
 /// automatically on return).
 pub(crate) fn run_blocking<Fut, T>(py: Python<'_>, fut: Fut) -> PyResult<T>
 where
-    Fut: std::future::Future<Output = PyResult<T>> + Send,
+    Fut: Future<Output = PyResult<T>> + Send,
     T: Send,
 {
     check_not_in_async_context(py)?;
     let rt = pyo3_async_runtimes::tokio::get_runtime();
-    py.detach(move || rt.block_on(fut))
+    py.detach(move || block_on(rt, fut))?
 }
 
 /// Synchronously create and connect a Client.

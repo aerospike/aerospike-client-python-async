@@ -893,8 +893,8 @@ use crate::record::{Key, PythonValue, Record};
             let recordset = self._as.clone();
             let rt = pyo3_async_runtimes::tokio::get_runtime();
             let pf = py.detach(|| {
-                rt.block_on(async move { recordset.partition_filter().await })
-            });
+                crate::blocking::block_on(rt, async move { recordset.partition_filter().await })
+            })?;
             Ok(pf.map(|pf| PartitionFilter { _as: pf }))
         }
 
@@ -970,7 +970,7 @@ use crate::record::{Key, PythonValue, Record};
             let rt = pyo3_async_runtimes::tokio::get_runtime();
 
             let result = py.detach(|| {
-                rt.block_on(async move {
+                crate::blocking::block_on(rt, async move {
                     let mut stream_opt = stream_mutex.lock().await;
                     if stream_opt.is_none() {
                         *stream_opt = Some(Box::pin(recordset.clone().into_stream()));
@@ -983,7 +983,7 @@ use crate::record::{Key, PythonValue, Record};
                         None => Ok(None),
                     }
                 })
-            })?;
+            })??;
 
             match result {
                 Some(rec) => Ok(Record { _as: rec, cached_bins: None, cached_results: None }),

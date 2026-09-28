@@ -262,6 +262,16 @@ def supports_query_selection_sync(aerospike_host, use_services_alternate):
     )
 
 
+@pytest.fixture(scope="session")
+def supports_enhanced_expression_api_sync(aerospike_host, use_services_alternate):
+    """Sync session gate for the 8.1.2 enhanced expression API (blocking integration tests)."""
+    return _probe_all_nodes_version_capability_blocking(
+        aerospike_host,
+        use_services_alternate,
+        lambda version: version.supports_enhanced_expression_api(),
+    )
+
+
 def _parse_build_string(build: str):
     """Parse an Aerospike server build string (e.g. ``8.1.2.1``) into a tuple.
 
