@@ -3595,14 +3595,16 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Parse `src` as INT. Returns PARAMETER_ERROR on unparseable input.
+        /// Parse `src` as INT. Returns OP_NOT_APPLICABLE (subcode
+        /// `OPNOT_STRING_CONVERSION_FAILED`) on unparseable input.
         pub fn string_to_integer(src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             FilterExpression { _as: str_exp::to_integer(src._as) }
         }
 
         #[staticmethod]
-        /// Parse `src` as FLOAT (f64). Returns PARAMETER_ERROR on unparseable input.
+        /// Parse `src` as FLOAT (f64). Returns OP_NOT_APPLICABLE (subcode
+        /// `OPNOT_STRING_CONVERSION_FAILED`) on unparseable input.
         pub fn string_to_double(src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             FilterExpression { _as: str_exp::to_double(src._as) }
@@ -3672,6 +3674,7 @@ use crate::string_ops::StringNumericType;
 
         #[staticmethod]
         /// Returns BLOB — `src` treated as base64-encoded text, decoded to bytes.
+        /// Invalid base64 returns OP_NOT_APPLICABLE (subcode `OPNOT_STRING_B64_INVALID`).
         pub fn string_b64_decode(src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             FilterExpression { _as: str_exp::b64_decode(src._as) }
@@ -3899,7 +3902,7 @@ use crate::string_ops::StringNumericType;
 
         #[staticmethod]
         #[pyo3(name = "to_string")]
-        /// Returns STRING — `src` (integer / float / string / blob) coerced to its string
+        /// Returns STRING — `src` (bool / integer / float / string / blob) coerced to its string
         /// representation. Unlike the other string expressions, which dispatch through the
         /// CALL_STRING module (id 3), this is encoded as the dedicated unary TO_STRING
         /// expression opcode.

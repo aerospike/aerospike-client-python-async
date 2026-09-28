@@ -503,14 +503,16 @@ impl StringOperation {
         StringOperation { op: OperationType::StringEndsWith(bin, suffix), ctx }
     }
 
-    /// Parse the bin as an integer. Returns PARAMETER_ERROR if unparseable.
+    /// Parse the bin as an integer. Returns OP_NOT_APPLICABLE (subcode
+    /// ``OPNOT_STRING_CONVERSION_FAILED``) if unparseable.
     #[staticmethod]
     #[pyo3(signature = (bin, *, ctx=None))]
     pub fn to_integer(bin: String, ctx: Option<Vec<CTX>>) -> Self {
         StringOperation { op: OperationType::StringToInteger(bin), ctx }
     }
 
-    /// Parse the bin as a float (f64). Returns PARAMETER_ERROR if unparseable.
+    /// Parse the bin as a float (f64). Returns OP_NOT_APPLICABLE (subcode
+    /// ``OPNOT_STRING_CONVERSION_FAILED``) if unparseable.
     #[staticmethod]
     #[pyo3(signature = (bin, *, ctx=None))]
     pub fn to_double(bin: String, ctx: Option<Vec<CTX>>) -> Self {
@@ -563,6 +565,8 @@ impl StringOperation {
     }
 
     /// Treat the bin as base64-encoded text and return the decoded bytes.
+    /// Returns OP_NOT_APPLICABLE (subcode ``OPNOT_STRING_B64_INVALID``) if
+    /// the bin is not valid base64.
     #[staticmethod]
     #[pyo3(signature = (bin, *, ctx=None))]
     pub fn b64_decode(bin: String, ctx: Option<Vec<CTX>>) -> Self {
@@ -758,8 +762,10 @@ impl StringOperation {
     // Type conversion (TO_STRING, op-type 19 — no payload, no CTX)
     // -----------------------------------------------------------------
 
-    /// Convert a non-string bin (integer, float, string, or blob) to its
-    /// string representation. Returns BIN_TYPE_ERROR for any other bin type.
+    /// Convert a bool, integer, float, string, or blob bin to its string
+    /// representation. Returns BIN_TYPE_ERROR for any other bin type, and
+    /// OP_NOT_APPLICABLE (subcode ``OPNOT_STRING_UTF8_INVALID``) for a blob
+    /// that is not valid UTF-8.
     ///
     /// Note: ``to_string`` does NOT accept a CTX argument — the wire format
     /// is a top-level op with no payload, so there is no place to put a

@@ -21,8 +21,20 @@ Exclude slow tests with: pytest -m "not slow"
 
 import asyncio
 import pytest
-from aerospike_async import Key, WritePolicy, ReadPolicy, Expiration
+from aerospike_async import ExpOperation, Expiration, FilterExpression, Key, ReadPolicy, WritePolicy
 from fixtures import TestFixtureConnection
+
+
+async def _server_ttl(client, key):
+    """Remaining TTL as computed by the server.
+
+    ``Record.ttl`` is derived from the client's clock, so client/server skew
+    distorts it; the server's own view does not depend on the client's clock.
+    """
+    wp = WritePolicy()
+    wp.read_touch_ttl = -1
+    record = await client.operate(key, [ExpOperation.read("ttl", FilterExpression.ttl())], policy=wp)
+    return record.bins["ttl"]
 
 
 @pytest.mark.slow(reason="Tests sleep waiting for TTL expiration")
@@ -147,31 +159,29 @@ class TestExpiration(TestFixtureConnection):
 
 
     async def test_read_touch_ttl_resets_on_get(self, client):
-        """Single-key get() with read_touch_ttl resets TTL when threshold met."""
-        key = Key("test", "test", "expire_read_touch_1")
+        """get() with read_touch_ttl resets the TTL once the threshold is met; -1 never does."""
+        touched = Key("test", "test", "expire_read_touch_1")
+        untouched = Key("test", "test", "expire_read_touch_2")
         wp = WritePolicy()
-        wp.expiration = Expiration.seconds(2)
-        await client.put(key, {"bin": "expirevalue"}, policy=wp)
+        wp.expiration = Expiration.seconds(10)
+        for key in (touched, untouched):
+            await client.put(key, {"bin": "expirevalue"}, policy=wp)
 
-        # Read before expiration with TTL reset enabled.
-        await asyncio.sleep(1)
+        # 30% of the TTL has elapsed, past the 20% that a setting of 80 requires.
+        await asyncio.sleep(3)
         rp = ReadPolicy()
         rp.read_touch_ttl = 80
-        record = await client.get(key, ["bin"], policy=rp)
-        assert record is not None
+        record = await client.get(touched, ["bin"], policy=rp)
         assert record.bins["bin"] == "expirevalue"
-
-        # Read again without resetting TTL.
-        await asyncio.sleep(1)
         rp.read_touch_ttl = -1
-        record = await client.get(key, ["bin"], policy=rp)
-        assert record is not None
-        assert record.bins["bin"] == "expirevalue"
+        await client.get(untouched, ["bin"], policy=rp)
 
-        # Record should now expire (original 2s TTL was reset once, then elapsed).
-        await asyncio.sleep(2)
-        exists = await client.exists(key, policy=ReadPolicy())
-        assert exists is False
+        # Whole-second void times: a reset TTL reads 9-10, an aged one 6-7.
+        assert await _server_ttl(client, touched) >= 9
+        assert await _server_ttl(client, untouched) <= 7
+
+        for key in (touched, untouched):
+            await client.delete(key, policy=WritePolicy())
 
 
 class TestExpirationMetadata(TestFixtureConnection):

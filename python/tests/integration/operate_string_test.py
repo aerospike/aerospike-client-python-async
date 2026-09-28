@@ -33,6 +33,7 @@ import pytest_asyncio
 from aerospike_async import (
     ClientPolicy,
     CTX,
+    ErrorDetailVerbosity,
     Key,
     MapPolicy,
     MapWriteFlags,
@@ -42,6 +43,7 @@ from aerospike_async import (
     StringOperation,
     StringRegexFlags,
     StringWriteFlags,
+    SubCode,
     WritePolicy,
 )
 from aerospike_async.exceptions import ServerError
@@ -298,6 +300,22 @@ class TestStringReads:
         await _put_str(string_client_820, key, "s", "SGVsbG8h")
         out = await _operate_first_value(string_client_820, key, [StringOperation.b64_decode("s")])
         assert out == b"Hello!"
+
+    @pytest.mark.parametrize("op, value, sub_code", [
+        (StringOperation.to_integer("s"), "abc", SubCode.OPNOT_STRING_CONVERSION_FAILED),
+        (StringOperation.to_double("s"), "abc", SubCode.OPNOT_STRING_CONVERSION_FAILED),
+        (StringOperation.b64_decode("s"), "!!!", SubCode.OPNOT_STRING_B64_INVALID),
+        (StringOperation.to_string("s"), b"\xff\xfe", SubCode.OPNOT_STRING_UTF8_INVALID),
+    ])
+    async def test_conversion_failure_is_op_not_applicable(self, string_client_820, op, value, sub_code):
+        key = _key("conv_fail")
+        await _put_str(string_client_820, key, "s", value)
+        wp = WritePolicy()
+        wp.error_detail_verbosity = ErrorDetailVerbosity.SUBCODE
+        with pytest.raises(ServerError) as exc_info:
+            await string_client_820.operate(key, [op], policy=wp)
+        assert exc_info.value.result_code == ResultCode.OP_NOT_APPLICABLE
+        assert exc_info.value.sub_code == sub_code
 
     async def test_regex_compare_case_insensitive_flag(self, string_client_820):
         """``StringRegexFlags.CASE_INSENSITIVE`` (1) honored by the wire decoder."""

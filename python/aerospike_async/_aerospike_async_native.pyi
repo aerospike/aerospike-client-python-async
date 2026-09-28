@@ -3847,12 +3847,14 @@ class FilterExpression:
     @staticmethod
     def string_to_integer(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Parse `src` as INT. Returns PARAMETER_ERROR on unparseable input.
+        Parse `src` as INT. Returns OP_NOT_APPLICABLE (subcode
+        `OPNOT_STRING_CONVERSION_FAILED`) on unparseable input.
         """
     @staticmethod
     def string_to_double(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Parse `src` as FLOAT (f64). Returns PARAMETER_ERROR on unparseable input.
+        Parse `src` as FLOAT (f64). Returns OP_NOT_APPLICABLE (subcode
+        `OPNOT_STRING_CONVERSION_FAILED`) on unparseable input.
         """
     @staticmethod
     def string_byte_length(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -3898,6 +3900,7 @@ class FilterExpression:
     def string_b64_decode(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Returns BLOB — `src` treated as base64-encoded text, decoded to bytes.
+        Invalid base64 returns OP_NOT_APPLICABLE (subcode `OPNOT_STRING_B64_INVALID`).
         """
     @staticmethod
     def string_regex_compare(pattern: _aerospike_async_native.FilterExpression, src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -4033,7 +4036,7 @@ class FilterExpression:
     @staticmethod
     def to_string(src: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
-        Returns STRING — `src` (integer / float / string / blob) coerced to its string
+        Returns STRING — `src` (bool / integer / float / string / blob) coerced to its string
         representation. Unlike the other string expressions, which dispatch through the
         CALL_STRING module (id 3), this is encoded as the dedicated unary TO_STRING
         expression opcode.
@@ -5980,12 +5983,14 @@ class StringOperation:
     @staticmethod
     def to_integer(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Parse the bin as an integer. Returns PARAMETER_ERROR if unparseable.
+        Parse the bin as an integer. Returns OP_NOT_APPLICABLE (subcode
+        ``OPNOT_STRING_CONVERSION_FAILED``) if unparseable.
         """
     @staticmethod
     def to_double(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
-        Parse the bin as a float (f64). Returns PARAMETER_ERROR if unparseable.
+        Parse the bin as a float (f64). Returns OP_NOT_APPLICABLE (subcode
+        ``OPNOT_STRING_CONVERSION_FAILED``) if unparseable.
         """
     @staticmethod
     def byte_length(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
@@ -6024,6 +6029,8 @@ class StringOperation:
     def b64_decode(bin: builtins.str, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
         r"""
         Treat the bin as base64-encoded text and return the decoded bytes.
+        Returns OP_NOT_APPLICABLE (subcode ``OPNOT_STRING_B64_INVALID``) if
+        the bin is not valid base64.
         """
     @staticmethod
     def regex_compare(bin: builtins.str, pattern: builtins.str, flags: builtins.int = 0, *, ctx: typing.Optional[typing.Sequence[_aerospike_async_native.CTX]] = None) -> _aerospike_async_native.StringOperation:
@@ -6153,8 +6160,10 @@ class StringOperation:
     @staticmethod
     def to_string(bin: builtins.str) -> _aerospike_async_native.StringOperation:
         r"""
-        Convert a non-string bin (integer, float, string, or blob) to its
-        string representation. Returns BIN_TYPE_ERROR for any other bin type.
+        Convert a bool, integer, float, string, or blob bin to its string
+        representation. Returns BIN_TYPE_ERROR for any other bin type, and
+        OP_NOT_APPLICABLE (subcode ``OPNOT_STRING_UTF8_INVALID``) for a blob
+        that is not valid UTF-8.
 
         Note: ``to_string`` does NOT accept a CTX argument — the wire format
         is a top-level op with no payload, so there is no place to put a
@@ -6322,6 +6331,11 @@ class SubCode:
     OPNOT_STRING_UTF8_INVALID: builtins.int = 11
     r"""
     Source blob/string is not valid UTF-8 for an `OpNotApplicable` path.
+    """
+    OPNOT_STRING_B64_INVALID: builtins.int = 13
+    r"""
+    The string is not valid base64 — a length that is not a multiple of 4, a
+    character outside the alphabet, or misplaced `=` padding.
     """
     FILTERED_META: builtins.int = 1
     r"""
