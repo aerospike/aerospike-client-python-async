@@ -15,13 +15,19 @@
 
 """Tests for background query operations: query_operate and query_execute_udf.
 
-Covers scan-mode put, filter-based put, touch, ExecuteTask.wait_till_complete
-and query_status.
+Covers scan-mode put, filter-based put, touch, collection and HLL writes,
+ExecuteTask.wait_till_complete and query_status.
 """
 
 import asyncio
 import pytest
 from aerospike_async import (
+    CTX,
+    HllOperation,
+    ListOperation,
+    ListPolicy,
+    MapOperation,
+    MapReturnType,
     WritePolicy,
     ReadPolicy,
     Key,
@@ -41,6 +47,8 @@ class TestQueryBackground(TestFixtureConnection):
 
     SET_NAME = "bg_op_test"
     SET_NAME_FILTER = "bg_op_filter_test"  # Dedicated set for filter test to avoid cross-test data
+    SET_NAME_CDT = "bg_op_cdt_test"
+    CDT_KEYS = 3
     BIN_NAME = "bin"
     NAMESPACE = "test"
     INDEX_NAME = "bg_op_filter_idx"
@@ -75,6 +83,31 @@ class TestQueryBackground(TestFixtureConnection):
             key = Key(self.NAMESPACE, self.SET_NAME_FILTER, f"key_{i}")
             await client.put(key, {self.BIN_NAME: i}, policy=wp)
         yield client
+
+    @pytest.fixture
+    async def client_and_cdt_data(self, client):
+        """Seed records with map-of-list bins for collection background writes."""
+        wp = WritePolicy()
+        for i in range(self.CDT_KEYS):
+            key = Key(self.NAMESPACE, self.SET_NAME_CDT, i)
+            await client.delete(key, policy=wp)
+            await client.put(
+                key,
+                {
+                    "segments": {"expired": [1700000000], "active": [1800000000]},
+                    "prefs": {"tags": ["news"]},
+                },
+                policy=wp,
+            )
+        yield client
+
+    async def _run_cdt_job(self, client, operations):
+        statement = Statement(self.NAMESPACE, self.SET_NAME_CDT, None)
+        task = await client.query_operate(statement, operations, write_policy=WritePolicy())
+        assert await task.wait_till_complete(sleep_time=0.2, timeout=10.0) is True
+
+    def _cdt_keys(self):
+        return [Key(self.NAMESPACE, self.SET_NAME_CDT, i) for i in range(self.CDT_KEYS)]
 
     async def test_query_operate_scan_put(self, client_and_data):
         """Test query_operate in scan mode: put a bin on all records in the set."""
@@ -148,6 +181,39 @@ class TestQueryBackground(TestFixtureConnection):
         assert task is not None
         done = await task.wait_till_complete(sleep_time=0.2, timeout=10.0)
         assert done is True
+
+    async def test_query_operate_map_remove_by_value_range(self, client_and_cdt_data):
+        """A map operation runs on every record: drop segments that sort before a cutoff."""
+        client = client_and_cdt_data
+        await self._run_cdt_job(client, [
+            MapOperation.remove_by_value_range(
+                "segments", None, [1704067200], MapReturnType.NONE,
+            ),
+        ])
+        for key in self._cdt_keys():
+            rec = await client.get(key, ["segments"], policy=ReadPolicy())
+            assert rec.bins["segments"] == {"active": [1800000000]}
+
+    async def test_query_operate_list_append_in_nested_context(self, client_and_cdt_data):
+        """CDT context is preserved, so the write lands in the nested list, not the bin."""
+        client = client_and_cdt_data
+        await self._run_cdt_job(client, [
+            ListOperation.append("prefs", "sports", ListPolicy())
+            .set_context([CTX.map_key("tags")]),
+        ])
+        for key in self._cdt_keys():
+            rec = await client.get(key, ["prefs"], policy=ReadPolicy())
+            assert rec.bins["prefs"] == {"tags": ["news", "sports"]}
+
+    async def test_query_operate_hll_add(self, client_and_cdt_data):
+        """An HLL write creates and populates a sketch on every record."""
+        client = client_and_cdt_data
+        await self._run_cdt_job(client, [
+            HllOperation.add("visitors", ["u1", "u2", "u3"], index_bit_count=8),
+        ])
+        for key in self._cdt_keys():
+            rec = await client.operate(key, [HllOperation.get_count("visitors")])
+            assert rec.bins["visitors"] == 3
 
     async def test_execute_task_query_status(self, client_and_data):
         """Test ExecuteTask.query_status() returns a status."""

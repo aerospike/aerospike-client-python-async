@@ -46,6 +46,8 @@ from aerospike_async import (
     Filter,
     IndexType,
     Key,
+    MapOperation,
+    MapReturnType,
     new_client,
     new_client_blocking,
     Operation,
@@ -658,4 +660,35 @@ def test_blocking_sorted_map_round_trip(aerospike_host, use_services_alternate):
         client.delete_blocking(key, policy=WritePolicy())
         client.delete_blocking(plain_key, policy=WritePolicy())
     finally:
+        client.close_blocking()
+
+
+def test_blocking_query_operate_map_operation(aerospike_host, use_services_alternate):
+    """A background job through the blocking entry point accepts map operations."""
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    set_name = "blocking_bg_cdt"
+    keys = [Key("test", set_name, i) for i in range(3)]
+    try:
+        for key in keys:
+            client.put_blocking(
+                key,
+                {"segments": {"expired": [1700000000], "active": [1800000000]}},
+                policy=WritePolicy(),
+            )
+
+        task = client.query_operate_blocking(
+            Statement("test", set_name, None),
+            [MapOperation.remove_by_value_range(
+                "segments", None, [1704067200], MapReturnType.NONE,
+            )],
+            write_policy=WritePolicy(),
+        )
+        assert task.wait_till_complete_blocking(sleep_time=0.2, timeout=10.0) is True
+
+        for key in keys:
+            rec = client.get_blocking(key, ["segments"], policy=ReadPolicy())
+            assert rec.bins["segments"] == {"active": [1800000000]}
+    finally:
+        for key in keys:
+            client.delete_blocking(key, policy=WritePolicy())
         client.close_blocking()

@@ -87,7 +87,7 @@ use crate::blocking::run_blocking;
 use crate::cdt::ctx_to_vec;
 use crate::operations::{
     bins_flag, bins_from_dict, bins_from_dict_list, convert_ops_with_ctx_to_core,
-    convert_scalar_ops_to_core, extract_py_ops, extract_py_ops_with_ctx,
+    extract_py_ops_with_ctx,
 };
 
     /**********************************************************************************
@@ -1777,13 +1777,8 @@ use crate::operations::{
             let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
             let core_statement = statement._as.clone();
-            let rust_ops = extract_py_ops(py, &operations)?;
-            let (core_ops, _) = convert_scalar_ops_to_core(&rust_ops).map_err(|e| {
-                PyValueError::new_err(format!(
-                    "query_operate supports scalar and expression operations only. {}",
-                    e
-                ))
-            })?;
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
+            let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
             let raw = run_blocking(py, async move {
                 client.query_operate(&policy, core_statement, &core_ops).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -3875,14 +3870,16 @@ use crate::operations::{
         }
 
         /// Execute a query/scan and apply write operations to matching records (background job).
-        /// Returns an ExecuteTask to poll for completion. Supports scalar and expression write
-        /// operations (put, add, delete, touch, append, prepend, ExpOperation.write).
-        /// List/map/bit/HLL operations are not supported for background query.
+        /// Returns an ExecuteTask to poll for completion. Accepts any write operation: scalar
+        /// (put, add, append, prepend, delete, touch), expression, list, map, bit, HLL, string
+        /// and path operations, including nested CDT context. The server rejects read
+        /// operations in a background job.
         ///
         /// Args:
         ///     write_policy: WritePolicy for the background operation.
         ///     statement: Statement (namespace, set, optional filters).
-        ///     operations: List of Operation objects (e.g. Operation.put, Operation.add, Operation.delete, Operation.touch).
+        ///     operations: Write operations to apply to each matching record (e.g.
+        ///         Operation.put, MapOperation.remove_by_value_range, HllOperation.add).
         ///
         /// Returns:
         ///     ExecuteTask to monitor completion (query_status, wait_till_complete).
@@ -3899,13 +3896,8 @@ use crate::operations::{
             let client = self._as.clone();
             let core_statement = statement._as.clone();
 
-            let rust_ops = extract_py_ops(py, &operations)?;
-            let (core_ops, _) = convert_scalar_ops_to_core(&rust_ops).map_err(|e| {
-                PyValueError::new_err(format!(
-                    "query_operate supports scalar and expression operations (put, add, delete, touch, append, prepend, ExpOperation.write). List/map/bit/HLL operations are not supported for background query. {}",
-                    e
-                ))
-            })?;
+            let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
+            let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
 
             let bridge = self.require_bridge()?;
             let task_bridge = bridge.clone();

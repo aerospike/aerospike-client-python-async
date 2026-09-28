@@ -1493,14 +1493,16 @@ class Client:
     def query_operate(self, statement: _aerospike_async_native.Statement, operations: typing.Sequence[typing.Any], *, write_policy: typing.Optional[_aerospike_async_native.WritePolicy] = None) -> typing.Awaitable[ExecuteTask]:
         r"""
         Execute a query/scan and apply write operations to matching records (background job).
-        Returns an ExecuteTask to poll for completion. Supports scalar and expression write
-        operations (put, add, delete, touch, append, prepend, ExpOperation.write).
-        List/map/bit/HLL operations are not supported for background query.
+        Returns an ExecuteTask to poll for completion. Accepts any write operation: scalar
+        (put, add, append, prepend, delete, touch), expression, list, map, bit, HLL, string
+        and path operations, including nested CDT context. The server rejects read
+        operations in a background job.
 
         Args:
             write_policy: WritePolicy for the background operation.
             statement: Statement (namespace, set, optional filters).
-            operations: List of Operation objects (e.g. Operation.put, Operation.add, Operation.delete, Operation.touch).
+            operations: Write operations to apply to each matching record (e.g.
+                Operation.put, MapOperation.remove_by_value_range, HllOperation.add).
 
         Returns:
             ExecuteTask to monitor completion (query_status, wait_till_complete).
