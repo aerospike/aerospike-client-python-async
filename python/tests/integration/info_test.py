@@ -24,7 +24,7 @@ class TestInfoCommands(TestFixtureConnection):
 
     async def test_node_names(self, client):
         """Test getting list of node names."""
-        node_names = await client.node_names()
+        node_names = client.node_names()
         
         assert isinstance(node_names, list)
         assert len(node_names) > 0, "Should have at least one node"

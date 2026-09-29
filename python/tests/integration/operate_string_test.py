@@ -916,8 +916,8 @@ class TestServerVersionGate:
     """
 
     async def test_node_self_reports_string_operations_support(self, string_client_820):
-        node_names = await string_client_820.node_names()
-        node = await string_client_820.get_node(node_names[0])
+        node_names = string_client_820.node_names()
+        node = string_client_820.get_node(node_names[0])
         assert node.version.supports_string_operations() is True, (
             f"AEROSPIKE_HOST cluster reports server "
             f"{node.version} which does NOT advertise string-op support. "

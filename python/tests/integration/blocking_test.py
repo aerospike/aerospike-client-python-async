@@ -196,9 +196,9 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
         rp = ReadPolicy()
 
         # cluster introspection
-        names = client.node_names_blocking()
+        names = client.node_names()
         assert isinstance(names, list) and len(names) > 0
-        nodes = client.nodes_blocking()
+        nodes = client.nodes()
         assert len(nodes) == len(names)
         info = client.info_blocking("build")
         assert info  # any non-empty response is fine
@@ -252,6 +252,29 @@ def test_blocking_extended_ops(aerospike_host, use_services_alternate):
             client.delete_blocking(kk, policy=wp)
         client.delete_blocking(Key("test", "blocking", "scan-1"), policy=wp)
         client.delete_blocking(Key("test", "blocking", "scan-2"), policy=wp)
+    finally:
+        client.close_blocking()
+
+
+def test_blocking_node_methods(aerospike_host, use_services_alternate):
+    """`Node.info_blocking` round-trips and refuses in a loop; plain node reads need no bridge."""
+    client = _connect_blocking(aerospike_host, use_services_alternate)
+    try:
+        node = client.get_node(client.node_names()[0])
+
+        response = node.info_blocking("build")
+        assert list(response) == ["build"]
+        assert response["build"]
+
+        aliases = node.aliases()
+        assert aliases
+        assert all(isinstance(h, str) and isinstance(p, int) for h, p in aliases)
+
+        async def misuse():
+            node.info_blocking("build")
+
+        with pytest.raises(RuntimeError, match="async context"):
+            asyncio.run(misuse())
     finally:
         client.close_blocking()
 

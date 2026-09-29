@@ -15,6 +15,7 @@
 
 use std::fmt;
 
+use indexmap::IndexMap;
 use pyo3::prelude::*;
 
 use pyo3_async_runtimes::tokio as pyo3_asyncio;
@@ -22,6 +23,7 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 
 
 
+use crate::blocking::run_blocking;
 use crate::errors::RustClientError;
 use crate::policies::AdminPolicy;
 
@@ -274,14 +276,11 @@ use crate::policies::AdminPolicy;
         }
 
         /// Returns a list of host aliases for this node.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[typing.Tuple[str, int]]]", imports=("typing")))]
-        pub fn aliases<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            let node = std::sync::Arc::clone(&self._as);
-            pyo3_asyncio::future_into_py(py, async move {
-                let aliases = node.aliases();
-                let result: Vec<(String, u16)> = aliases.into_iter().map(|h| (h.name, h.port)).collect();
-                Ok(result)
-            })
+        ///
+        /// Reads the client's alias list (no network I/O), so it is a plain
+        /// method callable from both async and sync code.
+        pub fn aliases(&self) -> Vec<(String, u16)> {
+            self._as.aliases().into_iter().map(|h| (h.name, h.port)).collect()
         }
 
         /// Execute an info command on this node.
@@ -303,6 +302,24 @@ use crate::policies::AdminPolicy;
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(response)
+            })
+        }
+
+        /// Synchronously execute an info command on this node.
+        #[pyo3(signature = (command, *, policy = None))]
+        pub fn info_blocking(
+            &self,
+            command: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<IndexMap<String, String>> {
+            let node = std::sync::Arc::clone(&self._as);
+            let admin_policy =
+                policy.map(|p| p._as).unwrap_or_default();
+            run_blocking(py, async move {
+                node.info(&admin_policy, &[&command])
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
             })
         }
 

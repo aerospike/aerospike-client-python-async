@@ -27,18 +27,18 @@ class TestGetNode(TestFixtureConnection):
     async def test_get_node_by_name(self, client):
         """Test getting a node by its name."""
         # First get the list of node names
-        node_names = await client.node_names()
+        node_names = client.node_names()
         assert len(node_names) > 0, "Should have at least one node"
 
         # Get the first node by name
         node_name = node_names[0]
-        node = await client.get_node(node_name)
+        node = client.get_node(node_name)
         assert node is not None
 
     async def test_node_info_build(self, client):
         """Test Node.info command for build information."""
-        node_names = await client.node_names()
-        node : Node = await client.get_node(node_names[0])
+        node_names = client.node_names()
+        node : Node = client.get_node(node_names[0])
 
         response = await node.info("build")
 
@@ -47,8 +47,8 @@ class TestGetNode(TestFixtureConnection):
 
     async def test_node_info_namespaces(self, client):
         """Test Node.info command for namespaces."""
-        node_names = await client.node_names()
-        node = await client.get_node(node_names[0])
+        node_names = client.node_names()
+        node = client.get_node(node_names[0])
 
         response = await node.info("namespaces")
 
@@ -57,8 +57,8 @@ class TestGetNode(TestFixtureConnection):
 
     async def test_node_info_statistics(self, client):
         """Test Node.info command for statistics."""
-        node_names = await client.node_names()
-        node = await client.get_node(node_names[0])
+        node_names = client.node_names()
+        node = client.get_node(node_names[0])
 
         response = await node.info("statistics")
 
@@ -68,14 +68,14 @@ class TestGetNode(TestFixtureConnection):
     async def test_get_node_invalid_name(self, client):
         """Test getting a node with invalid name raises error."""
         with pytest.raises(InvalidNodeError):
-            await client.get_node("nonexistent_node_name_12345")
+            client.get_node("nonexistent_node_name_12345")
 
     async def test_multiple_nodes_info(self, client):
         """Test getting info from multiple nodes."""
-        node_names = await client.node_names()
+        node_names = client.node_names()
 
         for name in node_names:
-            node = await client.get_node(name)
+            node = client.get_node(name)
             response = await node.info("build")
             assert isinstance(response, dict)
             assert len(response) > 0
@@ -86,7 +86,7 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_name_property(self, client):
         """Test Node.name property returns a string."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.name, str)
@@ -94,7 +94,7 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_address_property(self, client):
         """Test Node.address property returns address string."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.address, str)
@@ -102,7 +102,7 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_is_active_property(self, client):
         """Test Node.is_active property returns boolean."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.is_active, bool)
@@ -110,7 +110,7 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_host_property(self, client):
         """Test Node.host property returns (hostname, port) tuple."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         host = node.host
@@ -123,7 +123,7 @@ class TestNodeProperties(TestFixtureConnection):
         """Test Node.version property returns Version object."""
         from aerospike_async import Version
 
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         version = node.version
@@ -135,7 +135,7 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_str_repr(self, client):
         """Test Node __str__ and __repr__ methods."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         node_str = str(node)
@@ -152,7 +152,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_properties(self, client):
         """Test Version major, minor, patch, build properties."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         assert version.major >= 0
@@ -162,7 +162,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_str_repr(self, client):
         """Test Version __str__ and __repr__ methods."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         version_str = str(version)
@@ -175,7 +175,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_partition_scan(self, client):
         """Test Version.supports_partition_scan() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_partition_scan()
@@ -183,7 +183,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_query_show(self, client):
         """Test Version.supports_query_show() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_query_show()
@@ -191,7 +191,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_batch_any(self, client):
         """Test Version.supports_batch_any() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_batch_any()
@@ -199,7 +199,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_partition_query(self, client):
         """Test Version.supports_partition_query() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_partition_query()
@@ -207,7 +207,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_app_id(self, client):
         """Test Version.supports_app_id() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_app_id()
@@ -215,7 +215,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_query_selection(self, client):
         """Test Version.supports_query_selection() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_query_selection()
@@ -225,7 +225,7 @@ class TestVersion(TestFixtureConnection):
 
     async def test_version_supports_server_compiled_ael(self, client):
         """Test Version.supports_server_compiled_ael() method."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         version = nodes[0].version
 
         result = version.supports_server_compiled_ael()
@@ -239,7 +239,7 @@ class TestNodeMonitoring(TestFixtureConnection):
 
     async def test_node_failures_property(self, client):
         """Test Node.failures property returns connection failure count."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.failures, int)
@@ -247,24 +247,24 @@ class TestNodeMonitoring(TestFixtureConnection):
 
     async def test_node_partition_generation_property(self, client):
         """Test Node.partition_generation property."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.partition_generation, int)
 
     async def test_node_rebalance_generation_property(self, client):
         """Test Node.rebalance_generation property."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         assert isinstance(node.rebalance_generation, int)
 
     async def test_node_aliases_method(self, client):
         """Test Node.aliases() returns list of host tuples."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
-        aliases = await node.aliases()
+        aliases = node.aliases()
 
         assert isinstance(aliases, list)
         assert len(aliases) >= 1  # At least the primary address
@@ -282,7 +282,7 @@ class TestNodes(TestFixtureConnection):
 
     async def test_nodes_returns_all_nodes(self, client):
         """Test nodes() returns all Node objects."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
 
         assert isinstance(nodes, list)
         assert len(nodes) > 0, "Should have at least one node"
@@ -295,7 +295,7 @@ class TestNodes(TestFixtureConnection):
 
     async def test_nodes_first_element_access(self, client):
         """Test accessing first node by index."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         assert len(nodes) > 0
 
         first_node = nodes[0]
@@ -304,14 +304,14 @@ class TestNodes(TestFixtureConnection):
 
     async def test_nodes_matches_node_names_count(self, client):
         """Test nodes() returns same count as node_names()."""
-        nodes = await client.nodes()
-        node_names = await client.node_names()
+        nodes = client.nodes()
+        node_names = client.node_names()
 
         assert len(nodes) == len(node_names)
 
     async def test_nodes_iterate_for_cluster_verification(self, client):
         """Test iterating over nodes for cluster-wide verification."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
 
         # Verify all nodes respond to info command
         for node in nodes:
@@ -321,7 +321,7 @@ class TestNodes(TestFixtureConnection):
 
     async def test_nodes_for_cluster_aware_calculations(self, client):
         """Test using nodes() length for cluster-aware calculations."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         records_per_node = 100
 
         # Calculate total records based on cluster size
@@ -334,7 +334,7 @@ class TestNodeErrorCases(TestFixtureConnection):
 
     async def test_node_info_invalid_command_returns_error_response(self, client):
         """Test that Node.info() with invalid command returns error in response."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         node = nodes[0]
 
         response = await node.info("invalid_command_xyz123")

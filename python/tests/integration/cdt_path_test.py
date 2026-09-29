@@ -60,8 +60,8 @@ async def cdt_client_and_key(aerospike_host, use_services_alternate):
     cp.use_services_alternate = use_services_alternate
     c = await new_client(cp, aerospike_host)
 
-    node_names = await c.node_names()
-    node = await c.get_node(node_names[0])
+    node_names = c.node_names()
+    node = c.get_node(node_names[0])
     server_version = node.version
     if not (
         server_version.major > 8

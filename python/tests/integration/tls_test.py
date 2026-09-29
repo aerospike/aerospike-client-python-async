@@ -310,7 +310,7 @@ class TestTlsForLoginOnly:
         host, tls_port = self._host()
         client = await new_client(self._policy(True), host)
         try:
-            nodes = await client.nodes()
+            nodes = client.nodes()
             assert len(nodes) == 1
             port = nodes[0].host[1]
             assert port != tls_port, f"node still on the TLS port {tls_port}"
@@ -326,7 +326,7 @@ class TestTlsForLoginOnly:
         host, tls_port = self._host()
         client = await new_client(self._policy(False), host)
         try:
-            nodes = await client.nodes()
+            nodes = client.nodes()
             assert nodes[0].host[1] == tls_port
         finally:
             await client.close()

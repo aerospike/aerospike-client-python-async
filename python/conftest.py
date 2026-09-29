@@ -188,7 +188,7 @@ async def _probe_all_nodes_version_capability(
     except ConnectionError:
         return False
     try:
-        nodes = await client.nodes()
+        nodes = client.nodes()
         if not nodes:
             return False
         return all(capability_fn(n.version) for n in nodes)
@@ -214,7 +214,7 @@ def _probe_all_nodes_version_capability_blocking(
     except ConnectionError:
         return False
     try:
-        nodes = client.nodes_blocking()
+        nodes = client.nodes()
         if not nodes:
             return False
         return all(capability_fn(n.version) for n in nodes)

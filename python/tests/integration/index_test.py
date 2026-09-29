@@ -73,7 +73,7 @@ class TestIndex(TestFixtureConnection):
 
     async def test_create_blob_index(self, client):
         """Blob secondary index on a bytes bin (server >= 7.0.0)."""
-        nodes = await client.nodes()
+        nodes = client.nodes()
         if not nodes[0].version.supports_blob_index():
             pytest.skip("server does not support blob secondary indexes (requires >= 7.0.0)")
 
@@ -142,7 +142,7 @@ class TestDropIndex(TestFixtureConnection):
         await task.wait_till_complete()
 
         # Verify across all nodes that index no longer exists
-        nodes = await client.nodes()
+        nodes = client.nodes()
         for node in nodes:
             # Query sindex on each node to verify index is gone
             response = await node.info(f"sindex/{index_name}")

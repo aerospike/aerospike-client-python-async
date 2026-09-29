@@ -1183,10 +1183,6 @@ class Client:
         r"""
         Synchronously execute an info command on all cluster nodes.
         """
-    def node_names_blocking(self) -> builtins.list[builtins.str]:
-        r"""
-        Synchronously list cluster node names.
-        """
     def create_user_blocking(self, user: builtins.str, password: builtins.str, roles: typing.Sequence[builtins.str], *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> None:
         r"""
         Synchronously create a new user.
@@ -1250,14 +1246,6 @@ class Client:
     def set_xdr_filter_blocking(self, datacenter: builtins.str, namespace: builtins.str, filter_expression: typing.Optional[_aerospike_async_native.FilterExpression] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> None:
         r"""
         Synchronously set the XDR filter for a datacenter / namespace.
-        """
-    def get_node_blocking(self, name: builtins.str) -> _aerospike_async_native.Node:
-        r"""
-        Synchronously look up a single cluster node by name.
-        """
-    def nodes_blocking(self) -> builtins.list[_aerospike_async_native.Node]:
-        r"""
-        Synchronously list all active cluster nodes.
         """
     def batch_read_blocking(self, keys: typing.Sequence[_aerospike_async_native.Key], bins: typing.Optional[typing.Sequence[builtins.str]] = None, *, batch_policy: typing.Optional[_aerospike_async_native.BatchPolicy] = None, read_policy: typing.Optional[_aerospike_async_native.BatchReadPolicy] = None) -> builtins.list[_aerospike_async_native.BatchRecord]:
         r"""
@@ -1704,17 +1692,26 @@ class Client:
     def __repr__(self) -> builtins.str: ...
     def __copy__(self) -> _aerospike_async_native.Client: ...
     def __deepcopy__(self, _memo: dict) -> _aerospike_async_native.Client: ...
-    def node_names(self) -> typing.Awaitable[typing.List[str]]:
+    def node_names(self) -> builtins.list[builtins.str]:
         r"""
         Returns a list of the names of the active server nodes in the cluster.
+
+        Reads the tended node list (no network I/O), so it is a plain
+        method callable from both async and sync code.
         """
-    def get_node(self, name: builtins.str) -> typing.Awaitable[Node]:
+    def get_node(self, name: builtins.str) -> _aerospike_async_native.Node:
         r"""
         Return node given its name.
+
+        Reads the tended node list (no network I/O), so it is a plain
+        method callable from both async and sync code.
         """
-    def nodes(self) -> typing.Awaitable[typing.List[Node]]:
+    def nodes(self) -> builtins.list[_aerospike_async_native.Node]:
         r"""
         Returns a list of all active server nodes in the cluster.
+
+        Reads the tended node list (no network I/O), so it is a plain
+        method callable from both async and sync code.
         """
     def commit(self, txn: _aerospike_async_native.Txn, *, verify_policy: typing.Optional[_aerospike_async_native.TxnVerifyPolicy] = None, roll_policy: typing.Optional[_aerospike_async_native.TxnRollPolicy] = None) -> typing.Awaitable[CommitStatus]:
         r"""
@@ -4955,13 +4952,20 @@ class Node:
         r"""
         Returns the rebalance generation number.
         """
-    def aliases(self) -> typing.Awaitable[typing.List[typing.Tuple[str, int]]]:
+    def aliases(self) -> builtins.list[tuple[builtins.str, builtins.int]]:
         r"""
         Returns a list of host aliases for this node.
+
+        Reads the client's alias list (no network I/O), so it is a plain
+        method callable from both async and sync code.
         """
     def info(self, command: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Dict[str, str]]:
         r"""
         Execute an info command on this node.
+        """
+    def info_blocking(self, command: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> builtins.dict[builtins.str, builtins.str]:
+        r"""
+        Synchronously execute an info command on this node.
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

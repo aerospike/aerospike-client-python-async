@@ -33,11 +33,11 @@ class TestSetXdrFilter(TestFixtureConnection):
         Returns the datacenter name if XDR is configured, None otherwise.
         """
         try:
-            node_names = await client.node_names()
+            node_names = client.node_names()
             if not node_names:
                 return None
 
-            node = await client.get_node(node_names[0])
+            node = client.get_node(node_names[0])
             response = await node.info("get-config:context=xdr")
 
             # Parse the response to extract datacenter name

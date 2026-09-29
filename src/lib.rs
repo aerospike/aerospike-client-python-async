@@ -1979,14 +1979,6 @@ use crate::operations::{
             })
         }
 
-        /// Synchronously list cluster node names.
-        pub fn node_names_blocking(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-            let client = self._as.clone();
-            run_blocking(py, async move {
-                Ok(client.nodes().iter().map(|n| n.name().to_string()).collect())
-            })
-        }
-
         // -- Security / admin (Group 5) --
 
         /// Synchronously create a new user.
@@ -2311,25 +2303,6 @@ use crate::operations::{
                 ).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })
-        }
-
-        /// Synchronously look up a single cluster node by name.
-        pub fn get_node_blocking(&self, name: String, py: Python<'_>) -> PyResult<Node> {
-            let client = self._as.clone();
-            let raw = run_blocking(py, async move {
-                client.get_node(&name)
-                    .map_err(|e| PyErr::from(RustClientError(e)))
-            })?;
-            Ok(Node { _as: raw })
-        }
-
-        /// Synchronously list all active cluster nodes.
-        pub fn nodes_blocking(&self, py: Python<'_>) -> PyResult<Vec<Node>> {
-            let client = self._as.clone();
-            let raw = run_blocking(py, async move {
-                Ok(client.nodes())
-            })?;
-            Ok(raw.into_iter().map(|n| Node { _as: n }).collect())
         }
 
         // -- Batch blocking variants (Group 2) --
@@ -4740,43 +4713,28 @@ use crate::operations::{
         }
 
         /// Returns a list of the names of the active server nodes in the cluster.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[str]]", imports=("typing")))]
-        pub fn node_names<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            let client = self._as.clone();
-
-            completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let node_names = client
-                    .node_names();
-
-                Ok(node_names)
-            })
+        ///
+        /// Reads the tended node list (no network I/O), so it is a plain
+        /// method callable from both async and sync code.
+        pub fn node_names(&self) -> Vec<String> {
+            self._as.node_names()
         }
 
         /// Return node given its name.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Node]", imports=("typing")))]
-        pub fn get_node<'a>(&self, name: String, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            let client = self._as.clone();
-
-            completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let node = client
-                    .get_node(&name)
-                    .map_err(|e| PyErr::from(RustClientError(e)))?;
-                Ok(Node { _as: node })
-            })
+        ///
+        /// Reads the tended node list (no network I/O), so it is a plain
+        /// method callable from both async and sync code.
+        pub fn get_node(&self, name: &str) -> PyResult<Node> {
+            let node = self._as.get_node(name).map_err(|e| PyErr::from(RustClientError(e)))?;
+            Ok(Node { _as: node })
         }
 
         /// Returns a list of all active server nodes in the cluster.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.List[Node]]", imports=("typing")))]
-        pub fn nodes<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            let client = self._as.clone();
-
-            completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let nodes = client
-                    .nodes();
-
-                let py_nodes: Vec<Node> = nodes.into_iter().map(|n| Node { _as: n }).collect();
-                Ok(py_nodes)
-            })
+        ///
+        /// Reads the tended node list (no network I/O), so it is a plain
+        /// method callable from both async and sync code.
+        pub fn nodes(&self) -> Vec<Node> {
+            self._as.nodes().into_iter().map(|n| Node { _as: n }).collect()
         }
 
         /// Commit a multi-record transaction.
