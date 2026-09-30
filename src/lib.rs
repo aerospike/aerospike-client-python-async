@@ -1261,14 +1261,11 @@ use crate::operations::{
         }
 
         /// Returns true if the client is connected to any cluster nodes.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[bool]", imports=("typing")))]
-        pub fn is_connected<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-            let client = self._as.clone();
-
-            completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                Ok(client
-                    .is_connected())
-            })
+        ///
+        /// Reads the tended node list (no network I/O), so it is a plain
+        /// method callable from both async and sync code.
+        pub fn is_connected(&self) -> bool {
+            self._as.is_connected()
         }
 
         // ===================================================================
@@ -1284,14 +1281,6 @@ use crate::operations::{
                 client.close().await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })
-        }
-
-        /// Synchronously check whether the client is connected to any cluster nodes.
-        ///
-        /// The underlying check is non-blocking, so this returns immediately
-        /// without invoking the Tokio runtime.
-        pub fn is_connected_blocking(&self) -> bool {
-            self._as.is_connected()
         }
 
         /// Synchronously write record bin(s).

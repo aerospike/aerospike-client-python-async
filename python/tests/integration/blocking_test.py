@@ -17,7 +17,7 @@
 
 These tests are intentionally synchronous (`def`, not `async def`).
 `new_client_blocking()` does not require a running asyncio event loop, and
-the `_blocking` siblings (put/get/delete/close/commit/abort/is_connected)
+the `_blocking` siblings (put/get/delete/close/commit/abort)
 must work the same way.
 
 Covers:
@@ -89,7 +89,7 @@ def test_blocking_round_trip(aerospike_host, use_services_alternate):
     """connect → put → get → delete → close, single-threaded blocking."""
     client = _connect_blocking(aerospike_host, use_services_alternate)
     try:
-        assert client.is_connected_blocking() is True
+        assert client.is_connected() is True
 
         key = Key("test", "blocking", "rt-1")
 
@@ -106,7 +106,7 @@ def test_blocking_round_trip(aerospike_host, use_services_alternate):
         assert existed_again is False
     finally:
         client.close_blocking()
-        assert client.is_connected_blocking() is False
+        assert client.is_connected() is False
 
 
 def test_blocking_async_context_guard(aerospike_host, use_services_alternate):

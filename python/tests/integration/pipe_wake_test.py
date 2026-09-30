@@ -51,16 +51,18 @@ async def test_pipe_wake_usable_after_close(monkeypatch):
     """A closed pipe-backed client still delivers completions (does not hang).
 
     The pipe reader is intentionally NOT torn down on ``close()`` — a closed
-    client stays usable (``is_connected()`` returns False), and that call must
-    deliver through the reader rather than write to an unwatched pipe and hang.
-    Regression for the post-close hang.
+    client stays usable (``is_connected()`` reports False), and a completion
+    issued after close must deliver through the reader rather than write to
+    an unwatched pipe and hang. Regression for the post-close hang.
     """
     monkeypatch.setenv("AEROSPIKE_PIPE_WAKE", "1")
     client = await new_client(ClientPolicy(), _host())
-    assert await client.is_connected() is True
+    assert client.is_connected() is True
     await client.close()
-    # Must return (not hang) even though the client is closed.
-    assert await client.is_connected() is False
+    assert client.is_connected() is False
+    # Must complete (not hang) even though the client is closed; the bound
+    # turns a regression into a failure instead of a stuck suite.
+    await asyncio.wait_for(client.get(Key(NS, SET, 1), None), timeout=5)
 
 
 async def test_pipe_wake_teardown_leaves_loop_healthy(monkeypatch):

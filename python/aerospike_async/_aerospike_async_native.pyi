@@ -1004,20 +1004,16 @@ class Client:
         r"""
         Closes the connection to the Aerospike cluster.
         """
-    def is_connected(self) -> typing.Awaitable[bool]:
+    def is_connected(self) -> builtins.bool:
         r"""
         Returns true if the client is connected to any cluster nodes.
+
+        Reads the tended node list (no network I/O), so it is a plain
+        method callable from both async and sync code.
         """
     def close_blocking(self) -> None:
         r"""
         Synchronously close the connection to the Aerospike cluster.
-        """
-    def is_connected_blocking(self) -> builtins.bool:
-        r"""
-        Synchronously check whether the client is connected to any cluster nodes.
-
-        The underlying check is non-blocking, so this returns immediately
-        without invoking the Tokio runtime.
         """
     def put_blocking(self, key: _aerospike_async_native.Key, bins: dict, *, policy: typing.Optional[_aerospike_async_native.WritePolicy] = None, policy_sc: typing.Optional[_aerospike_async_native.WritePolicy] = None, txn: typing.Optional[_aerospike_async_native.Txn] = None) -> None:
         r"""

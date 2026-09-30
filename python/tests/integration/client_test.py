@@ -68,12 +68,12 @@ async def test_is_connected():
     assert client is not None
 
     # After successful connection, should be connected
-    connected = await client.is_connected()
+    connected = client.is_connected()
     assert connected is True, "Client should be connected after successful new_client()"
 
     # Close the client (now async)
     await client.close()
 
     # After closing, should not be connected
-    connected = await client.is_connected()
+    connected = client.is_connected()
     assert connected is False, "Client should not be connected after close()"

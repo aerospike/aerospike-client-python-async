@@ -86,7 +86,7 @@ class TestTlsConnection:
         client = await new_client(policy, connect_host)
         assert client is not None
 
-        connected = await client.is_connected()
+        connected = client.is_connected()
         assert connected is True
 
         await client.close()
@@ -115,7 +115,7 @@ class TestTlsConnection:
         client = await new_client(policy, connect_host)
         assert client is not None
 
-        connected = await client.is_connected()
+        connected = client.is_connected()
         assert connected is True
 
         await client.close()
@@ -192,7 +192,7 @@ class TestPkiConnection:
         client = await new_client(policy, connect_host)
         assert client is not None
 
-        connected = await client.is_connected()
+        connected = client.is_connected()
         assert connected is True
 
         await client.close()
@@ -219,7 +219,7 @@ class TestPkiConnection:
         client = await new_client(policy, connect_host)
         assert client is not None
 
-        connected = await client.is_connected()
+        connected = client.is_connected()
         assert connected is True
 
         await client.close()
