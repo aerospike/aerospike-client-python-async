@@ -891,6 +891,12 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Resolved once per process: dict construction runs per value on geo
+    // workloads, and a per-call import convoys free-threaded builds on the
+    // `sys.modules` lock.
+    static JSON_DUMPS: pyo3::sync::PyOnceLock<Py<PyAny>> =
+        pyo3::sync::PyOnceLock::new();
+
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
@@ -916,9 +922,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
             // Try to extract as dict and serialize to JSON
             if let Ok(dict) = v.cast::<PyDict>() {
-                // Use Python's json module to serialize the dict
-                let json_module = PyModule::import(py, "json")?;
-                let json_dumps = json_module.getattr("dumps")?;
+                let json_dumps = JSON_DUMPS.import(py, "json", "dumps")?;
                 let json_string: String = json_dumps.call1((dict,))?.extract()?;
                 return Ok(GeoJSON { v: json_string });
             }

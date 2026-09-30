@@ -455,6 +455,15 @@ def test_geojson_helper_function_negative_coords():
     assert geo_data["coordinates"] == [-80.590003, 28.60009]
 
 
+def test_geojson_helper_function_json_string():
+    """Test geojson() normalizes a JSON string the same way the dict constructor does."""
+    geo_dict = {"type": "Point", "coordinates": [-122.0, 37.5]}
+    # Repeated calls exercise the cached json callables, not just their first resolution.
+    for _ in range(2):
+        geo = geojson('{"type":"Point",  "coordinates":[-122.0,37.5]}')
+        assert geo == GeoJSON(geo_dict)
+
+
 def test_geojson_helper_function_invalid():
     """Test geojson() helper with invalid coordinate string."""
     with pytest.raises(ValueError):

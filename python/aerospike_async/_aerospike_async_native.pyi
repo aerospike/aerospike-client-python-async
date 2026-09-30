@@ -1550,8 +1550,7 @@ class Client:
         """
     def exists_legacy(self, key: _aerospike_async_native.Key, *, policy: typing.Optional[_aerospike_async_native.ReadPolicy] = None) -> typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]:
         r"""
-        Determine if a record key exists (legacy contract). Returns (key, meta) where meta=None if record not found.
-        This matches the legacy Python client contract.
+        Determine if a record key exists. Returns (key, meta) where meta=None if record not found.
         """
     def truncate(self, namespace: builtins.str, set_name: builtins.str, before_nanos: typing.Optional[builtins.int] = None, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[typing.Any]:
         r"""
@@ -7565,7 +7564,6 @@ class UDFLang(enum.Enum):
 def geojson(geo_str: builtins.str) -> _aerospike_async_native.GeoJSON:
     r"""
     Convert a GeoJSON string or coordinate pair to a GeoJSON object.
-    This matches the legacy client's aerospike.geojson() function.
 
     Accepts:
     - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
@@ -7603,7 +7601,6 @@ def null() -> typing.Any:
     r"""
     Return a null value for use in Aerospike operations.
     This is equivalent to Python None but represents an Aerospike null value.
-    Matches the legacy client's aerospike.null() function.
     """
 
 def refresh_log_levels() -> None:

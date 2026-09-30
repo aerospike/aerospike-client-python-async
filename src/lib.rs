@@ -4036,8 +4036,7 @@ use crate::operations::{
             })
         }
 
-        /// Determine if a record key exists (legacy contract). Returns (key, meta) where meta=None if record not found.
-        /// This matches the legacy Python client contract.
+        /// Determine if a record key exists. Returns (key, meta) where meta=None if record not found.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Tuple[Key, typing.Optional[typing.Any]]]", imports=("typing")))]
         #[pyo3(signature = (key, *, policy=None))]
         pub fn exists_legacy<'a>(
@@ -4957,7 +4956,6 @@ use crate::operations::{
 
 /// Return a null value for use in Aerospike operations.
 /// This is equivalent to Python None but represents an Aerospike null value.
-/// Matches the legacy client's aerospike.null() function.
 #[pyfunction]
 #[gen_stub_pyfunction(module = "_aerospike_async_native")]
 pub fn null(py: Python) -> Bound<PyAny> {
@@ -4982,8 +4980,11 @@ pub fn has_any_write_op(py: Python<'_>, operations: Vec<Py<PyAny>>) -> PyResult<
     Ok(has_write)
 }
 
+// Resolved once per process: `geojson()` can run per value on geo workloads,
+// and a per-call import convoys free-threaded builds on the `sys.modules` lock.
+static JSON_LOADS: pyo3::sync::PyOnceLock<Py<PyAny>> = pyo3::sync::PyOnceLock::new();
+
 /// Convert a GeoJSON string or coordinate pair to a GeoJSON object.
-/// This matches the legacy client's aerospike.geojson() function.
 ///
 /// Accepts:
 /// - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
@@ -4995,8 +4996,7 @@ pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     // Check if it looks like JSON (starts with '{' and contains "type")
     if geo_str.trim_start().starts_with('{') && geo_str.contains("\"type\"") {
         // Try to parse as JSON and create GeoJSON from it
-        let json_module = PyModule::import(py, "json")?;
-        let json_loads = json_module.getattr("loads")?;
+        let json_loads = JSON_LOADS.import(py, "json", "loads")?;
         let geo_dict = json_loads.call1((geo_str,))?;
 
         // Use GeoJSON constructor which accepts dict
