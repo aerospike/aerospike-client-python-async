@@ -77,7 +77,7 @@ async def main():
             "fa/ir": "بر آن مردم دیده روشنایی سلامی چو بوی خوش آشنایی",
         })
 
-    await c.create_index("test", "test", "year", "test.test.year", IndexType.NUMERIC, cit=CollectionIndexType.DEFAULT)
+    await c.create_index("test", "test", "year", "test.test.year", IndexType.INTEGER, cit=CollectionIndexType.DEFAULT)
 
     qp = QueryPolicy()
     pf = PartitionFilter.all()

@@ -7127,12 +7127,21 @@ class IndexType(enum.Enum):
     Underlying data type of secondary index.
     """
     NUMERIC = ...
+    r"""
+    Numeric index.
+
+    **Deprecated**: use ``INTEGER``. ``INTEGER`` is the canonical type
+    on every server version. Passing ``NUMERIC`` still creates the same
+    index and writes ``NUMERIC``.
+    """
     STRING = ...
     GEO2D_SPHERE = ...
     INTEGER = ...
     r"""
-    Integer index, the server's own name for it from 8.1.3 on; older
-    servers reject it, where ``NUMERIC`` still creates the same index.
+    Integer index.
+
+    Canonical secondary-index type for integer bins on every server
+    version. ``sindex-create`` sends ``INTEGER``.
     """
     BLOB = ...
     r"""

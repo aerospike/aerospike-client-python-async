@@ -54,7 +54,7 @@ async def create_index_examples():
                 set_name="users",
                 bin_name="age",
                 index_name="age_idx",
-                index_type=IndexType.NUMERIC,
+                index_type=IndexType.INTEGER,
                 cit=CollectionIndexType.DEFAULT
             )
             print("✅ Created numeric index on 'age' bin")
@@ -146,7 +146,7 @@ async def create_index_examples():
                     set_name="analytics",
                     bin_name="user_id",
                     index_name="user_id_idx",
-                    index_type=IndexType.NUMERIC,
+                    index_type=IndexType.INTEGER,
                     cit=CollectionIndexType.DEFAULT
                 ),
                 aerospike_client.create_index(
@@ -162,7 +162,7 @@ async def create_index_examples():
                     set_name="analytics",
                     bin_name="timestamp",
                     index_name="timestamp_idx",
-                    index_type=IndexType.NUMERIC,
+                    index_type=IndexType.INTEGER,
                     cit=CollectionIndexType.DEFAULT
                 )
             ]
@@ -198,13 +198,13 @@ def print_usage_examples():
         set_name: str,                    # Set name (can be empty string for all sets)
         bin_name: str,                    # Bin name to index
         index_name: str,                  # Unique name for the index
-        index_type: IndexType,            # Data type: Numeric, String, or Geo2DSphere
+        index_type: IndexType,            # Data type: Integer, String, or Geo2DSphere
         cit: Optional[CollectionIndexType] # Collection type (optional)
     )
     """)
 
     print("\n🔢 IndexType Options:")
-    print("  • IndexType.NUMERIC     - For integer/float values")
+    print("  • IndexType.INTEGER     - For integer values")
     print("  • IndexType.STRING      - For string values")
     print("  • IndexType.GEO2D_SPHERE - For GeoJSON coordinates")
 
@@ -231,7 +231,7 @@ def print_usage_examples():
     print("\n🚀 Quick Examples:")
     print("""
     # Simple numeric index
-    await client.create_index("test", "users", "age", "age_idx", IndexType.NUMERIC, None)
+    await client.create_index("test", "users", "age", "age_idx", IndexType.INTEGER, None)
 
     # String index with default collection type
     await client.create_index("test", "users", "name", "name_idx", IndexType.STRING, CollectionIndexType.DEFAULT)

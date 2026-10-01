@@ -43,7 +43,7 @@ async def simple_create_index_example():
             set_name="users",           # Your set name
             bin_name="age",             # Bin to index
             index_name="age_index",     # Unique index name
-            index_type=IndexType.NUMERIC,  # Data type
+            index_type=IndexType.INTEGER,  # Data type
             cit=CollectionIndexType.DEFAULT
         )
         print("✅ Index created successfully!")
@@ -72,7 +72,7 @@ def quick_examples():
         set_name="users",
         bin_name="age",
         index_name="age_idx",
-        index_type=IndexType.NUMERIC,
+        index_type=IndexType.INTEGER,
         cit=CollectionIndexType.DEFAULT
     )
     """)

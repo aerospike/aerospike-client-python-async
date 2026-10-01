@@ -637,14 +637,21 @@ pub enum Concurrency {
     #[pyclass(from_py_object, module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum IndexType {
+        /// Numeric index.
+        ///
+        /// **Deprecated**: use ``INTEGER``. ``INTEGER`` is the canonical type
+        /// on every server version. Passing ``NUMERIC`` still creates the same
+        /// index and writes ``NUMERIC``.
         #[pyo3(name = "NUMERIC")]
         Numeric,
         #[pyo3(name = "STRING")]
         String,
         #[pyo3(name = "GEO2D_SPHERE")]
         Geo2DSphere,
-        /// Integer index, the server's own name for it from 8.1.3 on; older
-        /// servers reject it, where ``NUMERIC`` still creates the same index.
+        /// Integer index.
+        ///
+        /// Canonical secondary-index type for integer bins on every server
+        /// version. ``sindex-create`` sends ``INTEGER``.
         #[pyo3(name = "INTEGER")]
         Integer,
         /// Blob (byte-array) index. Requires server 7.0+.
@@ -656,7 +663,12 @@ pub enum Concurrency {
     impl From<&IndexType> for aerospike_core::query::IndexType {
         fn from(input: &IndexType) -> Self {
             match &input {
-                IndexType::Numeric => aerospike_core::query::IndexType::Numeric,
+                IndexType::Numeric => {
+                    #[allow(deprecated)]
+                    {
+                        aerospike_core::query::IndexType::Numeric
+                    }
+                }
                 IndexType::String => aerospike_core::query::IndexType::String,
                 IndexType::Geo2DSphere => aerospike_core::query::IndexType::Geo2DSphere,
                 IndexType::Integer => aerospike_core::query::IndexType::Integer,
