@@ -21,15 +21,6 @@ import os as _os
 # uvloop is a drop-in replacement for asyncio's event loop that provides
 # significantly better throughput and latency for async I/O workloads.
 #
-# Free-threaded Python (3.14t) note: uvloop 0.22.x has a documented
-# libuv race on `loop._ready_len` (MagicStack/uvloop issues #720, #721)
-# that triggers when many threads concurrently call
-# `loop.call_soon_threadsafe()`. PAC's drainer thread funnels ALL
-# wake-ups through ONE persistent thread, eliminating the multi-
-# threaded access pattern the race needs. Empirically stable across
-# 20+ minutes of stress (z=128 single-loop + AsyncPool 8×64, 241M ops,
-# zero stalls). uvloop PR #721 is the proper upstream fix; once that
-# releases this comment can be dropped.
 # uvloop is required everywhere except Windows (see pyproject.toml's
 # `sys_platform != 'win32'` marker on the dependency). On Windows we
 # fall back to asyncio's default selector loop.
