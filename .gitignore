@@ -85,3 +85,4 @@ docs/_build/
 .python-version
 Cargo.toml.local
 aerospike.env
+stub_gen.log

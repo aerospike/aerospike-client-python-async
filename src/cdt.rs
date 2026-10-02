@@ -210,8 +210,6 @@ use crate::record::PythonValue;
     /// 
     /// Example:
     ///     combined = ListReturnType.VALUE | ListReturnType.INVERTED
-    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
-    // Full stubs are added in postprocess_stubs.py
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, name = "ListReturnType", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -219,36 +217,37 @@ use crate::record::PythonValue;
 
     type CoreListRT = aerospike_core::operations::lists::ListReturnType;
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl ListReturnType {
         /// Do not return a result.
         #[classattr]
-        const NONE: Self = Self(CoreListRT::None as u32);
+        const NONE: ListReturnType = ListReturnType(CoreListRT::None as u32);
         /// Return index offset order.
         #[classattr]
-        const INDEX: Self = Self(CoreListRT::Index as u32);
+        const INDEX: ListReturnType = ListReturnType(CoreListRT::Index as u32);
         /// Return reverse index offset order.
         #[classattr]
-        const REVERSE_INDEX: Self = Self(CoreListRT::ReverseIndex as u32);
+        const REVERSE_INDEX: ListReturnType = ListReturnType(CoreListRT::ReverseIndex as u32);
         /// Return value order.
         #[classattr]
-        const RANK: Self = Self(CoreListRT::Rank as u32);
+        const RANK: ListReturnType = ListReturnType(CoreListRT::Rank as u32);
         /// Return reverse value order.
         #[classattr]
-        const REVERSE_RANK: Self = Self(CoreListRT::ReverseRank as u32);
+        const REVERSE_RANK: ListReturnType = ListReturnType(CoreListRT::ReverseRank as u32);
         /// Return count of items selected.
         #[classattr]
-        const COUNT: Self = Self(CoreListRT::Count as u32);
+        const COUNT: ListReturnType = ListReturnType(CoreListRT::Count as u32);
         /// Return value for single key read and value list for range read.
         #[classattr]
-        const VALUE: Self = Self(CoreListRT::Values as u32);
+        const VALUE: ListReturnType = ListReturnType(CoreListRT::Values as u32);
         /// Return true if count > 0.
         #[classattr]
-        const EXISTS: Self = Self(CoreListRT::Exists as u32);
+        const EXISTS: ListReturnType = ListReturnType(CoreListRT::Exists as u32);
         /// Invert meaning of list command and return values.
         /// Can be OR'd with other return types: VALUE | INVERTED
         #[classattr]
-        const INVERTED: Self = Self(CoreListRT::Inverted as u32);
+        const INVERTED: ListReturnType = ListReturnType(CoreListRT::Inverted as u32);
 
         /// Bitwise OR - allows combining return type with INVERTED flag
         fn __or__(&self, other: &Self) -> Self {
@@ -615,8 +614,6 @@ use crate::record::PythonValue;
     /// 
     /// Example:
     ///     combined = MapReturnType.VALUE | MapReturnType.INVERTED
-    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
-    // Full stubs are added in postprocess_stubs.py
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, name = "MapReturnType", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -624,48 +621,49 @@ use crate::record::PythonValue;
 
     type CoreMapRT = aerospike_core::operations::maps::MapReturnType;
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl MapReturnType {
         /// Do not return a result.
         #[classattr]
-        const NONE: Self = Self(CoreMapRT::None as u32);
+        const NONE: MapReturnType = MapReturnType(CoreMapRT::None as u32);
         /// Return key index order.
         #[classattr]
-        const INDEX: Self = Self(CoreMapRT::Index as u32);
+        const INDEX: MapReturnType = MapReturnType(CoreMapRT::Index as u32);
         /// Return reverse key order.
         #[classattr]
-        const REVERSE_INDEX: Self = Self(CoreMapRT::ReverseIndex as u32);
+        const REVERSE_INDEX: MapReturnType = MapReturnType(CoreMapRT::ReverseIndex as u32);
         /// Return value order.
         #[classattr]
-        const RANK: Self = Self(CoreMapRT::Rank as u32);
+        const RANK: MapReturnType = MapReturnType(CoreMapRT::Rank as u32);
         /// Return reverse value order.
         #[classattr]
-        const REVERSE_RANK: Self = Self(CoreMapRT::ReverseRank as u32);
+        const REVERSE_RANK: MapReturnType = MapReturnType(CoreMapRT::ReverseRank as u32);
         /// Return count of items selected.
         #[classattr]
-        const COUNT: Self = Self(CoreMapRT::Count as u32);
+        const COUNT: MapReturnType = MapReturnType(CoreMapRT::Count as u32);
         /// Return key for single key read and key list for range read.
         #[classattr]
-        const KEY: Self = Self(CoreMapRT::Key as u32);
+        const KEY: MapReturnType = MapReturnType(CoreMapRT::Key as u32);
         /// Return value for single key read and value list for range read.
         #[classattr]
-        const VALUE: Self = Self(CoreMapRT::Value as u32);
+        const VALUE: MapReturnType = MapReturnType(CoreMapRT::Value as u32);
         /// Return key/value items.
         #[classattr]
-        const KEY_VALUE: Self = Self(CoreMapRT::KeyValue as u32);
+        const KEY_VALUE: MapReturnType = MapReturnType(CoreMapRT::KeyValue as u32);
         /// Returns true if count > 0.
         #[classattr]
-        const EXISTS: Self = Self(CoreMapRT::Exists as u32);
+        const EXISTS: MapReturnType = MapReturnType(CoreMapRT::Exists as u32);
         /// Returns an unordered map.
         #[classattr]
-        const UNORDERED_MAP: Self = Self(CoreMapRT::UnorderedMap as u32);
+        const UNORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::UnorderedMap as u32);
         /// Returns an ordered map.
         #[classattr]
-        const ORDERED_MAP: Self = Self(CoreMapRT::OrderedMap as u32);
+        const ORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::OrderedMap as u32);
         /// Invert meaning of map command and return values.
         /// Can be OR'd with other return types: VALUE | INVERTED
         #[classattr]
-        const INVERTED: Self = Self(CoreMapRT::Inverted as u32);
+        const INVERTED: MapReturnType = MapReturnType(CoreMapRT::Inverted as u32);
 
         /// Bitwise OR - allows combining return type with INVERTED flag
         fn __or__(&self, other: &Self) -> Self {

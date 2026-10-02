@@ -1481,7 +1481,6 @@ pub enum Concurrency {
     /// ``FilterExpression.int_loop_var``, ``FilterExpression.map_loop_var``, etc.
     ///
     /// Requires Aerospike Server version >= 8.1.1.
-    // Note: pyo3_stub_gen generates minimal stubs; full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(from_py_object, name = "LoopVarPart", module = "_aerospike_async_native")]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1546,12 +1545,11 @@ pub enum Concurrency {
     /// ``int`` and can be passed directly to ``CdtOperation.select_by_path(..., flag=...)``.
     ///
     /// Requires Aerospike Server version >= 8.1.1.
-    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
-    // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "SelectFlags", module = "_aerospike_async_native")]
     pub struct SelectFlags;
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl SelectFlags {
         /// Return the full matching subtree (root to leaf), keeping only matched nodes.
@@ -1590,12 +1588,11 @@ pub enum Concurrency {
     /// ``int`` and can be passed directly to ``CdtOperation.modify_by_path(..., flag=...)``.
     ///
     /// Requires Aerospike Server version >= 8.1.1.
-    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
-    // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "ModifyFlags", module = "_aerospike_async_native")]
     pub struct ModifyFlags;
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl ModifyFlags {
         /// Default behavior — fails on type mismatches.

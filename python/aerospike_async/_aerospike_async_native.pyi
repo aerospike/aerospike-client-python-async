@@ -246,9 +246,6 @@ class BatchDeletePolicy:
     def __new__(cls) -> _aerospike_async_native.BatchDeletePolicy: ...
 
 class BatchPolicy(_aerospike_async_native.BasePolicy):
-    def __new__(cls) -> _aerospike_async_native.BatchPolicy: ...
-    @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, allow_inline: typing.Optional[builtins.bool] = None, allow_inline_ssd: typing.Optional[builtins.bool] = None, respond_all_keys: typing.Optional[builtins.bool] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, concurrency: typing.Optional[_aerospike_async_native.Concurrency] = None) -> _aerospike_async_native.BatchPolicy: ...
     @property
     def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
     @base_policy.setter
@@ -286,7 +283,13 @@ class BatchPolicy(_aerospike_async_native.BasePolicy):
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
     @property
-    def timeout_delay(self) -> builtins.int: ...
+    def timeout_delay(self) -> builtins.int:
+        r"""
+        Post-timeout socket drain window (milliseconds). After a
+        client-side timeout, keep the socket and drain the pending
+        response for up to this long so the connection can be reused.
+        ``0`` (the default) closes the socket on timeout instead.
+        """
     @timeout_delay.setter
     def timeout_delay(self, value: builtins.int) -> None: ...
     @property
@@ -294,7 +297,12 @@ class BatchPolicy(_aerospike_async_native.BasePolicy):
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
     @property
-    def compression_threshold(self) -> builtins.int: ...
+    def compression_threshold(self) -> builtins.int:
+        r"""
+        Minimum command-buffer size (bytes) at which compression actually
+        fires. Buffers `<=` this value are sent uncompressed even when
+        ``use_compression`` is ``True``. Default: ``128``.
+        """
     @compression_threshold.setter
     def compression_threshold(self, value: builtins.int) -> None: ...
     @property
@@ -321,6 +329,16 @@ class BatchPolicy(_aerospike_async_native.BasePolicy):
     def replica(self) -> _aerospike_async_native.Replica: ...
     @replica.setter
     def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.BatchPolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, allow_inline: typing.Optional[builtins.bool] = None, allow_inline_ssd: typing.Optional[builtins.bool] = None, respond_all_keys: typing.Optional[builtins.bool] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, concurrency: typing.Optional[_aerospike_async_native.Concurrency] = None) -> _aerospike_async_native.BatchPolicy:
+        r"""
+        Build a ``BatchPolicy`` in a single call, setting only the provided fields.
+
+        Equivalent to constructing ``BatchPolicy()`` and assigning each attribute,
+        but crosses the Rust boundary once instead of once per attribute.  All
+        arguments are keyword-only; any unspecified field keeps its default.
+        """
 
 @typing.final
 class BatchReadOp:
@@ -670,7 +688,8 @@ class Blob:
     def __getitem__(self, idx: builtins.int) -> builtins.int: ...
     def __setitem__(self, idx: builtins.int, v: builtins.int) -> None: ...
     def __hash__(self) -> builtins.int: ...
-    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __add__(self, other: typing.Any) -> _aerospike_async_native.Blob: ...
     def __mul__(self, other: typing.Any) -> _aerospike_async_native.Blob: ...
     def __iadd__(self, other: typing.Any) -> None: ...
@@ -2311,7 +2330,8 @@ class Expiration:
     DONT_UPDATE: _aerospike_async_native.Expiration = ...
     @staticmethod
     def seconds(s: builtins.int) -> _aerospike_async_native.Expiration: ...
-    def __richcmp__(self, other: _aerospike_async_native.Expiration, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
 
 @typing.final
@@ -2953,7 +2973,8 @@ class FilterExpression:
         Retrieve expression value from a variable.
         Requires server version 5.6.0+.
         """
-    def __richcmp__(self, other: _aerospike_async_native.FilterExpression, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def _debug_inner(self) -> builtins.str:
         r"""
@@ -4046,7 +4067,8 @@ class GeoJSON:
         r"""
         Returns a string representation of the value.
         """
-    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -4060,8 +4082,8 @@ class HLL:
         r"""
         Returns a string representation of the value.
         """
-    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
-
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
 class HLLPolicy:
     r"""
     HLL policy for HLL operations and expressions.
@@ -4254,7 +4276,8 @@ class Key:
         Create a Key from a namespace, set, and digest (20-byte hash).
         The digest can be provided as bytes or a hex-encoded string.
         """
-    def __richcmp__(self, other: _aerospike_async_native.Key, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int:
         r"""
         Hash of the digest, consistent with ``==``, so keys can be set
@@ -4286,7 +4309,8 @@ class List:
     def __inplace_repeat__(self, times: builtins.int) -> _aerospike_async_native.List: ...
     def __hash__(self) -> builtins.int: ...
     def __len__(self) -> builtins.int: ...
-    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __iter__(self) -> _aerospike_async_native.List: ...
     def __next__(self) -> typing.Optional[typing.Any]: ...
 
@@ -4542,39 +4566,60 @@ class ListPolicy:
 @typing.final
 class ListReturnType:
     r"""
-    List return type for CDT operations.
+    ListReturnType - supports bitwise OR for combining with INVERTED flag.
 
-    Supports bitwise OR for combining with INVERTED flag:
+    Example:
         combined = ListReturnType.VALUE | ListReturnType.INVERTED
     """
-    NONE: ListReturnType
-    """Do not return a result."""
-    INDEX: ListReturnType
-    """Return index offset order."""
-    REVERSE_INDEX: ListReturnType
-    """Return reverse index offset order."""
-    RANK: ListReturnType
-    """Return value order."""
-    REVERSE_RANK: ListReturnType
-    """Return reverse value order."""
-    COUNT: ListReturnType
-    """Return count of items selected."""
-    VALUE: ListReturnType
-    """Return value for single key read and value list for range read."""
-    EXISTS: ListReturnType
-    """Return true if count > 0."""
-    INVERTED: ListReturnType
-    """Invert meaning of list command and return values. Can be OR'd with other return types."""
-
-    def __or__(self, other: ListReturnType) -> ListReturnType:
-        """Bitwise OR - allows combining return type with INVERTED flag."""
-        ...
-    def __and__(self, other: ListReturnType) -> ListReturnType:
-        """Bitwise AND."""
-        ...
+    NONE: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Do not return a result.
+    """
+    INDEX: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return index offset order.
+    """
+    REVERSE_INDEX: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return reverse index offset order.
+    """
+    RANK: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return value order.
+    """
+    REVERSE_RANK: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return reverse value order.
+    """
+    COUNT: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return count of items selected.
+    """
+    VALUE: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    EXISTS: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Return true if count > 0.
+    """
+    INVERTED: _aerospike_async_native.ListReturnType = ...
+    r"""
+    Invert meaning of list command and return values.
+    Can be OR'd with other return types: VALUE | INVERTED
+    """
+    def __or__(self, other: _aerospike_async_native.ListReturnType) -> _aerospike_async_native.ListReturnType:
+        r"""
+        Bitwise OR - allows combining return type with INVERTED flag
+        """
+    def __and__(self, other: _aerospike_async_native.ListReturnType) -> _aerospike_async_native.ListReturnType:
+        r"""
+        Bitwise AND
+        """
     def __int__(self) -> builtins.int:
-        """Convert to integer."""
-        ...
+        r"""
+        Convert to integer
+        """
     def __eq__(self, other: object) -> builtins.bool: ...
     def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
@@ -4585,19 +4630,28 @@ class LoopVarPart:
     r"""
     Identifies which element of a loop variable to access in path expressions.
 
+    Used with loop-variable expression constructors such as
+    ``FilterExpression.int_loop_var``, ``FilterExpression.map_loop_var``, etc.
+
     Requires Aerospike Server version >= 8.1.1.
     """
-    MAP_KEY: LoopVarPart
-    """Map key part of the loop variable."""
-    VALUE: LoopVarPart
-    """Value part of the loop variable (list element or map value)."""
-    INDEX: LoopVarPart
-    """Index part of the loop variable (parent list index)."""
-
+    MAP_KEY: _aerospike_async_native.LoopVarPart = ...
+    r"""
+    Map key part of the loop variable.
+    """
+    VALUE: _aerospike_async_native.LoopVarPart = ...
+    r"""
+    Value part of the loop variable (list element or map value).
+    """
+    INDEX: _aerospike_async_native.LoopVarPart = ...
+    r"""
+    Index part of the loop variable (parent list index).
+    """
     def __eq__(self, other: object) -> builtins.bool: ...
     def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __repr__(self) -> builtins.str: ...
+
 class Map:
     @property
     def value(self) -> builtins.dict[typing.Any, typing.Any]: ...
@@ -4608,7 +4662,8 @@ class Map:
         r"""
         Returns a string representation of the value.
         """
-    def __richcmp__(self, other: typing.Any, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...
 
@@ -4778,47 +4833,76 @@ class MapPolicy:
 @typing.final
 class MapReturnType:
     r"""
-    Map return type for CDT operations.
+    MapReturnType - supports bitwise OR for combining with INVERTED flag.
 
-    Supports bitwise OR for combining with INVERTED flag:
+    Example:
         combined = MapReturnType.VALUE | MapReturnType.INVERTED
     """
-    NONE: MapReturnType
-    """Do not return a result."""
-    INDEX: MapReturnType
-    """Return key index order."""
-    REVERSE_INDEX: MapReturnType
-    """Return reverse key order."""
-    RANK: MapReturnType
-    """Return value order."""
-    REVERSE_RANK: MapReturnType
-    """Return reverse value order."""
-    COUNT: MapReturnType
-    """Return count of items selected."""
-    KEY: MapReturnType
-    """Return key for single key read and key list for range read."""
-    VALUE: MapReturnType
-    """Return value for single key read and value list for range read."""
-    KEY_VALUE: MapReturnType
-    """Return key/value items."""
-    EXISTS: MapReturnType
-    """Returns true if count > 0."""
-    UNORDERED_MAP: MapReturnType
-    """Returns an unordered map."""
-    ORDERED_MAP: MapReturnType
-    """Returns an ordered map."""
-    INVERTED: MapReturnType
-    """Invert meaning of map command and return values. Can be OR'd with other return types."""
-
-    def __or__(self, other: MapReturnType) -> MapReturnType:
-        """Bitwise OR - allows combining return type with INVERTED flag."""
-        ...
-    def __and__(self, other: MapReturnType) -> MapReturnType:
-        """Bitwise AND."""
-        ...
+    NONE: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Do not return a result.
+    """
+    INDEX: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return key index order.
+    """
+    REVERSE_INDEX: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return reverse key order.
+    """
+    RANK: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return value order.
+    """
+    REVERSE_RANK: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return reverse value order.
+    """
+    COUNT: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return count of items selected.
+    """
+    KEY: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return key for single key read and key list for range read.
+    """
+    VALUE: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return value for single key read and value list for range read.
+    """
+    KEY_VALUE: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Return key/value items.
+    """
+    EXISTS: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Returns true if count > 0.
+    """
+    UNORDERED_MAP: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Returns an unordered map.
+    """
+    ORDERED_MAP: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Returns an ordered map.
+    """
+    INVERTED: _aerospike_async_native.MapReturnType = ...
+    r"""
+    Invert meaning of map command and return values.
+    Can be OR'd with other return types: VALUE | INVERTED
+    """
+    def __or__(self, other: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapReturnType:
+        r"""
+        Bitwise OR - allows combining return type with INVERTED flag
+        """
+    def __and__(self, other: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapReturnType:
+        r"""
+        Bitwise AND
+        """
     def __int__(self) -> builtins.int:
-        """Convert to integer."""
-        ...
+        r"""
+        Convert to integer
+        """
     def __eq__(self, other: object) -> builtins.bool: ...
     def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
@@ -4897,15 +4981,21 @@ class ModifyFlags:
     r"""
     Flags controlling the behavior of a ``CdtOperation.modify_by_path`` operation.
 
-    Namespace of plain ``int`` constants. Combine with bitwise OR — the
-    result is a regular ``int`` suitable for ``CdtOperation.modify_by_path(..., flag=...)``.
+    Namespace of plain ``int`` constants. Combine with bitwise OR
+    (``ModifyFlags.DEFAULT | ModifyFlags.NO_FAIL``) — the result is a regular
+    ``int`` and can be passed directly to ``CdtOperation.modify_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
     """
-    DEFAULT: builtins.int
-    """Default behavior — fails on type mismatches."""
-    NO_FAIL: builtins.int
-    """Ignore type errors instead of failing."""
+    DEFAULT: builtins.int = 0
+    r"""
+    Default behavior — fails on type mismatches.
+    """
+    NO_FAIL: builtins.int = 16
+    r"""
+    Ignore type errors instead of failing.
+    """
+
 class Node:
     @property
     def name(self) -> builtins.str:
@@ -5226,7 +5316,7 @@ class Privilege:
     @property
     def namespace(self) -> typing.Optional[builtins.str]: ...
     @property
-    def set_name(self) -> typing.Optional[str]: ...
+    def set_name(self) -> typing.Optional[builtins.str]: ...
     def __new__(cls, code: _aerospike_async_native.PrivilegeCode, namespace: typing.Optional[builtins.str], set_name: typing.Optional[builtins.str]) -> _aerospike_async_native.Privilege: ...
     def as_string(self) -> builtins.str: ...
     def __str__(self) -> builtins.str: ...
@@ -5247,7 +5337,7 @@ class QueryPlan:
     @property
     def namespace(self) -> builtins.str: ...
     @property
-    def set_name(self) -> typing.Optional[str]: ...
+    def set_name(self) -> typing.Optional[builtins.str]: ...
     @property
     def ael(self) -> builtins.str:
         r"""
@@ -5285,7 +5375,6 @@ class QueryPlan:
     def __repr__(self) -> builtins.str: ...
 
 class QueryPolicy(_aerospike_async_native.BasePolicy):
-    def __new__(cls) -> _aerospike_async_native.QueryPolicy: ...
     @property
     def base_policy(self) -> _aerospike_async_native.BasePolicy: ...
     @base_policy.setter
@@ -5319,7 +5408,13 @@ class QueryPolicy(_aerospike_async_native.BasePolicy):
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
     @property
-    def timeout_delay(self) -> builtins.int: ...
+    def timeout_delay(self) -> builtins.int:
+        r"""
+        Post-timeout socket drain window (milliseconds). After a
+        client-side timeout, keep the socket and drain the pending
+        response for up to this long so the connection can be reused.
+        ``0`` (the default) closes the socket on timeout instead.
+        """
     @timeout_delay.setter
     def timeout_delay(self, value: builtins.int) -> None: ...
     @property
@@ -5327,7 +5422,12 @@ class QueryPolicy(_aerospike_async_native.BasePolicy):
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
     @property
-    def compression_threshold(self) -> builtins.int: ...
+    def compression_threshold(self) -> builtins.int:
+        r"""
+        Minimum command-buffer size (bytes) at which compression actually
+        fires. Buffers `<=` this value are sent uncompressed even when
+        ``use_compression`` is ``True``. Default: ``128``.
+        """
     @compression_threshold.setter
     def compression_threshold(self, value: builtins.int) -> None: ...
     @property
@@ -5366,6 +5466,7 @@ class QueryPolicy(_aerospike_async_native.BasePolicy):
     def replica(self) -> _aerospike_async_native.Replica: ...
     @replica.setter
     def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.QueryPolicy: ...
 
 @typing.final
 class QueryWhereFlags:
@@ -5398,9 +5499,6 @@ class QueryWhereFlags:
     """
 
 class ReadPolicy(_aerospike_async_native.BasePolicy):
-    def __new__(cls) -> _aerospike_async_native.ReadPolicy: ...
-    @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, read_touch_ttl: typing.Optional[builtins.int] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None) -> _aerospike_async_native.ReadPolicy: ...
     @property
     def replica(self) -> _aerospike_async_native.Replica: ...
     @replica.setter
@@ -5438,7 +5536,13 @@ class ReadPolicy(_aerospike_async_native.BasePolicy):
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
     @property
-    def timeout_delay(self) -> builtins.int: ...
+    def timeout_delay(self) -> builtins.int:
+        r"""
+        Post-timeout socket drain window (milliseconds). After a
+        client-side timeout, keep the socket and drain the pending
+        response for up to this long so the connection can be reused.
+        ``0`` (the default) closes the socket on timeout instead.
+        """
     @timeout_delay.setter
     def timeout_delay(self, value: builtins.int) -> None: ...
     @property
@@ -5446,7 +5550,12 @@ class ReadPolicy(_aerospike_async_native.BasePolicy):
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
     @property
-    def compression_threshold(self) -> builtins.int: ...
+    def compression_threshold(self) -> builtins.int:
+        r"""
+        Minimum command-buffer size (bytes) at which compression actually
+        fires. Buffers `<=` this value are sent uncompressed even when
+        ``use_compression`` is ``True``. Default: ``128``.
+        """
     @compression_threshold.setter
     def compression_threshold(self, value: builtins.int) -> None: ...
     @property
@@ -5461,6 +5570,16 @@ class ReadPolicy(_aerospike_async_native.BasePolicy):
     def read_touch_ttl(self) -> builtins.int: ...
     @read_touch_ttl.setter
     def read_touch_ttl(self, value: builtins.int) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.ReadPolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None, read_mode_ap: typing.Optional[_aerospike_async_native.ReadModeAP] = None, read_mode_sc: typing.Optional[_aerospike_async_native.ReadModeSC] = None, read_touch_ttl: typing.Optional[builtins.int] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None) -> _aerospike_async_native.ReadPolicy:
+        r"""
+        Build a ``ReadPolicy`` in a single call, setting only the provided fields.
+
+        Equivalent to constructing ``ReadPolicy()`` and assigning each attribute,
+        but crosses the Rust boundary once instead of once per attribute.  All
+        arguments are keyword-only; any unspecified field keeps its default.
+        """
 
 class Record:
     @property
@@ -5520,21 +5639,40 @@ class RegexFlag:
     r"""
     POSIX regex bit flags for ``FilterExpression.regex_compare``.
 
-    Namespace of plain ``int`` constants. Bit values match the
-    Aerospike server wire protocol (POSIX ``regex.h`` on glibc).
+    Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
+    on glibc):
+
+    - ``NONE = 0`` — use regex defaults.
+    - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
+    - ``ICASE = 2`` — case-insensitive matching.
+    - ``NOSUB = 4`` — do not report position of matches.
+    - ``NEWLINE = 8`` — match-any-character operators don't match newline.
 
     Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
+    ``RegexFlag`` constant (or combination).
     """
-    NONE: builtins.int
-    """Use regex defaults."""
-    EXTENDED: builtins.int
-    """Use POSIX Extended Regular Expression syntax when interpreting regex."""
-    ICASE: builtins.int
-    """Do not differentiate case."""
-    NOSUB: builtins.int
-    """Do not report position of matches."""
-    NEWLINE: builtins.int
-    """Match-any-character operators don't match a newline."""
+    NONE: builtins.int = 0
+    r"""
+    Use regex defaults.
+    """
+    EXTENDED: builtins.int = 1
+    r"""
+    Use POSIX Extended Regular Expression syntax when interpreting regex.
+    """
+    ICASE: builtins.int = 2
+    r"""
+    Do not differentiate case.
+    """
+    NOSUB: builtins.int = 4
+    r"""
+    Do not report position of matches.
+    """
+    NEWLINE: builtins.int = 8
+    r"""
+    Match-any-character operators don't match a newline.
+    """
+
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]:
@@ -5777,33 +5915,48 @@ class Sampler:
         Sample approximately `p` (0.0-1.0) of commands.
         """
     def __repr__(self) -> builtins.str: ...
-    def __richcmp__(self, other: _aerospike_async_native.Sampler, op: int) -> builtins.bool: ...
-
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
 @typing.final
 class SelectFlags:
     r"""
     Flags controlling the return value of a ``CdtOperation.select_by_path`` operation.
 
     Namespace of plain ``int`` constants. Combine with bitwise OR
-    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular ``int``
-    suitable for ``CdtOperation.select_by_path(..., flag=...)``.
+    (``SelectFlags.VALUE | SelectFlags.NO_FAIL``) — the result is a regular
+    ``int`` and can be passed directly to ``CdtOperation.select_by_path(..., flag=...)``.
 
     Requires Aerospike Server version >= 8.1.1.
     """
-    MATCHING_TREE: builtins.int
-    """Return the full matching subtree (root to leaf), keeping only matched nodes."""
-    VALUE: builtins.int
-    """Return the values of the finally-selected nodes."""
-    LIST_VALUE: builtins.int
-    """Synonym for ``VALUE`` — clarifies list element expectations."""
-    MAP_VALUE: builtins.int
-    """Synonym for ``VALUE`` — clarifies map value expectations."""
-    MAP_KEY: builtins.int
-    """Return only the map keys of the finally-selected nodes."""
-    MAP_KEY_VALUE: builtins.int
-    """Return map key-value pairs of the finally-selected nodes."""
-    NO_FAIL: builtins.int
-    """Ignore type mismatches instead of failing."""
+    MATCHING_TREE: builtins.int = 0
+    r"""
+    Return the full matching subtree (root to leaf), keeping only matched nodes.
+    """
+    VALUE: builtins.int = 1
+    r"""
+    Return the values of the finally-selected nodes.
+    """
+    LIST_VALUE: builtins.int = 1
+    r"""
+    Synonym for ``VALUE`` — clarifies list element expectations.
+    """
+    MAP_VALUE: builtins.int = 1
+    r"""
+    Synonym for ``VALUE`` — clarifies map value expectations.
+    """
+    MAP_KEY: builtins.int = 2
+    r"""
+    Return only the map keys of the finally-selected nodes.
+    """
+    MAP_KEY_VALUE: builtins.int = 3
+    r"""
+    Return map key-value pairs of the finally-selected nodes.
+    """
+    NO_FAIL: builtins.int = 16
+    r"""
+    Ignore type mismatches instead of failing.
+    """
+
 class ServerError(builtins.Exception):
     @property
     def result_code(self) -> _aerospike_async_native.ResultCode: ...
@@ -5904,9 +6057,9 @@ class Statement:
     @filters.setter
     def filters(self, value: typing.Optional[typing.Sequence[_aerospike_async_native.Filter]]) -> None: ...
     @property
-    def set_name(self) -> typing.Optional[str]: ...
+    def set_name(self) -> typing.Optional[builtins.str]: ...
     @set_name.setter
-    def set_name(self, value: typing.Optional[str]) -> None: ...
+    def set_name(self, value: typing.Optional[builtins.str]) -> None: ...
     def __new__(cls, namespace: builtins.str, set_name: typing.Optional[builtins.str] = None, bins: typing.Optional[typing.Sequence[builtins.str]] = None) -> _aerospike_async_native.Statement: ...
     def set_aggregate_function(self, package_name: builtins.str, function_name: builtins.str, function_args: typing.Optional[typing.Sequence[typing.Any]] = None) -> None:
         r"""
@@ -6706,9 +6859,6 @@ class Version:
     def __repr__(self) -> builtins.str: ...
 
 class WritePolicy(_aerospike_async_native.BasePolicy):
-    def __new__(cls) -> _aerospike_async_native.WritePolicy: ...
-    @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy: ...
     @property
     def record_exists_action(self) -> _aerospike_async_native.RecordExistsAction: ...
     @record_exists_action.setter
@@ -6722,7 +6872,16 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @commit_level.setter
     def commit_level(self, value: _aerospike_async_native.CommitLevel) -> None: ...
     @property
-    def records_per_second(self) -> builtins.int: ...
+    def records_per_second(self) -> builtins.int:
+        r"""
+        Records-per-second cap for background jobs, applied **per node**.
+
+        Read only by background ``query_operate`` / ``query_execute_udf``
+        jobs; every other command type ignores it. Zero (the default)
+        applies no limit. The server bounds the effective rate by its own
+        ``background-query-max-rps`` config, so a larger value is clamped
+        rather than rejected.
+        """
     @records_per_second.setter
     def records_per_second(self, value: builtins.int) -> None: ...
     @property
@@ -6746,7 +6905,13 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @durable_delete.setter
     def durable_delete(self, value: builtins.bool) -> None: ...
     @property
-    def xdr(self) -> builtins.bool: ...
+    def xdr(self) -> builtins.bool:
+        r"""
+        Send the write as cross-datacenter replication traffic: sets the
+        XDR bit on the wire so the server treats it as an XDR write. For
+        connectors emulating cross-datacenter replication. Default:
+        ``False``.
+        """
     @xdr.setter
     def xdr(self, value: builtins.bool) -> None: ...
     @property
@@ -6782,7 +6947,13 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @socket_timeout.setter
     def socket_timeout(self, value: builtins.int) -> None: ...
     @property
-    def timeout_delay(self) -> builtins.int: ...
+    def timeout_delay(self) -> builtins.int:
+        r"""
+        Post-timeout socket drain window (milliseconds). After a
+        client-side timeout, keep the socket and drain the pending
+        response for up to this long so the connection can be reused.
+        ``0`` (the default) closes the socket on timeout instead.
+        """
     @timeout_delay.setter
     def timeout_delay(self, value: builtins.int) -> None: ...
     @property
@@ -6790,7 +6961,12 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @use_compression.setter
     def use_compression(self, value: builtins.bool) -> None: ...
     @property
-    def compression_threshold(self) -> builtins.int: ...
+    def compression_threshold(self) -> builtins.int:
+        r"""
+        Minimum command-buffer size (bytes) at which compression actually
+        fires. Buffers `<=` this value are sent uncompressed even when
+        ``use_compression`` is ``True``. Default: ``128``.
+        """
     @compression_threshold.setter
     def compression_threshold(self, value: builtins.int) -> None: ...
     @property
@@ -6805,6 +6981,16 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     def read_touch_ttl(self) -> builtins.int: ...
     @read_touch_ttl.setter
     def read_touch_ttl(self, value: builtins.int) -> None: ...
+    def __new__(cls) -> _aerospike_async_native.WritePolicy: ...
+    @staticmethod
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy:
+        r"""
+        Build a ``WritePolicy`` in a single call, setting only the provided fields.
+
+        Equivalent to constructing ``WritePolicy()`` and assigning each attribute,
+        but crosses the Rust boundary once instead of once per attribute.  All
+        arguments are keyword-only; any unspecified field keeps its default.
+        """
 
 @typing.final
 class _LocalClient:
@@ -6922,12 +7108,12 @@ class AuthMode(enum.Enum):
     """
 
 @typing.final
-class BitWriteFlags(enum.Enum):
-    DEFAULT = ...
-    CREATE_ONLY = ...
-    UPDATE_ONLY = ...
-    NO_FAIL = ...
-    PARTIAL = ...
+class BitWriteFlags(enum.IntEnum):
+    DEFAULT: builtins.int
+    CREATE_ONLY: builtins.int
+    UPDATE_ONLY: builtins.int
+    NO_FAIL: builtins.int
+    PARTIAL: builtins.int
 
 @typing.final
 class BitwiseOverflowActions(enum.Enum):
@@ -6974,7 +7160,8 @@ class CommandType(enum.Enum):
     BATCH_READ = ...
     BATCH_WRITE = ...
 
-    def __richcmp__(self, other: _aerospike_async_native.CommandType, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __str__(self) -> builtins.str:
         r"""
@@ -7026,15 +7213,15 @@ class Concurrency(enum.Enum):
     """
 
 @typing.final
-class ExpReadFlags(enum.Enum):
+class ExpReadFlags(enum.IntEnum):
     r"""
     Expression read flags for expression operations.
     """
-    DEFAULT = ...
+    DEFAULT: builtins.int
     r"""
     Default.
     """
-    EVAL_NO_FAIL = ...
+    EVAL_NO_FAIL: builtins.int
     r"""
     Ignore failures caused by the expression resolving to unknown or a non-bin type.
     """
@@ -7056,33 +7243,33 @@ class ExpType(enum.Enum):
     HLL = ...
 
 @typing.final
-class ExpWriteFlags(enum.Enum):
+class ExpWriteFlags(enum.IntEnum):
     r"""
     Expression write flags for expression operations.
     """
-    DEFAULT = ...
+    DEFAULT: builtins.int
     r"""
     Default. Allow create or update.
     """
-    CREATE_ONLY = ...
+    CREATE_ONLY: builtins.int
     r"""
     If bin does not exist, a new bin will be created.
     If bin exists, the operation will be denied.
     """
-    UPDATE_ONLY = ...
+    UPDATE_ONLY: builtins.int
     r"""
     If bin exists, the bin will be overwritten.
     If bin does not exist, the operation will be denied.
     """
-    ALLOW_DELETE = ...
+    ALLOW_DELETE: builtins.int
     r"""
     If expression results in nil value, then delete the bin.
     """
-    POLICY_NO_FAIL = ...
+    POLICY_NO_FAIL: builtins.int
     r"""
     Do not raise error if operation is denied.
     """
-    EVAL_NO_FAIL = ...
+    EVAL_NO_FAIL: builtins.int
     r"""
     Ignore failures caused by the expression resolving to unknown or a non-bin type.
     """
@@ -7094,29 +7281,29 @@ class GenerationPolicy(enum.Enum):
     EXPECT_GEN_GREATER = ...
 
 @typing.final
-class HLLWriteFlags(enum.Enum):
+class HLLWriteFlags(enum.IntEnum):
     r"""
     HLL write flags for HLL operations.
     """
-    DEFAULT = ...
+    DEFAULT: builtins.int
     r"""
     Default. Allow create or update.
     """
-    CREATE_ONLY = ...
+    CREATE_ONLY: builtins.int
     r"""
     If the bin already exists, the operation will be denied.
     If the bin does not exist, a new bin will be created.
     """
-    UPDATE_ONLY = ...
+    UPDATE_ONLY: builtins.int
     r"""
     If the bin already exists, the bin will be overwritten.
     If the bin does not exist, the operation will be denied.
     """
-    NO_FAIL = ...
+    NO_FAIL: builtins.int
     r"""
     Do not raise error if operation is denied.
     """
-    ALLOW_FOLD = ...
+    ALLOW_FOLD: builtins.int
     r"""
     Allow the resulting set to be the minimum of provided index bits.
     """
@@ -7152,7 +7339,8 @@ class LatencyUnit(enum.Enum):
     MICROSECONDS = ...
     MILLISECONDS = ...
 
-    def __richcmp__(self, other: _aerospike_async_native.LatencyUnit, op: int) -> builtins.bool: ...
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __ne__(self, other: object) -> builtins.bool: ...
     def __hash__(self) -> builtins.int: ...
     def __str__(self) -> builtins.str:
         r"""
@@ -7186,24 +7374,24 @@ class ListSortFlags(enum.Enum):
     """
 
 @typing.final
-class ListWriteFlags(enum.Enum):
-    DEFAULT = ...
+class ListWriteFlags(enum.IntEnum):
+    DEFAULT: builtins.int
     r"""
     Default is the default behavior. It means: Allow duplicate values and insertions at any index.
     """
-    ADD_UNIQUE = ...
+    ADD_UNIQUE: builtins.int
     r"""
     AddUnique means: Only add unique values.
     """
-    INSERT_BOUNDED = ...
+    INSERT_BOUNDED: builtins.int
     r"""
     InsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted at index outside current list boundaries.
     """
-    NO_FAIL = ...
+    NO_FAIL: builtins.int
     r"""
     NoFail means: do not raise error if a list item fails due to write flag constraints.
     """
-    PARTIAL = ...
+    PARTIAL: builtins.int
     r"""
     Partial means: allow other valid list items to be committed if a list item fails due to write flag constraints.
     """
@@ -7224,24 +7412,24 @@ class MapOrder(enum.Enum):
     """
 
 @typing.final
-class MapWriteFlags(enum.Enum):
-    DEFAULT = ...
+class MapWriteFlags(enum.IntEnum):
+    DEFAULT: builtins.int
     r"""
     Default. Allow create or update.
     """
-    CREATE_ONLY = ...
+    CREATE_ONLY: builtins.int
     r"""
     If the key already exists, the item will be denied. If the key does not exist, a new item will be created.
     """
-    UPDATE_ONLY = ...
+    UPDATE_ONLY: builtins.int
     r"""
     If the key already exists, the item will be overwritten. If the key does not exist, the item will be denied.
     """
-    NO_FAIL = ...
+    NO_FAIL: builtins.int
     r"""
     Do not raise error if a map item is denied due to write flag constraints.
     """
-    PARTIAL = ...
+    PARTIAL: builtins.int
     r"""
     Allow other valid map items to be committed if a map item is denied due to write flag constraints.
     """

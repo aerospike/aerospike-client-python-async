@@ -370,12 +370,11 @@ use crate::string_ops::StringNumericType;
     /// Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
     /// The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
     /// ``RegexFlag`` constant (or combination).
-    // Note: pyo3_stub_gen generates minimal stubs for structs with #[classattr] constants.
-    // Full stubs are added in postprocess_stubs.py.
     #[gen_stub_pyclass(module = "_aerospike_async_native")]
     #[pyclass(name = "RegexFlag", module = "_aerospike_async_native")]
     pub struct RegexFlag;
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl RegexFlag {
         /// Use regex defaults.

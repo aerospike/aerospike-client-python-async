@@ -10,17 +10,16 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""The policy classes' stubs have to be maintained by hand; check they match.
+"""The policy classes' stubs are generated; check they match the runtime.
 
 The four policy classes subclass ``BasePolicy``, so their ``new()`` returns a
-``PyClassInitializer``, which stub generation has no type mapping for. The
-generator therefore emits a bare class shell and the properties are declared in
-``postprocess_stubs.py`` instead.
+``PyClassInitializer``, which stub generation has no type mapping for. Each
+constructor carries a ``#[gen_stub(override_return_type(...))]`` so the impl
+block can be annotated and the properties generated from the Rust getters.
 
-Nothing links that table to the Rust getters, so it drifts silently: a property
-added in Rust is simply absent from the stub, and an incomplete stub is
-indistinguishable from a correct one at a glance. These tests compare the two
-directly, in both directions.
+These tests compare stub and runtime directly, in both directions, so a
+property added in Rust without regenerating the stub, or an annotation that
+quietly stops applying, fails here instead of going unnoticed.
 """
 
 from __future__ import annotations
@@ -69,7 +68,7 @@ def test_every_property_is_stubbed(class_name):
     missing = _runtime_properties(class_name) - _stubbed_properties(class_name)
     assert not missing, (
         f"{class_name} has properties absent from the stub: {sorted(missing)}. "
-        f"Add them to POLICY_PROPERTIES in python/postprocess_stubs.py."
+        f"Regenerate the stubs with `make stubs`."
     )
 
 
@@ -86,13 +85,13 @@ def test_no_property_is_stubbed_that_does_not_exist(class_name):
 def test_class_is_not_a_bare_shell(class_name):
     """Guards the specific way this broke before.
 
-    The fixups matched an unqualified base class; when generation started
-    qualifying it, every one silently became a no-op and the classes reverted
-    to shells. Nothing failed, so nothing was noticed.
+    Without ``#[gen_stub_pymethods]`` on the impl block the class generates as
+    a bare shell with zero properties, and an empty stub looks like a correct
+    one at a glance. Nothing failed, so nothing was noticed.
     """
     assert _stubbed_properties(class_name), (
-        f"{class_name} generated as a bare shell -- the postprocessing pattern "
-        f"did not match."
+        f"{class_name} generated as a bare shell -- its impl block lost "
+        f"#[gen_stub_pymethods]."
     )
 
 
@@ -133,5 +132,5 @@ def test_from_fields_stub_matches_the_real_signature(class_name):
         f"{class_name}.from_fields stub does not match the real signature.\n"
         f"  missing from stub: {sorted(set(real) - set(stubbed))}\n"
         f"  not in the constructor: {sorted(set(stubbed) - set(real))}\n"
-        f"Update POLICY_FROM_FIELDS in python/postprocess_stubs.py."
+        f"Regenerate the stubs with `make stubs`."
     )

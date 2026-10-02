@@ -36,7 +36,12 @@ stubs:
 	# Suppress warnings from dependencies (aerospike-core) to keep output clean
 	# Uses --no-default-features + --features tls so TlsConfig stubs are generated
 	# (extension-module is excluded; only tls is needed for complete stubs)
-	source aerospike.env && RUSTFLAGS="-A warnings" cargo run --no-default-features --features tls --bin stub_gen 2>&1 | grep -v "warning:.*aerospike-core" || true
+	# A generator build failure must fail this target: the previous pipeline form
+	# swallowed it and post-processed the stale file instead.
+	@[ -f aerospike.env ] && . ./aerospike.env; \
+	RUSTFLAGS="-A warnings" cargo run --no-default-features --features tls --bin stub_gen > stub_gen.log 2>&1 \
+		|| { cat stub_gen.log; rm -f stub_gen.log; exit 1; }; \
+	grep -v "warning:.*aerospike-core" stub_gen.log || true; rm -f stub_gen.log
 	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
 	@if [ -f python/aerospike_async/__init__.pyi ]; then \
 		python python/postprocess_stubs.py python/aerospike_async/__init__.pyi; \

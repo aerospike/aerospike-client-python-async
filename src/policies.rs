@@ -280,9 +280,11 @@ use crate::TlsConfig;
     }
 
     /// `ReadPolicy` encapsulates parameters for all write operations.
+    #[gen_stub_pymethods]
     #[pymethods]
     impl ReadPolicy {
         #[new]
+        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.ReadPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
             // PAC opts into positional Record.results by default.
             let mut rp = aerospike_core::ReadPolicy::default();
@@ -543,9 +545,11 @@ use crate::TlsConfig;
 
     /// `WritePolicy` encapsulates parameters for all write operations.
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl WritePolicy {
         #[new]
+        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.WritePolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
             // PAC opts into positional Record.results by default.
             let mut wp = aerospike_core::WritePolicy::default();
@@ -937,9 +941,11 @@ use crate::TlsConfig;
     }
 
     /// `QueryPolicy` encapsulates parameters for query operations.
+    #[gen_stub_pymethods]
     #[pymethods]
     impl QueryPolicy {
         #[new]
+        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.QueryPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
             // PAC opts into positional Record.results by default.
             let mut qp = aerospike_core::QueryPolicy::default();
@@ -1291,9 +1297,11 @@ use crate::TlsConfig;
         pub(crate) _as: aerospike_core::BatchPolicy,
     }
 
+    #[gen_stub_pymethods]
     #[pymethods]
     impl BatchPolicy {
         #[new]
+        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.BatchPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
             // PAC opts into positional Record.results by default.
             let mut bp = aerospike_core::BatchPolicy::default();
