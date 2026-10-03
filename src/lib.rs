@@ -1912,6 +1912,29 @@ use crate::operations::{
             Ok(IndexTask { _as: raw, bridge: None })
         }
 
+        /// Synchronously create a set index (record presence per set; no bin,
+        /// type, context or expression). Returns an :class:`IndexTask`; call
+        /// :meth:`IndexTask.wait_till_complete_blocking` before relying on it.
+        #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
+        pub fn create_set_index_blocking(
+            &self,
+            namespace: String,
+            set_name: String,
+            index_name: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'_>,
+        ) -> PyResult<IndexTask> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
+            let raw = run_blocking(py, async move {
+                client
+                    .create_set_index(&admin_policy, &namespace, &set_name, &index_name)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))
+            })?;
+            Ok(IndexTask { _as: raw, bridge: None })
+        }
+
         /// Synchronously drop a secondary index.
         #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
         pub fn drop_index_blocking(
@@ -4139,6 +4162,35 @@ use crate::operations::{
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
+                Ok(IndexTask { _as: task, bridge: Some(task_bridge) })
+            })
+        }
+
+        /// Create a set index: a secondary index on record presence per set,
+        /// with no bin, type, context or expression. Only the ``sindex-admin``
+        /// privilege is needed. Requires server 8.1.2 or later. Returns an
+        /// :class:`IndexTask`; await :meth:`IndexTask.wait_till_complete`
+        /// before relying on the index.
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[IndexTask]", imports=("typing")))]
+        #[pyo3(signature = (namespace, set_name, index_name, *, policy = None))]
+        pub fn create_set_index<'a>(
+            &self,
+            namespace: String,
+            set_name: String,
+            index_name: String,
+            policy: Option<AdminPolicy>,
+            py: Python<'a>,
+        ) -> PyResult<Bound<'a, PyAny>> {
+            let client = self._as.clone();
+            let admin_policy = policy.map(|p| p._as).unwrap_or_default();
+
+            let bridge = self.require_bridge()?;
+            let task_bridge = bridge.clone();
+            completion::batched_future_into_py(bridge, py, async move {
+                let task = client
+                    .create_set_index(&admin_policy, &namespace, &set_name, &index_name)
+                    .await
+                    .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(IndexTask { _as: task, bridge: Some(task_bridge) })
             })
         }
