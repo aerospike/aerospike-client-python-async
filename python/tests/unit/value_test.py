@@ -182,9 +182,9 @@ def test_list_contains():
 def test_list_delete():
     """Test List item deletion."""
 
-    l = List(TEST_LIST_DATA_2)
-    del l[0]
-    assert l == List([2, 3])
+    lst = List(TEST_LIST_DATA_2)
+    del lst[0]
+    assert lst == List([2, 3])
 
 def test_list_concat():
     """Test List concatenation."""
@@ -196,22 +196,22 @@ def test_list_concat():
 def test_list_repeat():
     """Test List repetition."""
 
-    l = List([1])
-    assert l * 3 == List([1, 1, 1])
+    lst = List([1])
+    assert lst * 3 == List([1, 1, 1])
 
 def test_list_inplace_concat():
     """Test List in-place concatenation."""
 
-    l = List([1])
-    l += List([2, 3])
-    assert l == List(TEST_LIST_DATA_2)
+    lst = List([1])
+    lst += List([2, 3])
+    assert lst == List(TEST_LIST_DATA_2)
 
 def test_list_inplace_repeat():
     """Test List in-place repetition."""
 
-    l = List([1])
-    l *= 3
-    assert l == List([1, 1, 1])
+    lst = List([1])
+    lst *= 3
+    assert lst == List([1, 1, 1])
 
 def test_list_hash():
     """Test List hashing for dictionary keys."""
@@ -333,7 +333,7 @@ def test_blob_get_by_index_fail():
 
     blob = Blob(TEST_BLOB_DATA_1)
     with pytest.raises(IndexError) as exc_info:
-        test = blob[5]
+        blob[5]
     assert exc_info.value.args[0] == "index out of bounds"
 
 def test_blob_set_by_index():

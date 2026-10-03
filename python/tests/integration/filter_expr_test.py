@@ -26,7 +26,7 @@ from aerospike_async import (
     PartitionFilter,
     FilterExpression as fe,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut, InvalidRequest
+from aerospike_async.exceptions import ResultCode, FilteredOut, InvalidRequest
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 

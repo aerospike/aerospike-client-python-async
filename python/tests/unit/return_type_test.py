@@ -21,7 +21,6 @@ These types support combining with INVERTED flag for CDT operations:
     - MapReturnType.VALUE | MapReturnType.INVERTED
 """
 
-import pytest
 from aerospike_async import ListReturnType, MapReturnType
 
 

@@ -17,7 +17,7 @@
 import os
 import pytest
 from aerospike_async import WritePolicy, ReadPolicy, Key, UDFLang
-from aerospike_async.exceptions import ServerError, ResultCode, UDFBadResponse
+from aerospike_async.exceptions import UDFBadResponse
 from fixtures import TestFixtureConnection
 
 

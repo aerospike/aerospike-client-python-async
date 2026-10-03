@@ -15,7 +15,7 @@
 
 import pytest
 from aerospike_async import WritePolicy, ReadPolicy
-from aerospike_async.exceptions import ServerError, ResultCode, BinTypeError
+from aerospike_async.exceptions import ResultCode, BinTypeError
 from fixtures import TestFixtureInsertRecord
 
 

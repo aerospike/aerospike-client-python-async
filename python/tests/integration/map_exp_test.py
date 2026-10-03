@@ -15,13 +15,12 @@
 
 """Tests for map FilterExpression methods."""
 
-import pytest
 from aerospike_async import (
     ExpOperation,
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     MapPolicy, MapOrder, MapWriteMode, MapOperation, MapReturnType,
 )
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_async.exceptions import ServerError
 from fixtures import TestFixtureConnection
 
 

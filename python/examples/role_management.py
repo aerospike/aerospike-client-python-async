@@ -42,7 +42,7 @@ async def role_management_examples():
         client = await new_client(client_policy, host)
         print(f"✅ Connected to Aerospike server at {host}")
 
-        print(f"\n--- Role Creation Examples ---")
+        print("\n--- Role Creation Examples ---")
 
         # Create custom roles with specific privilege sets
         roles_to_create = [
@@ -109,12 +109,12 @@ async def role_management_examples():
             except Exception as e:
                 print(f"❌ Failed to create role {role_info['role_name']}: {e}")
 
-        print(f"\n--- Role Query Examples ---")
+        print("\n--- Role Query Examples ---")
 
         # Query all roles
         try:
             all_roles = await client.query_roles(None)
-            print(f"All roles in the system:")
+            print("All roles in the system:")
             for role in all_roles:
                 print(f"  - {role}")
         except Exception as e:
@@ -128,7 +128,7 @@ async def role_management_examples():
             except Exception as e:
                 print(f"❌ Failed to query role {role_name}: {e}")
 
-        print(f"\n--- Privilege Management Examples ---")
+        print("\n--- Privilege Management Examples ---")
 
         # Grant additional privileges to existing role
         try:
@@ -151,7 +151,7 @@ async def role_management_examples():
         except Exception as e:
             print(f"❌ Failed to revoke privileges: {e}")
 
-        print(f"\n--- Role Configuration Examples ---")
+        print("\n--- Role Configuration Examples ---")
 
         # Update IP allowlist for role
         try:
@@ -168,7 +168,7 @@ async def role_management_examples():
         except Exception as e:
             print(f"❌ Failed to update quotas: {e}")
 
-        print(f"\n--- Role Cleanup ---")
+        print("\n--- Role Cleanup ---")
 
         # Clean up test roles
         test_roles = ["database_administrator", "application_user", "analytics_reader", "udf_developer"]
@@ -179,7 +179,7 @@ async def role_management_examples():
             except Exception as e:
                 print(f"❌ Failed to delete role {role_name}: {e}")
 
-        print(f"\n🎉 Role management examples completed!")
+        print("\n🎉 Role management examples completed!")
 
     except Exception as e:
         print(f"❌ Error: {e}")

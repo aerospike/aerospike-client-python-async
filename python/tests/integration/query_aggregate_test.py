@@ -24,7 +24,7 @@ import asyncio
 import os
 import pytest
 from aerospike_async import (
-    Client, ClientPolicy, Statement, Filter, QueryPolicy,
+    Statement, Filter, QueryPolicy,
     PartitionFilter, IndexType, WritePolicy, Key, UDFLang
 )
 from aerospike_async.exceptions import ResultCode, ServerError

@@ -13,12 +13,10 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import asyncio
 import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, Expiration
-from aerospike_async.exceptions import ServerError, ResultCode
 
 
 @pytest_asyncio.fixture
@@ -444,7 +442,7 @@ async def test_operate_touch_and_get_header(client_and_key):
     rp_check = ReadPolicy()
     check_rec = await client.get(key, ["touchbin"], policy=rp_check)
     if check_rec.ttl == 0:
-        pytest.skip(f"TTL not being applied by server (got ttl=0)")
+        pytest.skip("TTL not being applied by server (got ttl=0)")
 
     wp.expiration = Expiration.seconds(120)
     record = await client.operate(

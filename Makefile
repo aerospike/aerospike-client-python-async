@@ -6,7 +6,7 @@ user ?= ""
 pass ?= ""
 ns ?= "test"
 
-.PHONY: build test test-unit test-int install clean stubs local-cargo git-cargo
+.PHONY: build test test-unit test-int install clean stubs local-cargo git-cargo lint
 all: lint dev build test install clean
 
 local-cargo:
@@ -52,7 +52,8 @@ stubs:
 	@echo "Generated stubs in python/aerospike_async/"
 
 lint:
-	cargo clippy
+	ruff check python/
+	cargo clippy --locked --all-targets -- -D warnings
 
 dev:
 	# Show resolved Rust core (at a glance)

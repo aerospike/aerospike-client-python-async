@@ -25,7 +25,7 @@ from aerospike_async import (
     UDFLang,
     BatchRecord,
 )
-from aerospike_async.exceptions import BatchFailedError, ClientError, UDFBadResponse, ResultCode
+from aerospike_async.exceptions import BatchFailedError, ClientError, ResultCode
 from fixtures import TestFixtureConnection
 
 

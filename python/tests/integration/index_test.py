@@ -17,7 +17,7 @@
 
 import pytest
 from aerospike_async import IndexType, CollectionIndexType, TaskStatus
-from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
+from aerospike_async.exceptions import ResultCode, IndexFoundError
 from aerospike_async.exceptions import ValueError as PacValueError
 from fixtures import TestFixtureConnection
 

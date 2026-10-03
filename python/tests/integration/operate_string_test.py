@@ -35,8 +35,6 @@ from aerospike_async import (
     CTX,
     ErrorDetailVerbosity,
     Key,
-    MapPolicy,
-    MapWriteFlags,
     new_client,
     ResultCode,
     StringNumericType,
@@ -619,8 +617,6 @@ class TestToString:
     async def test_int_to_string(self, string_client_820):
         key = _key("ts_int")
         await string_client_820.put(key, {"n": 42}, policy=WritePolicy())
-        out = await _operate_first_value(string_client_820, key, [StringOperation.to_string("n")])
-        # Map _operate_first_value returns by "s" — re-key.
         rec = await string_client_820.operate(
             key, [StringOperation.to_string("n")], policy=WritePolicy()
         )

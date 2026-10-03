@@ -31,7 +31,6 @@ class TestExpOperationRead(TestFixtureConnection):
         """Test reading an integer expression result."""
         key = Key("test", "test", "exp_read_int")
         wp = WritePolicy()
-        rp = ReadPolicy()
 
         try:
             # Create a record with an integer bin
@@ -100,7 +99,7 @@ class TestExpOperationRead(TestFixtureConnection):
             )
 
             assert "passed" in result.bins
-            assert result.bins["passed"] == True
+            assert result.bins["passed"] is True
         finally:
             try:
                 await client.delete(key, policy=wp)

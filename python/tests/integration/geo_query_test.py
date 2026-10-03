@@ -58,7 +58,7 @@ class TestGeoQuery(TestFixtureConnection):
             try:
                 await client.drop_index(namespace, set_name, index_name)
                 await asyncio.sleep(0.2)  # Brief wait for index drop to complete
-            except:
+            except Exception:
                 pass
 
             await client.create_index(
@@ -150,5 +150,5 @@ class TestGeoQuery(TestFixtureConnection):
                 assert LOCBIN in record.bins, f"Record should have {LOCBIN} bin"
                 assert isinstance(record.bins[LOCBIN], GeoJSON), "Location should be GeoJSON"
         elif len(records_list) == 0:
-            print(f"Warning: Query returned 0 results after waiting for index and records to be ready")
+            print("Warning: Query returned 0 results after waiting for index and records to be ready")
 

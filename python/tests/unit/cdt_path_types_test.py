@@ -15,7 +15,6 @@
 
 """Unit tests for CDT path expression types: LoopVarPart, SelectFlags, ModifyFlags, CdtOperation."""
 
-import pytest
 from aerospike_async import (
     CTX,
     CdtOperation,

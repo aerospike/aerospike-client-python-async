@@ -20,7 +20,7 @@ User Management Examples - Demonstrates user creation, role management, and priv
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
+from aerospike_async import new_client, ClientPolicy
 
 
 async def user_management_examples():
@@ -42,7 +42,7 @@ async def user_management_examples():
         client = await new_client(client_policy, host)
         print(f"✅ Connected to Aerospike server at {host}")
 
-        print(f"\n--- User Creation Examples ---")
+        print("\n--- User Creation Examples ---")
 
         # Create different types of users with different privilege sets
         users_to_create = [
@@ -85,12 +85,12 @@ async def user_management_examples():
             except Exception as e:
                 print(f"❌ Failed to create user {user_info['username']}: {e}")
 
-        print(f"\n--- User Query Examples ---")
+        print("\n--- User Query Examples ---")
 
         # Query all users
         try:
             all_users = await client.query_users(None)
-            print(f"All users in the system:")
+            print("All users in the system:")
             for user in all_users:
                 print(f"  - {user}")
         except Exception as e:
@@ -103,12 +103,12 @@ async def user_management_examples():
         except Exception as e:
             print(f"❌ Failed to query admin user: {e}")
 
-        print(f"\n--- Role Management Examples ---")
+        print("\n--- Role Management Examples ---")
 
         # Query all roles
         try:
             all_roles = await client.query_roles(None)
-            print(f"All roles in the system:")
+            print("All roles in the system:")
             for role in all_roles:
                 print(f"  - {role}")
         except Exception as e:
@@ -121,7 +121,7 @@ async def user_management_examples():
         except Exception as e:
             print(f"❌ Failed to query user-admin role: {e}")
 
-        print(f"\n--- User Role Management ---")
+        print("\n--- User Role Management ---")
 
         # Grant additional roles to existing user
         try:
@@ -137,7 +137,7 @@ async def user_management_examples():
         except Exception as e:
             print(f"❌ Failed to revoke roles: {e}")
 
-        print(f"\n--- Password Management ---")
+        print("\n--- Password Management ---")
 
         # Change user password
         try:
@@ -146,7 +146,7 @@ async def user_management_examples():
         except Exception as e:
             print(f"❌ Failed to change password: {e}")
 
-        print(f"\n--- User Cleanup ---")
+        print("\n--- User Cleanup ---")
 
         # Clean up test users
         test_users = ["admin_user", "app_user", "analyst_user", "developer_user"]
@@ -157,7 +157,7 @@ async def user_management_examples():
             except Exception as e:
                 print(f"❌ Failed to delete user {username}: {e}")
 
-        print(f"\n🎉 User management examples completed!")
+        print("\n🎉 User management examples completed!")
 
     except Exception as e:
         print(f"❌ Error: {e}")

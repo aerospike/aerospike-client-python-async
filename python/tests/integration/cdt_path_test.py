@@ -37,7 +37,6 @@ from aerospike_async import (
     SelectFlags,
     WritePolicy,
 )
-from aerospike_async.exceptions import ServerError
 
 
 # ---------------------------------------------------------------------------

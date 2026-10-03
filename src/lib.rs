@@ -2417,7 +2417,7 @@ use crate::operations::{
                 use aerospike_core::BatchOperation;
                 let read_policy = aerospike_core::BatchReadPolicy::default();
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
-                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list.into_iter()) {
+                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list) {
                     let (core_ops, has_write_op) = convert_ops_with_ctx_to_core(&ops, true)?;
                     let batch_op = if has_write_op {
                         BatchOperation::write(&write_policy, key, core_ops)
@@ -3444,7 +3444,7 @@ use crate::operations::{
                 let read_policy = aerospike_core::BatchReadPolicy::default();
 
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
-                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list.into_iter()) {
+                for (key, ops) in rust_keys.into_iter().zip(rust_ops_list) {
                     let (core_ops, has_write_op) = convert_ops_with_ctx_to_core(&ops, true)?;
                     let batch_op = if has_write_op {
                         BatchOperation::write(&write_policy, key, core_ops)

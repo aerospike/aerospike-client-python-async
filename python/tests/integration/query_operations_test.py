@@ -37,7 +37,7 @@ import pytest_asyncio
 # in PAC's completion bridge fires.
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-from aerospike_async import (
+from aerospike_async import (  # noqa: E402
     ClientPolicy,
     CollectionIndexType,
     ExpOperation,
@@ -56,8 +56,8 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import ResultCode, ValueError as PacValueError
-from fixtures import wait_for_scan_visible
+from aerospike_async.exceptions import ResultCode, ValueError as PacValueError  # noqa: E402
+from fixtures import wait_for_scan_visible  # noqa: E402
 
 
 _NAMESPACE = "test"
