@@ -688,6 +688,9 @@ pub enum Concurrency {
         MapKeys,
         #[pyo3(name = "MAP_VALUES")]
         MapValues,
+        /// A set index: record presence per set, with no bin or type.
+        #[pyo3(name = "SET")]
+        Set,
     }
 
 
@@ -700,6 +703,7 @@ pub enum Concurrency {
                 CollectionIndexType::MapValues => {
                     aerospike_core::query::CollectionIndexType::MapValues
                 }
+                CollectionIndexType::Set => aerospike_core::query::CollectionIndexType::Set,
             }
         }
     }
@@ -864,10 +868,8 @@ pub enum Concurrency {
             let mine = i64::from(self.code());
             let theirs: Option<i64> = if let Ok(rc) = other.extract::<ResultCode>() {
                 Some(i64::from(rc.code()))
-            } else if let Ok(n) = other.extract::<i64>() {
-                Some(n)
             } else {
-                None
+                other.extract::<i64>().ok()
             };
             let Some(theirs) = theirs else {
                 return Ok(py.NotImplemented());
@@ -946,6 +948,7 @@ pub enum Concurrency {
                 CoreResultCode::OpNotApplicable => "OP_NOT_APPLICABLE",
                 CoreResultCode::FilteredOut => "FILTERED_OUT",
                 CoreResultCode::LostConflict => "LOST_CONFLICT",
+                CoreResultCode::InvalidEncoding => "INVALID_ENCODING",
                 CoreResultCode::XDRKeyBusy => "XDR_KEY_BUSY",
                 CoreResultCode::QueryEnd => "QUERY_END",
                 CoreResultCode::SecurityNotSupported => "SECURITY_NOT_SUPPORTED",
@@ -1094,6 +1097,8 @@ pub enum Concurrency {
         fn FILTERED_OUT() -> ResultCode { ResultCode::from(CoreResultCode::FilteredOut) }
         #[classattr]
         fn LOST_CONFLICT() -> ResultCode { ResultCode::from(CoreResultCode::LostConflict) }
+        #[classattr]
+        fn INVALID_ENCODING() -> ResultCode { ResultCode::from(CoreResultCode::InvalidEncoding) }
         #[classattr]
         fn XDR_KEY_BUSY() -> ResultCode { ResultCode::from(CoreResultCode::XDRKeyBusy) }
         #[classattr]

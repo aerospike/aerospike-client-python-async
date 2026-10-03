@@ -68,6 +68,7 @@ fn core_collection_index_type(cit: &aerospike_core::CollectionIndexType) -> Coll
         aerospike_core::CollectionIndexType::List => CollectionIndexType::List,
         aerospike_core::CollectionIndexType::MapKeys => CollectionIndexType::MapKeys,
         aerospike_core::CollectionIndexType::MapValues => CollectionIndexType::MapValues,
+        aerospike_core::CollectionIndexType::Set => CollectionIndexType::Set,
     }
 }
 

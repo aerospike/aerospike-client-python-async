@@ -1237,12 +1237,12 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_result_code(&self) -> Option<ResultCode> {
-            self._as.result_code.map(ResultCode::from)
+            self._as.result_code().map(ResultCode::from)
         }
 
         #[getter]
         pub fn get_in_doubt(&self) -> bool {
-            self._as.in_doubt
+            self._as.in_doubt()
         }
 
         /// The server-supplied error subcode for this record, or None when the

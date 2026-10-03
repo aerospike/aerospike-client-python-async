@@ -5762,6 +5762,7 @@ class ResultCode:
     OP_NOT_APPLICABLE: _aerospike_async_native.ResultCode
     FILTERED_OUT: _aerospike_async_native.ResultCode
     LOST_CONFLICT: _aerospike_async_native.ResultCode
+    INVALID_ENCODING: _aerospike_async_native.ResultCode
     XDR_KEY_BUSY: _aerospike_async_native.ResultCode
     QUERY_END: _aerospike_async_native.ResultCode
     SECURITY_NOT_SUPPORTED: _aerospike_async_native.ResultCode
@@ -7137,6 +7138,10 @@ class CollectionIndexType(enum.Enum):
     LIST = ...
     MAP_KEYS = ...
     MAP_VALUES = ...
+    SET = ...
+    r"""
+    A set index: record presence per set, with no bin or type.
+    """
 
 @typing.final
 class CommandType(enum.Enum):

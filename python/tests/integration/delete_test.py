@@ -45,6 +45,7 @@ class TestDelete(TestFixtureInsertRecord):
         with pytest.raises(TimeoutError) as exi:
             await client.delete(key_invalid_namespace, policy=wp)
         assert "Timeout" in str(exi.value)
-        # A client-side deadline reports the shared TIMEOUT code, not a
-        # client-only one, so retry logic classifies both timeouts alike.
-        assert exi.value.result_code == ResultCode.TIMEOUT
+        # No node owns the partition, so every attempt fails before the wire
+        # and the retry budget runs out: MAX_RETRIES_EXCEEDED, not the
+        # deadline's TIMEOUT.
+        assert exi.value.result_code == ResultCode.MAX_RETRIES_EXCEEDED
