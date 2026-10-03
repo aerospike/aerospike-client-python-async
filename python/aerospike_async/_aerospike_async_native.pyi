@@ -2759,7 +2759,15 @@ class FilterExpression:
     @staticmethod
     def xor(exps: typing.Sequence[_aerospike_async_native.FilterExpression]) -> _aerospike_async_native.FilterExpression:
         r"""
-        Create "xor" (^) operator that applies to a variable number of expressions.
+        Create an expression that is true when exactly one of the expressions
+        is true. Same operator as ``exclusive``; unlike a bitwise ``^``, three
+        true operands evaluate to false. The server requires at least two.
+        """
+    @staticmethod
+    def exclusive(exps: typing.Sequence[_aerospike_async_native.FilterExpression]) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create an expression that is true when exactly one of the expressions
+        is true. The server requires at least two.
         """
     @staticmethod
     def eq(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
