@@ -772,3 +772,21 @@ def test_blocking_core_panic_is_catchable(
         # The local client owns its runtime and shuts down on drop.
         if not isinstance(client, _LocalClient):
             client.close_blocking()
+
+
+def test_blocking_create_set_index(aerospike_host, use_services_alternate):
+    cp = ClientPolicy()
+    cp.use_services_alternate = use_services_alternate
+    client = new_client_blocking(cp, aerospike_host)
+    index_name = "pac_set_idx_blk"
+    try:
+        try:
+            client.drop_index_blocking("test", "test", index_name).wait_till_complete_blocking()
+        except IndexNotFound:
+            pass
+        task = client.create_set_index_blocking("test", "test", index_name)
+        assert task.wait_till_complete_blocking()
+        task = client.drop_index_blocking("test", "test", index_name)
+        assert task.wait_till_complete_blocking()
+    finally:
+        client.close_blocking()

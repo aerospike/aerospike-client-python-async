@@ -951,6 +951,18 @@ use crate::record::PythonValue;
             Ok(core_ctxs.into_iter().map(|c| CTX { ctx: c }).collect())
         }
 
+        /// Pack a context array to the raw byte stream that :meth:`to_base64`
+        /// encodes -- pairs with :meth:`from_bytes`.
+        ///
+        /// Requires Aerospike Server version >= 8.1.1.
+        #[staticmethod]
+        pub fn to_bytes(py: Python<'_>, ctx: Vec<CTX>) -> PyResult<Py<pyo3::types::PyBytes>> {
+            let core_ctx = ctx_to_vec(&ctx);
+            let bytes = aerospike_core::operations::cdt_context::to_bytes(&core_ctx)
+                .map_err(|e| PyErr::from(crate::errors::RustClientError(e)))?;
+            Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())
+        }
+
         /// Restore a context array from the raw byte stream that base64
         /// encodes.
         ///

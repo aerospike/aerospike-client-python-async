@@ -811,6 +811,14 @@ class CTX:
         Requires Aerospike Server version >= 8.1.1.
         """
     @staticmethod
+    def to_bytes(ctx: typing.Sequence[_aerospike_async_native.CTX]) -> bytes:
+        r"""
+        Pack a context array to the raw byte stream that :meth:`to_base64`
+        encodes -- pairs with :meth:`from_bytes`.
+
+        Requires Aerospike Server version >= 8.1.1.
+        """
+    @staticmethod
     def from_bytes(bytes: typing.Sequence[builtins.int]) -> builtins.list[_aerospike_async_native.CTX]:
         r"""
         Restore a context array from the raw byte stream that base64
@@ -1185,6 +1193,12 @@ class Client:
         Synchronously create a secondary index on a bin. Returns an
         :class:`IndexTask`; call :meth:`IndexTask.wait_till_complete_blocking`
         before querying through the index.
+        """
+    def create_set_index_blocking(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> _aerospike_async_native.IndexTask:
+        r"""
+        Synchronously create a set index (record presence per set; no bin,
+        type, context or expression). Returns an :class:`IndexTask`; call
+        :meth:`IndexTask.wait_till_complete_blocking` before relying on it.
         """
     def drop_index_blocking(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> _aerospike_async_native.DropIndexTask:
         r"""
@@ -1580,6 +1594,14 @@ class Client:
         Create a secondary index on a bin containing scalar values. Returns an
         :class:`IndexTask`; the server builds the index asynchronously, so await
         :meth:`IndexTask.wait_till_complete` before querying through it.
+        """
+    def create_set_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[IndexTask]:
+        r"""
+        Create a set index: a secondary index on record presence per set,
+        with no bin, type, context or expression. Only the ``sindex-admin``
+        privilege is needed. Requires server 8.1.2 or later. Returns an
+        :class:`IndexTask`; await :meth:`IndexTask.wait_till_complete`
+        before relying on the index.
         """
     def drop_index(self, namespace: builtins.str, set_name: builtins.str, index_name: builtins.str, *, policy: typing.Optional[_aerospike_async_native.AdminPolicy] = None) -> typing.Awaitable[DropIndexTask]:
         r"""
