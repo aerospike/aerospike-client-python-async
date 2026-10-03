@@ -23,7 +23,7 @@ _this_dir = str(Path(__file__).parent)
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
-from fixtures import wait_for_index_ready
+from fixtures import wait_for_index_ready  # noqa: E402
 
 
 @pytest.fixture

@@ -20,7 +20,7 @@ import pytest_asyncio
 
 from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, BitOperation,
                              BitPolicy, BitWriteFlags, BitwiseResizeFlags, BitwiseOverflowActions)
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
+from aerospike_async.exceptions import ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
 
 @pytest_asyncio.fixture

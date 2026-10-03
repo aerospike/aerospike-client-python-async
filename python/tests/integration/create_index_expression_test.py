@@ -22,7 +22,7 @@ from aerospike_async import (
     FilterExpression,
     TaskStatus,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
+from aerospike_async.exceptions import ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 

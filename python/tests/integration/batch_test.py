@@ -20,15 +20,14 @@ import pytest_asyncio
 
 from aerospike_async import (
     new_client, ClientPolicy, WritePolicy, ReadPolicy, Key,
-    BatchPolicy, BatchReadPolicy, BatchWritePolicy, BatchDeletePolicy, BatchUDFPolicy,
-    BatchRecord, ListOperation, Operation, ListReturnType,
+    BatchPolicy, BatchReadPolicy, BatchWritePolicy, BatchDeletePolicy, BatchRecord, ListOperation, Operation, ListReturnType,
     FilterExpression, ListPolicy, Expiration,
-    ExpOperation, ExpWriteFlags, ExpReadFlags,
+    ExpOperation, ExpReadFlags,
     BatchReadOp, BatchWriteOp, BatchDeleteOp,
     RecordExistsAction,
     MapOperation, MapPolicy, MapReturnType, CTX,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidNodeError, InvalidNamespaceError, RecordNotFound
+from aerospike_async.exceptions import ServerError, ResultCode, InvalidNamespaceError, RecordNotFound
 
 @pytest_asyncio.fixture
 async def client_and_keys():

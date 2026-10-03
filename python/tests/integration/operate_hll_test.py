@@ -21,7 +21,7 @@ import pytest
 import math
 from fixtures import TestFixtureConnection
 from aerospike_async import (
-    Key, WritePolicy, ReadPolicy, HllOperation, HLLWriteFlags, Operation
+    Key, WritePolicy, HllOperation, HLLWriteFlags, Operation
 )
 from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
@@ -571,7 +571,6 @@ class TestHllSimilarity(TestFixtureConnection):
 
     async def test_get_intersect_count(self, client):
         """Test get_intersect_count estimates intersection cardinality."""
-        key1 = Key("test", "test", "hll_intersect_1")
         key2 = Key("test", "test", "hll_intersect_2")
         key_main = Key("test", "test", "hll_intersect_main")
         index_bits = 12
@@ -581,17 +580,6 @@ class TestHllSimilarity(TestFixtureConnection):
         common = [f"common_{i}" for i in range(50)]
         unique1 = [f"unique1_{i}" for i in range(50)]
         unique2 = [f"unique2_{i}" for i in range(50)]
-
-        await safe_delete(client, key1)
-        result1 = await client.operate(
-            key1,
-            [
-            HllOperation.add("hll", common + unique1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
-            Operation.get_bin("hll")
-        ],
-            policy=WritePolicy(),
-        )
-        hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
         result2 = await client.operate(
@@ -671,7 +659,6 @@ class TestHllSimilarity(TestFixtureConnection):
 
     async def test_similarity_disjoint_sets(self, client):
         """Test similarity of completely disjoint sets is close to 0."""
-        key1 = Key("test", "test", "hll_sim_disjoint_1")
         key2 = Key("test", "test", "hll_sim_disjoint_2")
         key_main = Key("test", "test", "hll_sim_disjoint_main")
         index_bits = 12
@@ -679,17 +666,6 @@ class TestHllSimilarity(TestFixtureConnection):
 
         values1 = [f"set1_value_{i}" for i in range(100)]
         values2 = [f"set2_value_{i}" for i in range(100)]
-
-        await safe_delete(client, key1)
-        result1 = await client.operate(
-            key1,
-            [
-            HllOperation.add("hll", values1, index_bit_count=index_bits, min_hash_bit_count=minhash_bits),
-            Operation.get_bin("hll")
-        ],
-            policy=WritePolicy(),
-        )
-        hll1 = result1.bins["hll"][1]
 
         await safe_delete(client, key2)
         result2 = await client.operate(

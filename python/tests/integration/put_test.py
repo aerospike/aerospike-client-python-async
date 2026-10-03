@@ -18,7 +18,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest
+from aerospike_async.exceptions import ResultCode, InvalidRequest
 
 
 @pytest_asyncio.fixture
@@ -139,20 +139,20 @@ async def test_put_list(client_and_key):
 
     client, rp, key = client_and_key
 
-    l = [1, "str", bytearray([1, 2, 3, 4, 5, 6]), True, False, 1572, 3.1415]
+    values = [1, "str", bytearray([1, 2, 3, 4, 5, 6]), True, False, 1572, 3.1415]
 
     wp = WritePolicy()
     await client.put(
         key,
         {
-            "bin": l,
+            "bin": values,
         },
         policy=wp,
     )
 
     rec = await client.get(key, policy=rp)
     assert rec is not None
-    assert rec.bins == {"bin": l}
+    assert rec.bins == {"bin": values}
 
 async def test_put_dict(client_and_key):
     """Test putting dictionary values."""
@@ -160,7 +160,7 @@ async def test_put_dict(client_and_key):
     client, rp, key = client_and_key
 
     b = Blob(b"Some bytes")
-    l = List([1572, 3.1415])
+    lst = List([1572, 3.1415])
     d = {
         "str": 1,
         1: "str",
@@ -170,7 +170,7 @@ async def test_put_dict(client_and_key):
         9182: False,  # Changed from 9182.58723 to 9182
         3: [123, 981, 4.12345, [1858673, "str"]],  # Changed from 3.141519 to 3
         "false_key": {"something": [123, 981, 4.12345, [1858673, "str"]]},  # Changed from False: {...} to "false_key": {...}
-        "list_key": l,  # Changed from l: b to "list_key": l
+        "list_key": lst,
     }
 
     wp = WritePolicy()

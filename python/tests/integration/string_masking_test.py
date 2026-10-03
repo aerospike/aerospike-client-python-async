@@ -45,7 +45,6 @@ Masking-command syntax (probed against ``34.28.91.57:3000``):
 
 import asyncio
 import os
-import uuid
 
 import pytest
 import pytest_asyncio
@@ -53,10 +52,7 @@ import pytest_asyncio
 from aerospike_async import (
     ClientPolicy,
     Key,
-    Privilege,
-    PrivilegeCode,
     StringOperation,
-    StringWriteFlags,
     WritePolicy,
     new_client,
 )

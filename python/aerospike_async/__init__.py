@@ -52,7 +52,7 @@ if not _os.environ.get("AEROSPIKE_NO_UVLOOP"):
 del _os
 
 # Import all classes and functions from the compiled module
-from ._aerospike_async_native import *
+from ._aerospike_async_native import *  # noqa: E402,F403
 
 # Load the exceptions wrapper module with the package: it applies Python-side
 # class defaults (e.g. AerospikeError.in_doubt) that must exist even for
@@ -61,7 +61,7 @@ from ._aerospike_async_native import *
 # would make `from . import exceptions` a no-op attribute lookup — import the
 # wrapper explicitly and rebind the package attribute to it (it also carries
 # the ServerError subclass hierarchy the native submodule lacks).
-import importlib as _importlib
+import importlib as _importlib  # noqa: E402
 exceptions = _importlib.import_module(".exceptions", __name__)
 del _importlib
 

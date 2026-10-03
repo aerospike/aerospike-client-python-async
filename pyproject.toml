@@ -33,6 +33,17 @@ features = ["pyo3/extension-module"]
 module-name = "aerospike_async._aerospike_async_native"
 python-source = "python"
 
+[tool.ruff]
+# Matches PSDK so one lint dialect covers both repos.
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# Stub files re-export the compiled module wholesale; a star import is the
+# idiomatic form there. `__init__.pyi` is also rewritten by postprocess_stubs.py,
+# so an inline noqa would not survive regeneration.
+"*.pyi" = ["F403"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "-s"

@@ -20,7 +20,7 @@ import pytest_asyncio
 
 from aerospike_async import (
     new_client, ClientPolicy, WritePolicy, ReadPolicy, Key,
-    MapOperation, MapOrder, MapPolicy, MapReturnType, Operation,
+    MapOperation, MapOrder, MapPolicy, MapReturnType,
 )
 from aerospike_async.exceptions import InvalidRequest, ResultCode
 

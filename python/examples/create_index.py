@@ -27,7 +27,7 @@ This example demonstrates:
 import asyncio
 import os
 from aerospike_async import (
-    new_client, Client, ClientPolicy,
+    new_client, ClientPolicy,
     IndexType, CollectionIndexType
 )
 

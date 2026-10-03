@@ -83,7 +83,7 @@ async def main():
     pf = PartitionFilter.all()
     stmt = Statement("test", "test", [])
     rcs = await c.query(qp, pf, stmt)
-    print(f"Query results (all records):")
+    print("Query results (all records):")
     i = 0
     async for rec in rcs:
         i += 1
@@ -94,7 +94,7 @@ async def main():
     stmt = Statement("test", "test", [])
     stmt.filters = [Filter.range("year", 1964, 1968)]
     rcs = await c.query(qp, pf, stmt)
-    print(f"Query results (filtered by year range):")
+    print("Query results (filtered by year range):")
     i = 0
     async for rec in rcs:
         i += 1

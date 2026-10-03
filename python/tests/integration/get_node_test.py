@@ -121,7 +121,6 @@ class TestNodeProperties(TestFixtureConnection):
 
     async def test_node_version_property(self, client):
         """Test Node.version property returns Version object."""
-        from aerospike_async import Version
 
         nodes = client.nodes()
         node = nodes[0]

@@ -38,7 +38,7 @@ import pytest_asyncio
 # in PAC's completion bridge fires.
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-from aerospike_async import (
+from aerospike_async import (  # noqa: E402
     CTX,
     ClientPolicy,
     ExpOperation,

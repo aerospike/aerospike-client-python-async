@@ -151,7 +151,7 @@ async def main():
         # Use str(region) to get the JSON string representation
         # (This is equivalent to region.dumps() in the legacy Python client)
         region_str = str(region)
-        print(f"Creating query filter...")
+        print("Creating query filter...")
         print(f"  Region GeoJSON: {region_str}")
         print(f"  Bin name: {LOCBIN}")
         print()
@@ -164,7 +164,7 @@ async def main():
         # Construct the query statement
         statement = Statement(namespace, set_name, bins=None)
         statement.filters = [predicate]
-        print(f"Query statement:")
+        print("Query statement:")
         print(f"  Namespace: {namespace}")
         print(f"  Set: {set_name}")
         print(f"  Filters: {len(statement.filters)} filter(s)")

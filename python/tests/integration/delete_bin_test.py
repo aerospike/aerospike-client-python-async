@@ -15,7 +15,6 @@
 
 """Tests for deleting specific bins from records."""
 
-import pytest
 from aerospike_async import WritePolicy, ReadPolicy, Key
 from fixtures import TestFixtureConnection
 

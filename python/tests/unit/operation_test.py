@@ -27,7 +27,6 @@ from aerospike_async import (
     ListSortFlags,
     MapPolicy,
     MapOrder,
-    MapWriteMode,
     MapReturnType,
     BitPolicy,
     BitwiseOverflowActions,

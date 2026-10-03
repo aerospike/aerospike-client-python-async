@@ -877,6 +877,27 @@ jobs:
           name: wheels-linux-${{ matrix.python }}-${{ matrix.target }}
           path: aerospike_async
 
+  lint:
+    # Ruff is pinned so a new release can't fail unchanged code.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install ruff
+        run: pip install ruff==0.15.12
+      - name: ruff
+        run: ruff check python/
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.90.0
+          components: clippy
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
   # The committed .pyi files are build outputs: regenerate them and fail if the
   # tree moved, so a Rust change cannot ship with a stale stub.
   stubs:

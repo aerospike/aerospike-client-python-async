@@ -157,11 +157,11 @@ class TestClientError:
         assert isinstance(timeout_error, AerospikeError)
         
         # But they are different types
-        assert type(client_error) == ClientError
+        assert type(client_error) is ClientError
         assert isinstance(server_error, ServerError)
-        assert type(connection_error) == ConnectionError
-        assert type(value_error) == ValueError
-        assert type(timeout_error) == TimeoutError
+        assert type(connection_error) is ConnectionError
+        assert type(value_error) is ValueError
+        assert type(timeout_error) is TimeoutError
         
         # ClientError should not be caught by other exception handlers
         try:

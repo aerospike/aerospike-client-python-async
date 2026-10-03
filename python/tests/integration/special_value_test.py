@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 
 from aerospike_async import (
-    new_client, ClientPolicy, WritePolicy, ReadPolicy, Key,
+    new_client, ClientPolicy, WritePolicy, Key,
     MapOperation, MapPolicy, MapReturnType,
     ListOperation, ListPolicy, ListReturnType,
     SpecialValue,

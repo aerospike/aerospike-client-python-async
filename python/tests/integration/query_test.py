@@ -74,7 +74,7 @@ class TestQuery(TestFixtureInsertRecord):
         """Test query operation with invalid parameters raises TypeError."""
         # Test with invalid partition filter type to trigger TypeError
         with pytest.raises(TypeError):
-            records = await client.query(Statement("test", "test", ["bin1"]), "invalid_filter", policy=QueryPolicy())
+            await client.query(Statement("test", "test", ["bin1"]), "invalid_filter", policy=QueryPolicy())
 
     async def test_invalid_node_error(self, client):
         """Test query operation with invalid namespace raises InvalidNamespaceError during iteration."""

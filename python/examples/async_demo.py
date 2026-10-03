@@ -31,7 +31,7 @@ concurrent operations.
 
 import asyncio
 import os
-from typing import List, Dict, Any
+from typing import List
 
 from aerospike_async import (
     new_client,
