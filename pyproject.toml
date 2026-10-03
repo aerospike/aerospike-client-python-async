@@ -39,9 +39,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
-# Stub files re-export the compiled module wholesale; a star import is the
-# idiomatic form there. `__init__.pyi` is also rewritten by postprocess_stubs.py,
-# so an inline noqa would not survive regeneration.
+# Stubs re-export the compiled module with a star import.
 "*.pyi" = ["F403"]
 
 [tool.pytest.ini_options]

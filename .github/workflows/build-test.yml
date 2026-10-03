@@ -878,7 +878,7 @@ jobs:
           path: aerospike_async
 
   lint:
-    # Ruff is pinned so a new release can't fail unchanged code.
+    # Ruff and Clippy are pinned so a new release can't fail unchanged code.
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -894,6 +894,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: 1.90.0
+          override: true
           components: clippy
       - name: cargo clippy
         run: cargo clippy --locked --all-targets -- -D warnings
