@@ -837,10 +837,23 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Create "xor" (^) operator that applies to a variable number of expressions.
+        /// Create an expression that is true when exactly one of the expressions
+        /// is true. Same operator as ``exclusive``; unlike a bitwise ``^``, three
+        /// true operands evaluate to false. The server requires at least two.
         pub fn xor(exps: Vec<FilterExpression>) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::xor(
+                    exps.into_iter().map(|exp| exp._as).collect(),
+                ),
+            }
+        }
+
+        #[staticmethod]
+        /// Create an expression that is true when exactly one of the expressions
+        /// is true. The server requires at least two.
+        pub fn exclusive(exps: Vec<FilterExpression>) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::exclusive(
                     exps.into_iter().map(|exp| exp._as).collect(),
                 ),
             }

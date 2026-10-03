@@ -71,6 +71,55 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         assert unfiltered.bins == {}
 
 
+
+class TestFilterExprExclusive(TestFixtureConnection):
+    """``exclusive`` / ``xor``: true when exactly one operand is true."""
+
+    @pytest.fixture
+    async def keys(self, client):
+        made = []
+
+        async def make(bins):
+            key = Key("test", "test", f"exclusive_{uuid.uuid4().hex}")
+            await client.put(key, bins, policy=WritePolicy())
+            made.append(key)
+            return key
+
+        yield make
+        for key in made:
+            await client.delete(key, policy=WritePolicy())
+
+    @staticmethod
+    def _is_one(name):
+        return fe.eq(fe.int_bin(name), fe.int_val(1))
+
+    @staticmethod
+    async def _matches(client, key, exp):
+        rp = ReadPolicy()
+        rp.filter_expression = exp
+        try:
+            await client.get(key, policy=rp)
+        except FilteredOut:
+            return False
+        return True
+
+    async def test_exactly_one_true_matches(self, client, keys):
+        both = await keys({"A": 1, "D": 1})
+        one = await keys({"A": 2, "D": 1})
+        exp = fe.exclusive([self._is_one("A"), self._is_one("D")])
+
+        assert not await self._matches(client, both, exp)
+        assert await self._matches(client, one, exp)
+
+    async def test_three_true_operands_do_not_match(self, client, keys):
+        # Distinguishes "exactly one" from parity, where three trues would match.
+        key = await keys({"A": 1, "B": 1, "C": 1})
+        operands = [self._is_one("A"), self._is_one("B"), self._is_one("C")]
+
+        assert not await self._matches(client, key, fe.exclusive(operands))
+        assert not await self._matches(client, key, fe.xor(operands))
+
+
 class TestFilterExprListVal(TestFixtureInsertRecord):
     """Test list_val filter expression usage."""
 
