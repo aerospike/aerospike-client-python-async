@@ -60,6 +60,8 @@ jobs:
       # Merges publish for real; manual dispatches default to dry-run.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
       version-override: ${{ needs.compute-version.outputs.cargo-version }}
+      # Only the wheels something installs; releases build the full set.
+      wheel-set: dev
     secrets: inherit
 
   # Smoke-install the published wheels across the platforms that would otherwise

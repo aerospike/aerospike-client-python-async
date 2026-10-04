@@ -85,6 +85,10 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
         /// A needed replica is unavailable (likely a partition split).
         #[classattr]
         const UNAVAIL_REPLICA_UNAVAILABLE: u32 = aerospike_core::server_error::sub_code::UNAVAIL_REPLICA_UNAVAILABLE;
+        /// This node is shutting down and leaving the cluster. Fail over to
+        /// another node; retrying this one cannot succeed.
+        #[classattr]
+        const UNAVAIL_NODE_SHUTTING_DOWN: u32 = aerospike_core::server_error::sub_code::UNAVAIL_NODE_SHUTTING_DOWN;
 
         // -------------------------------------------------------
         // Pairs with ResultCode::UnsupportedFeature (16)
@@ -185,17 +189,6 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
         /// character outside the alphabet, or misplaced `=` padding.
         #[classattr]
         const OPNOT_STRING_B64_INVALID: u32 = aerospike_core::server_error::sub_code::OPNOT_STRING_B64_INVALID;
-
-        // -------------------------------------------------------
-        // Pairs with ResultCode::FilteredOut (27)
-        // -------------------------------------------------------
-
-        /// Record filtered out by a metadata-only filter expression.
-        #[classattr]
-        const FILTERED_META: u32 = aerospike_core::server_error::sub_code::FILTERED_META;
-        /// Record filtered out by a bin-reading filter expression.
-        #[classattr]
-        const FILTERED_BINS: u32 = aerospike_core::server_error::sub_code::FILTERED_BINS;
 
         // -------------------------------------------------------
         // Pairs with ResultCode::MrtBlocked (120)

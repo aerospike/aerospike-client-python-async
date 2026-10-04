@@ -50,6 +50,7 @@ class TestQuerySelectionExports:
         assert len(b64) > 0
 
     def test_query_where_flags_exported(self):
+        assert QueryWhereFlags.ENC_VARINT == 1
         assert QueryWhereFlags.EXPLAIN == 2
         assert QueryWhereFlags.REQUIRE_INDEX == 4
         assert QueryWhereFlags.HARD_HINT == 8

@@ -5513,7 +5513,8 @@ class QueryWhereFlags:
     """
     ENC_VARINT: builtins.int = 1
     r"""
-    Reserved for wire continuation; passing it raises :exc:`ValueError`.
+    Reserved for wire continuation; passing it raises
+    :exc:`aerospike_async.exceptions.ValueError`.
     """
     EXPLAIN: builtins.int = 2
     r"""
@@ -6425,6 +6426,11 @@ class SubCode:
     r"""
     A needed replica is unavailable (likely a partition split).
     """
+    UNAVAIL_NODE_SHUTTING_DOWN: builtins.int = 3
+    r"""
+    This node is shutting down and leaving the cluster. Fail over to
+    another node; retrying this one cannot succeed.
+    """
     UNSUPP_FEAT_MRT_REQUIRES_STRONG_CONSISTENCY: builtins.int = 1
     r"""
     MRT attempted against a non-SC (AP) namespace.
@@ -6521,14 +6527,6 @@ class SubCode:
     r"""
     The string is not valid base64 — a length that is not a multiple of 4, a
     character outside the alphabet, or misplaced `=` padding.
-    """
-    FILTERED_META: builtins.int = 1
-    r"""
-    Record filtered out by a metadata-only filter expression.
-    """
-    FILTERED_BINS: builtins.int = 2
-    r"""
-    Record filtered out by a bin-reading filter expression.
     """
     MRT_BLOCKED_RECORD_LOCKED: builtins.int = 1
     r"""

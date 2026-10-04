@@ -558,6 +558,16 @@ class TestQuerySelectionErrorDetail(TestFixtureConnection):
         assert exc_info.value.sub_code in (None, 0)
         assert exc_info.value.exp_trace is None
 
+    async def test_explain_enc_varint_flag_is_rejected(self, client):
+        with pytest.raises(ValueError, match="reserved for wire continuation") as exc_info:
+            await client.query_explain(
+                NAMESPACE,
+                "$.age == 51",
+                set_name=SET_NAME,
+                explain_where_flags=QueryWhereFlags.EXPLAIN | QueryWhereFlags.ENC_VARINT,
+            )
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+
     async def test_bad_ael_expression_trace_verbosity_fails_at_explain(self, client):
         with pytest.raises(InvalidRequest) as exc_info:
             await client.query_explain(
