@@ -38,10 +38,17 @@ async def wait_for_index_ready(
     sindex_filter,
     *,
     bins=None,
+    expect_records=True,
     timeout=5.0,
     interval=0.25,
 ):
-    """Poll until a secondary index is queryable (see integration ``conftest``)."""
+    """Poll until a secondary index is queryable and, by default, returns a record.
+
+    An index that is registered and readable but not yet populated answers
+    with an empty stream, so a query that does not raise is not proof the
+    caller's records are visible. Pass ``expect_records=False`` when the
+    filter legitimately matches nothing.
+    """
     deadline = time.monotonic() + timeout
     last_err = None
     while time.monotonic() < deadline:
@@ -54,8 +61,9 @@ async def wait_for_index_ready(
                 policy=QueryPolicy(),
             )
             async for _ in records:
-                break
-            return
+                return
+            if not expect_records:
+                return
         except ServerError as exc:
             # Both are transient states of a just-created index: INDEX_NOT_FOUND
             # (201) = the create has not yet registered on this node, and
@@ -70,8 +78,8 @@ async def wait_for_index_ready(
             ):
                 raise
             last_err = exc
-            await asyncio.sleep(interval)
-    msg = f"index not readable within {timeout}s"
+        await asyncio.sleep(interval)
+    msg = f"index not readable with records within {timeout}s"
     if last_err is not None:
         raise TimeoutError(msg) from last_err
     raise TimeoutError(msg)

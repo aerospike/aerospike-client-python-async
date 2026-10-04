@@ -419,6 +419,7 @@ class TestQueryOpsExt812:
 
         rs = await tqo_client_812.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
         records = await _drain(rs)
+        assert len(records) == 20
         high = sum(1 for r in records if r.bins["category"] == "high")
         low = sum(1 for r in records if r.bins["category"] == "low")
         assert high == 10
