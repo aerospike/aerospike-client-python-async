@@ -145,11 +145,10 @@ jobs:
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
+          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
           ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
-            echo "=== End of Server Log ==="
+            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
             exit 1
           fi
 
@@ -237,11 +236,10 @@ jobs:
           # Remove .env file so tests use default localhost:3000
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
+          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
           ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
-            echo "=== End of Server Log ==="
+            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
             exit 1
           fi
 
@@ -468,11 +466,10 @@ jobs:
           # Remove .env file so tests use the AEROSPIKE_HOST set above
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
+          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
           python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
-            echo "=== End of Server Log ==="
+            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
             exit 1
           fi
       # GitHub has no "warn" job conclusion, so a soft-failed job would
@@ -699,11 +696,10 @@ jobs:
           # Remove .env file so tests use default localhost:3000
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
+          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
           python3 -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
-            echo "=== End of Server Log ==="
+            python3 .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
             exit 1
           fi
       # GitHub has no "warn" job conclusion, so a soft-failed job would
@@ -865,10 +861,10 @@ jobs:
         run: |
           rm -f python/aerospike_async/__init__.py
           rm -f aerospike.env
+          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
           python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            echo "=== Aerospike Server Log (last 100 lines) ==="
-            docker logs --tail 100 "${{ steps.aerospike.outputs.container-names }}"
+            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
             exit 1
           fi
       - name: Upload wheel
