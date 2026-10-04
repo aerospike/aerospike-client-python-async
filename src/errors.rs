@@ -460,8 +460,8 @@ impl<T: PyTypeInfo + 'static> PyErrArguments for RetryCtxArgs<T> {
 
 // Deferred arguments for a batch-wide failure. Same lazy contract as
 // `RetryCtxArgs` (materialized on the event-loop/drainer thread, never on a
-// Tokio worker), plus the per-key `BatchRecord` outcomes that core attaches
-// to the failure so callers can report truthful per-row results.
+// Tokio worker), plus the per-key `BatchRecord` outcomes so callers can report
+// truthful per-row results.
 struct BatchFailedArgs {
     message: String,
     result_code: i32,
@@ -652,6 +652,41 @@ create_exception!(aerospike_async.exceptions, MaxErrorRate, AerospikeError);
 // Must define a wrapper type because of the orphan rule
 pub struct RustClientError(pub(crate) Error);
 
+/// Raise a whole-batch failure with the per-key outcomes attached.
+///
+/// Core returns only the error that ended the batch; the rows stay on the
+/// caller's operations. This builds the exception a wrapping error would
+/// have produced -- `BATCH_FAILED` over `source`, inheriting its in-doubt
+/// flag and node -- and carries the rows on it. A server result code
+/// anywhere in `source` still wins and raises the mapped `ServerError`.
+pub(crate) fn batch_failed_error(
+    records: Vec<aerospike_core::BatchRecord>,
+    source: Error,
+) -> PyErr {
+    let rc = i32::from(aerospike_core::ClientResultCode::BatchFailed);
+    let in_doubt = source.in_doubt();
+    let base_message = format!("Batch failed ({} records)", records.len());
+    let doubt = if in_doubt { ", In Doubt: true" } else { "" };
+    let message = format!("Error {rc}{doubt}: {base_message}\ncaused by: {source}");
+    let ctx = RetryContext {
+        node: source.node().map(str::to_string),
+        iteration: None,
+        base_message,
+        subs: Vec::new(),
+    };
+    if let Some(server_rc) = source.server_result_code() {
+        let detail = source.server_error_detail();
+        return create_server_error(message, server_rc, in_doubt, detail, ctx);
+    }
+    PyErr::new::<BatchFailedError, _>(BatchFailedArgs {
+        message,
+        result_code: rc,
+        in_doubt,
+        ctx,
+        records,
+    })
+}
+
 impl From<RustClientError> for PyErr {
     fn from(value: RustClientError) -> Self {
         // RustClientError -> Error -> Custom Exception Classes.
@@ -717,8 +752,8 @@ impl From<RustClientError> for PyErr {
         // `except ConnectionError` still match retried failures.
         let msg = err.to_string();
         // Typed in-doubt from core; `in_doubt()` walks the cause chain, so a
-        // wrapper (retry decoration, BatchFailed, NoMoreConnections over an
-        // in-doubt failure) inherits it.  Every kind that can carry a cause
+        // wrapper (retry decoration, NoMoreConnections over an in-doubt
+        // failure) inherits it.  Every kind that can carry a cause
         // chain routes through `client_err`; the pure conversion failures
         // (Base64 .. PwHash) never do and stay on `new_err`.
         let in_doubt = err.in_doubt();
@@ -756,15 +791,6 @@ impl From<RustClientError> for PyErr {
             ErrorKind::PwHash(e) => {
                 client_err::<PasswordHashError>(e.to_string(), rc, in_doubt, ctx)
             }
-            ErrorKind::BatchFailed { records } => PyErr::new::<BatchFailedError, _>(
-                BatchFailedArgs {
-                    message: msg,
-                    result_code: rc,
-                    in_doubt,
-                    ctx,
-                    records: records.clone(),
-                },
-            ),
             // Client / StreamTerminated / BatchRow / Async and
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection
