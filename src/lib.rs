@@ -757,7 +757,7 @@ use crate::operations::{
     /// Converts a whole-batch failure into the Python error contract. The
     /// batch left its per-key results in place on the ops; once any row
     /// carries an outcome those results are part of the story and ride the
-    /// error as `BatchFailed` records (`BatchFailedError.records`). A failure
+    /// error as `BatchFailedError.records`. A failure
     /// before anything was dispatched — every key unroutable, for example —
     /// leaves every row untouched and surfaces the cause raw. Rows are moved,
     /// not cloned; the ops are spent either way once the call has failed.
@@ -767,9 +767,7 @@ use crate::operations::{
     ) -> PyErr {
         if ops.iter().any(|op| op.result_code().is_some()) {
             let records = ops.into_iter().map(take_batch_record).collect();
-            PyErr::from(RustClientError(aerospike_core::errors::Error::batch_failed(
-                records, source,
-            )))
+            crate::errors::batch_failed_error(records, source)
         } else {
             PyErr::from(RustClientError(source))
         }
