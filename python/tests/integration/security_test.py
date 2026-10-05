@@ -214,7 +214,8 @@ class TestSecurityFeatures:
     """Test security-related features that require server authentication."""
 
     @pytest_asyncio.fixture(scope="class", loop_scope="class")
-    async def client(self, security_enabled):
+    @staticmethod
+    async def client(security_enabled):
         """Single client shared across all tests in this class."""
         host = os.environ.get("AEROSPIKE_HOST_SEC", "localhost:3000")
         client_policy = ClientPolicy()
