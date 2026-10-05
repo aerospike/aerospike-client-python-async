@@ -147,11 +147,6 @@ use crate::record::PythonValue;
             !u8::from(*self)
         }
 
-        /// Raw flag bitmask as ``int``.
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
-        }
-
         /// Equality / ordering against another ``ListWriteFlags`` *or* an
         /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
         /// promised by the generated stubs.
@@ -564,10 +559,6 @@ use crate::record::PythonValue;
         /// Bitwise NOT (masked to u8 flag width).
         fn __invert__(&self) -> u8 {
             !u8::from(*self)
-        }
-
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
         }
 
         /// Equality / ordering against another ``MapWriteFlags`` *or* an
@@ -1082,10 +1073,6 @@ use crate::record::PythonValue;
             !u8::from(*self)
         }
 
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
-        }
-
         /// Equality / ordering against another ``BitWriteFlags`` *or* an
         /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
         /// promised by the generated stubs.
@@ -1387,10 +1374,6 @@ use crate::record::PythonValue;
         /// Bitwise NOT (masked to u8 flag width).
         fn __invert__(&self) -> u8 {
             !u8::from(*self)
-        }
-
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
         }
 
         /// Equality / ordering against another ``HLLWriteFlags`` *or* an

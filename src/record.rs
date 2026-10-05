@@ -1115,14 +1115,6 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             self.hash(&mut hasher);
             hasher.finish()
         }
-
-        fn __repr__(&self) -> String {
-            match self {
-                SpecialValue::Null => "SpecialValue.NULL".to_string(),
-                SpecialValue::Infinity => "SpecialValue.INFINITY".to_string(),
-                SpecialValue::Wildcard => "SpecialValue.WILDCARD".to_string(),
-            }
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////

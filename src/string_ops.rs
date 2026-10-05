@@ -139,10 +139,6 @@ impl StringWriteFlags {
         !u8::from(*self)
     }
 
-    fn __int__(&self) -> u8 {
-        u8::from(*self)
-    }
-
     /// Equality / ordering against another ``StringWriteFlags`` *or* an
     /// ``int`` bitmask. Honors the ``IntEnum`` runtime contract promised by
     /// the generated stubs.
@@ -284,10 +280,6 @@ impl StringRegexFlags {
         !u8::from(*self)
     }
 
-    fn __int__(&self) -> u8 {
-        u8::from(*self)
-    }
-
     fn __richcmp__(
         &self,
         other: &Bound<'_, PyAny>,
@@ -365,10 +357,6 @@ impl From<StringNumericType> for u8 {
 
 #[pymethods]
 impl StringNumericType {
-    fn __int__(&self) -> u8 {
-        u8::from(*self)
-    }
-
     fn __richcmp__(
         &self,
         other: &Bound<'_, PyAny>,

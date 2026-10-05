@@ -15,6 +15,9 @@
 
 """Unit tests for enums not covered by other test files."""
 
+import subprocess
+import sys
+
 from aerospike_async import (
     BitwiseOverflowActions,
     BitwiseResizeFlags,
@@ -27,6 +30,7 @@ from aerospike_async import (
     MapOrder,
     MapWriteFlags,
     MapWriteMode,
+    StringNumericType,
     TaskStatus,
     UDFLang,
 )
@@ -384,3 +388,25 @@ class TestResultCodeCatalog:
             f"ResultCode exposes names not in the pinned core list: {extras} "
             "— core probably added codes; regenerate the pinned list"
         )
+
+
+class TestStringNumericType:
+
+    def test_int_values(self):
+        assert int(StringNumericType.ANY) == 0
+        assert int(StringNumericType.INT) == 1
+        assert int(StringNumericType.FLOAT) == 2
+
+
+class TestTypeSlots:
+
+    def test_import_clean_under_deprecation_errors(self):
+        # Python 3.15 deprecates a type defining the same slot twice, which a
+        # hand-written __int__ or __repr__ on a #[pyclass] enum does, since
+        # PyO3 already generates both. Under -W error the import fails.
+        result = subprocess.run(
+            [sys.executable, "-W", "error::DeprecationWarning", "-c", "import aerospike_async"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
