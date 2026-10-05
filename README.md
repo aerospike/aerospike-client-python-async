@@ -358,8 +358,8 @@ or `~/.bash_profile`).
 
 ### Bumping the version
 
-Bumps are manual and happen in PRs against `dev`. Promotion workflows
-(`dev → stage → main`) do not mutate the version.
+Bumps are manual and happen in PRs against `stage`. Promotion workflows
+(`stage → main`) do not mutate the version.
 
 ```bash
 # 1. Edit Cargo.toml [package] version field, then refresh Cargo.lock:
@@ -369,7 +369,7 @@ cargo check    # or: cargo update -p aerospike_async --precise 0.6.0-alpha.2
 # 2. Confirm:
 bin/get-version    # prints 0.6.0-alpha.2
 
-# 3. Open a PR against dev with just this change.
+# 3. Open a PR against stage with just this change.
 ```
 
 ### Reading the version programmatically

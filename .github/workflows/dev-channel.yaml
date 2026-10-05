@@ -1,7 +1,7 @@
 name: Dev channel publish
 
 # Publishes a uniquely-versioned wheel matrix to the JFrog dev repo on every
-# merge to dev, so downstream consumers (the Python SDK) can pin PAC as a
+# merge to stage, so downstream consumers (the Python SDK) can pin PAC as a
 # normal versioned dependency without waiting on a public PyPI release.
 #
 # The committed Cargo.toml version is never mutated: the next dev version
@@ -13,7 +13,7 @@ name: Dev channel publish
 on:
   push:
     branches:
-      - dev
+      - stage
   workflow_dispatch:
     inputs:
       dry_run:
