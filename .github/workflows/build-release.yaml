@@ -24,8 +24,8 @@ on:
         default: ''
       wheel-set:
         description: |
-          "full" builds every cell in .github/build-matrix.yaml (releases);
-          "dev" builds only the cells marked `dev: true` (dev-channel builds).
+          "full" builds the release cells in .github/build-matrix.yaml;
+          "dev" builds the dev-channel cells (see that file's header).
         required: false
         type: string
         default: full
@@ -62,8 +62,8 @@ jobs:
         run: |
           set -euo pipefail
           case "$WHEEL_SET" in
-            full) filter='.include' ;;
-            dev)  filter='[.include[] | select(.dev == true)]' ;;
+            full) filter='[.include[] | select(.dev != "only")]' ;;
+            dev)  filter='[.include[] | select(.dev == true or .dev == "only")]' ;;
             *) echo "::error::wheel-set must be 'full' or 'dev', got '$WHEEL_SET'"; exit 1 ;;
           esac
           matrix=$(yq -o=json -I0 "{\"include\": $filter}" .github/build-matrix.yaml)
