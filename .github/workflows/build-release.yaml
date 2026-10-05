@@ -22,6 +22,13 @@ on:
         required: false
         type: string
         default: ''
+      wheel-set:
+        description: |
+          "full" builds every cell in .github/build-matrix.yaml (releases);
+          "dev" builds only the cells marked `dev: true` (dev-channel builds).
+        required: false
+        type: string
+        default: full
 
 env:
   SHARED_WORKFLOWS_REF: 49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
@@ -39,209 +46,36 @@ jobs:
         id: extract
         uses: ./.github/actions/get-version
 
+  plan-matrix:
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/build-matrix.yaml
+          sparse-checkout-cone-mode: false
+      - name: Select build cells
+        id: plan
+        env:
+          WHEEL_SET: ${{ inputs.wheel-set }}
+        run: |
+          set -euo pipefail
+          case "$WHEEL_SET" in
+            full) filter='.include' ;;
+            dev)  filter='[.include[] | select(.dev == true)]' ;;
+            *) echo "::error::wheel-set must be 'full' or 'dev', got '$WHEEL_SET'"; exit 1 ;;
+          esac
+          matrix=$(yq -o=json -I0 "{\"include\": $filter}" .github/build-matrix.yaml)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          yq -r "$filter | .[].name" .github/build-matrix.yaml | sed 's/^/  /'
+
   build-packages:
     name: build (${{ matrix.name }})
-    needs: extract-version
+    needs: [extract-version, plan-matrix]
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Linux wheels build inside quay.io/pypa/manylinux_2_28 so the wheel
-          # floor is the image's glibc (2.28), not the runner's (2.34 x86_64 /
-          # 2.38 aarch64). python-interpreter is a space-separated list of
-          # PEP 425 tags resolved to /opt/python/<tag>/bin/python in the image;
-          # python-version only picks the host interpreter for stamp_version.py.
-          # Dependency crates compile once per cell into a shared target/, so
-          # one cell per interpreter (the Windows shape) would multiply the
-          # image-pull + rustup overhead for little parallel win.
-          #
-          # Two cells per architecture, not one: the verify-only artifact
-          # prefix on the prerelease cell is the entire mechanism keeping
-          # cp315/cp315t wheels out of collect/deploy, and a shared build/
-          # directory would collapse the two artifact names into one.
-          - name: linux-x86_64-manylinux
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: "cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314 cp314-cp314t"
-            maturin-target: ""
-            manylinux: "2_28"
-          - name: linux-x86_64-manylinux-prerelease
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: ubuntu-22.04
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: "cp315-cp315 cp315-cp315t"
-            maturin-target: ""
-            manylinux: "2_28"
-          - name: linux-aarch64-manylinux
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: "cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314 cp314-cp314t"
-            maturin-target: ""
-            manylinux: "2_28"
-          - name: linux-aarch64-manylinux-prerelease
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: ubuntu-24.04-arm
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: "cp315-cp315 cp315-cp315t"
-            maturin-target: ""
-            manylinux: "2_28"
-          - name: macos-x86_64-py311
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.11"
-            python-interpreter: python3.11
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-x86_64-py312
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.12"
-            python-interpreter: python3.12
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-x86_64-py313
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: python3.13
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-x86_64-py314
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.14"
-            python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: ""
-          # 3.15 rows build against the release candidate (ABI-frozen at rc1) so
-          # wheels are installable on day one of 3.15.0 final; switch the -dev
-          # spellings to plain "3.15"/"3.15t" once the final release is out.
-          # (The Linux manylinux-prerelease cells build cp315/cp315t from the
-          # container's interpreters, so only macOS/Windows carry -dev rows.)
-          - name: macos-x86_64-py315
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: macos-latest-large
-            package-kind: wheel
-            python-version: "3.15-dev"
-            python-interpreter: python3.15
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py311
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.11"
-            python-interpreter: python3.11
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py312
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.12"
-            python-interpreter: python3.12
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py313
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: python3.13
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py314
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.14"
-            python-interpreter: python3.14
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py315
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.15-dev"
-            python-interpreter: python3.15
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py314t
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.14t"
-            python-interpreter: python3.14t
-            maturin-target: ""
-            manylinux: ""
-          - name: macos-arm64-py315t
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: macos-latest
-            package-kind: wheel
-            python-version: "3.15t-dev"
-            python-interpreter: python3.15t
-            maturin-target: ""
-            manylinux: ""
-          # One leg per interpreter, unlike the Linux container cells. Building
-          # the whole 3.11-3.14 set in a single job serialized five full release
-          # compiles (each also paying a choco nasm install) and made this the
-          # longest job in the pipeline by a factor of three. Linux escapes that:
-          # dependency crates compile once into a shared target/ and only pyo3
-          # and the client crate itself rebuild per interpreter.
-          - name: windows-x64-py311
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.11"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
-          - name: windows-x64-py312
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.12"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
-          - name: windows-x64-py313
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.13"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
-          - name: windows-x64-py314
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.14"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
-          - name: windows-x64-py315
-            # Build-verify only until 3.15.0 final + a cp315 uvloop:
-            # excluded from collect/deploy by the artifact prefix.
-            artifact-prefix: verify-only-artifacts
-            runs-on: windows-2022
-            package-kind: wheel
-            python-version: "3.15-dev"
-            python-interpreter: python
-            maturin-target: ""
-            manylinux: ""
-          - name: sdist
-            runs-on: ubuntu-22.04
-            package-kind: sdist
-            python-version: "3.13"
-            python-interpreter: ""
-            maturin-target: ""
-            manylinux: ""
+      matrix: ${{ fromJSON(needs.plan-matrix.outputs.matrix) }}
     uses: aerospike/shared-workflows/.github/workflows/reusable_execute-build.yaml@49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
     with:
       gh-workflows-ref: 49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
@@ -382,6 +216,7 @@ jobs:
               *) echo "::error::$name is a Linux wheel but not manylinux_2_28"; exit 1 ;;
             esac
           done
+          shopt -s nullglob
           for sdist in build-artifacts/*.tar.gz; do
             tar -tzf "$sdist" >/dev/null
           done

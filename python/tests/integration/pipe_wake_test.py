@@ -26,6 +26,7 @@ import asyncio
 import os
 
 from aerospike_async import ClientPolicy, Key, new_client
+from aerospike_async.exceptions import AerospikeError
 
 NS, SET = "test", "pipe_wake_test"
 
@@ -61,8 +62,14 @@ async def test_pipe_wake_usable_after_close(monkeypatch):
     await client.close()
     assert client.is_connected() is False
     # Must complete (not hang) even though the client is closed; the bound
-    # turns a regression into a failure instead of a stuck suite.
-    await asyncio.wait_for(client.get(Key(NS, SET, 1), None), timeout=5)
+    # turns a regression into a failure instead of a stuck suite. Whether the
+    # read succeeds depends on whether the tend thread has already cleared the
+    # node list, so an error reply counts as delivered. A hang surfaces as
+    # asyncio's TimeoutError, which is not an AerospikeError.
+    try:
+        await asyncio.wait_for(client.get(Key(NS, SET, 1), None), timeout=5)
+    except AerospikeError:
+        pass
 
 
 async def test_pipe_wake_teardown_leaves_loop_healthy(monkeypatch):

@@ -13,7 +13,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -40,3 +42,18 @@ def wait_for_index():
         await wait_for_index(client, "test", "my_set", Filter.range("age", 0, 100))
     """
     return wait_for_index_ready
+
+
+def pytest_runtest_logreport(report):
+    """Record each failed test's time span for CI's server-log window.
+
+    Active only when PAC_FAILURE_TIMES names a file (CI sets it); the job's
+    failure step then prints the server log around each failure instead of
+    only its tail.
+    """
+    path = os.environ.get("PAC_FAILURE_TIMES")
+    if not path or not report.failed:
+        return
+    end = time.time()
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(f"{end - report.duration:.0f} {end:.0f} {report.nodeid}\n")

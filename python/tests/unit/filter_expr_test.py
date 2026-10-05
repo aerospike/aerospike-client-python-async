@@ -249,6 +249,41 @@ class TestFilterExprBase64:
         restored = fe.from_base64(b64)
         assert restored.base64() == b64
 
+    @staticmethod
+    def _ael_bytes(src):
+        import base64
+
+        return base64.b64decode(fe.from_server_compiled_ael(src).base64())
+
+    def test_server_compiled_ael_wire_header(self):
+        """A two-element root, the 128 opcode, then the source as a msgpack bin."""
+        b = self._ael_bytes("$.bin==1")
+        assert b[:3] == bytes([0x92, 0xCC, 128])
+        assert b[3:5] == bytes([0xC4, len("$.bin==1")])
+        assert b[5:] == b"$.bin==1"
+
+    def test_server_compiled_ael_utf8_source_copied_verbatim(self):
+        src = "$.café=='é'"
+        utf8 = src.encode("utf-8")
+        b = self._ael_bytes(src)
+        assert b[3:5] == bytes([0xC4, len(utf8)])
+        assert b[5:] == utf8
+
+    def test_server_compiled_ael_bin16_from_256_bytes(self):
+        """255 bytes is the last bin8; 256 switches to bin16."""
+        assert self._ael_bytes("a" * 255)[3:5] == bytes([0xC4, 255])
+        b = self._ael_bytes("a" * 256)
+        assert b[3:6] == bytes([0xC5, 0x01, 0x00])
+        assert b[6:] == b"a" * 256
+
+    def test_server_compiled_ael_empty_source_rejected(self):
+        import pytest
+        from aerospike_async.exceptions import ResultCode, ValueError
+
+        with pytest.raises(ValueError) as exc_info:
+            fe.from_server_compiled_ael("")
+        assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
+
     def test_from_base64_invalid_raises(self):
         import pytest
         from aerospike_async.exceptions import BadResponse

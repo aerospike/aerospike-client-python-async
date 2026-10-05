@@ -244,7 +244,8 @@ pub struct QueryWhereFlags;
 #[gen_stub_pymethods]
 #[pymethods]
 impl QueryWhereFlags {
-    /// Reserved for wire continuation; passing it raises :exc:`ValueError`.
+    /// Reserved for wire continuation; passing it raises
+    /// :exc:`aerospike_async.exceptions.ValueError`.
     #[classattr]
     const ENC_VARINT: i64 = aerospike_core::FLAG_ENC_VARINT as i64;
 
