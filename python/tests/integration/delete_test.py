@@ -15,7 +15,7 @@
 
 import pytest
 from aerospike_async import WritePolicy, Expiration
-from aerospike_async.exceptions import ResultCode, TimeoutError
+from aerospike_async.exceptions import InvalidNamespaceError, ResultCode
 from fixtures import TestFixtureInsertRecord
 
 
@@ -39,13 +39,11 @@ class TestDelete(TestFixtureInsertRecord):
         assert rec_existed is True
 
     async def test_delete_with_nonexistent_namespace(self, client, key_invalid_namespace):
-        """Test delete operation with invalid namespace raises TimeoutError."""
+        """Test delete operation with invalid namespace raises InvalidNamespaceError."""
         wp = WritePolicy()
         wp.expiration = Expiration.NEVER_EXPIRE
-        with pytest.raises(TimeoutError) as exi:
+        with pytest.raises(InvalidNamespaceError) as exi:
             await client.delete(key_invalid_namespace, policy=wp)
-        assert "Timeout" in str(exi.value)
-        # No node owns the partition, so every attempt fails before the wire
-        # and the retry budget runs out: MAX_RETRIES_EXCEEDED, not the
-        # deadline's TIMEOUT.
-        assert exi.value.result_code == ResultCode.MAX_RETRIES_EXCEEDED
+        # A retry cannot make the namespace appear, so the routing error
+        # surfaces as-is rather than as an exhausted retry budget.
+        assert exi.value.result_code == ResultCode.INVALID_NAMESPACE
