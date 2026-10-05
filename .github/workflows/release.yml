@@ -55,19 +55,12 @@ jobs:
           VERSION="${{ inputs.version }}"
           BRANCH="${{ github.ref_name }}"
           case "$VERSION" in
-            *-alpha.*|*-beta.*)
-              if [ "$BRANCH" != "dev" ]; then
-                echo "::error::alpha/beta releases must be cut from 'dev' (current: $BRANCH)"
-                exit 1
-              fi
-              echo "alpha/beta release ($VERSION) from $BRANCH — OK"
-              ;;
-            *-rc.*)
+            *-alpha.*|*-beta.*|*-rc.*)
               if [ "$BRANCH" != "stage" ]; then
-                echo "::error::RC releases must be cut from 'stage' (current: $BRANCH)"
+                echo "::error::prereleases must be cut from 'stage' (current: $BRANCH)"
                 exit 1
               fi
-              echo "RC release ($VERSION) from $BRANCH — OK"
+              echo "prerelease ($VERSION) from $BRANCH — OK"
               ;;
             *)
               if [ "$BRANCH" != "main" ]; then
