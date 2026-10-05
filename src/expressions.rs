@@ -184,10 +184,6 @@ use crate::string_ops::StringNumericType;
             (!u8::from(*self)) as i64
         }
 
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
-        }
-
         /// Equality / ordering against another ``ExpWriteFlags`` *or* an
         /// ``int`` bitmask. This honors the ``IntEnum`` runtime contract
         /// promised by the generated stubs.
@@ -310,10 +306,6 @@ use crate::string_ops::StringNumericType;
         /// Bitwise NOT (masked to u8 flag width, returned as int).
         fn __invert__(&self) -> i64 {
             (!u8::from(*self)) as i64
-        }
-
-        fn __int__(&self) -> u8 {
-            u8::from(*self)
         }
 
         /// Equality / ordering against another ``ExpReadFlags`` *or* an
