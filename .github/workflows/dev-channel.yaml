@@ -21,6 +21,15 @@ on:
         required: false
         type: boolean
         default: true
+      wheel-set:
+        description: >-
+          "dev" publishes the newest Python only; "full" publishes every
+          supported version, e.g. to run the downstream SDK's full matrix
+          ahead of a release or to bisect on an older Python.
+        required: false
+        type: choice
+        options: [dev, full]
+        default: dev
 
 permissions:
   id-token: write
@@ -60,8 +69,8 @@ jobs:
       # Merges publish for real; manual dispatches default to dry-run.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
       version-override: ${{ needs.compute-version.outputs.cargo-version }}
-      # Only the wheels something installs; releases build the full set.
-      wheel-set: dev
+      # Merges publish the newest Python only; a manual run may ask for all.
+      wheel-set: ${{ github.event_name == 'workflow_dispatch' && inputs.wheel-set || 'dev' }}
     secrets: inherit
 
   # Smoke-install the published wheels across the platforms that would otherwise
@@ -79,10 +88,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x86_64-py312
+          - name: linux-x86_64-py314
             runs-on: ubuntu-22.04
-            python: "3.12"
-            wheel-glob: "*cp312-cp312-manylinux*x86_64*.whl"
+            python: "3.14"
+            wheel-glob: "*cp314-cp314-manylinux*x86_64*.whl"
           - name: linux-x86_64-py314t
             runs-on: ubuntu-22.04
             python: "3.14t"

@@ -1,9 +1,15 @@
 # Build cells for build-release.yaml, read by its plan-matrix job.
 #
-# `dev: true` marks the cells a dev-channel build keeps: the wheels PSDK CI,
-# the bench hosts and local development install (linux x86_64, macOS arm64
-# cp314/cp314t), plus the 3.15 verify-only cells so a breakage still shows up
-# on every merge. Release builds take every cell.
+# Dev-channel builds publish only the newest Python on linux x86_64 and macOS
+# arm64 -- what local testing and benching use. Every supported version is
+# still built and tested by the PR CI, and release builds publish all of them.
+#
+#   dev: true   both release and dev builds
+#   dev: only   dev builds only
+#   (absent)    release builds only
+#
+# The 3.15 verify-only cells stay in dev builds so a breakage shows up on every
+# merge; they publish nothing.
 include:
   # Linux wheels build inside quay.io/pypa/manylinux_2_28 so the wheel
   # floor is the image's glibc (2.28), not the runner's (2.34 x86_64 /
@@ -19,11 +25,18 @@ include:
   # cp315/cp315t wheels out of collect/deploy, and a shared build/
   # directory would collapse the two artifact names into one.
   - name: linux-x86_64-manylinux
-    dev: true
     runs-on: ubuntu-22.04
     package-kind: wheel
     python-version: "3.13"
     python-interpreter: "cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314 cp314-cp314t"
+    maturin-target: ""
+    manylinux: "2_28"
+  - name: linux-x86_64-manylinux-dev
+    dev: only
+    runs-on: ubuntu-22.04
+    package-kind: wheel
+    python-version: "3.13"
+    python-interpreter: "cp314-cp314 cp314-cp314t"
     maturin-target: ""
     manylinux: "2_28"
   - name: linux-x86_64-manylinux-prerelease
