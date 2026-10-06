@@ -158,6 +158,19 @@ def test_key_digest_consistency():
     assert key1.digest != key5.digest
     assert key1 != key5
 
+def test_key_partition_id():
+    """partition_id is the digest's first two bytes, little-endian, masked to 4096 partitions."""
+    keys = [Key("test", "test", i) for i in range(64)]
+    for key in keys:
+        digest = bytes.fromhex(key.digest)
+        assert key.partition_id == int.from_bytes(digest[:2], "little") & 0x0FFF
+    assert len({key.partition_id for key in keys}) > 1
+
+def test_key_partition_id_follows_digest():
+    """A key rebuilt from the digest alone lands in the same partition."""
+    key = Key("test", "test", "user-1")
+    assert Key.key_with_digest("other", "set", key.digest).partition_id == key.partition_id
+
 def test_key_with_digest_invalid():
     """Test key_with_digest with invalid inputs."""
     # Invalid digest length (too short)

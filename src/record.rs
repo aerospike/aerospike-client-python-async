@@ -276,6 +276,12 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             Some(hex::encode(self._as.digest))
         }
 
+        /// Partition (0-4095) that this key's digest maps to.
+        #[getter]
+        pub fn get_partition_id(&self) -> usize {
+            self._as.partition_id()
+        }
+
         fn __richcmp__(&self, other: PyRef<'_, Key>, op: CompareOp) -> bool {
             match op {
                 CompareOp::Eq => self._as.digest == other._as.digest,

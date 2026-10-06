@@ -4284,6 +4284,11 @@ class Key:
     def value(self) -> typing.Optional[typing.Any]: ...
     @property
     def digest(self) -> typing.Optional[builtins.str]: ...
+    @property
+    def partition_id(self) -> builtins.int:
+        r"""
+        Partition (0-4095) that this key's digest maps to.
+        """
     def __new__(cls, namespace: builtins.str, set: builtins.str, key: typing.Any) -> _aerospike_async_native.Key: ...
     @staticmethod
     def from_int_user_key(namespace: builtins.str, set: builtins.str, key: builtins.int) -> _aerospike_async_native.Key:
