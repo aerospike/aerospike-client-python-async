@@ -29,7 +29,7 @@ from aerospike_async import (
     Key,
     WritePolicy,
 )
-from aerospike_async.exceptions import InvalidNamespaceError
+from aerospike_async.exceptions import AerospikeError, InvalidNamespaceError
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection, wait_for_scan_visible
 
 
@@ -90,6 +90,21 @@ class TestQuery(TestFixtureInsertRecord):
         with pytest.raises(InvalidNamespaceError):
             async for _ in records:
                 pass
+
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason="core's query encoder indexes filters[0] without checking for an empty list",
+    )
+    async def test_empty_filters_list_does_not_panic(self, client, stmt):
+        """An empty ``filters`` list either runs unfiltered or is refused, never panics."""
+        stmt.filters = []
+        try:
+            records = await client.query(stmt, PartitionFilter.all(), policy=QueryPolicy())
+            async for _ in records:
+                pass
+        except AerospikeError as e:
+            assert "panicked" not in str(e)
 
 
 class TestQueryEmptySet(TestFixtureConnection):
