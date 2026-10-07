@@ -5236,7 +5236,6 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<ExpOperation>()?;
     m.add_class::<ExpWriteFlags>()?;
     m.add_class::<ExpReadFlags>()?;
-    m.add_class::<RegexFlag>()?;
     m.add_class::<CdtOperation>()?;
 
     m.add_class::<BasePolicy>()?;

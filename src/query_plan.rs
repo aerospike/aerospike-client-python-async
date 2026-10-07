@@ -14,6 +14,7 @@
 // the License.
 
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 
 use crate::CollectionIndexType;
@@ -170,6 +171,14 @@ impl QueryPlan {
     #[getter]
     pub fn index_name(&self) -> Option<&str> {
         self._as.index_name()
+    }
+
+    /// Opaque ``INDEX_RANGE`` payload (explain field ``22``) describing the
+    /// secondary-index range the server chose; ``None`` when no index was chosen
+    /// (PI or filtered-out). Diagnostic only — the layout is server-defined.
+    #[getter]
+    pub fn index_range_bytes<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self._as.index_range_bytes().map(|bytes| PyBytes::new(py, bytes))
     }
 
     #[getter]

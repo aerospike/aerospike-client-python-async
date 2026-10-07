@@ -274,6 +274,12 @@ class TestTlsConfigOptions:
             TlsConfig(ciphers=["NOT_A_SUITE"])
         assert "TLS13_AES_256_GCM_SHA384" in str(exc.value)
 
+    def test_protocol_cipher_mismatch_raises_value_error(self):
+        """TLS 1.2 with only a TLS 1.3 suite leaves nothing to negotiate. That
+        is a configuration mistake, so it raises the same class as a bad name."""
+        with pytest.raises(ValueError, match="no usable cipher suites"):
+            TlsConfig(protocols=["TLSv1.2"], ciphers=["TLS13_AES_256_GCM_SHA384"])
+
 
 @pytest.mark.skipif(
     not _tls_login_host_env() or not _tls_ca_exists(),

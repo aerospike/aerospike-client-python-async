@@ -172,46 +172,6 @@ class TestVersion(TestFixtureConnection):
         assert len(parts) == 4
         assert "Version" in version_repr
 
-    async def test_version_supports_partition_scan(self, client):
-        """Test Version.supports_partition_scan() method."""
-        nodes = client.nodes()
-        version = nodes[0].version
-
-        result = version.supports_partition_scan()
-        assert isinstance(result, bool)
-
-    async def test_version_supports_query_show(self, client):
-        """Test Version.supports_query_show() method."""
-        nodes = client.nodes()
-        version = nodes[0].version
-
-        result = version.supports_query_show()
-        assert isinstance(result, bool)
-
-    async def test_version_supports_batch_any(self, client):
-        """Test Version.supports_batch_any() method."""
-        nodes = client.nodes()
-        version = nodes[0].version
-
-        result = version.supports_batch_any()
-        assert isinstance(result, bool)
-
-    async def test_version_supports_partition_query(self, client):
-        """Test Version.supports_partition_query() method."""
-        nodes = client.nodes()
-        version = nodes[0].version
-
-        result = version.supports_partition_query()
-        assert isinstance(result, bool)
-
-    async def test_version_supports_app_id(self, client):
-        """Test Version.supports_app_id() method."""
-        nodes = client.nodes()
-        version = nodes[0].version
-
-        result = version.supports_app_id()
-        assert isinstance(result, bool)
-
     async def test_version_supports_query_selection(self, client):
         """Test Version.supports_query_selection() method."""
         nodes = client.nodes()

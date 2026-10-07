@@ -241,6 +241,11 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.set_name == SET_NAME
         assert plan.index_name == AGE_INDEX_NAME
         assert plan.ael == "$.age >= 14 and $.age <= 18"
+        # The range opens with a length-prefixed bin name and then the key type.
+        range_bytes = plan.index_range_bytes
+        bin_name_len = range_bytes[1]
+        assert range_bytes[2:2 + bin_name_len] == b"age"
+        assert range_bytes[2 + bin_name_len] == 1  # integer particle type
 
     async def test_explain_selects_primary_index_for_non_indexed_predicate(self, client):
         plan = await client.query_explain(
@@ -254,6 +259,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.namespace == NAMESPACE
         assert plan.set_name == SET_NAME
         assert plan.index_name is None
+        assert plan.index_range_bytes is None
         assert plan.ael == "$.country == 'US'"
 
     async def test_explain_contradiction_predicate_filtered_out(self, client):
@@ -266,6 +272,7 @@ class TestQuerySelectionExplain(TestFixtureConnection):
         assert plan.selection == QuerySelection.FILTERED_OUT
         assert plan.is_filtered_out
         assert plan.index_name is None
+        assert plan.index_range_bytes is None
         assert plan.ael == "$.age > 100 and $.age < 10"
 
 

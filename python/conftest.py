@@ -137,7 +137,6 @@ async def aerospike_host_812_required(aerospike_host, server_version):
 # checks reference an intent-named constant instead of an inline magic tuple
 # (mirrors the Java clients' ``SERVER_VERSION_*`` constants). Add a new floor
 # here rather than inlining a tuple in a new ``supports_*`` gate.
-SERVER_8_1_1 = (8, 1, 1, 0)
 SERVER_8_1_2 = (8, 1, 2, 0)
 SERVER_8_2_0 = (8, 2, 0, 0)
 
@@ -262,16 +261,6 @@ def supports_query_selection_sync(aerospike_host, use_services_alternate):
     )
 
 
-@pytest.fixture(scope="session")
-def supports_enhanced_expression_api_sync(aerospike_host, use_services_alternate):
-    """Sync session gate for the 8.1.2 enhanced expression API (blocking integration tests)."""
-    return _probe_all_nodes_version_capability_blocking(
-        aerospike_host,
-        use_services_alternate,
-        lambda version: version.supports_enhanced_expression_api(),
-    )
-
-
 def _parse_build_string(build: str):
     """Parse an Aerospike server build string (e.g. ``8.1.2.1``) into a tuple.
 
@@ -347,33 +336,6 @@ async def supports_query_ops_projection_ext(server_version):
     ``pytest.skip`` when this is ``False``.
     """
     return server_version is not None and server_version >= SERVER_8_1_2
-
-
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def supports_enhanced_expression_api(server_version):
-    """``True`` when the cluster supports the 8.1.2 enhanced expression API.
-
-    Covers native ``in_list`` / ``map_keys`` / ``map_values`` ExpOps and
-    the ``CTX.map_keys_in`` / ``and_filter`` context helpers. Server
-    >= 8.1.2. Path-form expression operators (``exp_select_*`` /
-    ``exp_modify_*``) are 8.1.1 — gate those on
-    ``supports_cdt_path_expressions``.
-    """
-    return server_version is not None and server_version >= SERVER_8_1_2
-
-
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def supports_cdt_path_expressions(server_version):
-    """``True`` when the cluster supports CDT path expression operations.
-
-    Covers ``select_by_path`` / ``modify_by_path`` ops and their
-    expression-form siblings (``exp_select_by_path`` /
-    ``exp_modify_by_path``). Mirrors the per-node feature exposed by the
-    Rust core's ``Version::supports_cdt_path_expressions`` (server
-    >= 8.1.1). Tests that exercise path expressions should
-    ``pytest.skip`` when this is ``False``.
-    """
-    return server_version is not None and server_version >= SERVER_8_1_1
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")

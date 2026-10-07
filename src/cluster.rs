@@ -123,44 +123,6 @@ use crate::policies::AdminPolicy;
             self._as.build
         }
 
-        /// Returns true if server supports partition scans (>= 4.9.0.3).
-        pub fn supports_partition_scan(&self) -> bool {
-            self._as.supports_partition_scan()
-        }
-
-        /// Returns true if server supports query-show command (>= 5.7.0.0).
-        pub fn supports_query_show(&self) -> bool {
-            self._as.supports_query_show()
-        }
-
-        /// Returns true if server supports batch-index commands (>= 6.0.0.0).
-        pub fn supports_batch_any(&self) -> bool {
-            self._as.supports_batch_any()
-        }
-
-        /// Returns true if server supports partition queries (>= 6.0.0.0).
-        pub fn supports_partition_query(&self) -> bool {
-            self._as.supports_partition_query()
-        }
-
-        /// Returns true if server supports app-id (>= 8.1.0.0).
-        pub fn supports_app_id(&self) -> bool {
-            self._as.supports_app_id()
-        }
-
-        /// Returns true if server supports CDT path expression operations
-        /// (``select_by_path`` / ``modify_by_path``). Requires server >= 8.1.1.
-        pub fn supports_cdt_path_expressions(&self) -> bool {
-            self._as.supports_cdt_path_expressions()
-        }
-
-        /// Returns true if server supports the enhanced expression API:
-        /// ``in_list``, ``map_keys``, ``map_values``, ``ctx_map_keys_in``,
-        /// ``ctx_and_filter``. Requires server >= 8.1.2.
-        pub fn supports_enhanced_expression_api(&self) -> bool {
-            self._as.supports_enhanced_expression_api()
-        }
-
         /// Returns true if server supports extended read ops (CDT,
         /// expression, bit, HLL reads) in foreground query ops projection.
         /// Earlier servers only accept basic ``Read`` ops attached to a
@@ -193,11 +155,6 @@ use crate::policies::AdminPolicy;
         /// (field ``44`` WHERE explain → execute). Requires server >= 8.2.0.
         pub fn supports_query_selection(&self) -> bool {
             self._as.supports_query_selection()
-        }
-
-        /// Returns true if server supports blob secondary indexes (>= 7.0.0).
-        pub fn supports_blob_index(&self) -> bool {
-            self._as.supports_blob_index()
         }
 
         pub fn __str__(&self) -> String {

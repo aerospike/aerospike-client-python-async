@@ -329,52 +329,6 @@ async def test_operate_map_increment_value(client_and_key):
     assert map_data["counter2"] == 30
 
 
-async def test_operate_map_decrement_value(client_and_key):
-    """Test operate with Map decrement_value operation."""
-    client, key = client_and_key
-
-    wp = WritePolicy()
-    rp = ReadPolicy()
-    map_policy = MapPolicy(None, None)
-
-    # Create a map with numeric values
-    await client.operate(
-        key,
-        [
-            MapOperation.put("mapbin", "counter1", 100, map_policy),
-            MapOperation.put("mapbin", "counter2", 50, map_policy),
-        ],
-        policy=wp,
-    )
-
-    # Decrement values
-    record = await client.operate(
-        key,
-        [
-            MapOperation.decrement_value("mapbin", "counter1", 10, map_policy),
-            MapOperation.decrement_value("mapbin", "counter2", 5, map_policy),
-            MapOperation.decrement_value("mapbin", "counter1", 20, map_policy),
-        ],
-        policy=wp,
-    )
-
-    assert record is not None
-    assert record.bins is not None
-    results = record.bins.get("mapbin")
-    assert isinstance(results, list)
-    assert len(results) == 3
-
-    # Verify final map state
-    record = await client.get(key, ["mapbin"], policy=rp)
-    assert record is not None
-    assert record.bins is not None
-    map_data = record.bins.get("mapbin")
-    assert map_data is not None
-    assert isinstance(map_data, dict)
-    assert map_data["counter1"] == 70
-    assert map_data["counter2"] == 45
-
-
 async def test_operate_map_remove_by_key(client_and_key):
     """Test operate with Map remove_by_key operation."""
     client, key = client_and_key

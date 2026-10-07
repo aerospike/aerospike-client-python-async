@@ -97,7 +97,6 @@ __all__ = [
     "Record",
     "RecordExistsAction",
     "Recordset",
-    "RegexFlag",
     "RegisterTask",
     "Replica",
     "ResultCode",
@@ -2610,19 +2609,6 @@ class FilterExpression:
         record metadata is cached in memory. Requires server version 7.0+.
         """
     @staticmethod
-    def device_size() -> _aerospike_async_native.FilterExpression:
-        r"""
-        Create function that returns record size on disk. If server storage-engine is
-        memory, then zero is returned. Deprecated: use record_size() for server version 7.0+.
-        Implemented via record_size() for server 7.0+.
-        """
-    @staticmethod
-    def memory_size() -> _aerospike_async_native.FilterExpression:
-        r"""
-        Create expression that returns record size in memory. Deprecated: use record_size() for server 7.0+.
-        Implemented via record_size() for server 7.0+.
-        """
-    @staticmethod
     def last_update() -> _aerospike_async_native.FilterExpression:
         r"""
         Create function that returns record last update time expressed as 64 bit integer
@@ -2655,11 +2641,6 @@ class FilterExpression:
     def digest_modulo(modulo: builtins.int) -> _aerospike_async_native.FilterExpression:
         r"""
         Create function that returns record digest modulo as integer.
-        """
-    @staticmethod
-    def regex_compare(regex: builtins.str, flags: builtins.int, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
-        r"""
-        Create function like regular expression string operation.
         """
     @staticmethod
     def geo_compare(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
@@ -4720,8 +4701,6 @@ class MapOperation:
     @staticmethod
     def increment_value(bin_name: builtins.str, key: typing.Any, value: builtins.int, policy: _aerospike_async_native.MapPolicy) -> _aerospike_async_native.MapOperation: ...
     @staticmethod
-    def decrement_value(bin_name: builtins.str, key: typing.Any, value: builtins.int, policy: _aerospike_async_native.MapPolicy) -> _aerospike_async_native.MapOperation: ...
-    @staticmethod
     def get_by_key(bin_name: builtins.str, key: typing.Any, return_type: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapOperation: ...
     @staticmethod
     def remove_by_key(bin_name: builtins.str, key: typing.Any, return_type: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapOperation: ...
@@ -5384,6 +5363,13 @@ class QueryPlan:
         Secondary-index name when :attr:`selection` is ``SECONDARY_INDEX``; ``None`` otherwise (PI or filtered-out).
         """
     @property
+    def index_range_bytes(self) -> typing.Optional[bytes]:
+        r"""
+        Opaque ``INDEX_RANGE`` payload (explain field ``22``) describing the
+        secondary-index range the server chose; ``None`` when no index was chosen
+        (PI or filtered-out). Diagnostic only — the layout is server-defined.
+        """
+    @property
     def index_type(self) -> _aerospike_async_native.CollectionIndexType: ...
     @property
     def is_primary_index(self) -> builtins.bool: ...
@@ -5669,45 +5655,6 @@ class Recordset:
     def __anext__(self) -> typing.Any: ...
     def __iter__(self) -> _aerospike_async_native.Recordset: ...
     def __next__(self) -> _aerospike_async_native.Record: ...
-
-@typing.final
-class RegexFlag:
-    r"""
-    POSIX regex bit flags for ``FilterExpression.regex_compare``.
-
-    Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
-    on glibc):
-
-    - ``NONE = 0`` — use regex defaults.
-    - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
-    - ``ICASE = 2`` — case-insensitive matching.
-    - ``NOSUB = 4`` — do not report position of matches.
-    - ``NEWLINE = 8`` — match-any-character operators don't match newline.
-
-    Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
-    The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
-    ``RegexFlag`` constant (or combination).
-    """
-    NONE: builtins.int = 0
-    r"""
-    Use regex defaults.
-    """
-    EXTENDED: builtins.int = 1
-    r"""
-    Use POSIX Extended Regular Expression syntax when interpreting regex.
-    """
-    ICASE: builtins.int = 2
-    r"""
-    Do not differentiate case.
-    """
-    NOSUB: builtins.int = 4
-    r"""
-    Do not report position of matches.
-    """
-    NEWLINE: builtins.int = 8
-    r"""
-    Match-any-character operators don't match a newline.
-    """
 
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
@@ -6825,37 +6772,6 @@ class Version:
     def patch(self) -> builtins.int: ...
     @property
     def build(self) -> builtins.int: ...
-    def supports_partition_scan(self) -> builtins.bool:
-        r"""
-        Returns true if server supports partition scans (>= 4.9.0.3).
-        """
-    def supports_query_show(self) -> builtins.bool:
-        r"""
-        Returns true if server supports query-show command (>= 5.7.0.0).
-        """
-    def supports_batch_any(self) -> builtins.bool:
-        r"""
-        Returns true if server supports batch-index commands (>= 6.0.0.0).
-        """
-    def supports_partition_query(self) -> builtins.bool:
-        r"""
-        Returns true if server supports partition queries (>= 6.0.0.0).
-        """
-    def supports_app_id(self) -> builtins.bool:
-        r"""
-        Returns true if server supports app-id (>= 8.1.0.0).
-        """
-    def supports_cdt_path_expressions(self) -> builtins.bool:
-        r"""
-        Returns true if server supports CDT path expression operations
-        (``select_by_path`` / ``modify_by_path``). Requires server >= 8.1.1.
-        """
-    def supports_enhanced_expression_api(self) -> builtins.bool:
-        r"""
-        Returns true if server supports the enhanced expression API:
-        ``in_list``, ``map_keys``, ``map_values``, ``ctx_map_keys_in``,
-        ``ctx_and_filter``. Requires server >= 8.1.2.
-        """
     def supports_query_ops_projection_ext(self) -> builtins.bool:
         r"""
         Returns true if server supports extended read ops (CDT,
@@ -6884,10 +6800,6 @@ class Version:
         r"""
         Returns true if server supports two-phase server query selection
         (field ``44`` WHERE explain → execute). Requires server >= 8.2.0.
-        """
-    def supports_blob_index(self) -> builtins.bool:
-        r"""
-        Returns true if server supports blob secondary indexes (>= 7.0.0).
         """
     def __str__(self) -> builtins.str: ...
     def __repr__(self) -> builtins.str: ...

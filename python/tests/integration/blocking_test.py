@@ -734,9 +734,7 @@ def _connect_local(aerospike_host, use_services_alternate):
 @pytest.mark.parametrize(
     "connect", [_connect_blocking, _connect_local], ids=["client", "local_client"],
 )
-def test_blocking_core_panic_is_catchable(
-    connect, aerospike_host, use_services_alternate, supports_enhanced_expression_api_sync,
-):
+def test_blocking_core_panic_is_catchable(connect, aerospike_host, use_services_alternate):
     """A panic in the core surfaces as an ordinary ``Exception``.
 
     An AND filter after a map index step makes the server return a truncated
@@ -744,8 +742,6 @@ def test_blocking_core_panic_is_catchable(
     it must not escape as ``PanicException``: that derives from
     ``BaseException``, so ``except Exception`` would miss it.
     """
-    if not supports_enhanced_expression_api_sync:
-        pytest.skip("CTX.and_filter requires server >= 8.1.2")
     client = connect(aerospike_host, use_services_alternate)
     key = Key("test", "blocking", "panic-1")
     try:

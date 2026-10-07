@@ -55,10 +55,6 @@ class TestFilterExprCreate:
         expr = fe.set_name()
         assert isinstance(expr, fe)
 
-    def test_device_size(self):
-        expr = fe.device_size()
-        assert isinstance(expr, fe)
-
     def test_last_update(self):
         expr = fe.last_update()
         assert isinstance(expr, fe)
@@ -81,12 +77,6 @@ class TestFilterExprCreate:
 
     def test_digest_modulo(self):
         expr = fe.digest_modulo(modulo=7)
-        assert isinstance(expr, fe)
-
-    def test_regex_compare(self):
-        expr = fe.regex_compare(
-            regex="c*", flags=0, bin=fe.string_bin("bin")
-        )
         assert isinstance(expr, fe)
 
     def test_geo_compare(self):

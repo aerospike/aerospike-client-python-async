@@ -199,13 +199,8 @@ _BOOK_DATA = {
 
 class TestPathFormExpressions:
 
-    async def test_select_by_path_pulls_all_prices(
-        self, cdt_client, supports_cdt_path_expressions
-    ):
+    async def test_select_by_path_pulls_all_prices(self, cdt_client):
         """``exp_select_by_path`` flattens ``$.book[*].price`` into a list."""
-        if not supports_cdt_path_expressions:
-            pytest.skip("Path-form expression operators require server >= 8.1.1")
-
         key = Key(_NAMESPACE, _SET, "path_select")
         await _safe_delete(cdt_client, key)
         await cdt_client.put(key, {"res1": _BOOK_DATA}, policy=WritePolicy())

@@ -344,49 +344,6 @@ use crate::string_ops::StringNumericType;
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  RegexFlag
-    //
-    ////////////////////////////////////////////////////////////////////////////////////////////
-
-    /// POSIX regex bit flags for ``FilterExpression.regex_compare``.
-    ///
-    /// Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
-    /// on glibc):
-    ///
-    /// - ``NONE = 0`` — use regex defaults.
-    /// - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
-    /// - ``ICASE = 2`` — case-insensitive matching.
-    /// - ``NOSUB = 4`` — do not report position of matches.
-    /// - ``NEWLINE = 8`` — match-any-character operators don't match newline.
-    ///
-    /// Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
-    /// The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
-    /// ``RegexFlag`` constant (or combination).
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "RegexFlag", module = "_aerospike_async_native")]
-    pub struct RegexFlag;
-
-    #[gen_stub_pymethods]
-    #[pymethods]
-    impl RegexFlag {
-        /// Use regex defaults.
-        #[classattr]
-        const NONE: i64 = 0;
-        /// Use POSIX Extended Regular Expression syntax when interpreting regex.
-        #[classattr]
-        const EXTENDED: i64 = 1;
-        /// Do not differentiate case.
-        #[classattr]
-        const ICASE: i64 = 2;
-        /// Do not report position of matches.
-        #[classattr]
-        const NOSUB: i64 = 4;
-        /// Match-any-character operators don't match a newline.
-        #[classattr]
-        const NEWLINE: i64 = 8;
-    }
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    //
     //  Filter Expression
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -551,25 +508,6 @@ use crate::string_ops::StringNumericType;
         }
 
         #[staticmethod]
-        /// Create function that returns record size on disk. If server storage-engine is
-        /// memory, then zero is returned. Deprecated: use record_size() for server version 7.0+.
-        /// Implemented via record_size() for server 7.0+.
-        pub fn device_size() -> Self {
-            FilterExpression {
-                _as: aerospike_core::expressions::record_size(),
-            }
-        }
-
-        #[staticmethod]
-        /// Create expression that returns record size in memory. Deprecated: use record_size() for server 7.0+.
-        /// Implemented via record_size() for server 7.0+.
-        pub fn memory_size() -> Self {
-            FilterExpression {
-                _as: aerospike_core::expressions::record_size(),
-            }
-        }
-
-        #[staticmethod]
         /// Create function that returns record last update time expressed as 64 bit integer
         /// nanoseconds since 1970-01-01 epoch.
         pub fn last_update() -> Self {
@@ -618,14 +556,6 @@ use crate::string_ops::StringNumericType;
         pub fn digest_modulo(modulo: i64) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::digest_modulo(modulo),
-            }
-        }
-
-        #[staticmethod]
-        /// Create function like regular expression string operation.
-        pub fn regex_compare(regex: String, flags: i64, bin: FilterExpression) -> Self {
-            FilterExpression {
-                _as: aerospike_core::expressions::regex_compare(regex, flags, bin._as),
             }
         }
 

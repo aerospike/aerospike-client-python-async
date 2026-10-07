@@ -178,7 +178,10 @@ use crate::IoError;
                 ClientConfig::builder_with_provider(provider.into())
                     .with_protocol_versions(&versions)
                     .map_err(|e| {
-                        PyErr::new::<IoError, _>(format!("Cannot build TLS config: {}", e))
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Cannot build TLS config: {}",
+                            e
+                        ))
                     })?
             }
             None => ClientConfig::builder_with_protocol_versions(&versions),
