@@ -91,11 +91,6 @@ class TestQuery(TestFixtureInsertRecord):
             async for _ in records:
                 pass
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="core's query encoder indexes filters[0] without checking for an empty list",
-    )
     async def test_empty_filters_list_does_not_panic(self, client, stmt):
         """An empty ``filters`` list either runs unfiltered or is refused, never panics."""
         stmt.filters = []
