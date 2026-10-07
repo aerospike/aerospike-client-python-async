@@ -228,3 +228,19 @@ class TestQueryBackground(TestFixtureConnection):
         # Status may be InProgress or Complete depending on timing
 
         await task.wait_till_complete(sleep_time=0.2, timeout=10.0)
+
+    async def test_execute_task_id_is_the_server_job_id(self, client_and_data):
+        """``task_id`` is the id the server tracks the job under."""
+        client = client_and_data
+        statement = Statement(self.NAMESPACE, self.SET_NAME, None)
+        task = await client.query_operate(
+            statement, [Operation.put("task_id_bin", 1)], write_policy=WritePolicy()
+        )
+        assert isinstance(task.task_id, int)
+
+        # Asked before waiting; a finished job stays listed for a retention
+        # window, so the id must appear whether or not the job is still running.
+        reply = " ".join((await client.info(f"query-show:id={task.task_id}")).values())
+        assert f"trid={task.task_id}:" in reply, reply
+
+        await task.wait_till_complete(sleep_time=0.2, timeout=10.0)

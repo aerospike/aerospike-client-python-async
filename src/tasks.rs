@@ -613,6 +613,20 @@ use crate::errors::RustClientError;
     #[gen_stub_pymethods]
     #[pymethods]
     impl ExecuteTask {
+        /// The id the server tracks this background job under.
+        ///
+        /// The client assigns it when it starts the job, and it is the id the
+        /// server's job listing (``query-show``) reports, so it can be used to
+        /// correlate the task with server logs or to inspect the job directly.
+        ///
+        /// Example:
+        ///     task = await client.query_operate(statement, operations)
+        ///     print(f"started background job {task.task_id}")
+        #[getter]
+        pub fn task_id(&self) -> u64 {
+            self._as.task_id()
+        }
+
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[TaskStatus]", imports=("typing")))]
         pub fn query_status<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {

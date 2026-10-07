@@ -2276,6 +2276,19 @@ class ErrorDetailVerbosity:
     EXPRESSION_TRACE: builtins.int = 3
 
 class ExecuteTask:
+    @property
+    def task_id(self) -> builtins.int:
+        r"""
+        The id the server tracks this background job under.
+
+        The client assigns it when it starts the job, and it is the id the
+        server's job listing (``query-show``) reports, so it can be used to
+        correlate the task with server logs or to inspect the job directly.
+
+        Example:
+            task = await client.query_operate(statement, operations)
+            print(f"started background job {task.task_id}")
+        """
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...
     def wait_till_complete(self, sleep_time: builtins.float = 0.25, timeout: typing.Optional[builtins.float] = 60.0) -> typing.Awaitable[bool]: ...
     def query_status_blocking(self) -> _aerospike_async_native.TaskStatus:
