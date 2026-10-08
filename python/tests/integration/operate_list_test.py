@@ -35,7 +35,8 @@ async def client_and_key(aerospike_host):
     wp = WritePolicy()
     await client.delete(key, policy=wp)
 
-    return client, key
+    yield client, key
+    await client.close()
 
 
 async def test_list_append_on_integer_bin_raises_bin_type_error(client_and_key):

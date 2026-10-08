@@ -42,7 +42,8 @@ async def client_and_key(aerospike_host, use_services_alternate):
         except Exception:
             pass
 
-    return client
+    yield client
+    await client.close()
 
 
 def _key(n: int) -> Key:
