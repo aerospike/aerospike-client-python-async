@@ -36,7 +36,8 @@ async def client_and_key(aerospike_host):
     wp = WritePolicy()
     await client.delete(key, policy=wp)
 
-    return client, key
+    yield client, key
+    await client.close()
 
 async def test_operate_map_size(client_and_key):
     """Test operate with Map size operation."""

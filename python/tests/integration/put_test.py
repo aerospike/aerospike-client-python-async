@@ -37,7 +37,8 @@ async def client_and_key():
     rp = ReadPolicy()
     await client.delete(key, policy=wp)
 
-    return client, rp, key
+    yield client, rp, key
+    await client.close()
 
 async def test_put_int(client_and_key):
     """Test putting integer values."""

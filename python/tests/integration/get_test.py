@@ -47,7 +47,8 @@ async def client_and_key():
         policy=wp,
     )
 
-    return client, rp, key
+    yield client, rp, key
+    await client.close()
 
 async def test_all_bins(client_and_key):
     """Test getting all bins from a record."""

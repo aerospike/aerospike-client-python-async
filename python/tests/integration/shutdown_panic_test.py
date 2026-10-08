@@ -55,6 +55,9 @@ def _repro_script(host: str) -> str:
 
         async def main():
             cp = ClientPolicy()
+            # Every task opens its own connection, and each attempt abandons
+            # them at exit; uncapped, 3 attempts nearly fill a 1024-fd CI server.
+            cp.max_conns_per_node = 100
             client = await new_client(cp, HOST)
             rp = ReadPolicy()
 
