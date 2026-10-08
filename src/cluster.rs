@@ -84,6 +84,12 @@ use crate::policies::AdminPolicy;
 
         /// User can write masked data only.
         WriteMasked,
+
+        /// A privilege the server reported that this client has no name for.
+        /// Only ever read back from a role listing; the raw code shows in the
+        /// ``Privilege`` string as ``unknown-<code>``. Granting it raises
+        /// :class:`ValueError`.
+        Unknown,
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -289,23 +295,31 @@ use crate::policies::AdminPolicy;
         }
     }
 
-    impl From<&PrivilegeCode> for aerospike_core::PrivilegeCode {
-        fn from(input: &PrivilegeCode) -> Self {
-            match &input {
+    impl TryFrom<&PrivilegeCode> for aerospike_core::PrivilegeCode {
+        type Error = PyErr;
+
+        fn try_from(input: &PrivilegeCode) -> PyResult<Self> {
+            Ok(match &input {
                 PrivilegeCode::UserAdmin => aerospike_core::PrivilegeCode::UserAdmin,
                 PrivilegeCode::SysAdmin => aerospike_core::PrivilegeCode::SysAdmin,
                 PrivilegeCode::DataAdmin => aerospike_core::PrivilegeCode::DataAdmin,
-                PrivilegeCode::UDFAdmin => aerospike_core::PrivilegeCode::UDFAdmin,
-                PrivilegeCode::SIndexAdmin => aerospike_core::PrivilegeCode::SIndexAdmin,
+                PrivilegeCode::UDFAdmin => aerospike_core::PrivilegeCode::UdfAdmin,
+                PrivilegeCode::SIndexAdmin => aerospike_core::PrivilegeCode::SindexAdmin,
                 PrivilegeCode::Read => aerospike_core::PrivilegeCode::Read,
                 PrivilegeCode::ReadWrite => aerospike_core::PrivilegeCode::ReadWrite,
-                PrivilegeCode::ReadWriteUDF => aerospike_core::PrivilegeCode::ReadWriteUDF,
+                PrivilegeCode::ReadWriteUDF => aerospike_core::PrivilegeCode::ReadWriteUdf,
                 PrivilegeCode::Write => aerospike_core::PrivilegeCode::Write,
                 PrivilegeCode::Truncate => aerospike_core::PrivilegeCode::Truncate,
                 PrivilegeCode::MaskingAdmin => aerospike_core::PrivilegeCode::MaskingAdmin,
                 PrivilegeCode::ReadMasked => aerospike_core::PrivilegeCode::ReadMasked,
                 PrivilegeCode::WriteMasked => aerospike_core::PrivilegeCode::WriteMasked,
-            }
+                PrivilegeCode::Unknown => {
+                    return Err(crate::errors::ValueError::new_err(
+                        "PrivilegeCode.Unknown cannot be granted: it only names a \
+                         privilege reported by the server that this client has no name for",
+                    ))
+                }
+            })
         }
     }
 
@@ -315,16 +329,19 @@ use crate::policies::AdminPolicy;
                 aerospike_core::PrivilegeCode::UserAdmin => PrivilegeCode::UserAdmin,
                 aerospike_core::PrivilegeCode::SysAdmin => PrivilegeCode::SysAdmin,
                 aerospike_core::PrivilegeCode::DataAdmin => PrivilegeCode::DataAdmin,
-                aerospike_core::PrivilegeCode::UDFAdmin => PrivilegeCode::UDFAdmin,
-                aerospike_core::PrivilegeCode::SIndexAdmin => PrivilegeCode::SIndexAdmin,
+                aerospike_core::PrivilegeCode::UdfAdmin => PrivilegeCode::UDFAdmin,
+                aerospike_core::PrivilegeCode::SindexAdmin => PrivilegeCode::SIndexAdmin,
                 aerospike_core::PrivilegeCode::Read => PrivilegeCode::Read,
                 aerospike_core::PrivilegeCode::ReadWrite => PrivilegeCode::ReadWrite,
-                aerospike_core::PrivilegeCode::ReadWriteUDF => PrivilegeCode::ReadWriteUDF,
+                aerospike_core::PrivilegeCode::ReadWriteUdf => PrivilegeCode::ReadWriteUDF,
                 aerospike_core::PrivilegeCode::Write => PrivilegeCode::Write,
                 aerospike_core::PrivilegeCode::Truncate => PrivilegeCode::Truncate,
                 aerospike_core::PrivilegeCode::MaskingAdmin => PrivilegeCode::MaskingAdmin,
                 aerospike_core::PrivilegeCode::ReadMasked => PrivilegeCode::ReadMasked,
                 aerospike_core::PrivilegeCode::WriteMasked => PrivilegeCode::WriteMasked,
+                // A code the server reported without a name here, and a variant
+                // core names that this build predates, read the same from Python.
+                aerospike_core::PrivilegeCode::Unknown(_) | _ => PrivilegeCode::Unknown,
             }
         }
     }
@@ -470,10 +487,10 @@ use crate::policies::AdminPolicy;
             code: &PrivilegeCode,
             namespace: Option<String>,
             set_name: Option<String>,
-        ) -> Self {
-            Privilege {
-                _as: aerospike_core::Privilege::new(code.into(), namespace, set_name),
-            }
+        ) -> PyResult<Self> {
+            Ok(Privilege {
+                _as: aerospike_core::Privilege::new(code.try_into()?, namespace, set_name),
+            })
         }
 
         #[getter]

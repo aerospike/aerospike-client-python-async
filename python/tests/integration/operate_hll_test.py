@@ -52,8 +52,9 @@ class TestHllInit(TestFixtureConnection):
             ],
                 policy=WritePolicy(),
             )
-            assert result.bins["hll"][0] == 0  # count should be 0
-            desc = result.bins["hll"][1]
+            # One slot per op: delete and init answer with None.
+            _, _, count, desc = result.results
+            assert count == 0
             assert desc[0] == index_bits  # index_bit_count
             assert desc[1] == 0  # min_hash_bit_count
 
@@ -70,7 +71,7 @@ class TestHllInit(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        desc = result.bins["hll"]
+        desc = result.results[2]
         assert desc[0] == 8
         assert desc[1] == 16
 
@@ -120,8 +121,8 @@ class TestHllAdd(TestFixtureConnection):
             policy=WritePolicy(),
         )
         # add returns number of updates, count returns estimated count
-        add_count = result.bins["hll"][0]
-        est_count = result.bins["hll"][1]
+        add_count = result.results[2]
+        est_count = result.results[3]
         assert add_count == 5  # 5 new values added
         assert est_count == 5  # estimated count should be ~5
 
@@ -184,7 +185,10 @@ class TestHllCount(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        assert result.bins["hll"] == 0
+        # The bin view lists every op on the bin in order, the init's None
+        # included; the positional view addresses the count directly.
+        assert result.bins["hll"] == [None, 0]
+        assert result.results[2] == 0
 
     async def test_count_accuracy(self, client):
         """Test HLL count accuracy is within expected error bounds."""
@@ -239,7 +243,7 @@ class TestHllDescribe(TestFixtureConnection):
             ],
                 policy=WritePolicy(),
             )
-            desc = result.bins["hll"]
+            desc = result.results[2]
             assert desc[0] == index_bits, f"Expected index_bits={index_bits}, got {desc[0]}"
             assert desc[1] == minhash_bits, f"Expected minhash_bits={minhash_bits}, got {desc[1]}"
 
@@ -262,9 +266,9 @@ class TestHllRefreshCount(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        refresh_count = result.bins["hll"][1]
-        get_count = result.bins["hll"][2]
-        assert refresh_count == get_count
+        refresh_count = result.results[3]
+        get_count = result.results[4]
+        assert refresh_count == get_count == 3
 
 
 class TestHllFold(TestFixtureConnection):
@@ -297,8 +301,8 @@ class TestHllFold(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        desc = result.bins["hll"][0]
-        count = result.bins["hll"][1]
+        desc = result.results[1]
+        count = result.results[2]
         assert desc[0] == 6
         # Count should still be approximately correct
         assert count > 80 and count < 120
@@ -455,7 +459,6 @@ class TestHllUnion(TestFixtureConnection):
         hll2 = result2.bins["hll"][1]
 
         # Create main HLL and get union count
-        # When only one operation returns a value, result is that value directly
         await safe_delete(client, key_main)
         result = await client.operate(
             key_main,
@@ -465,7 +468,7 @@ class TestHllUnion(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        union_count = result.bins["hll"]
+        union_count = result.results[1]
 
         # Union of 100 + 100 disjoint sets should be ~200
         assert union_count > 160 and union_count < 240, \
@@ -504,7 +507,7 @@ class TestHllUnion(TestFixtureConnection):
         )
         hll2 = result2.bins["hll"][1]
 
-        # Set union and get count - result is directly the count int
+        # Set union and get count
         await safe_delete(client, key_main)
         result = await client.operate(
             key_main,
@@ -515,7 +518,7 @@ class TestHllUnion(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        count = result.bins["hll"]
+        count = result.results[2]
         assert count > 80 and count < 120
 
     async def test_get_union(self, client):
@@ -560,7 +563,7 @@ class TestHllUnion(TestFixtureConnection):
         ],
             policy=WritePolicy(),
         )
-        union_hll = result.bins["hll"]
+        union_hll = result.results[1]
         assert union_hll is not None
         # HLL values are returned as HLL objects, check it has the expected type name
         assert "HLL" in type(union_hll).__name__
@@ -714,12 +717,10 @@ class TestHllMultipleOperations(TestFixtureConnection):
             policy=WritePolicy(),
         )
 
-        results = result.bins["hll"]
-        # results[0] = init (no return)
-        add_count = results[0]
-        get_count = results[1]
-        refresh_count = results[2]
-        desc = results[3]
+        # Slots 0 and 1 belong to the delete and the init, which answer
+        # with None; the bin view carries the same None for the init.
+        _, _, add_count, get_count, refresh_count, desc = result.results
+        assert result.bins["hll"][0] is None
 
         assert add_count == 5
         assert get_count == 5

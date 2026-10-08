@@ -253,16 +253,16 @@ impl Sampler {
 
     #[getter]
     pub fn get_range(&self) -> u64 {
-        self._as.range
+        self._as.range()
     }
 
     #[getter]
     pub fn get_threshold(&self) -> u64 {
-        self._as.threshold
+        self._as.threshold()
     }
 
     fn __repr__(&self) -> String {
-        format!("Sampler(range={}, threshold={})", self._as.range, self._as.threshold)
+        format!("Sampler(range={}, threshold={})", self._as.range(), self._as.threshold())
     }
 
     fn __richcmp__(&self, other: &Sampler, op: pyo3::class::basic::CompareOp) -> PyResult<bool> {
@@ -421,8 +421,8 @@ impl MetricsPolicy {
             self._as.latency_unit.as_str(),
             self._as.latency_columns,
             self.get_latency_shift(),
-            self._as.sampler.range,
-            self._as.sampler.threshold,
+            self._as.sampler.range(),
+            self._as.sampler.threshold(),
         )
     }
 }

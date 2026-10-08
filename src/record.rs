@@ -239,30 +239,25 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             let mut digest_array = [0u8; 20];
             digest_array.copy_from_slice(&digest_bytes);
 
-            let _as = aerospike_core::Key {
-                namespace: namespace.to_string(),
-                set_name: set.to_string(),
-                user_key: None,
-                digest: digest_array,
-            };
+            let _as = aerospike_core::Key::with_digest(namespace, set, None, digest_array);
 
             Ok(Key { _as })
         }
 
         #[getter]
         pub fn get_namespace(&self) -> String {
-            self._as.namespace.clone()
+            self._as.namespace().to_string()
         }
 
         #[getter]
         pub fn get_set_name(&self) -> String {
-            self._as.set_name.clone()
+            self._as.set_name().to_string()
         }
 
         #[getter(value)]
         pub fn get_value(&self) -> Option<PythonValue> {
             // Return key value as-is (preserves integer, string, bytes, etc.)
-            match &self._as.user_key {
+            match self._as.user_key() {
                 Some(v) => {
                     let pv: PythonValue = v.clone().into();
                     Some(pv)
@@ -273,7 +268,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
         #[getter]
         pub fn get_digest(&self) -> Option<String> {
-            Some(hex::encode(self._as.digest))
+            Some(hex::encode(self._as.digest()))
         }
 
         /// Partition (0-4095) that this key's digest maps to.
@@ -284,8 +279,8 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
 
         fn __richcmp__(&self, other: PyRef<'_, Key>, op: CompareOp) -> bool {
             match op {
-                CompareOp::Eq => self._as.digest == other._as.digest,
-                CompareOp::Ne => self._as.digest != other._as.digest,
+                CompareOp::Eq => self._as.digest() == other._as.digest(),
+                CompareOp::Ne => self._as.digest() != other._as.digest(),
                 _ => false,
             }
         }
@@ -296,7 +291,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
             // The digest is already a uniformly distributed hash, so its
             // leading bytes serve directly without rehashing.
             let mut leading = [0u8; 8];
-            leading.copy_from_slice(&self._as.digest[..8]);
+            leading.copy_from_slice(&self._as.digest()[..8]);
             u64::from_le_bytes(leading)
         }
 
@@ -1444,8 +1439,8 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     }
                     aerospike_core::Value::OrderedMap(map)
                 }
-                PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJSON(gj),
-                PythonValue::HLL(b) => aerospike_core::Value::HLL(b),
+                PythonValue::GeoJSON(gj) => aerospike_core::Value::GeoJson(gj),
+                PythonValue::HLL(b) => aerospike_core::Value::Hll(b),
                 PythonValue::CdtSpecial(s) => match s {
                     SpecialValue::Null => aerospike_core::Value::Nil,
                     SpecialValue::Infinity => aerospike_core::Value::Infinity,
@@ -1508,8 +1503,8 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                     // the raw payload so the data is still accessible.
                     PythonValue::Blob(bytes)
                 }
-                aerospike_core::Value::GeoJSON(gj) => PythonValue::GeoJSON(gj),
-                aerospike_core::Value::HLL(b) => PythonValue::HLL(b),
+                aerospike_core::Value::GeoJson(gj) => PythonValue::GeoJSON(gj),
+                aerospike_core::Value::Hll(b) => PythonValue::HLL(b),
                 aerospike_core::Value::Infinity => PythonValue::CdtSpecial(SpecialValue::Infinity),
                 aerospike_core::Value::Wildcard => PythonValue::CdtSpecial(SpecialValue::Wildcard),
                 aerospike_core::Value::KeyValueList(kvl) => {
@@ -1519,6 +1514,7 @@ use pyo3_stub_gen::{PyStubType, TypeInfo};
                         .collect();
                     PythonValue::OrderedMap(pairs)
                 }
+                other => unreachable!("unmapped core Value: {other:?}"),
             }
         }
     }

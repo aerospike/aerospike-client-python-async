@@ -581,12 +581,10 @@ class TestMultiOpPipelines:
     async def test_modify_then_read_observes_post_modify_state(self, string_client_820):
         """trim → upper → strlen in one operate; the strlen must see the modified value.
 
-        PAC unmarshaling note: the three ops on bin ``s`` produce
-        (None, None, 2) on the wire (the two modify ops return the canonical
-        null sentinel and PAC drops them from the response). The visible
-        result is just the strlen int — but the persisted state proves the
-        ordering: ``trim`` ran before ``upper`` ran before ``strlen`` saw
-        the post-modify length of 2.
+        The three ops on bin ``s`` answer ``[None, None, 2]``: each modify
+        op keeps its slot with ``None``, and the ``strlen`` that follows
+        reports the post-modify length. The persisted state proves the
+        ordering: ``trim`` ran before ``upper`` ran before ``strlen``.
         """
         key = _key("mod_then_read")
         await _put_str(string_client_820, key, "s", "  hi  ")
@@ -601,9 +599,10 @@ class TestMultiOpPipelines:
         )
         # Final stored value confirms trim → upper applied in order.
         assert await _read_str(string_client_820, key, "s") == "HI"
-        # Visible response is the strlen result observing the post-modify
+        # Every op keeps its slot; the strlen observes the post-modify
         # state (2 codepoints).
-        assert rec.bins.get("s") == 2
+        assert rec.results == [None, None, 2]
+        assert rec.bins.get("s") == [None, None, 2]
 
 
 # ---------------------------------------------------------------------------

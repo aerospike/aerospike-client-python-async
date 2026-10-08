@@ -6052,7 +6052,10 @@ class Statement:
     @property
     def filters(self) -> typing.Optional[builtins.list[_aerospike_async_native.Filter]]: ...
     @filters.setter
-    def filters(self, value: typing.Optional[typing.Sequence[_aerospike_async_native.Filter]]) -> None: ...
+    def filters(self, value: typing.Optional[typing.Sequence[_aerospike_async_native.Filter]]) -> None:
+        r"""
+        The server accepts one secondary-index filter per query.
+        """
     @property
     def set_name(self) -> typing.Optional[builtins.str]: ...
     @set_name.setter
@@ -6831,6 +6834,15 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     @generation_policy.setter
     def generation_policy(self, value: _aerospike_async_native.GenerationPolicy) -> None: ...
     @property
+    def replica(self) -> _aerospike_async_native.Replica:
+        r"""
+        Replica selection for an ``operate`` whose operations are all reads,
+        which routes like a read. A command that writes always starts at the
+        master. Default: ``Replica.SEQUENCE``.
+        """
+    @replica.setter
+    def replica(self, value: _aerospike_async_native.Replica) -> None: ...
+    @property
     def commit_level(self) -> _aerospike_async_native.CommitLevel: ...
     @commit_level.setter
     def commit_level(self, value: _aerospike_async_native.CommitLevel) -> None: ...
@@ -6946,7 +6958,7 @@ class WritePolicy(_aerospike_async_native.BasePolicy):
     def read_touch_ttl(self, value: builtins.int) -> None: ...
     def __new__(cls) -> _aerospike_async_native.WritePolicy: ...
     @staticmethod
-    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None) -> _aerospike_async_native.WritePolicy:
+    def from_fields(*, total_timeout: typing.Optional[builtins.int] = None, socket_timeout: typing.Optional[builtins.int] = None, timeout_delay: typing.Optional[builtins.int] = None, max_retries: typing.Optional[builtins.int] = None, sleep_between_retries: typing.Optional[builtins.int] = None, record_exists_action: typing.Optional[_aerospike_async_native.RecordExistsAction] = None, generation_policy: typing.Optional[_aerospike_async_native.GenerationPolicy] = None, commit_level: typing.Optional[_aerospike_async_native.CommitLevel] = None, generation: typing.Optional[builtins.int] = None, expiration: typing.Optional[_aerospike_async_native.Expiration] = None, send_key: typing.Optional[builtins.bool] = None, respond_per_each_op: typing.Optional[builtins.bool] = None, durable_delete: typing.Optional[builtins.bool] = None, use_compression: typing.Optional[builtins.bool] = None, compression_threshold: typing.Optional[builtins.int] = None, error_detail_verbosity: typing.Optional[builtins.int] = None, records_per_second: typing.Optional[builtins.int] = None, replica: typing.Optional[_aerospike_async_native.Replica] = None) -> _aerospike_async_native.WritePolicy:
         r"""
         Build a ``WritePolicy`` in a single call, setting only the provided fields.
 
@@ -7483,6 +7495,13 @@ class PrivilegeCode(enum.Enum):
     WriteMasked = ...
     r"""
     User can write masked data only.
+    """
+    Unknown = ...
+    r"""
+    A privilege the server reported that this client has no name for.
+    Only ever read back from a role listing; the raw code shows in the
+    ``Privilege`` string as ``unknown-<code>``. Granting it raises
+    :class:`ValueError`.
     """
 
 @typing.final

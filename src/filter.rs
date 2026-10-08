@@ -396,20 +396,20 @@ use crate::record::{Key, PythonValue, Record};
 
         #[getter]
         pub fn get_filters(&self) -> Option<Vec<Filter>> {
-            self._as
-                .filters
-                .as_ref()
-                .map(|filters| filters.iter().map(|f| Filter { _as: f.clone() }).collect())
+            self._as.filter.as_ref().map(|f| vec![Filter { _as: f.clone() }])
         }
 
+        /// The server accepts one secondary-index filter per query.
         #[setter]
-        pub fn set_filters(&mut self, filters: Option<Vec<Filter>>) {
-            match filters {
-                None => self._as.filters = None,
-                Some(filters) => {
-                    self._as.filters = Some(filters.iter().map(|qf| qf._as.clone()).collect());
-                }
-            };
+        pub fn set_filters(&mut self, filters: Option<Vec<Filter>>) -> PyResult<()> {
+            let mut filters = filters.unwrap_or_default();
+            if filters.len() > 1 {
+                return Err(PyValueError::new_err(
+                    "a query accepts at most one secondary-index filter",
+                ));
+            }
+            self._as.filter = filters.pop().map(|f| f._as);
+            Ok(())
         }
 
         #[getter]
@@ -439,13 +439,10 @@ use crate::record::{Key, PythonValue, Record};
             function_name: &str,
             function_args: Option<Vec<PythonValue>>,
         ) {
-            let args: Option<Vec<aerospike_core::Value>> = function_args
-                .map(|args| args.into_iter().map(|v| v.into()).collect());
-            self._as.set_aggregate_function(
-                package_name,
-                function_name,
-                args.as_deref(),
-            );
+            let args: Vec<aerospike_core::Value> = function_args
+                .map(|args| args.into_iter().map(|v| v.into()).collect())
+                .unwrap_or_default();
+            self._as.set_aggregate_function(package_name, function_name, &args);
         }
 
         /// Attach an ops projection. The server returns the result of these
@@ -654,11 +651,8 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_within_region_cit(
-                        bin_name,
-                        region,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                    _as: aerospike_core::query::Filter::geo_within_region(bin_name, region)
+                        .collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -680,11 +674,8 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_within_region_by_index_cit(
-                        index_name,
-                        region,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                    _as: aerospike_core::query::Filter::geo_within_region_by_index(index_name, region)
+                        .collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -711,13 +702,10 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_within_radius_cit(
-                        bin_name,
+                    _as: aerospike_core::query::Filter::geo_within_radius(bin_name,
                         lng,
                         lat,
-                        radius,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                        radius).collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -743,13 +731,10 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_within_radius_by_index_cit(
-                        index_name,
+                    _as: aerospike_core::query::Filter::geo_within_radius_by_index(index_name,
                         lng,
                         lat,
-                        radius,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                        radius).collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -768,11 +753,8 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_contains_cit(
-                        bin_name,
-                        point,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                    _as: aerospike_core::query::Filter::geo_contains(bin_name, point)
+                        .collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -794,11 +776,8 @@ use crate::record::{Key, PythonValue, Record};
                 }
             } else {
                 Filter {
-                    _as: aerospike_core::query::Filter::geo_contains_by_index_cit(
-                        index_name,
-                        point,
-                        aerospike_core::query::CollectionIndexType::from(cit),
-                    ),
+                    _as: aerospike_core::query::Filter::geo_contains_by_index(index_name, point)
+                        .collection_type(aerospike_core::query::CollectionIndexType::from(cit)),
                 }
             }
         }
@@ -869,7 +848,7 @@ use crate::record::{Key, PythonValue, Record};
             let recordset = self._as.clone();
 
             crate::completion::batched_future_into_py(bridge, py, async move {
-                match recordset.partition_filter().await {
+                match recordset.partition_filter() {
                     Some(pf) => Ok(Some(PartitionFilter { _as: pf })),
                     None => Ok(None),
                 }
@@ -878,12 +857,8 @@ use crate::record::{Key, PythonValue, Record};
 
         pub fn partition_filter_sync(&self, py: Python<'_>) -> PyResult<Option<PartitionFilter>> {
             // Synchronous counterpart to `partition_filter()` for the blocking
-            // query path. The async method returns an awaitable and needs a
-            // CompletionBridge; a Recordset created via `query_blocking` has no
-            // event loop to await on, so block on the per-thread runtime instead
-            // — the same pattern `__next__` uses. Core's `partition_filter()`
-            // only locks the tracker and clones out the cursor (no network IO),
-            // so blocking here is cheap.
+            // query path, where a Recordset created via `query_blocking` has no
+            // CompletionBridge to resolve an awaitable on.
             if crate::blocking::in_async_context(py)? {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
                     "Cannot call partition_filter_sync() from within an async \
@@ -891,10 +866,7 @@ use crate::record::{Key, PythonValue, Record};
                 ));
             }
             let recordset = self._as.clone();
-            let rt = pyo3_async_runtimes::tokio::get_runtime();
-            let pf = py.detach(|| {
-                crate::blocking::block_on(rt, async move { recordset.partition_filter().await })
-            })?;
+            let pf = py.detach(|| recordset.partition_filter());
             Ok(pf.map(|pf| PartitionFilter { _as: pf }))
         }
 

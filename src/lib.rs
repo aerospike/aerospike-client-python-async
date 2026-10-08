@@ -244,14 +244,17 @@ use crate::operations::{
         /// first ``execute()``).
         #[setter]
         pub fn set_timeout(&mut self, timeout: u32) -> PyResult<()> {
-            Arc::get_mut(&mut self._as)
-                .ok_or_else(|| PyValueError::new_err(
+            match Arc::get_mut(&mut self._as) {
+                Some(txn) => {
+                    txn.set_timeout(std::time::Duration::from_secs(u64::from(timeout)));
+                    Ok(())
+                }
+                None => Err(PyValueError::new_err(
                     "Cannot mutate Txn.timeout after the transaction has been \
                      shared with a policy or operation; set the timeout before \
                      the first operation in the transactional session."
-                ))?
-                .set_timeout(std::time::Duration::from_secs(timeout as u64));
-            Ok(())
+                )),
+            }
         }
 
         /// Namespace in use by this transaction, if one has been set.
@@ -492,7 +495,7 @@ use crate::operations::{
                 crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                            let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -530,7 +533,7 @@ use crate::operations::{
                 crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                            let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -633,7 +636,7 @@ use crate::operations::{
                 crate::blocking::block_on(&self.rt, async move {
                     let mut policy = match base_sc {
                         Some(sc) => {
-                            let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                            let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                             if is_sc { sc } else { base_ap }
                         }
                         None => base_ap,
@@ -659,7 +662,7 @@ use crate::operations::{
         /// consistency on the cluster.  See :meth:`Client.is_strong_consistency`
         /// for semantics.
         pub fn is_strong_consistency(&self, namespace: &str) -> Option<bool> {
-            self.client.cluster.is_strong_consistency(namespace)
+            self.client.is_strong_consistency(namespace)
         }
 
         // -- Info (needed by PSDK SyncSession namespace-mode resolver) ------
@@ -672,7 +675,7 @@ use crate::operations::{
             let client = self.client.clone();
             py.detach(|| {
                 crate::blocking::block_on(&self.rt, async move {
-                    let node = client.cluster.get_random_node()
+                    let node = client.random_node()
                         .map_err(|e| PyErr::from(RustClientError(e)))?;
                     let policy = aerospike_core::AdminPolicy::default();
                     node.info(&policy, &[&command]).await
@@ -739,19 +742,9 @@ use crate::operations::{
         > + Send,
     >>;
 
-    /// Moves the result row out of a completed batch operation without cloning
-    /// the record. Exhaustive on purpose: a new core variant fails loudly here
-    /// instead of silently dropping its row.
+    /// Moves the result row out of a completed batch operation.
     fn take_batch_record(op: aerospike_core::BatchOperation) -> aerospike_core::BatchRecord {
-        use aerospike_core::BatchOperation as Op;
-        match op {
-            Op::Read { br, .. }
-            | Op::Write { br, .. }
-            | Op::Delete { br, .. }
-            | Op::UDF { br, .. }
-            | Op::TxnVerify { br, .. }
-            | Op::TxnRoll { br, .. } => br,
-        }
+        op.into_batch_record()
     }
 
     /// Converts a whole-batch failure into the Python error contract. The
@@ -792,8 +785,9 @@ use crate::operations::{
         let (tx, rx) = futures::channel::mpsc::unbounded();
         let driver = async move {
             let hook_tx = tx.clone();
+            let mut ops = ops;
             let result = client
-                .batch_foreach(&policy, ops, move |idx, row| {
+                .batch_foreach(&policy, &mut ops, move |idx, row| {
                     // Clone in the sync arm so the returned future is 'static;
                     // the row must also stay on the op for core's in-place
                     // contract, so a copy here is the price of streaming.
@@ -989,7 +983,7 @@ use crate::operations::{
         },
         Udf {
             key: aerospike_core::Key,
-            policy: aerospike_core::BatchUDFPolicy,
+            policy: aerospike_core::BatchUdfPolicy,
             udf_name: String,
             function_name: String,
             args: Option<Vec<aerospike_core::Value>>,
@@ -1062,7 +1056,7 @@ use crate::operations::{
                 }
                 ExtractedBatchOp::Udf { key, policy, udf_name, function_name, args } => {
                     batch_ops.push(BatchOperation::udf(
-                        policy, key.clone(), udf_name, function_name, args.clone(),
+                        policy, key.clone(), udf_name, function_name, args.clone().unwrap_or_default(),
                     ));
                 }
             }
@@ -1233,7 +1227,7 @@ use crate::operations::{
         ///     ``None``: namespace not in the partition map (unknown
         ///     namespace, or partition map not yet populated for this cluster).
         pub fn is_strong_consistency(&self, namespace: &str) -> Option<bool> {
-            self._as.cluster.is_strong_consistency(namespace)
+            self._as.is_strong_consistency(namespace)
         }
 
         /// Closes the connection to the Aerospike cluster.
@@ -1308,7 +1302,7 @@ use crate::operations::{
             run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1353,7 +1347,7 @@ use crate::operations::{
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1589,7 +1583,7 @@ use crate::operations::{
             let raw = run_blocking(py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -1627,7 +1621,7 @@ use crate::operations::{
             let core_args: Option<Vec<aerospike_core::Value>> =
                 args.map(|v| v.into_iter().map(|pv| pv.into()).collect());
             let raw = run_blocking(py, async move {
-                let core_args_ref = core_args.as_deref();
+                let core_args_ref = core_args.as_deref().unwrap_or(&[]);
                 client.execute_udf(&policy, &key, &server_path, &function_name, core_args_ref).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
@@ -1763,11 +1757,12 @@ use crate::operations::{
         ) -> PyResult<ExecuteTask> {
             let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
-            let core_statement = statement._as.clone();
+            let mut core_statement = statement._as.clone();
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
+            core_statement.set_operations(core_ops);
             let raw = run_blocking(py, async move {
-                client.query_operate(&policy, core_statement, &core_ops).await
+                client.query_operate(&policy, core_statement).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
             Ok(ExecuteTask { _as: raw, bridge: None })
@@ -1789,9 +1784,9 @@ use crate::operations::{
             let mut core_statement = statement._as.clone();
             let rust_args = args.map(|a| a.into_iter().map(|v| v.into())
                 .collect::<Vec<aerospike_core::Value>>());
-            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref());
+            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref().unwrap_or(&[]));
             let raw = run_blocking(py, async move {
-                let args_ref = rust_args.as_deref();
+                let args_ref = rust_args.as_deref().unwrap_or(&[]);
                 client.query_execute_udf(&policy, core_statement, &package_name, &function_name, args_ref).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
             })?;
@@ -1811,7 +1806,7 @@ use crate::operations::{
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
                 .unwrap_or_default();
-            let lang: aerospike_core::UDFLang = language.into();
+            let lang: aerospike_core::UdfLang = language.into();
             let raw = run_blocking(py, async move {
                 client.register_udf(&admin_policy, &udf_body, &server_path, lang).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1832,7 +1827,7 @@ use crate::operations::{
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as)
                 .unwrap_or_default();
-            let lang: aerospike_core::UDFLang = language.into();
+            let lang: aerospike_core::UdfLang = language.into();
             let raw = run_blocking(py, async move {
                 client.register_udf_from_file(&admin_policy, &client_path, &server_path, lang).await
                     .map_err(|e| PyErr::from(RustClientError(e)))
@@ -1961,7 +1956,7 @@ use crate::operations::{
         ) -> PyResult<IndexMap<String, String>> {
             let client = self._as.clone();
             run_blocking(py, async move {
-                let node = client.cluster.get_random_node()
+                let node = client.random_node()
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 let policy = aerospike_core::AdminPolicy::default();
                 node.info(&policy, &[&command]).await
@@ -2547,7 +2542,7 @@ use crate::operations::{
                 use aerospike_core::BatchOperation;
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
                 for key in rust_keys {
-                    let rust_args_owned = rust_args.as_ref().map(|a| a.to_vec());
+                    let rust_args_owned = rust_args.clone().unwrap_or_default();
                     batch_ops.push(BatchOperation::udf(
                         &udf_policy, key, &udf_name, &function_name, rust_args_owned,
                     ));
@@ -2592,7 +2587,7 @@ use crate::operations::{
                 },
                 Udf {
                     key: aerospike_core::Key,
-                    policy: aerospike_core::BatchUDFPolicy,
+                    policy: aerospike_core::BatchUdfPolicy,
                     udf_name: String,
                     function_name: String,
                     args: Option<Vec<aerospike_core::Value>>,
@@ -2663,7 +2658,7 @@ use crate::operations::{
                         }
                         ExtractedOp::Udf { key, policy, udf_name, function_name, args } => {
                             batch_ops.push(
-                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone())
+                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone().unwrap_or_default())
                             );
                         }
                     }
@@ -2734,7 +2729,7 @@ use crate::operations::{
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -2784,7 +2779,7 @@ use crate::operations::{
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -2847,8 +2842,8 @@ use crate::operations::{
                         let policy = match base_sc {
                             Some(sc) => {
                                 let is_sc = client
-                                    .cluster
-                                    .is_strong_consistency(&key_as.namespace)
+                                    
+                                    .is_strong_consistency(key_as.namespace())
                                     .unwrap_or(false);
                                 if is_sc { sc } else { base_ap }
                             }
@@ -2933,8 +2928,8 @@ use crate::operations::{
                         let policy = match base_sc {
                             Some(sc) => {
                                 let is_sc = client
-                                    .cluster
-                                    .is_strong_consistency(&key_as.namespace)
+                                    
+                                    .is_strong_consistency(key_as.namespace())
                                     .unwrap_or(false);
                                 if is_sc { sc } else { base_ap }
                             }
@@ -3002,8 +2997,8 @@ use crate::operations::{
                         let policy = match base_sc {
                             Some(sc) => {
                                 let is_sc = client
-                                    .cluster
-                                    .is_strong_consistency(&key_as.namespace)
+                                    
+                                    .is_strong_consistency(key_as.namespace())
                                     .unwrap_or(false);
                                 if is_sc { sc } else { base_ap }
                             }
@@ -3089,8 +3084,8 @@ use crate::operations::{
                         let policy = match base_sc {
                             Some(sc) => {
                                 let is_sc = client
-                                    .cluster
-                                    .is_strong_consistency(&key_as.namespace)
+                                    
+                                    .is_strong_consistency(key_as.namespace())
                                     .unwrap_or(false);
                                 if is_sc { sc } else { base_ap }
                             }
@@ -3156,7 +3151,7 @@ use crate::operations::{
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let mut policy = match base_sc {
                     Some(sc) => {
-                        let is_sc = client.cluster.is_strong_consistency(&key_as.namespace).unwrap_or(false);
+                        let is_sc = client.is_strong_consistency(key_as.namespace()).unwrap_or(false);
                         if is_sc { sc } else { base_ap }
                     }
                     None => base_ap,
@@ -3612,7 +3607,7 @@ use crate::operations::{
 
                 let mut batch_ops = Vec::with_capacity(rust_keys.len());
                 for key in rust_keys {
-                    let rust_args_owned = rust_args.as_ref().map(|a| a.to_vec());
+                    let rust_args_owned = rust_args.clone().unwrap_or_default();
                     batch_ops.push(BatchOperation::udf(&udf_policy, key, &udf_name, &function_name, rust_args_owned));
                 }
 
@@ -3671,7 +3666,7 @@ use crate::operations::{
                 },
                 Udf {
                     key: aerospike_core::Key,
-                    policy: aerospike_core::BatchUDFPolicy,
+                    policy: aerospike_core::BatchUdfPolicy,
                     udf_name: String,
                     function_name: String,
                     args: Option<Vec<aerospike_core::Value>>,
@@ -3743,7 +3738,7 @@ use crate::operations::{
                         }
                         ExtractedOp::Udf { key, policy, udf_name, function_name, args } => {
                             batch_ops.push(
-                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone())
+                                BatchOperation::udf(policy, key.clone(), udf_name, function_name, args.clone().unwrap_or_default())
                             );
                         }
                     }
@@ -3838,7 +3833,7 @@ use crate::operations::{
             });
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
-                let rust_args_ref = rust_args.as_deref();
+                let rust_args_ref = rust_args.as_deref().unwrap_or(&[]);
                 let result = client
                     .execute_udf(&policy, &key, &server_path, &function_name, rust_args_ref)
                     .await
@@ -3877,16 +3872,17 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let policy = write_policy.map(|p| p._as.clone()).unwrap_or_default();
             let client = self._as.clone();
-            let core_statement = statement._as.clone();
+            let mut core_statement = statement._as.clone();
 
             let rust_ops = extract_py_ops_with_ctx(py, &operations)?;
             let (core_ops, _) = convert_ops_with_ctx_to_core(&rust_ops, false)?;
+            core_statement.set_operations(core_ops);
 
             let bridge = self.require_bridge()?;
             let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
                 let task = client
-                    .query_operate(&policy, core_statement, &core_ops)
+                    .query_operate(&policy, core_statement)
                     .await
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
                 Ok(ExecuteTask { _as: task, bridge: Some(task_bridge) })
@@ -3921,12 +3917,12 @@ use crate::operations::{
             let client = self._as.clone();
             let mut core_statement = statement._as.clone();
             let rust_args = args.map(|a| a.into_iter().map(|v| v.into()).collect::<Vec<aerospike_core::Value>>());
-            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref());
+            core_statement.set_aggregate_function(&package_name, &function_name, rust_args.as_deref().unwrap_or(&[]));
 
             let bridge = self.require_bridge()?;
             let task_bridge = bridge.clone();
             completion::batched_future_into_py(bridge, py, async move {
-                let args_ref = rust_args.as_deref();
+                let args_ref = rust_args.as_deref().unwrap_or(&[]);
                 let task = client
                     .query_execute_udf(&policy, core_statement, &package_name, &function_name, args_ref)
                     .await
@@ -3957,7 +3953,7 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as).unwrap_or_default();
-            let lang: aerospike_core::UDFLang = language.into();
+            let lang: aerospike_core::UdfLang = language.into();
 
             let bridge = self.require_bridge()?;
             let task_bridge = bridge.clone();
@@ -3992,7 +3988,7 @@ use crate::operations::{
         ) -> PyResult<Bound<'a, PyAny>> {
             let client = self._as.clone();
             let admin_policy = policy.map(|p| p._as).unwrap_or_default();
-            let lang: aerospike_core::UDFLang = language.into();
+            let lang: aerospike_core::UdfLang = language.into();
 
             let bridge = self.require_bridge()?;
             let task_bridge = bridge.clone();
@@ -4888,8 +4884,8 @@ use crate::operations::{
 
             completion::batched_future_into_py(self.require_bridge()?, py, async move {
                 let node = client
-                    .cluster
-                    .get_random_node()
+                    
+                    .random_node()
                     .map_err(|e| PyErr::from(RustClientError(e)))?;
 
                 let policy = aerospike_core::AdminPolicy::default();

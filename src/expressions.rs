@@ -63,16 +63,16 @@ use crate::string_ops::StringNumericType;
     impl From<&ExpType> for aerospike_core::expressions::ExpType {
         fn from(input: &ExpType) -> Self {
             match &input {
-                ExpType::Nil => aerospike_core::expressions::ExpType::NIL,
-                ExpType::Bool => aerospike_core::expressions::ExpType::BOOL,
-                ExpType::Int => aerospike_core::expressions::ExpType::INT,
-                ExpType::String => aerospike_core::expressions::ExpType::STRING,
-                ExpType::List => aerospike_core::expressions::ExpType::LIST,
-                ExpType::Map => aerospike_core::expressions::ExpType::MAP,
-                ExpType::Blob => aerospike_core::expressions::ExpType::BLOB,
-                ExpType::Float => aerospike_core::expressions::ExpType::FLOAT,
-                ExpType::Geo => aerospike_core::expressions::ExpType::GEO,
-                ExpType::HLL => aerospike_core::expressions::ExpType::HLL,
+                ExpType::Nil => aerospike_core::expressions::ExpType::Nil,
+                ExpType::Bool => aerospike_core::expressions::ExpType::Bool,
+                ExpType::Int => aerospike_core::expressions::ExpType::Int,
+                ExpType::String => aerospike_core::expressions::ExpType::String,
+                ExpType::List => aerospike_core::expressions::ExpType::List,
+                ExpType::Map => aerospike_core::expressions::ExpType::Map,
+                ExpType::Blob => aerospike_core::expressions::ExpType::Blob,
+                ExpType::Float => aerospike_core::expressions::ExpType::Float,
+                ExpType::Geo => aerospike_core::expressions::ExpType::Geo,
+                ExpType::HLL => aerospike_core::expressions::ExpType::Hll,
             }
         }
     }
@@ -1261,7 +1261,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_index(
                     core_return_type,
@@ -1286,7 +1286,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_rank(
                     core_return_type,
@@ -1310,7 +1310,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_value(
                     core_return_type,
@@ -1335,7 +1335,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_value_range(
                     core_return_type,
@@ -1359,7 +1359,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_value_list(
                     core_return_type,
@@ -1382,7 +1382,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_index_range(
                     core_return_type,
@@ -1406,7 +1406,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_index_range_count(
                     core_return_type,
@@ -1430,7 +1430,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_rank_range(
                     core_return_type,
@@ -1454,7 +1454,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_rank_range_count(
                     core_return_type,
@@ -1479,7 +1479,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range(
                     core_return_type,
@@ -1505,7 +1505,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: lists::get_by_value_relative_rank_range_count(
                     core_return_type,
@@ -1647,7 +1647,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_value(return_type, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_value(return_type.into(), value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1661,7 +1661,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_value_list(return_type, values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_value_list(return_type.into(), values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1678,7 +1678,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::lists;
             FilterExpression {
                 _as: lists::remove_by_value_range(
-                    return_type,
+                    return_type.into(),
                     value_begin.map(|e| e._as),
                     value_end.map(|e| e._as),
                     bin._as,
@@ -1699,7 +1699,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::lists;
             FilterExpression {
                 _as: lists::remove_by_value_relative_rank_range(
-                    return_type,
+                    return_type.into(),
                     value._as,
                     rank._as,
                     bin._as,
@@ -1722,7 +1722,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::lists;
             FilterExpression {
                 _as: lists::remove_by_value_relative_rank_range_count(
-                    return_type,
+                    return_type.into(),
                     value._as,
                     rank._as,
                     count._as,
@@ -1742,7 +1742,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_index(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_index(return_type.into(), index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1756,7 +1756,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_index_range(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_index_range(return_type.into(), index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1772,7 +1772,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::lists;
             FilterExpression {
                 _as: lists::remove_by_index_range_count(
-                    return_type,
+                    return_type.into(),
                     index._as,
                     count._as,
                     bin._as,
@@ -1791,7 +1791,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_rank(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_rank(return_type.into(), rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1805,7 +1805,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::lists;
             FilterExpression {
-                _as: lists::remove_by_rank_range(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: lists::remove_by_rank_range(return_type.into(), rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -1821,7 +1821,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::lists;
             FilterExpression {
                 _as: lists::remove_by_rank_range_count(
-                    return_type,
+                    return_type.into(),
                     rank._as,
                     count._as,
                     bin._as,
@@ -1858,7 +1858,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_key(
                     core_return_type,
@@ -1883,7 +1883,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_rank(
                     core_return_type,
@@ -1908,7 +1908,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_index(
                     core_return_type,
@@ -1932,7 +1932,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_value(
                     core_return_type,
@@ -1957,7 +1957,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_value_range(
                     core_return_type,
@@ -1981,7 +1981,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_value_list(
                     core_return_type,
@@ -2006,7 +2006,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_key_range(
                     core_return_type,
@@ -2030,7 +2030,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_key_list(
                     core_return_type,
@@ -2054,7 +2054,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_key_relative_index_range(
                     core_return_type,
@@ -2080,7 +2080,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_key_relative_index_range_count(
                     core_return_type,
@@ -2106,7 +2106,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_value_relative_rank_range(
                     core_return_type,
@@ -2132,7 +2132,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_value_relative_rank_range_count(
                     core_return_type,
@@ -2157,7 +2157,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_index_range(
                     core_return_type,
@@ -2181,7 +2181,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_index_range_count(
                     core_return_type,
@@ -2205,7 +2205,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_rank_range(
                     core_return_type,
@@ -2229,7 +2229,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             let ctx_vec = crate::cdt::ctx_to_vec(&ctx);
-            let core_return_type = return_type;
+            let core_return_type = return_type.into();
             FilterExpression {
                 _as: maps::get_by_rank_range_count(
                     core_return_type,
@@ -2312,7 +2312,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_key(return_type, key._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_key(return_type.into(), key._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2326,7 +2326,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_key_list(return_type, keys._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_key_list(return_type.into(), keys._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2343,7 +2343,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_key_range(
-                    return_type,
+                    return_type.into(),
                     key_begin.map(|e| e._as),
                     key_end.map(|e| e._as),
                     bin._as,
@@ -2364,7 +2364,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_key_relative_index_range(
-                    return_type,
+                    return_type.into(),
                     key._as,
                     index._as,
                     bin._as,
@@ -2387,7 +2387,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_key_relative_index_range_count(
-                    return_type,
+                    return_type.into(),
                     key._as,
                     index._as,
                     count._as,
@@ -2407,7 +2407,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_value(return_type, value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_value(return_type.into(), value._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2421,7 +2421,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_value_list(return_type, values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_value_list(return_type.into(), values._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2438,7 +2438,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_value_range(
-                    return_type,
+                    return_type.into(),
                     value_begin.map(|e| e._as),
                     value_end.map(|e| e._as),
                     bin._as,
@@ -2459,7 +2459,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_value_relative_rank_range(
-                    return_type,
+                    return_type.into(),
                     value._as,
                     rank._as,
                     bin._as,
@@ -2482,7 +2482,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_value_relative_rank_range_count(
-                    return_type,
+                    return_type.into(),
                     value._as,
                     rank._as,
                     count._as,
@@ -2502,7 +2502,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_index(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_index(return_type.into(), index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2516,7 +2516,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_index_range(return_type, index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_index_range(return_type.into(), index._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2532,7 +2532,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_index_range_count(
-                    return_type,
+                    return_type.into(),
                     index._as,
                     count._as,
                     bin._as,
@@ -2551,7 +2551,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_rank(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_rank(return_type.into(), rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2565,7 +2565,7 @@ use crate::string_ops::StringNumericType;
         ) -> Self {
             use aerospike_core::expressions::maps;
             FilterExpression {
-                _as: maps::remove_by_rank_range(return_type, rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
+                _as: maps::remove_by_rank_range(return_type.into(), rank._as, bin._as, &crate::cdt::ctx_to_vec(&ctx)),
             }
         }
 
@@ -2581,7 +2581,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::maps;
             FilterExpression {
                 _as: maps::remove_by_rank_range_count(
-                    return_type,
+                    return_type.into(),
                     rank._as,
                     count._as,
                     bin._as,
@@ -3265,7 +3265,7 @@ use crate::string_ops::StringNumericType;
             FilterExpression {
                 _as: aerospike_core::expressions::exp_select_by_path(
                     (&return_type).into(),
-                    aerospike_core::operations::path::SelectFlag(flag),
+                    aerospike_core::operations::path::SelectFlag::from_bits(flag),
                     bin_exp._as,
                     &core_ctx,
                 ),
@@ -3288,7 +3288,7 @@ use crate::string_ops::StringNumericType;
             FilterExpression {
                 _as: aerospike_core::expressions::exp_modify_by_path(
                     (&return_type).into(),
-                    aerospike_core::operations::path::ModifyFlag(flag),
+                    aerospike_core::operations::path::ModifyFlag::from_bits(flag),
                     bin_exp._as,
                     modify_exp._as,
                     &core_ctx,
@@ -3635,7 +3635,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::StringRegexFlags as CoreSRF;
             FilterExpression {
-                _as: str_exp::regex_compare_with_flags(src._as, pattern._as, CoreSRF(regex_flags as i64)),
+                _as: str_exp::regex_compare_with_flags(src._as, pattern._as, CoreSRF::from_bits(regex_flags as i64)),
             }
         }
 
@@ -3650,7 +3650,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_insert(flags: u8, index: FilterExpression, value: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::insert(&policy, src._as, index._as, value._as) }
         }
 
@@ -3659,7 +3659,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_overwrite(flags: u8, index: FilterExpression, value: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::overwrite(&policy, src._as, index._as, value._as) }
         }
 
@@ -3670,7 +3670,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_concat(flags: u8, values: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::concat(&policy, src._as, values._as) }
         }
 
@@ -3679,7 +3679,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_append(flags: u8, value: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::append(&policy, src._as, value._as) }
         }
 
@@ -3688,7 +3688,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_prepend(flags: u8, value: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::prepend(&policy, src._as, value._as) }
         }
 
@@ -3698,7 +3698,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_snip(flags: u8, start: FilterExpression, end: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::snip(&policy, src._as, start._as, end._as) }
         }
 
@@ -3719,7 +3719,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_replace(flags: u8, needle: FilterExpression, replacement: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::replace(&policy, src._as, needle._as, replacement._as) }
         }
 
@@ -3728,7 +3728,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_replace_all(flags: u8, needle: FilterExpression, replacement: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::replace_all(&policy, src._as, needle._as, replacement._as) }
         }
 
@@ -3737,7 +3737,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_upper(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::upper(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::upper(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3745,7 +3745,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_lower(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::lower(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::lower(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3753,7 +3753,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_case_fold(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::case_fold(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::case_fold(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3761,7 +3761,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_normalize_nfc(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::normalize_nfc(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::normalize_nfc(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3769,7 +3769,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_trim_start(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::trim_start(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::trim_start(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3777,7 +3777,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_trim_end(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::trim_end(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::trim_end(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3785,7 +3785,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_trim(flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            FilterExpression { _as: str_exp::trim(&StringPolicy::new(CoreSWF(flags as i64)), src._as) }
+            FilterExpression { _as: str_exp::trim(&StringPolicy::new(CoreSWF::from_bits(flags as i64)), src._as) }
         }
 
         #[staticmethod]
@@ -3793,7 +3793,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_pad_start(flags: u8, target_length: FilterExpression, pad_string: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::pad_start(&policy, src._as, target_length._as, pad_string._as) }
         }
 
@@ -3802,7 +3802,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_pad_end(flags: u8, target_length: FilterExpression, pad_string: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::pad_end(&policy, src._as, target_length._as, pad_string._as) }
         }
 
@@ -3811,7 +3811,7 @@ use crate::string_ops::StringNumericType;
         pub fn string_repeat(flags: u8, count: FilterExpression, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;
             use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-            let policy = StringPolicy::new(CoreSWF(flags as i64));
+            let policy = StringPolicy::new(CoreSWF::from_bits(flags as i64));
             FilterExpression { _as: str_exp::repeat(&policy, src._as, count._as) }
         }
 
@@ -3828,7 +3828,7 @@ use crate::string_ops::StringNumericType;
             use aerospike_core::operations::string::{StringPolicy, StringRegexFlags as CoreSRF};
             let policy = StringPolicy::default();
             FilterExpression {
-                _as: str_exp::regex_replace(&policy, src._as, pattern._as, replacement._as, CoreSRF(regex_flags as i64)),
+                _as: str_exp::regex_replace(&policy, src._as, pattern._as, replacement._as, CoreSRF::from_bits(regex_flags as i64)),
             }
         }
 

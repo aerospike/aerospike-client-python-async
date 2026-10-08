@@ -128,11 +128,7 @@ pub(crate) fn validate_plan_matches_statement(
             )),
         )));
     }
-    if statement
-        .filters
-        .as_ref()
-        .is_some_and(|filters| !filters.is_empty())
-    {
+    if statement.filter.is_some() {
         return Err(PyErr::from(RustClientError(
             aerospike_core::Error::invalid_argument(
                 "Statement must not carry filters when executing a query plan; \

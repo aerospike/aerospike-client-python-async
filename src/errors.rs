@@ -779,18 +779,12 @@ impl From<RustClientError> for PyErr {
             ErrorKind::UdfBadResponse => client_err::<UDFBadResponse>(msg, rc, in_doubt, ctx),
             // The conversion failures keep their inner message; they carry
             // core's PARSE_ERROR / CLIENT_ERROR / SERIALIZE_ERROR code.
-            ErrorKind::Base64(e) => {
-                client_err::<Base64DecodeError>(e.to_string(), rc, in_doubt, ctx)
-            }
             ErrorKind::InvalidUtf8(e) => client_err::<InvalidUTF8>(e.to_string(), rc, in_doubt, ctx),
             ErrorKind::Io(e) => client_err::<IoError>(e.to_string(), rc, in_doubt, ctx),
             ErrorKind::ParseAddr(e) => {
                 client_err::<ParseAddressError>(e.to_string(), rc, in_doubt, ctx)
             }
             ErrorKind::ParseInt(e) => client_err::<ParseIntError>(e.to_string(), rc, in_doubt, ctx),
-            ErrorKind::PwHash(e) => {
-                client_err::<PasswordHashError>(e.to_string(), rc, in_doubt, ctx)
-            }
             // Client / StreamTerminated / BatchRow / Async and
             // any future kinds fall back to the generic client error, keeping
             // the full context from `Display`. (Server / Timeout / Connection

@@ -182,14 +182,11 @@ async def test_operate_list_clear(client_and_key):
         policy=wp,
     )
 
-    # Verify the list was cleared
-    # list_clear doesn't return a value, list_size returns the size
-    # When multiple operations are executed, only operations that return values appear in results
+    # Verify the list was cleared: clear answers with None, size with 0,
+    # and both keep their slot in op order.
     assert record is not None
-    assert record.bins is not None
-    result = record.bins.get("listbin")
-    # Only the size operation returns a value (0 after clear)
-    assert result == 0
+    assert record.results == [None, 0]
+    assert record.bins.get("listbin") == [None, 0]
 
     # Verify the list is actually empty
     rec = await client.get(key, ["listbin"], policy=rp)
@@ -727,9 +724,10 @@ async def test_operate_list_append_items(client_and_key):
     assert record is not None
     assert record.bins is not None
 
-    # Verify otherbin was appended correctly
-    otherbin_value = record.bins.get("otherbin")
-    assert otherbin_value == "hellogoodbye"
+    # Verify otherbin was appended correctly: the append's slot is None,
+    # the read that follows it sees the appended value.
+    assert record.bins.get("otherbin") == [None, "hellogoodbye"]
+    assert record.results[2] == "hellogoodbye"
 
     # Verify list operations
     result_list = record.bins.get("oplistbin")
@@ -951,12 +949,9 @@ async def test_operate_list_sort(client_and_key):
     results = record.bins.get("oplistbin")
     assert isinstance(results, list)
     
-    # First result: size after append_items (should be 5)
-    assert results[0] == 5
-    
-    # Second result: size after sort with DROP_DUPLICATES (should be 4, duplicates removed)
-    # sort() doesn't return a value, so size() is the second result
-    assert results[1] == 4
+    # append_items answers with the size (5), sort with None, and size
+    # with the post-sort count (4, duplicates removed).
+    assert results == [5, None, 4]
     
     # Verify the list was sorted and duplicates removed
     rec = await client.get(key, ["oplistbin"], policy=rp)
@@ -1214,18 +1209,9 @@ async def test_operate_list_create(client_and_key):
     )
 
     assert record is not None
-    results = record.bins.get("oplistbin")
-    # setOrder() doesn't return a value, append_items returns size, size() returns size
-    # When there are multiple operations, results is a list
-    if isinstance(results, list):
-        assert len(results) >= 2
-        # First result: size after append_items (should be 3)
-        assert results[0] == 3 or results[1] == 3
-        # Second result: size() (should be 3)
-        assert 3 in results
-    else:
-        # Single result case
-        assert results == 3
+    # set_order answers with None; append_items and size both answer with
+    # the list size.
+    assert record.bins.get("oplistbin") == [None, 3, 3]
     
     # Verify list was created and ordered
     rec = await client.get(key, ["oplistbin"], policy=rp)

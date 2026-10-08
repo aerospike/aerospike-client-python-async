@@ -193,18 +193,18 @@ use crate::TlsConfig;
         #[getter]
         pub fn get_read_touch_ttl(&self) -> i32 {
             match self._as.read_touch_ttl {
-                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
-                aerospike_core::ReadTouchTTL::ServerDefault => 0,
-                aerospike_core::ReadTouchTTL::DontReset => -1,
+                aerospike_core::ReadTouchTtl::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTtl::ServerDefault => 0,
+                aerospike_core::ReadTouchTtl::DontReset => -1,
             }
         }
 
         #[setter]
         pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
             self._as.read_touch_ttl = match value {
-                -1 => aerospike_core::ReadTouchTTL::DontReset,
-                0 => aerospike_core::ReadTouchTTL::ServerDefault,
-                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                -1 => aerospike_core::ReadTouchTtl::DontReset,
+                0 => aerospike_core::ReadTouchTtl::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTtl::Percent(pct as u8),
                 _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
@@ -326,15 +326,15 @@ use crate::TlsConfig;
             if let Some(v) = sleep_between_retries {
                 rp.base_policy.sleep_between_retries = v.min(u32::MAX as u64) as u32;
             }
-            if let Some(v) = replica { rp.replica = (&v).into(); }
+            if let Some(v) = replica { rp.base_policy.replica = (&v).into(); }
             if let Some(v) = read_mode_ap { rp.base_policy.read_mode_ap = (&v).into(); }
             if let Some(v) = read_mode_sc { rp.base_policy.read_mode_sc = (&v).into(); }
             if let Some(v) = read_touch_ttl {
                 rp.base_policy.read_touch_ttl = match v {
-                    -1 => aerospike_core::ReadTouchTTL::DontReset,
-                    0 => aerospike_core::ReadTouchTTL::ServerDefault,
+                    -1 => aerospike_core::ReadTouchTtl::DontReset,
+                    0 => aerospike_core::ReadTouchTtl::ServerDefault,
                     pct if (1..=100).contains(&pct) => {
-                        aerospike_core::ReadTouchTTL::Percent(pct as u8)
+                        aerospike_core::ReadTouchTtl::Percent(pct as u8)
                     }
                     _ => return Err(crate::errors::ValueError::new_err(format!(
                         "read_touch_ttl must be -1, 0, or 1-100, got {v}"
@@ -353,12 +353,12 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            (&self._as.replica).into()
+            (&self._as.base_policy.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.replica = (&replica).into();
+            self._as.base_policy.replica = (&replica).into();
         }
 
         #[getter]
@@ -509,18 +509,18 @@ use crate::TlsConfig;
         #[getter]
         pub fn get_read_touch_ttl(&self) -> i32 {
             match self._as.base_policy.read_touch_ttl {
-                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
-                aerospike_core::ReadTouchTTL::ServerDefault => 0,
-                aerospike_core::ReadTouchTTL::DontReset => -1,
+                aerospike_core::ReadTouchTtl::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTtl::ServerDefault => 0,
+                aerospike_core::ReadTouchTtl::DontReset => -1,
             }
         }
 
         #[setter]
         pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
             self._as.base_policy.read_touch_ttl = match value {
-                -1 => aerospike_core::ReadTouchTTL::DontReset,
-                0 => aerospike_core::ReadTouchTTL::ServerDefault,
-                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                -1 => aerospike_core::ReadTouchTtl::DontReset,
+                0 => aerospike_core::ReadTouchTtl::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTtl::Percent(pct as u8),
                 _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
@@ -566,7 +566,7 @@ use crate::TlsConfig;
         /// but crosses the Rust boundary once instead of once per attribute.  All
         /// arguments are keyword-only; any unspecified field keeps its default.
         #[staticmethod]
-        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, timeout_delay=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, records_per_second=None))]
+        #[pyo3(signature = (*, total_timeout=None, socket_timeout=None, timeout_delay=None, max_retries=None, sleep_between_retries=None, record_exists_action=None, generation_policy=None, commit_level=None, generation=None, expiration=None, send_key=None, respond_per_each_op=None, durable_delete=None, use_compression=None, compression_threshold=None, error_detail_verbosity=None, records_per_second=None, replica=None))]
         pub fn from_fields(
             py: Python,
             total_timeout: Option<u64>,
@@ -586,6 +586,7 @@ use crate::TlsConfig;
             compression_threshold: Option<usize>,
             error_detail_verbosity: Option<u8>,
             records_per_second: Option<u32>,
+            replica: Option<Replica>,
         ) -> PyResult<Py<WritePolicy>> {
             let mut wp = aerospike_core::WritePolicy::default();
             wp.base_policy.populate_positional_results = true;
@@ -622,6 +623,7 @@ use crate::TlsConfig;
             if let Some(v) = compression_threshold { wp.base_policy.compression_threshold = v; }
             if let Some(v) = error_detail_verbosity { wp.base_policy.error_detail_verbosity = v; }
             if let Some(v) = records_per_second { wp.records_per_second = v; }
+            if let Some(v) = replica { wp.base_policy.replica = (&v).into(); }
             Py::new(
                 py,
                 PyClassInitializer::from(BasePolicy::new())
@@ -661,6 +663,19 @@ use crate::TlsConfig;
                     aerospike_core::GenerationPolicy::ExpectGenGreater
                 }
             };
+        }
+
+        /// Replica selection for an ``operate`` whose operations are all reads,
+        /// which routes like a read. A command that writes always starts at the
+        /// master. Default: ``Replica.SEQUENCE``.
+        #[getter]
+        pub fn get_replica(&self) -> Replica {
+            (&self._as.base_policy.replica).into()
+        }
+
+        #[setter]
+        pub fn set_replica(&mut self, replica: Replica) {
+            self._as.base_policy.replica = (&replica).into();
         }
 
         #[getter]
@@ -901,18 +916,18 @@ use crate::TlsConfig;
         #[getter]
         pub fn get_read_touch_ttl(&self) -> i32 {
             match self._as.base_policy.read_touch_ttl {
-                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
-                aerospike_core::ReadTouchTTL::ServerDefault => 0,
-                aerospike_core::ReadTouchTTL::DontReset => -1,
+                aerospike_core::ReadTouchTtl::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTtl::ServerDefault => 0,
+                aerospike_core::ReadTouchTtl::DontReset => -1,
             }
         }
 
         #[setter]
         pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
             self._as.base_policy.read_touch_ttl = match value {
-                -1 => aerospike_core::ReadTouchTTL::DontReset,
-                0 => aerospike_core::ReadTouchTTL::ServerDefault,
-                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                -1 => aerospike_core::ReadTouchTtl::DontReset,
+                0 => aerospike_core::ReadTouchTtl::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTtl::Percent(pct as u8),
                 _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
@@ -1152,7 +1167,7 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_expected_duration(&self) -> QueryDuration {
-            QueryDuration::from(self._as.expected_duration.clone())
+            QueryDuration::from(self._as.expected_duration)
         }
 
         #[setter]
@@ -1162,12 +1177,12 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            (&self._as.replica).into()
+            (&self._as.base_policy.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.replica = (&replica).into();
+            self._as.base_policy.replica = (&replica).into();
         }
 
         // fail_on_cluster_change field doesn't exist in TLS branch
@@ -1349,7 +1364,7 @@ use crate::TlsConfig;
             if let Some(v) = allow_inline { bp.allow_inline = v; }
             if let Some(v) = allow_inline_ssd { bp.allow_inline_ssd = v; }
             if let Some(v) = respond_all_keys { bp.respond_all_keys = v; }
-            if let Some(v) = replica { bp.replica = (&v).into(); }
+            if let Some(v) = replica { bp.base_policy.replica = (&v).into(); }
             if let Some(v) = read_mode_ap { bp.base_policy.read_mode_ap = (&v).into(); }
             if let Some(v) = read_mode_sc { bp.base_policy.read_mode_sc = (&v).into(); }
             if let Some(v) = use_compression { bp.base_policy.use_compression = v; }
@@ -1534,39 +1549,24 @@ use crate::TlsConfig;
             self._as.respond_all_keys = respond_all_keys;
         }
 
-        // A batch policy carries its own filter expression *and* inherits one on
-        // its base policy. Only the outer field reaches the wire -- the batch
-        // command reads `BatchPolicy::filter_expression()`, which returns the
-        // outer one. Both are set so the getter cannot disagree with what is
-        // actually sent, and so a caller reaching through the base policy still
-        // observes the filter.
         #[getter]
         pub fn get_filter_expression(&self) -> Option<FilterExpression> {
-            self._as.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
+            self._as.base_policy.filter_expression.as_ref().map(|fe| FilterExpression { _as: fe.clone() })
         }
 
         #[setter]
         pub fn set_filter_expression(&mut self, filter_expression: Option<FilterExpression>) {
-            match filter_expression {
-                Some(fe) => {
-                    self._as.filter_expression = Some(fe._as.clone());
-                    self._as.base_policy.filter_expression = Some(fe._as);
-                }
-                None => {
-                    self._as.filter_expression = None;
-                    self._as.base_policy.filter_expression = None;
-                }
-            }
+            self._as.base_policy.filter_expression = filter_expression.map(|fe| fe._as);
         }
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            (&self._as.replica).into()
+            (&self._as.base_policy.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.replica = (&replica).into();
+            self._as.base_policy.replica = (&replica).into();
         }
     }
 
@@ -1614,18 +1614,18 @@ use crate::TlsConfig;
         #[getter]
         pub fn get_read_touch_ttl(&self) -> i32 {
             match self._as.read_touch_ttl {
-                aerospike_core::ReadTouchTTL::Percent(pct) => pct as i32,
-                aerospike_core::ReadTouchTTL::ServerDefault => 0,
-                aerospike_core::ReadTouchTTL::DontReset => -1,
+                aerospike_core::ReadTouchTtl::Percent(pct) => pct as i32,
+                aerospike_core::ReadTouchTtl::ServerDefault => 0,
+                aerospike_core::ReadTouchTtl::DontReset => -1,
             }
         }
 
         #[setter]
         pub fn set_read_touch_ttl(&mut self, value: i32) -> PyResult<()> {
             self._as.read_touch_ttl = match value {
-                -1 => aerospike_core::ReadTouchTTL::DontReset,
-                0 => aerospike_core::ReadTouchTTL::ServerDefault,
-                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTTL::Percent(pct as u8),
+                -1 => aerospike_core::ReadTouchTtl::DontReset,
+                0 => aerospike_core::ReadTouchTtl::ServerDefault,
+                pct if (1..=100).contains(&pct) => aerospike_core::ReadTouchTtl::Percent(pct as u8),
                 _ => return Err(crate::errors::ValueError::new_err(
                     format!("read_touch_ttl must be -1 (don't reset), 0 (server default), or 1-100 (percentage), got {value}")
                 )),
@@ -1863,7 +1863,7 @@ use crate::TlsConfig;
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
     pub struct BatchUDFPolicy {
-        pub(crate) _as: aerospike_core::BatchUDFPolicy,
+        pub(crate) _as: aerospike_core::BatchUdfPolicy,
     }
 
     #[gen_stub_pymethods]
@@ -1872,7 +1872,7 @@ use crate::TlsConfig;
         #[new]
         pub fn new() -> Self {
             BatchUDFPolicy {
-                _as: aerospike_core::BatchUDFPolicy::default(),
+                _as: aerospike_core::BatchUdfPolicy::default(),
             }
         }
 
@@ -2025,12 +2025,12 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            (&self._as.batch_policy.replica).into()
+            (&self._as.batch_policy.base_policy.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.batch_policy.replica = (&replica).into();
+            self._as.batch_policy.base_policy.replica = (&replica).into();
         }
     }
 
@@ -2103,12 +2103,12 @@ use crate::TlsConfig;
 
         #[getter]
         pub fn get_replica(&self) -> Replica {
-            (&self._as.batch_policy.replica).into()
+            (&self._as.batch_policy.base_policy.replica).into()
         }
 
         #[setter]
         pub fn set_replica(&mut self, replica: Replica) {
-            self._as.batch_policy.replica = (&replica).into();
+            self._as.batch_policy.base_policy.replica = (&replica).into();
         }
     }
 
@@ -2247,7 +2247,7 @@ use crate::TlsConfig;
     #[derive(Debug, Clone)]
     pub struct BatchUDFOp {
         pub(crate) key: aerospike_core::Key,
-        pub(crate) policy: aerospike_core::BatchUDFPolicy,
+        pub(crate) policy: aerospike_core::BatchUdfPolicy,
         pub(crate) udf_name: String,
         pub(crate) function_name: String,
         pub(crate) args: Option<Vec<aerospike_core::Value>>,
@@ -2379,7 +2379,7 @@ use crate::TlsConfig;
                 (Some(user), aerospike_core::AuthMode::ExternalInsecure(_, password)) => {
                     self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user, password.clone());
                 }
-                (Some(_user), aerospike_core::AuthMode::PKI) => {
+                (Some(_user), aerospike_core::AuthMode::Pki) => {
                     // PKI mode doesn't use usernames, ignore
                 }
                 (Some(user), _) => {
@@ -2393,7 +2393,7 @@ use crate::TlsConfig;
                 ) => {
                     self._as.auth_mode = aerospike_core::AuthMode::None;
                 }
-                (None, aerospike_core::AuthMode::PKI) => {
+                (None, aerospike_core::AuthMode::Pki) => {
                     // PKI mode doesn't use usernames, ignore
                 }
                 _ => {}
@@ -2427,7 +2427,7 @@ use crate::TlsConfig;
                 (Some(password), aerospike_core::AuthMode::None) => {
                     self._as.auth_mode = aerospike_core::AuthMode::Internal("".to_string(), password);
                 }
-                (Some(_), aerospike_core::AuthMode::PKI) => {
+                (Some(_), aerospike_core::AuthMode::Pki) => {
                     // PKI mode doesn't use passwords, ignore
                 }
                 (None, aerospike_core::AuthMode::Internal(user, _)) => {
@@ -2440,7 +2440,7 @@ use crate::TlsConfig;
                     self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user.clone(), "".to_string());
                 }
                 (None, aerospike_core::AuthMode::None) => {}
-                (None, aerospike_core::AuthMode::PKI) => {}
+                (None, aerospike_core::AuthMode::Pki) => {}
             }
         }
 
@@ -2452,7 +2452,7 @@ use crate::TlsConfig;
                 aerospike_core::AuthMode::Internal(_, _) => AuthMode::Internal,
                 aerospike_core::AuthMode::External(_, _) => AuthMode::External,
                 aerospike_core::AuthMode::ExternalInsecure(_, _) => AuthMode::ExternalInsecure,
-                aerospike_core::AuthMode::PKI => AuthMode::PKI,
+                aerospike_core::AuthMode::Pki => AuthMode::PKI,
             }
         }
 
@@ -2487,7 +2487,7 @@ use crate::TlsConfig;
                     self._as.auth_mode = aerospike_core::AuthMode::ExternalInsecure(user, password);
                 }
                 AuthMode::PKI => {
-                    self._as.auth_mode = aerospike_core::AuthMode::PKI;
+                    self._as.auth_mode = aerospike_core::AuthMode::Pki;
                 }
             }
             Ok(())
@@ -2498,7 +2498,7 @@ use crate::TlsConfig;
         /// This requires TLS to be configured with a client certificate.
         /// Requires server version 5.7.0+.
         pub fn set_pki_auth(&mut self) {
-            self._as.auth_mode = aerospike_core::AuthMode::PKI;
+            self._as.auth_mode = aerospike_core::AuthMode::Pki;
         }
 
         #[getter]

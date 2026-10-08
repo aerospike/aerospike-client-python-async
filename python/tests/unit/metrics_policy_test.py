@@ -99,7 +99,7 @@ def test_sampler_constructors():
     assert Sampler.all().range == 1
     assert Sampler.all().threshold == 1
 
-    assert Sampler.never().range == 0
+    assert Sampler.never().range == 1
     assert Sampler.never().threshold == 0
 
     half = Sampler.probability(0.5)

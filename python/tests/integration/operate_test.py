@@ -149,10 +149,10 @@ async def test_operate_multiple_puts(client_and_key):
 async def test_scalar_multi_op_results_are_op_aligned(client_and_key):
     """Multi-op results on one bin keep a slot per op, write-only ops included.
 
-    ``get`` / ``add`` / ``get`` on the same bin comes back positionally as
+    ``get`` / ``add`` / ``get`` on the same bin comes back as
     ``[1, None, 11]`` — three ops, three slots, with the write-only ``add``
-    occupying a slot with no value. The bins view merges the two reads and
-    skips the write's empty slot.
+    occupying a slot with no value. The bins view and the positional view
+    agree: neither drops the write's slot.
     """
     client, _ = client_and_key
     key = Key("test", "test", "scalar_multiop_positional")
@@ -169,7 +169,7 @@ async def test_scalar_multi_op_results_are_op_aligned(client_and_key):
     )
 
     assert record.results == [1, None, 11]
-    assert record.bins["n"] == [1, 11]
+    assert record.bins["n"] == [1, None, 11]
 
 
 async def test_operate_add_and_put(client_and_key):
@@ -238,10 +238,11 @@ async def test_operate_add_and_get(client_and_key):
         policy=wp,
     )
 
-    # Verify the result (15 + 30 = 45)
+    # Verify the result (15 + 30 = 45): the add's slot is None, the read's
+    # slot carries the new value.
     assert record is not None
-    assert record.bins is not None
-    assert record.bins.get("addbin") == 45
+    assert record.results == [None, 45]
+    assert record.bins.get("addbin") == [None, 45]
 
 
 async def test_operate_append(client_and_key):
@@ -272,10 +273,11 @@ async def test_operate_append(client_and_key):
         policy=wp,
     )
 
-    # Verify the result
+    # Verify the result: the append's slot is None, the read's slot carries
+    # the appended string.
     assert record is not None
-    assert record.bins is not None
-    assert record.bins.get("appendbin") == "Hello World!"
+    assert record.results == [None, "Hello World!"]
+    assert record.bins.get("appendbin") == [None, "Hello World!"]
 
 
 async def test_operate_prepend(client_and_key):
@@ -306,10 +308,11 @@ async def test_operate_prepend(client_and_key):
         policy=wp,
     )
 
-    # Verify the result
+    # Verify the result: the prepend's slot is None, the read's slot carries
+    # the prepended string.
     assert record is not None
-    assert record.bins is not None
-    assert record.bins.get("prependbin") == "Say: Hello World"
+    assert record.results == [None, "Say: Hello World"]
+    assert record.bins.get("prependbin") == [None, "Say: Hello World"]
 
 
 async def test_operate_get_header(client_and_key):
@@ -456,8 +459,9 @@ async def test_operate_touch_and_get_header(client_and_key):
     )
 
     assert record is not None
-    # GetHeader should return no bins (metadata only)
-    assert record.bins is None or len(record.bins) == 0
+    # Neither op reads a bin, so no bin value comes back (the touch's slot
+    # is None, under an empty bin name).
+    assert all(value is None for value in (record.bins or {}).values())
     # TTL should be set (expiration > 0)
     assert record.ttl is not None
     assert record.ttl > 0, f"Expected TTL > 0 after touch with expiration=120s, got {record.ttl}"

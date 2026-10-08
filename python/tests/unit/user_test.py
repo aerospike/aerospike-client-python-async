@@ -20,10 +20,18 @@ Security-related tests are in security_test.py
 
 import pytest
 from aerospike_async import PrivilegeCode, Privilege
+from aerospike_async.exceptions import ValueError as AerospikeValueError
 
 
 class TestPrivilegeObjects:
     """Test privilege object creation and properties."""
+
+    def test_unknown_privilege_code_cannot_be_granted(self):
+        """``PrivilegeCode.Unknown`` only describes a privilege read back from
+        a newer server; building a privilege to grant from it is refused."""
+
+        with pytest.raises(AerospikeValueError, match="cannot be granted"):
+            Privilege(PrivilegeCode.Unknown, None, None)
 
     def test_privilege_creation_global(self):
         """Test creating global privileges."""
