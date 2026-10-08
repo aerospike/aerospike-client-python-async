@@ -24,6 +24,7 @@ from aerospike_async import (
     Statement,
     QueryPolicy,
     PartitionFilter,
+    RegexFlag,
     FilterExpression as fe,
 )
 from aerospike_async.exceptions import ResultCode, FilteredOut, InvalidRequest
@@ -69,6 +70,21 @@ class TestFilterExprUsage(TestFixtureInsertRecord):
         # makes the bin map empty.
         unfiltered = await client.get(key, ["no_such_bin"], policy=ReadPolicy())
         assert unfiltered.bins == {}
+
+    async def test_regex_compare_honors_icase_flag(self, client, key):
+        """The POSIX ``ICASE`` bit reaches the server: it alone decides the match."""
+        brand = fe.string_bin("brand")
+
+        rp = ReadPolicy()
+        rp.filter_expression = fe.regex_compare("^fo", RegexFlag.NONE, brand)
+        with pytest.raises(FilteredOut):
+            await client.get(key, ["brand"], policy=rp)
+
+        rp.filter_expression = fe.regex_compare(
+            "^fo", RegexFlag.ICASE | RegexFlag.EXTENDED, brand
+        )
+        rec = await client.get(key, ["brand"], policy=rp)
+        assert rec.bins == {"brand": "Ford"}
 
 
 

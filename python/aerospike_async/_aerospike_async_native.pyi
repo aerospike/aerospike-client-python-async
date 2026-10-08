@@ -97,6 +97,7 @@ __all__ = [
     "Record",
     "RecordExistsAction",
     "Recordset",
+    "RegexFlag",
     "RegisterTask",
     "Replica",
     "ResultCode",
@@ -2656,6 +2657,15 @@ class FilterExpression:
         Create function that returns record digest modulo as integer.
         """
     @staticmethod
+    def regex_compare(regex: builtins.str, flags: builtins.int, bin: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
+        r"""
+        Create a POSIX regular expression match on a string bin or string value expression.
+
+        Uses ``RegexFlag`` bits and works on all supported servers. This is a
+        different server operation from the ICU-syntax ``string_regex_compare``
+        (server >= 8.2.0), not an older spelling of it.
+        """
+    @staticmethod
     def geo_compare(left: _aerospike_async_native.FilterExpression, right: _aerospike_async_native.FilterExpression) -> _aerospike_async_native.FilterExpression:
         r"""
         Create compare geospatial operation.
@@ -4714,6 +4724,8 @@ class MapOperation:
     @staticmethod
     def increment_value(bin_name: builtins.str, key: typing.Any, value: builtins.int, policy: _aerospike_async_native.MapPolicy) -> _aerospike_async_native.MapOperation: ...
     @staticmethod
+    def decrement_value(bin_name: builtins.str, key: typing.Any, value: builtins.int, policy: _aerospike_async_native.MapPolicy) -> _aerospike_async_native.MapOperation: ...
+    @staticmethod
     def get_by_key(bin_name: builtins.str, key: typing.Any, return_type: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapOperation: ...
     @staticmethod
     def remove_by_key(bin_name: builtins.str, key: typing.Any, return_type: _aerospike_async_native.MapReturnType) -> _aerospike_async_native.MapOperation: ...
@@ -5668,6 +5680,47 @@ class Recordset:
     def __anext__(self) -> typing.Any: ...
     def __iter__(self) -> _aerospike_async_native.Recordset: ...
     def __next__(self) -> _aerospike_async_native.Record: ...
+
+@typing.final
+class RegexFlag:
+    r"""
+    POSIX regex bit flags for ``FilterExpression.regex_compare``.
+
+    Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
+    on glibc):
+
+    - ``NONE = 0`` — use regex defaults.
+    - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
+    - ``ICASE = 2`` — case-insensitive matching.
+    - ``NOSUB = 4`` — do not report position of matches.
+    - ``NEWLINE = 8`` — match-any-character operators don't match newline.
+
+    Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
+    ``RegexFlag`` constant (or combination). These are not interchangeable
+    with ``StringRegexFlags``, which apply to the ICU-syntax string
+    expression ``string_regex_compare_with_flags``.
+    """
+    NONE: builtins.int = 0
+    r"""
+    Use regex defaults.
+    """
+    EXTENDED: builtins.int = 1
+    r"""
+    Use POSIX Extended Regular Expression syntax when interpreting regex.
+    """
+    ICASE: builtins.int = 2
+    r"""
+    Do not differentiate case.
+    """
+    NOSUB: builtins.int = 4
+    r"""
+    Do not report position of matches.
+    """
+    NEWLINE: builtins.int = 8
+    r"""
+    Match-any-character operators don't match a newline.
+    """
 
 class RegisterTask:
     def query_status(self) -> typing.Awaitable[TaskStatus]: ...

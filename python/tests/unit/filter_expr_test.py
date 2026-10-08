@@ -79,6 +79,12 @@ class TestFilterExprCreate:
         expr = fe.digest_modulo(modulo=7)
         assert isinstance(expr, fe)
 
+    def test_regex_compare(self):
+        expr = fe.regex_compare(
+            regex="c*", flags=0, bin=fe.string_bin("bin")
+        )
+        assert isinstance(expr, fe)
+
     def test_geo_compare(self):
         geo_bin = fe.geo_bin("bin")
         geo_val = fe.geo_val('{"type":"Point","coordinates":[-80.590003, 28.60009]}')

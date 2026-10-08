@@ -344,6 +344,51 @@ use crate::string_ops::StringNumericType;
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     //
+    //  RegexFlag
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// POSIX regex bit flags for ``FilterExpression.regex_compare``.
+    ///
+    /// Bit values match the Aerospike server wire protocol (POSIX ``regex.h``
+    /// on glibc):
+    ///
+    /// - ``NONE = 0`` — use regex defaults.
+    /// - ``EXTENDED = 1`` — POSIX Extended Regular Expression syntax.
+    /// - ``ICASE = 2`` — case-insensitive matching.
+    /// - ``NOSUB = 4`` — do not report position of matches.
+    /// - ``NEWLINE = 8`` — match-any-character operators don't match newline.
+    ///
+    /// Combine with bitwise OR, e.g. ``RegexFlag.ICASE | RegexFlag.NEWLINE``.
+    /// The ``regex_compare`` ``flags`` parameter accepts ``int`` or any
+    /// ``RegexFlag`` constant (or combination). These are not interchangeable
+    /// with ``StringRegexFlags``, which apply to the ICU-syntax string
+    /// expression ``string_regex_compare_with_flags``.
+    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[pyclass(name = "RegexFlag", module = "_aerospike_async_native")]
+    pub struct RegexFlag;
+
+    #[gen_stub_pymethods]
+    #[pymethods]
+    impl RegexFlag {
+        /// Use regex defaults.
+        #[classattr]
+        const NONE: i64 = 0;
+        /// Use POSIX Extended Regular Expression syntax when interpreting regex.
+        #[classattr]
+        const EXTENDED: i64 = 1;
+        /// Do not differentiate case.
+        #[classattr]
+        const ICASE: i64 = 2;
+        /// Do not report position of matches.
+        #[classattr]
+        const NOSUB: i64 = 4;
+        /// Match-any-character operators don't match a newline.
+        #[classattr]
+        const NEWLINE: i64 = 8;
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //
     //  Filter Expression
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
@@ -556,6 +601,18 @@ use crate::string_ops::StringNumericType;
         pub fn digest_modulo(modulo: i64) -> Self {
             FilterExpression {
                 _as: aerospike_core::expressions::digest_modulo(modulo),
+            }
+        }
+
+        #[staticmethod]
+        /// Create a POSIX regular expression match on a string bin or string value expression.
+        ///
+        /// Uses ``RegexFlag`` bits and works on all supported servers. This is a
+        /// different server operation from the ICU-syntax ``string_regex_compare``
+        /// (server >= 8.2.0), not an older spelling of it.
+        pub fn regex_compare(regex: String, flags: i64, bin: FilterExpression) -> Self {
+            FilterExpression {
+                _as: aerospike_core::expressions::regex_compare(regex, flags, bin._as),
             }
         }
 

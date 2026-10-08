@@ -151,6 +151,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
         MapPutItems(String, Vec<(PythonValue, PythonValue)>, MapPolicy),
         /// Map increment_value operation - increments value by key (requires MapPolicy).
         MapIncrementValue(String, PythonValue, i64, MapPolicy),
+        /// Map decrement_value operation - decrements value by key (requires MapPolicy).
+        MapDecrementValue(String, PythonValue, i64, MapPolicy),
         /// Map get_by_key operation - gets value by key (requires MapReturnType).
         MapGetByKey(String, PythonValue, MapReturnType),
         /// Map remove_by_key operation - removes item by key (requires MapReturnType).
@@ -975,6 +977,14 @@ use crate::string_ops::{StringNumericType, StringOperation};
             MapOperation {
                 ctx: None,
                 op: OperationType::MapIncrementValue(bin_name, key, value, policy),
+            }
+        }
+
+        #[staticmethod]
+        pub fn decrement_value(bin_name: String, key: PythonValue, value: i64, policy: MapPolicy) -> Self {
+            MapOperation {
+                ctx: None,
+                op: OperationType::MapDecrementValue(bin_name, key, value, policy),
             }
         }
 
@@ -2044,7 +2054,7 @@ pub(crate) fn record_batch_ops_have_write(rust_ops: &[OpWithCtx]) -> bool {
             OperationType::ListRemoveByValueRange(_, _, _, _) |
             OperationType::ListRemoveByValueRelativeRankRange(_, _, _, _, _) |
             OperationType::MapPut(_, _, _, _) | OperationType::MapPutItems(_, _, _) |
-            OperationType::MapIncrementValue(_, _, _, _) |
+            OperationType::MapIncrementValue(_, _, _, _) | OperationType::MapDecrementValue(_, _, _, _) |
             OperationType::MapClear(_) | OperationType::MapSetMapPolicy(_, _) |
             OperationType::MapSetPolicy(_, _) | OperationType::MapCreate(_, _) |
             OperationType::MapCreateWithIndex(_, _) | OperationType::MapRemoveByKey(_, _, _) |
@@ -2221,8 +2231,8 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 }
                 map_storage.push(map);
             }
-            OperationType::MapIncrementValue(_, key, value, _) => {
-                // Store key and increment value for map increment operations
+            OperationType::MapIncrementValue(_, key, value, _) | OperationType::MapDecrementValue(_, key, value, _) => {
+                // Store key and increment/decrement value for map increment/decrement operations
                 value_storage.push(key.clone().into());
                 value_storage.push(aerospike_core::Value::Int(*value));
             }
@@ -2738,6 +2748,15 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 let key = &value_storage[value_idx];
                 let incr_value = &value_storage[value_idx + 1];
                 let op = maps::increment_value(&policy._as, bin_name, key.clone(), incr_value.clone());
+                value_idx += 2;
+                op
+            }
+            OperationType::MapDecrementValue(bin_name, _, _value, policy) => {
+                // Use the operations module's map decrement_value() function with stored key, value, and policy
+                use aerospike_core::operations::maps;
+                let key = &value_storage[value_idx];
+                let decr_value = &value_storage[value_idx + 1];
+                let op = maps::decrement_value(&policy._as, bin_name, key.clone(), decr_value.clone());
                 value_idx += 2;
                 op
             }
