@@ -90,6 +90,15 @@ class TestSubCodeCatalog:
         assert SubCode.OPNOT_CDT_RANK_OUT_OF_BOUNDS == 2
         assert SubCode.MRT_BLOCKED_RECORD_LOCKED == 1
 
+    def test_string_op_subcodes_cover_the_server_range(self):
+        # OP_NOT_APPLICABLE's string-op subcodes run 10-13 with no gap.
+        assert [
+            SubCode.OPNOT_STRING_CONVERSION_FAILED,
+            SubCode.OPNOT_STRING_UTF8_INVALID,
+            SubCode.OPNOT_STRING_REGEX_LIMIT_EXCEEDED,
+            SubCode.OPNOT_STRING_B64_INVALID,
+        ] == [10, 11, 12, 13]
+
     def test_values_are_scoped_not_globally_unique(self):
         # The same integer recurs under different parent result codes: a
         # subcode is only interpretable together with its result code.

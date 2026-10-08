@@ -185,6 +185,9 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
         /// Source blob/string is not valid UTF-8 for an `OpNotApplicable` path.
         #[classattr]
         const OPNOT_STRING_UTF8_INVALID: u32 = aerospike_core::server_error::sub_code::OPNOT_STRING_UTF8_INVALID;
+        /// Regex evaluation exceeded its resource budget (server 8.2+).
+        #[classattr]
+        const OPNOT_STRING_REGEX_LIMIT_EXCEEDED: u32 = aerospike_core::server_error::sub_code::OPNOT_STRING_REGEX_LIMIT_EXCEEDED;
         /// The string is not valid base64 — a length that is not a multiple of 4, a
         /// character outside the alphabet, or misplaced `=` padding.
         #[classattr]
