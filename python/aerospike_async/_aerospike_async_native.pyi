@@ -6488,6 +6488,10 @@ class SubCode:
     r"""
     Source blob/string is not valid UTF-8 for an `OpNotApplicable` path.
     """
+    OPNOT_STRING_REGEX_LIMIT_EXCEEDED: builtins.int = 12
+    r"""
+    Regex evaluation exceeded its resource budget (server 8.2+).
+    """
     OPNOT_STRING_B64_INVALID: builtins.int = 13
     r"""
     The string is not valid base64 — a length that is not a multiple of 4, a
