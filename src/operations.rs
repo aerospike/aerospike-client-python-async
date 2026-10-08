@@ -254,9 +254,9 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// Bit b64_encode operation - returns base64 text of the blob (read-only).
         BitB64Encode(String, Option<i64>, Option<i64>, bool),
         /// HLL init operation - creates or resets an HLL bin.
-        HllInit(String, i64, i64, i64),
+        HllInit(String, i64, i64, u8),
         /// HLL add operation - adds values to HLL.
-        HllAdd(String, Vec<PythonValue>, i64, i64, i64),
+        HllAdd(String, Vec<PythonValue>, i64, i64, u8),
         /// HLL get_count operation - returns estimated count.
         HllGetCount(String),
         /// HLL describe operation - returns index_bit_count and min_hash_bit_count.
@@ -274,7 +274,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
         /// HLL get_similarity operation - returns estimated similarity.
         HllGetSimilarity(String, Vec<PythonValue>),
         /// HLL set_union operation - sets union of HLL objects.
-        HllSetUnion(String, Vec<PythonValue>, i64),
+        HllSetUnion(String, Vec<PythonValue>, u8),
         /// Expression read operation - evaluates expression and returns result.
         ExpRead(String, FilterExpression, i64),
         /// Expression write operation - evaluates expression and writes result to bin.
@@ -1481,8 +1481,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
             flags: Option<Py<PyAny>>,
         ) -> PyResult<Self> {
             let f = match &flags {
-                None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
+                None => 0,
+                Some(obj) => crate::cdt::hll_write_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, f),
@@ -1507,8 +1507,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
             flags: Option<Py<PyAny>>,
         ) -> PyResult<Self> {
             let f = match &flags {
-                None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
+                None => 0,
+                Some(obj) => crate::cdt::hll_write_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllAdd(bin_name, values, index_bit_count, min_hash_bit_count, f),
@@ -1608,8 +1608,8 @@ use crate::string_ops::{StringNumericType, StringOperation};
             flags: Option<Py<PyAny>>,
         ) -> PyResult<Self> {
             let f = match &flags {
-                None => 0i64,
-                Some(obj) => crate::cdt::hll_policy_flags_from_py(obj.bind(py))?,
+                None => 0,
+                Some(obj) => crate::cdt::hll_write_flags_from_py(obj.bind(py))?,
             };
             Ok(HllOperation {
                 op: OperationType::HllSetUnion(bin_name, hll_list, f),
@@ -1808,7 +1808,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtSelectByPath(
                     bin_name,
-                    aerospike_core::operations::path::SelectFlag::VALUE.0,
+                    aerospike_core::operations::path::SelectFlag::VALUE.bits(),
                     ctx,
                 ),
             }
@@ -1822,7 +1822,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtSelectByPath(
                     bin_name,
-                    aerospike_core::operations::path::SelectFlag::MAP_KEY.0,
+                    aerospike_core::operations::path::SelectFlag::MAP_KEY.bits(),
                     ctx,
                 ),
             }
@@ -1836,7 +1836,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtSelectByPath(
                     bin_name,
-                    aerospike_core::operations::path::SelectFlag::MAP_KEY_VALUE.0,
+                    aerospike_core::operations::path::SelectFlag::MAP_KEY_VALUE.bits(),
                     ctx,
                 ),
             }
@@ -1851,7 +1851,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtSelectByPath(
                     bin_name,
-                    aerospike_core::operations::path::SelectFlag::MATCHING_TREE.0,
+                    aerospike_core::operations::path::SelectFlag::MATCHING_TREE.bits(),
                     ctx,
                 ),
             }
@@ -1866,7 +1866,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtModifyByPath(
                     bin_name,
-                    aerospike_core::operations::path::ModifyFlag::DEFAULT.0,
+                    aerospike_core::operations::path::ModifyFlag::DEFAULT.bits(),
                     exp,
                     ctx,
                 ),
@@ -1882,7 +1882,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtModifyByPath(
                     bin_name,
-                    aerospike_core::operations::path::ModifyFlag::NO_FAIL.0,
+                    aerospike_core::operations::path::ModifyFlag::NO_FAIL.bits(),
                     exp,
                     ctx,
                 ),
@@ -1898,7 +1898,7 @@ use crate::string_ops::{StringNumericType, StringOperation};
             CdtOperation {
                 op: OperationType::CdtModifyByPath(
                     bin_name,
-                    aerospike_core::operations::path::ModifyFlag::DEFAULT.0,
+                    aerospike_core::operations::path::ModifyFlag::DEFAULT.bits(),
                     FilterExpression {
                         _as: aerospike_core::expressions::exp_remove_result(),
                     },
@@ -2560,13 +2560,13 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::ListGetByIndex(bin_name, index, return_type) => {
                 // Use the operations module's list get_by_index() function with return type
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 lists::get_by_index(bin_name, *index, core_return_type)
             }
             OperationType::ListGetByIndexRange(bin_name, index, count, return_type) => {
                 // Use the operations module's list get_by_index_range() or get_by_index_range_count() function
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 match count {
                     Some(c) => lists::get_by_index_range_count(bin_name, *index, *c, core_return_type),
                     None => lists::get_by_index_range(bin_name, *index, core_return_type),
@@ -2575,13 +2575,13 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::ListGetByRank(bin_name, rank, return_type) => {
                 // Use the operations module's list get_by_rank() function with return type
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 lists::get_by_rank(bin_name, *rank, core_return_type)
             }
             OperationType::ListGetByRankRange(bin_name, rank, count, return_type) => {
                 // Use the operations module's list get_by_rank_range() or get_by_rank_range_count() function
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 match count {
                     Some(c) => lists::get_by_rank_range_count(bin_name, *rank, *c, core_return_type),
                     None => lists::get_by_rank_range(bin_name, *rank, core_return_type),
@@ -2591,7 +2591,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list get_by_value() function with stored value and return type
                 use aerospike_core::operations::lists;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::get_by_value(bin_name, value.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2601,7 +2601,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::lists;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::get_by_value_range(bin_name, begin.clone(), end.clone(), core_return_type);
                 value_idx += 2;
                 op
@@ -2610,7 +2610,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list get_by_value_list() function with stored list and return type
                 use aerospike_core::operations::lists;
                 let values = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::get_by_value_list(bin_name, values.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2619,7 +2619,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list get_by_value_relative_rank_range() function
                 use aerospike_core::operations::lists;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => lists::get_by_value_relative_rank_range_count(bin_name, value.clone(), *rank, *c, core_return_type),
                     None => lists::get_by_value_relative_rank_range(bin_name, value.clone(), *rank, core_return_type),
@@ -2630,13 +2630,13 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::ListRemoveByIndex(bin_name, index, return_type) => {
                 // Use the operations module's list remove_by_index() function with return type
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 lists::remove_by_index(bin_name, *index, core_return_type)
             }
             OperationType::ListRemoveByIndexRange(bin_name, index, count, return_type) => {
                 // Use the operations module's list remove_by_index_range() or remove_by_index_range_count() function
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 match count {
                     Some(c) => lists::remove_by_index_range_count(bin_name, *index, *c, core_return_type),
                     None => lists::remove_by_index_range(bin_name, *index, core_return_type),
@@ -2645,13 +2645,13 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::ListRemoveByRank(bin_name, rank, return_type) => {
                 // Use the operations module's list remove_by_rank() function with return type
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 lists::remove_by_rank(bin_name, *rank, core_return_type)
             }
             OperationType::ListRemoveByRankRange(bin_name, rank, count, return_type) => {
                 // Use the operations module's list remove_by_rank_range() or remove_by_rank_range_count() function
                 use aerospike_core::operations::lists;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 match count {
                     Some(c) => lists::remove_by_rank_range_count(bin_name, *rank, *c, core_return_type),
                     None => lists::remove_by_rank_range(bin_name, *rank, core_return_type),
@@ -2661,7 +2661,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list remove_by_value() function with stored value and return type
                 use aerospike_core::operations::lists;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::remove_by_value(bin_name, value.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2670,7 +2670,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's list remove_by_value_list() function with stored list and return type
                 use aerospike_core::operations::lists;
                 let values = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::remove_by_value_list(bin_name, values.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2681,7 +2681,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::lists;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = lists::remove_by_value_range(bin_name, core_return_type, begin.clone(), end.clone());
                 value_idx += 2;
                 op
@@ -2691,7 +2691,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Note: parameter order is (bin, return_type, value, rank) for no-count version
                 use aerospike_core::operations::lists;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => lists::remove_by_value_relative_rank_range_count(bin_name, core_return_type, value.clone(), *rank, *c),
                     None => lists::remove_by_value_relative_rank_range(bin_name, core_return_type, value.clone(), *rank),
@@ -2745,7 +2745,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map get_by_key() function with stored key and return type
                 use aerospike_core::operations::maps;
                 let key = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_key(bin_name, key.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2754,7 +2754,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_key() function with stored key and return type
                 use aerospike_core::operations::maps;
                 let key = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_key(bin_name, key.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2764,7 +2764,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::maps;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_key_range(bin_name, begin.clone(), end.clone(), core_return_type);
                 value_idx += 2;
                 op
@@ -2774,7 +2774,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::maps;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_key_range(bin_name, begin.clone(), end.clone(), core_return_type);
                 value_idx += 2;
                 op
@@ -2782,80 +2782,80 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::MapGetByIndex(bin_name, index, return_type) => {
                 // Use the operations module's map get_by_index() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_index(bin_name, *index, core_return_type)
             }
             OperationType::MapRemoveByIndex(bin_name, index, return_type) => {
                 // Use the operations module's map remove_by_index() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_index(bin_name, *index, core_return_type)
             }
             OperationType::MapGetByIndexRange(bin_name, index, count, return_type) => {
                 // Use the operations module's map get_by_index_range() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_index_range(bin_name, *index, *count, core_return_type)
             }
             OperationType::MapRemoveByIndexRange(bin_name, index, count, return_type) => {
                 // Use the operations module's map remove_by_index_range() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_index_range(bin_name, *index, *count, core_return_type)
             }
             OperationType::MapGetByIndexRangeFrom(bin_name, index, return_type) => {
                 // Use the operations module's map get_by_index_range_from() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_index_range_from(bin_name, *index, core_return_type)
             }
             OperationType::MapRemoveByIndexRangeFrom(bin_name, index, return_type) => {
                 // Use the operations module's map remove_by_index_range_from() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_index_range_from(bin_name, *index, core_return_type)
             }
             OperationType::MapGetByRank(bin_name, rank, return_type) => {
                 // Use the operations module's map get_by_rank() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_rank(bin_name, *rank, core_return_type)
             }
             OperationType::MapRemoveByRank(bin_name, rank, return_type) => {
                 // Use the operations module's map remove_by_rank() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_rank(bin_name, *rank, core_return_type)
             }
             OperationType::MapGetByRankRange(bin_name, rank, count, return_type) => {
                 // Use the operations module's map get_by_rank_range() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_rank_range(bin_name, *rank, *count, core_return_type)
             }
             OperationType::MapRemoveByRankRange(bin_name, rank, count, return_type) => {
                 // Use the operations module's map remove_by_rank_range() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_rank_range(bin_name, *rank, *count, core_return_type)
             }
             OperationType::MapGetByRankRangeFrom(bin_name, rank, return_type) => {
                 // Use the operations module's map get_by_rank_range_from() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::get_by_rank_range_from(bin_name, *rank, core_return_type)
             }
             OperationType::MapRemoveByRankRangeFrom(bin_name, rank, return_type) => {
                 // Use the operations module's map remove_by_rank_range_from() function with return type
                 use aerospike_core::operations::maps;
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 maps::remove_by_rank_range_from(bin_name, *rank, core_return_type)
             }
             OperationType::MapGetByValue(bin_name, _, return_type) => {
                 // Use the operations module's map get_by_value() function with stored value and return type
                 use aerospike_core::operations::maps;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_value(bin_name, value.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2864,7 +2864,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_value() function with stored value and return type
                 use aerospike_core::operations::maps;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_value(bin_name, value.clone(), core_return_type);
                 value_idx += 1;
                 op
@@ -2874,7 +2874,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::maps;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_value_range(bin_name, begin.clone(), end.clone(), core_return_type);
                 value_idx += 2;
                 op
@@ -2884,7 +2884,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::maps;
                 let begin = &value_storage[value_idx];
                 let end = &value_storage[value_idx + 1];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_value_range(bin_name, begin.clone(), end.clone(), core_return_type);
                 value_idx += 2;
                 op
@@ -2893,7 +2893,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map get_by_key_list() function with stored key list and return type
                 use aerospike_core::operations::maps;
                 let keys = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_key_list(bin_name, keys.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2902,7 +2902,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_key_list() function with stored key list and return type
                 use aerospike_core::operations::maps;
                 let keys = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_key_list(bin_name, keys.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2911,7 +2911,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map get_by_value_list() function with stored value list and return type
                 use aerospike_core::operations::maps;
                 let values = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::get_by_value_list(bin_name, values.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2920,7 +2920,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_value_list() function with stored value list and return type
                 use aerospike_core::operations::maps;
                 let values = &list_storage[list_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = maps::remove_by_value_list(bin_name, values.to_vec(), core_return_type);
                 list_idx += 1;
                 op
@@ -2946,7 +2946,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map get_by_key_relative_index_range() function
                 use aerospike_core::operations::maps;
                 let key = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => maps::get_by_key_relative_index_range_count(bin_name, key.clone(), *index, *c, core_return_type),
                     None => maps::get_by_key_relative_index_range(bin_name, key.clone(), *index, core_return_type),
@@ -2958,7 +2958,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map get_by_value_relative_rank_range() function
                 use aerospike_core::operations::maps;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => maps::get_by_value_relative_rank_range_count(bin_name, value.clone(), *rank, *c, core_return_type),
                     None => maps::get_by_value_relative_rank_range(bin_name, value.clone(), *rank, core_return_type),
@@ -2970,7 +2970,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_key_relative_index_range() function
                 use aerospike_core::operations::maps;
                 let key = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => maps::remove_by_key_relative_index_range_count(bin_name, key.clone(), *index, *c, core_return_type),
                     None => maps::remove_by_key_relative_index_range(bin_name, key.clone(), *index, core_return_type),
@@ -2982,7 +2982,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 // Use the operations module's map remove_by_value_relative_rank_range() function
                 use aerospike_core::operations::maps;
                 let value = &value_storage[value_idx];
-                let core_return_type = *return_type;
+                let core_return_type = (*return_type).into();
                 let op = match count {
                     Some(c) => maps::remove_by_value_relative_rank_range_count(bin_name, value.clone(), *rank, *c, core_return_type),
                     None => maps::remove_by_value_relative_rank_range(bin_name, value.clone(), *rank, core_return_type),
@@ -2999,7 +2999,7 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             }
             OperationType::BitResize(bin_name, byte_size, resize_flags, policy) => {
                 use aerospike_core::operations::bitwise;
-                let flags = resize_flags.map(|f| f.into());
+                let flags = resize_flags.map_or(bitwise::BitwiseResizeFlags::DEFAULT, |f| f.into());
                 bitwise::resize(bin_name, *byte_size, flags, &policy._as)
             }
             OperationType::BitInsert(bin_name, byte_offset, _, policy) => {
@@ -3098,12 +3098,12 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             }
             OperationType::HllInit(bin_name, index_bit_count, min_hash_bit_count, flags) => {
                 use aerospike_core::operations::hll;
-                let policy = hll::HLLPolicy { flags: *flags };
+                let policy = aerospike_core::operations::hll::HllPolicy { flags: aerospike_core::operations::hll::HllWriteFlags::from_bits(*flags) };
                 hll::init_with_min_hash(&policy, bin_name, *index_bit_count, *min_hash_bit_count)
             }
             OperationType::HllAdd(bin_name, _, index_bit_count, min_hash_bit_count, flags) => {
                 use aerospike_core::operations::hll;
-                let policy = hll::HLLPolicy { flags: *flags };
+                let policy = aerospike_core::operations::hll::HllPolicy { flags: aerospike_core::operations::hll::HllWriteFlags::from_bits(*flags) };
                 let values_ref = &hll_value_storage[hll_idx];
                 hll_idx += 1;
                 hll::add_with_index_and_min_hash(&policy, bin_name, values_ref.to_vec(), *index_bit_count, *min_hash_bit_count)
@@ -3150,58 +3150,31 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             }
             OperationType::HllSetUnion(bin_name, _, flags) => {
                 use aerospike_core::operations::hll;
-                let policy = hll::HLLPolicy { flags: *flags };
+                let policy = aerospike_core::operations::hll::HllPolicy { flags: aerospike_core::operations::hll::HllWriteFlags::from_bits(*flags) };
                 let values_ref = &hll_value_storage[hll_idx];
                 hll_idx += 1;
                 hll::set_union(&policy, bin_name, values_ref.to_vec())
             }
             OperationType::ExpRead(name, exp, flags) => {
                 use aerospike_core::operations::exp::{self, ExpReadFlags};
-                // Convert flags bitmask to core ExpReadFlags
-                let mut core_flags: Vec<ExpReadFlags> = Vec::new();
-                if *flags & 16 != 0 {
-                    core_flags.push(ExpReadFlags::EvalNoFail);
-                }
-                if core_flags.is_empty() {
-                    exp::read_exp(name, exp._as.clone(), ExpReadFlags::Default)
-                } else {
-                    exp::read_exp(name, exp._as.clone(), core_flags)
-                }
+                let core_flags = ExpReadFlags::from_bits(*flags & ExpReadFlags::EVAL_NO_FAIL.bits());
+                exp::read_exp(name, exp._as.clone(), core_flags)
             }
             OperationType::ExpWrite(bin_name, exp, flags) => {
                 use aerospike_core::operations::exp::{self, ExpWriteFlags};
-                // Convert flags bitmask to core ExpWriteFlags
-                let mut core_flags: Vec<ExpWriteFlags> = Vec::new();
-                if *flags & 1 != 0 {
-                    core_flags.push(ExpWriteFlags::CreateOnly);
-                }
-                if *flags & 2 != 0 {
-                    core_flags.push(ExpWriteFlags::UpdateOnly);
-                }
-                if *flags & 4 != 0 {
-                    core_flags.push(ExpWriteFlags::AllowDelete);
-                }
-                if *flags & 8 != 0 {
-                    core_flags.push(ExpWriteFlags::PolicyNoFail);
-                }
-                if *flags & 16 != 0 {
-                    core_flags.push(ExpWriteFlags::EvalNoFail);
-                }
-                if core_flags.is_empty() {
-                    exp::write_exp(bin_name, exp._as.clone(), ExpWriteFlags::Default)
-                } else {
-                    exp::write_exp(bin_name, exp._as.clone(), core_flags)
-                }
+                // Only the five defined bits are forwarded, as before.
+                let core_flags = ExpWriteFlags::from_bits(*flags & 0x1f);
+                exp::write_exp(bin_name, exp._as.clone(), core_flags)
             }
             OperationType::CdtSelectByPath(bin_name, flag, ctx) => {
                 use aerospike_core::operations::path::{select_by_path, SelectFlag};
                 let core_ctx = crate::cdt::ctx_to_vec(ctx);
-                select_by_path(bin_name, SelectFlag(*flag), &core_ctx)
+                select_by_path(bin_name, SelectFlag::from_bits(*flag), &core_ctx)
             }
             OperationType::CdtModifyByPath(bin_name, flag, exp, ctx) => {
                 use aerospike_core::operations::path::{modify_by_path, ModifyFlag};
                 let core_ctx = crate::cdt::ctx_to_vec(ctx);
-                modify_by_path(bin_name, ModifyFlag(*flag), exp._as.clone(), &core_ctx)
+                modify_by_path(bin_name, ModifyFlag::from_bits(*flag), exp._as.clone(), &core_ctx)
             }
 
             // ----- String ops (server 8.2.0+) -----
@@ -3282,25 +3255,25 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::StringRegexCompare(bin, pattern, regex_flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::StringRegexFlags as CoreSRF;
-                str_op::regex_compare_with_flags(bin, pattern, CoreSRF(*regex_flags as i64))
+                str_op::regex_compare_with_flags(bin, pattern, CoreSRF::from_bits(*regex_flags as i64))
             }
 
             OperationType::StringInsert(bin, index, value, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::insert(&policy, bin, *index, value)
             }
             OperationType::StringOverwrite(bin, index, value, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::overwrite(&policy, bin, *index, value)
             }
             OperationType::StringConcat(bin, values, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 // Rust-core's concat_list takes &[&str]; build the &str view once here.
                 let value_refs: Vec<&str> = values.iter().map(String::as_str).collect();
                 str_op::concat_list(&policy, bin, &value_refs)
@@ -3308,19 +3281,19 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::StringAppend(bin, value, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::append(&policy, bin, value)
             }
             OperationType::StringPrepend(bin, value, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::prepend(&policy, bin, value)
             }
             OperationType::StringSnip(bin, start, end, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 match end {
                     Some(e) => str_op::snip(&policy, bin, *start, *e),
                     None => str_op::snip_from(&policy, bin, *start),
@@ -3329,66 +3302,66 @@ pub(crate) fn convert_ops_with_ctx_to_core(
             OperationType::StringReplace(bin, needle, replacement, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::replace(&policy, bin, needle, replacement)
             }
             OperationType::StringReplaceAll(bin, needle, replacement, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::replace_all(&policy, bin, needle, replacement)
             }
             OperationType::StringUpper(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::upper(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::upper(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringLower(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::lower(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::lower(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringCaseFold(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::case_fold(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::case_fold(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringNormalizeNfc(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::normalize_nfc(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::normalize_nfc(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringTrimStart(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::trim_start(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::trim_start(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringTrimEnd(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::trim_end(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::trim_end(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringTrim(bin, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                str_op::trim(&StringPolicy::new(CoreSWF(*flags as i64)), bin)
+                str_op::trim(&StringPolicy::new(CoreSWF::from_bits(*flags as i64)), bin)
             }
             OperationType::StringPadStart(bin, target_length, pad_string, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::pad_start(&policy, bin, *target_length, pad_string)
             }
             OperationType::StringPadEnd(bin, target_length, pad_string, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::pad_end(&policy, bin, *target_length, pad_string)
             }
             OperationType::StringRepeat(bin, count, flags) => {
                 use aerospike_core::operations::string as str_op;
                 use aerospike_core::operations::string::{StringPolicy, StringWriteFlags as CoreSWF};
-                let policy = StringPolicy::new(CoreSWF(*flags as i64));
+                let policy = StringPolicy::new(CoreSWF::from_bits(*flags as i64));
                 str_op::repeat(&policy, bin, *count)
             }
             OperationType::StringRegexReplace(bin, pattern, replacement, regex_flags, write_flags) => {
@@ -3396,8 +3369,8 @@ pub(crate) fn convert_ops_with_ctx_to_core(
                 use aerospike_core::operations::string::{
                     StringPolicy, StringRegexFlags as CoreSRF, StringWriteFlags as CoreSWF,
                 };
-                let policy = StringPolicy::new(CoreSWF(*write_flags as i64));
-                str_op::regex_replace(&policy, bin, pattern, replacement, CoreSRF(*regex_flags as i64))
+                let policy = StringPolicy::new(CoreSWF::from_bits(*write_flags as i64));
+                str_op::regex_replace(&policy, bin, pattern, replacement, CoreSRF::from_bits(*regex_flags as i64))
             }
 
             OperationType::StringToString(bin) => {

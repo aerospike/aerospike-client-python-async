@@ -93,6 +93,21 @@ class TestBatchPolicyRoutingFromFields:
         assert bp.read_mode_sc == ReadModeSC.SESSION
 
 
+class TestWritePolicyReplica:
+    """``WritePolicy.replica`` routes a read-only ``operate``, so it must
+    round-trip through both the setter and the bulk constructor."""
+
+    def test_default_and_setter(self):
+        wp = WritePolicy()
+        assert wp.replica == Replica.SEQUENCE
+        wp.replica = Replica.PREFER_RACK
+        assert wp.replica == Replica.PREFER_RACK
+
+    def test_from_fields(self):
+        assert WritePolicy.from_fields(replica=Replica.MASTER_PROLES).replica == Replica.MASTER_PROLES
+        assert WritePolicy.from_fields().replica == Replica.SEQUENCE
+
+
 class TestCircuitBreaker:
     """Circuit-breaker fields on ClientPolicy: defaults, round-trips, and exception class."""
 

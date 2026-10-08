@@ -1544,13 +1544,8 @@ async def test_operate_map_create(client_and_key):
     )
 
     assert record is not None
-    results = record.bins.get("mapbin")
-    # create() doesn't return a value, size() returns 0 for empty map
-    # When there's only one operation that returns a value, it might be a single value, not a list
-    if isinstance(results, list):
-        assert 0 in results
-    else:
-        assert results == 0
+    # create answers with None, size with 0 for the empty map.
+    assert record.bins.get("mapbin") == [None, 0]
 
     # Verify map was created
     rec = await client.get(key, ["mapbin"], policy=rp)

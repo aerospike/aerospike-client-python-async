@@ -180,11 +180,11 @@ use crate::record::PythonValue;
     impl From<&ListWriteFlags> for aerospike_core::operations::lists::ListWriteFlags {
         fn from(input: &ListWriteFlags) -> Self {
             match input {
-                ListWriteFlags::Default => aerospike_core::operations::lists::ListWriteFlags::Default,
-                ListWriteFlags::AddUnique => aerospike_core::operations::lists::ListWriteFlags::AddUnique,
-                ListWriteFlags::InsertBounded => aerospike_core::operations::lists::ListWriteFlags::InsertBounded,
-                ListWriteFlags::NoFail => aerospike_core::operations::lists::ListWriteFlags::NoFail,
-                ListWriteFlags::Partial => aerospike_core::operations::lists::ListWriteFlags::Partial,
+                ListWriteFlags::Default => aerospike_core::operations::lists::ListWriteFlags::DEFAULT,
+                ListWriteFlags::AddUnique => aerospike_core::operations::lists::ListWriteFlags::ADD_UNIQUE,
+                ListWriteFlags::InsertBounded => aerospike_core::operations::lists::ListWriteFlags::INSERT_BOUNDED,
+                ListWriteFlags::NoFail => aerospike_core::operations::lists::ListWriteFlags::NO_FAIL,
+                ListWriteFlags::Partial => aerospike_core::operations::lists::ListWriteFlags::PARTIAL,
             }
         }
     }
@@ -217,32 +217,32 @@ use crate::record::PythonValue;
     impl ListReturnType {
         /// Do not return a result.
         #[classattr]
-        const NONE: ListReturnType = ListReturnType(CoreListRT::None as u32);
+        const NONE: ListReturnType = ListReturnType(CoreListRT::NONE.bits() as u32);
         /// Return index offset order.
         #[classattr]
-        const INDEX: ListReturnType = ListReturnType(CoreListRT::Index as u32);
+        const INDEX: ListReturnType = ListReturnType(CoreListRT::INDEX.bits() as u32);
         /// Return reverse index offset order.
         #[classattr]
-        const REVERSE_INDEX: ListReturnType = ListReturnType(CoreListRT::ReverseIndex as u32);
+        const REVERSE_INDEX: ListReturnType = ListReturnType(CoreListRT::REVERSE_INDEX.bits() as u32);
         /// Return value order.
         #[classattr]
-        const RANK: ListReturnType = ListReturnType(CoreListRT::Rank as u32);
+        const RANK: ListReturnType = ListReturnType(CoreListRT::RANK.bits() as u32);
         /// Return reverse value order.
         #[classattr]
-        const REVERSE_RANK: ListReturnType = ListReturnType(CoreListRT::ReverseRank as u32);
+        const REVERSE_RANK: ListReturnType = ListReturnType(CoreListRT::REVERSE_RANK.bits() as u32);
         /// Return count of items selected.
         #[classattr]
-        const COUNT: ListReturnType = ListReturnType(CoreListRT::Count as u32);
+        const COUNT: ListReturnType = ListReturnType(CoreListRT::COUNT.bits() as u32);
         /// Return value for single key read and value list for range read.
         #[classattr]
-        const VALUE: ListReturnType = ListReturnType(CoreListRT::Values as u32);
+        const VALUE: ListReturnType = ListReturnType(CoreListRT::VALUES.bits() as u32);
         /// Return true if count > 0.
         #[classattr]
-        const EXISTS: ListReturnType = ListReturnType(CoreListRT::Exists as u32);
+        const EXISTS: ListReturnType = ListReturnType(CoreListRT::EXISTS.bits() as u32);
         /// Invert meaning of list command and return values.
         /// Can be OR'd with other return types: VALUE | INVERTED
         #[classattr]
-        const INVERTED: ListReturnType = ListReturnType(CoreListRT::Inverted as u32);
+        const INVERTED: ListReturnType = ListReturnType(CoreListRT::NONE.inverted().bits() as u32);
 
         /// Bitwise OR - allows combining return type with INVERTED flag
         fn __or__(&self, other: &Self) -> Self {
@@ -282,14 +282,14 @@ use crate::record::PythonValue;
             let base = self.0 & 0xFFFF;
             let inverted = (self.0 & 0x10000) != 0;
             let base_name = match base {
-                x if x == CoreListRT::None as u32 => "NONE",
-                x if x == CoreListRT::Index as u32 => "INDEX",
-                x if x == CoreListRT::ReverseIndex as u32 => "REVERSE_INDEX",
-                x if x == CoreListRT::Rank as u32 => "RANK",
-                x if x == CoreListRT::ReverseRank as u32 => "REVERSE_RANK",
-                x if x == CoreListRT::Count as u32 => "COUNT",
-                x if x == CoreListRT::Values as u32 => "VALUE",
-                x if x == CoreListRT::Exists as u32 => "EXISTS",
+                x if x == CoreListRT::NONE.bits() as u32 => "NONE",
+                x if x == CoreListRT::INDEX.bits() as u32 => "INDEX",
+                x if x == CoreListRT::REVERSE_INDEX.bits() as u32 => "REVERSE_INDEX",
+                x if x == CoreListRT::RANK.bits() as u32 => "RANK",
+                x if x == CoreListRT::REVERSE_RANK.bits() as u32 => "REVERSE_RANK",
+                x if x == CoreListRT::COUNT.bits() as u32 => "COUNT",
+                x if x == CoreListRT::VALUES.bits() as u32 => "VALUE",
+                x if x == CoreListRT::EXISTS.bits() as u32 => "EXISTS",
                 _ => "UNKNOWN",
             };
             if inverted && base != 0 {
@@ -302,25 +302,15 @@ use crate::record::PythonValue;
         }
     }
 
-    /// Newtype wrapper for passing ListReturnType bitmask to core functions.
-    /// Allows us to implement ToListReturnTypeBitmask for our custom struct.
-    pub struct ListReturnTypeBitmask(i64);
-    
-    impl aerospike_core::operations::lists::ToListReturnTypeBitmask for ListReturnTypeBitmask {
-        fn to_bitmask(self) -> i64 {
-            self.0
-        }
-    }
-    
-    impl From<&ListReturnType> for ListReturnTypeBitmask {
-        fn from(input: &ListReturnType) -> Self {
-            ListReturnTypeBitmask(input.0 as i64)
+    impl From<ListReturnType> for CoreListRT {
+        fn from(input: ListReturnType) -> Self {
+            CoreListRT::from_bits(input.0 as i64)
         }
     }
 
-    impl aerospike_core::operations::lists::ToListReturnTypeBitmask for ListReturnType {
-        fn to_bitmask(self) -> i64 {
-            self.0 as i64
+    impl From<&ListReturnType> for CoreListRT {
+        fn from(input: &ListReturnType) -> Self {
+            CoreListRT::from_bits(input.0 as i64)
         }
     }
     
@@ -367,9 +357,9 @@ use crate::record::PythonValue;
     impl From<&ListSortFlags> for aerospike_core::operations::lists::ListSortFlags {
         fn from(input: &ListSortFlags) -> Self {
             match input {
-                ListSortFlags::Default => aerospike_core::operations::lists::ListSortFlags::Default,
-                ListSortFlags::Descending => aerospike_core::operations::lists::ListSortFlags::Descending,
-                ListSortFlags::DropDuplicates => aerospike_core::operations::lists::ListSortFlags::DropDuplicates,
+                ListSortFlags::Default => aerospike_core::operations::lists::ListSortFlags::DEFAULT,
+                ListSortFlags::Descending => aerospike_core::operations::lists::ListSortFlags::DESCENDING,
+                ListSortFlags::DropDuplicates => aerospike_core::operations::lists::ListSortFlags::DROP_DUPLICATES,
             }
         }
     }
@@ -467,12 +457,13 @@ use crate::record::PythonValue;
         }
     }
 
-    impl From<&MapWriteMode> for aerospike_core::operations::maps::MapWriteMode {
+    // Core expresses the write mode as the UPDATE_ONLY / CREATE_ONLY write flags.
+    impl From<&MapWriteMode> for aerospike_core::operations::maps::MapWriteFlags {
         fn from(input: &MapWriteMode) -> Self {
             match input {
-                MapWriteMode::Update => aerospike_core::operations::maps::MapWriteMode::Update,
-                MapWriteMode::UpdateOnly => aerospike_core::operations::maps::MapWriteMode::UpdateOnly,
-                MapWriteMode::CreateOnly => aerospike_core::operations::maps::MapWriteMode::CreateOnly,
+                MapWriteMode::Update => aerospike_core::operations::maps::MapWriteFlags::DEFAULT,
+                MapWriteMode::UpdateOnly => aerospike_core::operations::maps::MapWriteFlags::UPDATE_ONLY,
+                MapWriteMode::CreateOnly => aerospike_core::operations::maps::MapWriteFlags::CREATE_ONLY,
             }
         }
     }
@@ -617,44 +608,44 @@ use crate::record::PythonValue;
     impl MapReturnType {
         /// Do not return a result.
         #[classattr]
-        const NONE: MapReturnType = MapReturnType(CoreMapRT::None as u32);
+        const NONE: MapReturnType = MapReturnType(CoreMapRT::NONE.bits() as u32);
         /// Return key index order.
         #[classattr]
-        const INDEX: MapReturnType = MapReturnType(CoreMapRT::Index as u32);
+        const INDEX: MapReturnType = MapReturnType(CoreMapRT::INDEX.bits() as u32);
         /// Return reverse key order.
         #[classattr]
-        const REVERSE_INDEX: MapReturnType = MapReturnType(CoreMapRT::ReverseIndex as u32);
+        const REVERSE_INDEX: MapReturnType = MapReturnType(CoreMapRT::REVERSE_INDEX.bits() as u32);
         /// Return value order.
         #[classattr]
-        const RANK: MapReturnType = MapReturnType(CoreMapRT::Rank as u32);
+        const RANK: MapReturnType = MapReturnType(CoreMapRT::RANK.bits() as u32);
         /// Return reverse value order.
         #[classattr]
-        const REVERSE_RANK: MapReturnType = MapReturnType(CoreMapRT::ReverseRank as u32);
+        const REVERSE_RANK: MapReturnType = MapReturnType(CoreMapRT::REVERSE_RANK.bits() as u32);
         /// Return count of items selected.
         #[classattr]
-        const COUNT: MapReturnType = MapReturnType(CoreMapRT::Count as u32);
+        const COUNT: MapReturnType = MapReturnType(CoreMapRT::COUNT.bits() as u32);
         /// Return key for single key read and key list for range read.
         #[classattr]
-        const KEY: MapReturnType = MapReturnType(CoreMapRT::Key as u32);
+        const KEY: MapReturnType = MapReturnType(CoreMapRT::KEY.bits() as u32);
         /// Return value for single key read and value list for range read.
         #[classattr]
-        const VALUE: MapReturnType = MapReturnType(CoreMapRT::Value as u32);
+        const VALUE: MapReturnType = MapReturnType(CoreMapRT::VALUE.bits() as u32);
         /// Return key/value items.
         #[classattr]
-        const KEY_VALUE: MapReturnType = MapReturnType(CoreMapRT::KeyValue as u32);
+        const KEY_VALUE: MapReturnType = MapReturnType(CoreMapRT::KEY_VALUE.bits() as u32);
         /// Returns true if count > 0.
         #[classattr]
-        const EXISTS: MapReturnType = MapReturnType(CoreMapRT::Exists as u32);
+        const EXISTS: MapReturnType = MapReturnType(CoreMapRT::EXISTS.bits() as u32);
         /// Returns an unordered map.
         #[classattr]
-        const UNORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::UnorderedMap as u32);
+        const UNORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::UNORDERED_MAP.bits() as u32);
         /// Returns an ordered map.
         #[classattr]
-        const ORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::OrderedMap as u32);
+        const ORDERED_MAP: MapReturnType = MapReturnType(CoreMapRT::ORDERED_MAP.bits() as u32);
         /// Invert meaning of map command and return values.
         /// Can be OR'd with other return types: VALUE | INVERTED
         #[classattr]
-        const INVERTED: MapReturnType = MapReturnType(CoreMapRT::Inverted as u32);
+        const INVERTED: MapReturnType = MapReturnType(CoreMapRT::NONE.inverted().bits() as u32);
 
         /// Bitwise OR - allows combining return type with INVERTED flag
         fn __or__(&self, other: &Self) -> Self {
@@ -694,18 +685,18 @@ use crate::record::PythonValue;
             let base = self.0 & 0xFFFF;
             let inverted = (self.0 & 0x10000) != 0;
             let base_name = match base {
-                x if x == CoreMapRT::None as u32 => "NONE",
-                x if x == CoreMapRT::Index as u32 => "INDEX",
-                x if x == CoreMapRT::ReverseIndex as u32 => "REVERSE_INDEX",
-                x if x == CoreMapRT::Rank as u32 => "RANK",
-                x if x == CoreMapRT::ReverseRank as u32 => "REVERSE_RANK",
-                x if x == CoreMapRT::Count as u32 => "COUNT",
-                x if x == CoreMapRT::Key as u32 => "KEY",
-                x if x == CoreMapRT::Value as u32 => "VALUE",
-                x if x == CoreMapRT::KeyValue as u32 => "KEY_VALUE",
-                x if x == CoreMapRT::Exists as u32 => "EXISTS",
-                x if x == CoreMapRT::UnorderedMap as u32 => "UNORDERED_MAP",
-                x if x == CoreMapRT::OrderedMap as u32 => "ORDERED_MAP",
+                x if x == CoreMapRT::NONE.bits() as u32 => "NONE",
+                x if x == CoreMapRT::INDEX.bits() as u32 => "INDEX",
+                x if x == CoreMapRT::REVERSE_INDEX.bits() as u32 => "REVERSE_INDEX",
+                x if x == CoreMapRT::RANK.bits() as u32 => "RANK",
+                x if x == CoreMapRT::REVERSE_RANK.bits() as u32 => "REVERSE_RANK",
+                x if x == CoreMapRT::COUNT.bits() as u32 => "COUNT",
+                x if x == CoreMapRT::KEY.bits() as u32 => "KEY",
+                x if x == CoreMapRT::VALUE.bits() as u32 => "VALUE",
+                x if x == CoreMapRT::KEY_VALUE.bits() as u32 => "KEY_VALUE",
+                x if x == CoreMapRT::EXISTS.bits() as u32 => "EXISTS",
+                x if x == CoreMapRT::UNORDERED_MAP.bits() as u32 => "UNORDERED_MAP",
+                x if x == CoreMapRT::ORDERED_MAP.bits() as u32 => "ORDERED_MAP",
                 _ => "UNKNOWN",
             };
             if inverted && base != 0 {
@@ -718,27 +709,15 @@ use crate::record::PythonValue;
         }
     }
 
-    /// Newtype wrapper for passing MapReturnType bitmask to core functions.
-    /// Allows us to implement ToMapReturnTypeBitmask for our custom struct.
-    pub struct MapReturnTypeBitmask(i64);
-    
-    impl aerospike_core::operations::maps::ToMapReturnTypeBitmask for MapReturnTypeBitmask {
-        fn to_bitmask(self) -> i64 {
-            self.0
+    impl From<MapReturnType> for CoreMapRT {
+        fn from(input: MapReturnType) -> Self {
+            CoreMapRT::from_bits(input.0 as i64)
         }
     }
-    
-    impl From<&MapReturnType> for MapReturnTypeBitmask {
+
+    impl From<&MapReturnType> for CoreMapRT {
         fn from(input: &MapReturnType) -> Self {
-            // The u32 value already encodes base type (lower 16 bits) and inverted flag (bit 16)
-            // Core library expects same bitmask layout, so we can just convert to i64
-            MapReturnTypeBitmask(input.0 as i64)
-        }
-    }
-    
-    impl aerospike_core::operations::maps::ToMapReturnTypeBitmask for MapReturnType {
-        fn to_bitmask(self) -> i64 {
-            self.0 as i64
+            CoreMapRT::from_bits(input.0 as i64)
         }
     }
 
@@ -988,10 +967,10 @@ use crate::record::PythonValue;
     impl From<BitwiseResizeFlags> for aerospike_core::operations::bitwise::BitwiseResizeFlags {
         fn from(flags: BitwiseResizeFlags) -> Self {
             match flags {
-                BitwiseResizeFlags::Default => aerospike_core::operations::bitwise::BitwiseResizeFlags::Default,
-                BitwiseResizeFlags::FromFront => aerospike_core::operations::bitwise::BitwiseResizeFlags::FromFront,
-                BitwiseResizeFlags::GrowOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::GrowOnly,
-                BitwiseResizeFlags::ShrinkOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::ShrinkOnly,
+                BitwiseResizeFlags::Default => aerospike_core::operations::bitwise::BitwiseResizeFlags::DEFAULT,
+                BitwiseResizeFlags::FromFront => aerospike_core::operations::bitwise::BitwiseResizeFlags::FROM_FRONT,
+                BitwiseResizeFlags::GrowOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::GROW_ONLY,
+                BitwiseResizeFlags::ShrinkOnly => aerospike_core::operations::bitwise::BitwiseResizeFlags::SHRINK_ONLY,
             }
         }
     }
@@ -1162,7 +1141,7 @@ use crate::record::PythonValue;
     impl Default for BitPolicy {
         fn default() -> Self {
             BitPolicy {
-                _as: aerospike_core::operations::bitwise::BitPolicy::new(0u8),
+                _as: aerospike_core::operations::bitwise::BitPolicy::new(aerospike_core::operations::bitwise::BitwiseWriteFlags::DEFAULT),
             }
         }
     }
@@ -1184,19 +1163,19 @@ use crate::record::PythonValue;
                 Some(obj) => bit_policy_flags_from_py(obj.bind(py))?,
             };
             Ok(BitPolicy {
-                _as: aerospike_core::operations::bitwise::BitPolicy::new(f),
+                _as: aerospike_core::operations::bitwise::BitPolicy::new(aerospike_core::operations::bitwise::BitwiseWriteFlags::from_bits(f)),
             })
         }
 
         /// Get the write flags.
         pub fn get_write_flags(&self) -> u8 {
-            self._as.flags
+            self._as.flags.bits()
         }
 
         /// Set the write flags.
         /// flags may be BitWriteFlags or int (bitmask).
         pub fn set_write_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
-            self._as.flags = bit_policy_flags_from_py(flags)?;
+            self._as.flags = aerospike_core::operations::bitwise::BitwiseWriteFlags::from_bits(bit_policy_flags_from_py(flags)?);
             Ok(())
         }
     }
@@ -1233,7 +1212,7 @@ use crate::record::PythonValue;
             ListPolicy {
                 _as: aerospike_core::operations::lists::ListPolicy::new(
                     aerospike_core::operations::lists::ListOrderType::Unordered,
-                    aerospike_core::operations::lists::ListWriteFlags::Default,
+                    aerospike_core::operations::lists::ListWriteFlags::DEFAULT,
                 ),
             }
         }
@@ -1260,7 +1239,7 @@ use crate::record::PythonValue;
             Ok(ListPolicy {
                 _as: aerospike_core::operations::lists::ListPolicy {
                     attributes: (&order).into(),
-                    flags: f,
+                    flags: aerospike_core::operations::lists::ListWriteFlags::from_bits(f),
                 },
             })
         }
@@ -1280,12 +1259,12 @@ use crate::record::PythonValue;
 
         #[getter]
         pub fn get_write_flags(&self) -> u8 {
-            self._as.flags
+            self._as.flags.bits()
         }
 
         #[setter]
         pub fn set_write_flags(&mut self, write_flags: &Bound<'_, PyAny>) -> PyResult<()> {
-            self._as.flags = list_policy_flags_from_py(write_flags)?;
+            self._as.flags = aerospike_core::operations::lists::ListWriteFlags::from_bits(list_policy_flags_from_py(write_flags)?);
             Ok(())
         }
     }
@@ -1426,7 +1405,7 @@ use crate::record::PythonValue;
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone, Copy)]
     pub struct HLLPolicy {
-        pub(crate) _as: aerospike_core::operations::hll::HLLPolicy,
+        pub(crate) _as: aerospike_core::operations::hll::HllPolicy,
     }
 
     #[gen_stub_pymethods]
@@ -1441,26 +1420,26 @@ use crate::record::PythonValue;
             py: Python<'_>,
             write_flags: Option<Py<PyAny>>,
         ) -> PyResult<Self> {
-            let f: i64 = match &write_flags {
+            let f = match &write_flags {
                 None => 0,
-                Some(obj) => hll_policy_flags_from_py(obj.bind(py))?,
+                Some(obj) => hll_write_flags_from_py(obj.bind(py))?,
             };
             Ok(HLLPolicy {
-                _as: aerospike_core::operations::hll::HLLPolicy { flags: f },
+                _as: aerospike_core::operations::hll::HllPolicy { flags: aerospike_core::operations::hll::HllWriteFlags::from_bits(f) },
             })
         }
 
         /// Get the write flags as an int bitmask.
         #[getter]
         pub fn get_write_flags(&self) -> i64 {
-            self._as.flags
+            self._as.flags.bits() as i64
         }
 
         /// Set the write flags.
         /// flags may be HLLWriteFlags or int (bitmask).
         #[setter]
         pub fn set_write_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
-            self._as.flags = hll_policy_flags_from_py(flags)?;
+            self._as.flags = aerospike_core::operations::hll::HllWriteFlags::from_bits(hll_write_flags_from_py(flags)?);
             Ok(())
         }
     }
@@ -1486,7 +1465,6 @@ use crate::record::PythonValue;
         fn eq(&self, other: &Self) -> bool {
             // Compare the underlying policy fields manually since core client doesn't implement PartialEq
             self._as.order as u8 == other._as.order as u8
-                && self._as.write_mode as u8 == other._as.write_mode as u8
                 && self._as.flags == other._as.flags
                 && self._as.persist_index == other._as.persist_index
         }
@@ -1499,7 +1477,7 @@ use crate::record::PythonValue;
             MapPolicy {
                 _as: aerospike_core::operations::maps::MapPolicy::new(
                     aerospike_core::operations::maps::MapOrder::Unordered,
-                    aerospike_core::operations::maps::MapWriteMode::Update,
+                    aerospike_core::operations::maps::MapWriteFlags::DEFAULT,
                 ),
             }
         }
@@ -1516,13 +1494,20 @@ use crate::record::PythonValue;
         }
     }
 
+    /// Narrows an ``int`` bitmask to the flag byte sent on the wire. A value
+    /// outside 0-255 is refused: truncating it would send different flags.
+    fn flags_byte(i: i64) -> PyResult<u8> {
+        u8::try_from(i)
+            .map_err(|_| PyValueError::new_err(format!("flags must be in 0-255, got {i}")))
+    }
+
     /// Extract flags as u8 from ListWriteFlags or int (bitmask). Used for ListPolicy.
     pub(crate) fn list_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
         if let Ok(f) = ob.extract::<ListWriteFlags>() {
             return Ok(u8::from(f));
         }
         if let Ok(i) = ob.extract::<i64>() {
-            return Ok(i as u8);
+            return flags_byte(i);
         }
         Err(PyValueError::new_err("write_flags must be ListWriteFlags or int"))
     }
@@ -1533,7 +1518,7 @@ use crate::record::PythonValue;
             return Ok(u8::from(m));
         }
         if let Ok(i) = ob.extract::<i64>() {
-            return Ok(i as u8);
+            return flags_byte(i);
         }
         Err(PyValueError::new_err("flags must be MapWriteFlags or int"))
     }
@@ -1544,31 +1529,19 @@ use crate::record::PythonValue;
             return Ok(u8::from(f));
         }
         if let Ok(i) = ob.extract::<i64>() {
-            return Ok(i as u8);
+            return flags_byte(i);
         }
         Err(PyValueError::new_err("write_flags must be BitWriteFlags or int"))
     }
 
-    /// Extract flags as u8 from HLLWriteFlags or int (bitmask).
-    /// Used by HLLWriteFlags' own __or__ / __ror__ dunders.
+    /// Extract flags as u8 from HLLWriteFlags or int (bitmask). Used for
+    /// HLLPolicy, the HLL operations and HLLWriteFlags' own dunders.
     pub(crate) fn hll_write_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<u8> {
         if let Ok(f) = ob.extract::<HLLWriteFlags>() {
             return Ok(u8::from(f));
         }
         if let Ok(i) = ob.extract::<i64>() {
-            return Ok(i as u8);
-        }
-        Err(PyValueError::new_err("write_flags must be HLLWriteFlags or int"))
-    }
-
-    /// Extract flags as i64 from HLLWriteFlags or int (bitmask). Used for HLLPolicy
-    /// (the underlying core HLLPolicy stores flags as i64).
-    pub(crate) fn hll_policy_flags_from_py(ob: &Bound<'_, PyAny>) -> PyResult<i64> {
-        if let Ok(f) = ob.extract::<HLLWriteFlags>() {
-            return Ok(u8::from(f) as i64);
-        }
-        if let Ok(i) = ob.extract::<i64>() {
-            return Ok(i);
+            return flags_byte(i);
         }
         Err(PyValueError::new_err("write_flags must be HLLWriteFlags or int"))
     }
@@ -1596,11 +1569,11 @@ use crate::record::PythonValue;
                 Some(obj) => map_policy_flags_from_py(obj.bind(py))?,
             };
             let _as = if persist_index == Some(true) {
-                aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(
-                    core_order, f,
+                aerospike_core::operations::maps::MapPolicy::with_persisted_index(
+                    core_order, aerospike_core::operations::maps::MapWriteFlags::from_bits(f),
                 )
             } else if f != 0 {
-                aerospike_core::operations::maps::MapPolicy::new_with_flags(core_order, f)
+                aerospike_core::operations::maps::MapPolicy::new(core_order, aerospike_core::operations::maps::MapWriteFlags::from_bits(f))
             } else {
                 let write_mode = write_mode.unwrap_or(MapWriteMode::Update);
                 aerospike_core::operations::maps::MapPolicy::new(
@@ -1623,9 +1596,9 @@ use crate::record::PythonValue;
             let order = order.unwrap_or(MapOrder::Unordered);
             let f = map_policy_flags_from_py(flags)?;
             Ok(MapPolicy {
-                _as: aerospike_core::operations::maps::MapPolicy::new_with_flags(
+                _as: aerospike_core::operations::maps::MapPolicy::new(
                     (&order).into(),
-                    f,
+                    aerospike_core::operations::maps::MapWriteFlags::from_bits(f),
                 ),
             })
         }
@@ -1642,9 +1615,9 @@ use crate::record::PythonValue;
             let order = order.unwrap_or(MapOrder::Unordered);
             let f = map_policy_flags_from_py(flags)?;
             Ok(MapPolicy {
-                _as: aerospike_core::operations::maps::MapPolicy::new_with_flags_and_persisted_index(
+                _as: aerospike_core::operations::maps::MapPolicy::with_persisted_index(
                     (&order).into(),
-                    f,
+                    aerospike_core::operations::maps::MapWriteFlags::from_bits(f),
                 ),
             })
         }
@@ -1665,16 +1638,20 @@ use crate::record::PythonValue;
 
         #[getter]
         pub fn get_write_mode(&self) -> MapWriteMode {
-            match self._as.write_mode {
-                aerospike_core::operations::maps::MapWriteMode::Update => MapWriteMode::Update,
-                aerospike_core::operations::maps::MapWriteMode::UpdateOnly => MapWriteMode::UpdateOnly,
-                aerospike_core::operations::maps::MapWriteMode::CreateOnly => MapWriteMode::CreateOnly,
+            if self._as.flags.contains(aerospike_core::operations::maps::MapWriteFlags::CREATE_ONLY) {
+                MapWriteMode::CreateOnly
+            } else if self._as.flags.contains(aerospike_core::operations::maps::MapWriteFlags::UPDATE_ONLY) {
+                MapWriteMode::UpdateOnly
+            } else {
+                MapWriteMode::Update
             }
         }
 
         #[setter]
         pub fn set_write_mode(&mut self, write_mode: MapWriteMode) {
-            self._as.write_mode = (&write_mode).into();
+            let mode_bits = (aerospike_core::operations::maps::MapWriteFlags::CREATE_ONLY | aerospike_core::operations::maps::MapWriteFlags::UPDATE_ONLY).bits();
+            let mode: aerospike_core::operations::maps::MapWriteFlags = (&write_mode).into();
+            self._as.flags = aerospike_core::operations::maps::MapWriteFlags::from_bits((self._as.flags.bits() & !mode_bits) | mode.bits());
         }
 
         /// Get the write flags as a MapWriteFlags variant.
@@ -1685,19 +1662,19 @@ use crate::record::PythonValue;
         /// :py:attr:`raw_flags` for the lossless ``int`` value.
         #[getter]
         pub fn get_flags(&self) -> MapWriteFlags {
-            flags_u8_to_map_write_flags(self._as.flags)
+            flags_u8_to_map_write_flags(self._as.flags.bits())
         }
 
         /// Get the raw write-flags byte as ``int`` — lossless replacement for
         /// :py:attr:`flags` when combined bitmasks are in use.
         #[getter(raw_flags)]
         pub fn get_raw_flags(&self) -> u8 {
-            self._as.flags
+            self._as.flags.bits()
         }
 
         #[setter]
         pub fn set_flags(&mut self, flags: &Bound<'_, PyAny>) -> PyResult<()> {
-            self._as.flags = map_policy_flags_from_py(flags)?;
+            self._as.flags = aerospike_core::operations::maps::MapWriteFlags::from_bits(map_policy_flags_from_py(flags)?);
             Ok(())
         }
 

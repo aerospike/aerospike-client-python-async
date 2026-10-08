@@ -24,7 +24,8 @@ input modes uniformly:
 Plus a ``TestBitwiseOperators`` block that exercises every bitwise dunder
 (``|``, ``&``, ``^``, ``~``) on every flag enum, covering Enum-Enum,
 Enum-int, and int-Enum directions.  This is the runtime contract that the
-``IntEnum`` stubs promise.
+``IntEnum`` stubs promise.  ``TestOutOfRangeFlags`` pins that an ``int``
+that does not fit the one-byte wire field is refused rather than truncated.
 
 Surfaces covered:
   - BitPolicy(...) / .write_flags
@@ -44,6 +45,7 @@ from aerospike_async import (
     FilterExpression as fe,
     HLLPolicy,
     HLLWriteFlags,
+    HllOperation,
     ListPolicy,
     ListWriteFlags,
     MapPolicy,
@@ -387,3 +389,52 @@ class TestBitwiseOperators:
         # Flag enums use u8-masked complement so ~A is positive and bit-ready.
         assert (~flag) == (~val) & 0xFF
         assert ((~flag) & 0xFF) == ((~val) & 0xFF)
+
+
+# ---------------------------------------------------------------------------
+# Out-of-range int bitmasks
+# ---------------------------------------------------------------------------
+
+class TestOutOfRangeFlags:
+    """Write flags travel as one byte. Truncating a wider ``int`` would send
+    a different flag set (256 becomes DEFAULT, -1 every flag at once), so
+    every entry point refuses it instead.
+    """
+
+    @pytest.mark.parametrize("raw", [256, -1])
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda f: BitPolicy(f),
+            lambda f: ListPolicy(None, f),
+            lambda f: MapPolicy(None, None, f, None),
+            lambda f: HLLPolicy(f),
+            lambda f: HllOperation.init("hll", 8, flags=f),
+            lambda f: HllOperation.add("hll", ["a"], 8, flags=f),
+            lambda f: HllOperation.set_union("hll", [], flags=f),
+        ],
+        ids=["bit", "list", "map", "hll", "hll_init", "hll_add", "hll_set_union"],
+    )
+    def test_constructor_rejects(self, build, raw):
+        with pytest.raises(ValueError, match="0-255"):
+            build(raw)
+
+    def test_setters_reject_and_keep_the_old_flags(self):
+        hp = HLLPolicy(HLLWriteFlags.CREATE_ONLY)
+        with pytest.raises(ValueError, match="0-255"):
+            hp.write_flags = 256
+        assert hp.write_flags == HLLWriteFlags.CREATE_ONLY
+
+        mp = MapPolicy(None, None)
+        with pytest.raises(ValueError, match="0-255"):
+            mp.flags = -1
+        assert mp.raw_flags == 0
+
+    def test_full_byte_is_accepted(self):
+        assert HLLPolicy(255).write_flags == 255
+        assert ListPolicy(None, 255).write_flags == 255
+
+    def test_wider_int_does_not_alias_a_flag(self):
+        # 257 truncated to a byte is 1, which used to compare equal.
+        assert ListWriteFlags.ADD_UNIQUE != 257
+        assert HLLWriteFlags.CREATE_ONLY != 257

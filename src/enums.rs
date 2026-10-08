@@ -46,7 +46,7 @@ use aerospike_core::{ClientResultCode, ResultCode as CoreResultCode};
             match input {
                 QueryDuration::Long => aerospike_core::policy::QueryDuration::Long,
                 QueryDuration::Short => aerospike_core::policy::QueryDuration::Short,
-                QueryDuration::LongRelaxAP => aerospike_core::policy::QueryDuration::LongRelaxAP,
+                QueryDuration::LongRelaxAP => aerospike_core::policy::QueryDuration::LongRelaxAp,
             }
         }
     }
@@ -56,7 +56,7 @@ use aerospike_core::{ClientResultCode, ResultCode as CoreResultCode};
             match input {
                 aerospike_core::policy::QueryDuration::Long => QueryDuration::Long,
                 aerospike_core::policy::QueryDuration::Short => QueryDuration::Short,
-                aerospike_core::policy::QueryDuration::LongRelaxAP => QueryDuration::LongRelaxAP,
+                aerospike_core::policy::QueryDuration::LongRelaxAp => QueryDuration::LongRelaxAP,
             }
         }
     }
@@ -243,20 +243,20 @@ pub enum Concurrency {
         }
     }
 
-    impl From<&ReadModeAP> for aerospike_core::policy::ReadModeAP {
+    impl From<&ReadModeAP> for aerospike_core::policy::ReadModeAp {
         fn from(input: &ReadModeAP) -> Self {
             match input {
-                ReadModeAP::One => aerospike_core::policy::ReadModeAP::One,
-                ReadModeAP::All => aerospike_core::policy::ReadModeAP::All,
+                ReadModeAP::One => aerospike_core::policy::ReadModeAp::One,
+                ReadModeAP::All => aerospike_core::policy::ReadModeAp::All,
             }
         }
     }
 
-    impl From<&aerospike_core::policy::ReadModeAP> for ReadModeAP {
-        fn from(input: &aerospike_core::policy::ReadModeAP) -> Self {
+    impl From<&aerospike_core::policy::ReadModeAp> for ReadModeAP {
+        fn from(input: &aerospike_core::policy::ReadModeAp) -> Self {
             match input {
-                aerospike_core::policy::ReadModeAP::One => ReadModeAP::One,
-                aerospike_core::policy::ReadModeAP::All => ReadModeAP::All,
+                aerospike_core::policy::ReadModeAp::One => ReadModeAP::One,
+                aerospike_core::policy::ReadModeAp::All => ReadModeAP::All,
             }
         }
     }
@@ -310,24 +310,24 @@ pub enum Concurrency {
         }
     }
 
-    impl From<&ReadModeSC> for aerospike_core::policy::ReadModeSC {
+    impl From<&ReadModeSC> for aerospike_core::policy::ReadModeSc {
         fn from(input: &ReadModeSC) -> Self {
             match input {
-                ReadModeSC::Session => aerospike_core::policy::ReadModeSC::Session,
-                ReadModeSC::Linearize => aerospike_core::policy::ReadModeSC::Linearize,
-                ReadModeSC::AllowReplica => aerospike_core::policy::ReadModeSC::AllowReplica,
-                ReadModeSC::AllowUnavailable => aerospike_core::policy::ReadModeSC::AllowUnavailable,
+                ReadModeSC::Session => aerospike_core::policy::ReadModeSc::Session,
+                ReadModeSC::Linearize => aerospike_core::policy::ReadModeSc::Linearize,
+                ReadModeSC::AllowReplica => aerospike_core::policy::ReadModeSc::AllowReplica,
+                ReadModeSC::AllowUnavailable => aerospike_core::policy::ReadModeSc::AllowUnavailable,
             }
         }
     }
 
-    impl From<&aerospike_core::policy::ReadModeSC> for ReadModeSC {
-        fn from(input: &aerospike_core::policy::ReadModeSC) -> Self {
+    impl From<&aerospike_core::policy::ReadModeSc> for ReadModeSC {
+        fn from(input: &aerospike_core::policy::ReadModeSc) -> Self {
             match input {
-                aerospike_core::policy::ReadModeSC::Session => ReadModeSC::Session,
-                aerospike_core::policy::ReadModeSC::Linearize => ReadModeSC::Linearize,
-                aerospike_core::policy::ReadModeSC::AllowReplica => ReadModeSC::AllowReplica,
-                aerospike_core::policy::ReadModeSC::AllowUnavailable => ReadModeSC::AllowUnavailable,
+                aerospike_core::policy::ReadModeSc::Session => ReadModeSC::Session,
+                aerospike_core::policy::ReadModeSc::Linearize => ReadModeSC::Linearize,
+                aerospike_core::policy::ReadModeSc::AllowReplica => ReadModeSC::AllowReplica,
+                aerospike_core::policy::ReadModeSc::AllowUnavailable => ReadModeSC::AllowUnavailable,
             }
         }
     }
@@ -721,18 +721,18 @@ pub enum Concurrency {
         Lua,
     }
 
-    impl From<&UDFLang> for aerospike_core::UDFLang {
+    impl From<&UDFLang> for aerospike_core::UdfLang {
         fn from(lang: &UDFLang) -> Self {
             match lang {
-                UDFLang::Lua => aerospike_core::UDFLang::Lua,
+                UDFLang::Lua => aerospike_core::UdfLang::Lua,
             }
         }
     }
 
-    impl From<UDFLang> for aerospike_core::UDFLang {
+    impl From<UDFLang> for aerospike_core::UdfLang {
         fn from(lang: UDFLang) -> Self {
             match lang {
-                UDFLang::Lua => aerospike_core::UDFLang::Lua,
+                UDFLang::Lua => aerospike_core::UdfLang::Lua,
             }
         }
     }
@@ -915,6 +915,7 @@ pub enum Concurrency {
                         ClientResultCode::ParseError => "PARSE_ERROR",
                         ClientResultCode::ClientError => "CLIENT_ERROR",
                         ClientResultCode::AsyncQueueFull | ClientResultCode::Unknown(_) => "UNKNOWN",
+                        _ => "UNKNOWN",
                     };
                 }
             };
@@ -949,7 +950,7 @@ pub enum Concurrency {
                 CoreResultCode::FilteredOut => "FILTERED_OUT",
                 CoreResultCode::LostConflict => "LOST_CONFLICT",
                 CoreResultCode::InvalidEncoding => "INVALID_ENCODING",
-                CoreResultCode::XDRKeyBusy => "XDR_KEY_BUSY",
+                CoreResultCode::XdrKeyBusy => "XDR_KEY_BUSY",
                 CoreResultCode::QueryEnd => "QUERY_END",
                 CoreResultCode::SecurityNotSupported => "SECURITY_NOT_SUPPORTED",
                 CoreResultCode::SecurityNotEnabled => "SECURITY_NOT_ENABLED",
@@ -1001,6 +1002,7 @@ pub enum Concurrency {
                 CoreResultCode::QueryNetioErr => "QUERY_NETIO_ERR",
                 CoreResultCode::QueryDuplicate => "QUERY_DUPLICATE",
                 CoreResultCode::Unknown(_) => "UNKNOWN",
+                _ => "UNKNOWN",
             }
         }
 
@@ -1100,7 +1102,7 @@ pub enum Concurrency {
         #[classattr]
         fn INVALID_ENCODING() -> ResultCode { ResultCode::from(CoreResultCode::InvalidEncoding) }
         #[classattr]
-        fn XDR_KEY_BUSY() -> ResultCode { ResultCode::from(CoreResultCode::XDRKeyBusy) }
+        fn XDR_KEY_BUSY() -> ResultCode { ResultCode::from(CoreResultCode::XdrKeyBusy) }
         #[classattr]
         fn QUERY_END() -> ResultCode { ResultCode::from(CoreResultCode::QueryEnd) }
         #[classattr]
@@ -1533,7 +1535,7 @@ pub enum Concurrency {
 
     impl From<&LoopVarPart> for aerospike_core::expressions::LoopVarPart {
         fn from(p: &LoopVarPart) -> Self {
-            aerospike_core::expressions::LoopVarPart(p.0)
+            aerospike_core::expressions::LoopVarPart::from_bits(p.0)
         }
     }
 

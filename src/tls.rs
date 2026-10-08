@@ -34,7 +34,7 @@ use crate::IoError;
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 100))]
     #[derive(Clone)]
     pub struct TlsConfig {
-        pub(crate) _as: rustls::ClientConfig,
+        pub(crate) _as: std::sync::Arc<rustls::ClientConfig>,
         /// Encrypt only the login exchange; data connections are cleartext.
         pub(crate) for_login_only: bool,
     }
@@ -118,7 +118,7 @@ use crate::IoError;
     ) -> PyResult<Vec<rustls::SupportedCipherSuite>> {
         let provider = rustls::crypto::CryptoProvider::get_default()
             .cloned()
-            .unwrap_or_else(|| std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider()));
+            .unwrap_or_else(|| std::sync::Arc::new(rustls::crypto::ring::default_provider()));
         let available: Vec<rustls::SupportedCipherSuite> = provider.cipher_suites.clone();
         ciphers
             .iter()
@@ -169,7 +169,7 @@ use crate::IoError;
                 let base = rustls::crypto::CryptoProvider::get_default()
                     .cloned()
                     .unwrap_or_else(|| {
-                        std::sync::Arc::new(rustls::crypto::aws_lc_rs::default_provider())
+                        std::sync::Arc::new(rustls::crypto::ring::default_provider())
                     });
                 let provider = rustls::crypto::CryptoProvider {
                     cipher_suites: suites,
@@ -241,7 +241,7 @@ use crate::IoError;
                 ciphers.as_deref(),
                 None,
             )?;
-            Ok(TlsConfig { _as: config, for_login_only })
+            Ok(TlsConfig { _as: std::sync::Arc::new(config), for_login_only })
         }
 
         /// Whether TLS covers the login exchange only; see the constructor.
@@ -318,6 +318,6 @@ use crate::IoError;
                 ciphers.as_deref(),
                 Some((client_certs, PrivateKeyDer::Pkcs8(client_key))),
             )?;
-            Ok(TlsConfig { _as: config, for_login_only })
+            Ok(TlsConfig { _as: std::sync::Arc::new(config), for_login_only })
         }
     }
