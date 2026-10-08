@@ -612,7 +612,11 @@ use crate::string_ops::StringNumericType;
         /// (server >= 8.2.0), not an older spelling of it.
         pub fn regex_compare(regex: String, flags: i64, bin: FilterExpression) -> Self {
             FilterExpression {
-                _as: aerospike_core::expressions::regex_compare(regex, flags, bin._as),
+                _as: aerospike_core::expressions::regex_compare(
+                    regex,
+                    aerospike_core::expressions::RegexFlags::from_bits(flags),
+                    bin._as,
+                ),
             }
         }
 
