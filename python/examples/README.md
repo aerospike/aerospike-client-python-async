@@ -1,6 +1,6 @@
 # Aerospike Async Python Examples
 
-This directory contains example scripts demonstrating how to use the `aerospike_async` Python library.
+This directory contains example scripts demonstrating how to use the `aerospike_native` Python library.
 
 ## Available Examples
 

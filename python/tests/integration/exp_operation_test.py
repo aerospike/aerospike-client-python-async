@@ -16,11 +16,11 @@
 """Tests for expression operations (ExpOperation)."""
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     ExpOperation, ExpWriteFlags, ExpReadFlags,
     FilterExpression as fe, WritePolicy, ReadPolicy, Key
 )
-from aerospike_async.exceptions import ServerError, ResultCode, BinNotFound
+from aerospike_native.exceptions import ServerError, ResultCode, BinNotFound
 from fixtures import TestFixtureConnection
 
 

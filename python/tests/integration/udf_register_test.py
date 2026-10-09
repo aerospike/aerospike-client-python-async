@@ -16,8 +16,8 @@
 """Tests for register_udf and register_udf_from_file functionality."""
 import os
 import pytest
-from aerospike_async import AdminPolicy, UDFLang, TaskStatus
-from aerospike_async.exceptions import ServerError, ResultCode
+from aerospike_native import AdminPolicy, UDFLang, TaskStatus
+from aerospike_native.exceptions import ServerError, ResultCode
 from fixtures import TestFixtureConnection
 
 

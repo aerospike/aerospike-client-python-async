@@ -15,7 +15,7 @@
 
 """Unit tests for CDT path expression types: LoopVarPart, SelectFlags, ModifyFlags, CdtOperation."""
 
-from aerospike_async import (
+from aerospike_native import (
     CTX,
     CdtOperation,
     FilterExpression as fe,

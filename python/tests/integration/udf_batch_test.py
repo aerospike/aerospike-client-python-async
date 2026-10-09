@@ -16,7 +16,7 @@
 """Tests for batch_apply functionality."""
 import os
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     WritePolicy,
     ReadPolicy,
     Key,
@@ -25,7 +25,7 @@ from aerospike_async import (
     UDFLang,
     BatchRecord,
 )
-from aerospike_async.exceptions import BatchFailedError, ClientError, ResultCode
+from aerospike_native.exceptions import BatchFailedError, ClientError, ResultCode
 from fixtures import TestFixtureConnection
 
 
@@ -230,7 +230,7 @@ class TestBatchFailedError(TestFixtureConnection):
         so the aggregate and every row are in-doubt, and unanswered rows are
         stamped TIMEOUT.
         """
-        keys = [Key("test", "test", f"pac_budf_fail_{i}") for i in range(6)]
+        keys = [Key("test", "test", f"pnc_budf_fail_{i}") for i in range(6)]
         bp = BatchPolicy()
         bp.socket_timeout = 250
         bp.total_timeout = 0

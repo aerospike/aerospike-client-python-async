@@ -36,11 +36,11 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BasePolicy",
         subclass,
-        module = "_aerospike_async_native"
+        module = "_native"
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -61,7 +61,7 @@ use crate::TlsConfig;
     impl BasePolicy {
         #[new]
         pub fn new() -> Self {
-            // PAC opts into positional Record.results by default (rust-core
+            // PNC opts into positional Record.results by default (rust-core
             // leaves it off so direct Rust users pay nothing).
             let bp = aerospike_core::policy::BasePolicy {
                 populate_positional_results: true,
@@ -227,10 +227,10 @@ use crate::TlsConfig;
         }
     }
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object,
         name = "AdminPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -266,10 +266,10 @@ use crate::TlsConfig;
         }
     }
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "ReadPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         extends = BasePolicy,
         subclass
     )]
@@ -284,9 +284,9 @@ use crate::TlsConfig;
     #[pymethods]
     impl ReadPolicy {
         #[new]
-        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.ReadPolicy"))]
+        #[gen_stub(override_return_type(type_repr = "_native.ReadPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
-            // PAC opts into positional Record.results by default.
+            // PNC opts into positional Record.results by default.
             let mut rp = aerospike_core::ReadPolicy::default();
             rp.base_policy.populate_positional_results = true;
             let read_policy = ReadPolicy { _as: rp };
@@ -529,10 +529,10 @@ use crate::TlsConfig;
         }
     }
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "WritePolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         extends = BasePolicy,
         subclass,
     )]
@@ -549,9 +549,9 @@ use crate::TlsConfig;
     #[pymethods]
     impl WritePolicy {
         #[new]
-        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.WritePolicy"))]
+        #[gen_stub(override_return_type(type_repr = "_native.WritePolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
-            // PAC opts into positional Record.results by default.
+            // PNC opts into positional Record.results by default.
             let mut wp = aerospike_core::WritePolicy::default();
             wp.base_policy.populate_positional_results = true;
             let write_policy = WritePolicy { _as: wp };
@@ -942,10 +942,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "QueryPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         extends = BasePolicy,
         subclass,
     )]
@@ -960,9 +960,9 @@ use crate::TlsConfig;
     #[pymethods]
     impl QueryPolicy {
         #[new]
-        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.QueryPolicy"))]
+        #[gen_stub(override_return_type(type_repr = "_native.QueryPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
-            // PAC opts into positional Record.results by default.
+            // PNC opts into positional Record.results by default.
             let mut qp = aerospike_core::QueryPolicy::default();
             qp.base_policy.populate_positional_results = true;
             let query_policy = QueryPolicy { _as: qp };
@@ -1203,10 +1203,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchRecord",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -1299,10 +1299,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         extends = BasePolicy,
         subclass,
     )]
@@ -1316,9 +1316,9 @@ use crate::TlsConfig;
     #[pymethods]
     impl BatchPolicy {
         #[new]
-        #[gen_stub(override_return_type(type_repr = "_aerospike_async_native.BatchPolicy"))]
+        #[gen_stub(override_return_type(type_repr = "_native.BatchPolicy"))]
         pub fn new() -> PyClassInitializer<Self> {
-            // PAC opts into positional Record.results by default.
+            // PNC opts into positional Record.results by default.
             let mut bp = aerospike_core::BatchPolicy::default();
             bp.base_policy.populate_positional_results = true;
             let batch_policy = BatchPolicy { _as: bp };
@@ -1576,10 +1576,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchReadPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -1640,10 +1640,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchWritePolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -1762,10 +1762,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchDeletePolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -1854,10 +1854,10 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchUDFPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -1950,10 +1950,10 @@ use crate::TlsConfig;
     /// checking the versions of the records that took part in the transaction
     /// before it is committed. Verification is sent to the server as one batch
     /// command per node, so the exposed knobs configure that batch.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object,
         name = "TxnVerifyPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -2038,10 +2038,10 @@ use crate::TlsConfig;
     /// records forward on commit or back on abort. Rolling is sent to the
     /// server as one batch command per node, so the exposed knobs configure
     /// that batch.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object,
         name = "TxnRollPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -2119,10 +2119,10 @@ use crate::TlsConfig;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// A single read operation for use with :meth:`Client.batch`.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchReadOp",
-        module = "_aerospike_async_native",
+        module = "_native",
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -2159,10 +2159,10 @@ use crate::TlsConfig;
     }
 
     /// A single write operation for use with :meth:`Client.batch`.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchWriteOp",
-        module = "_aerospike_async_native",
+        module = "_native",
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -2209,10 +2209,10 @@ use crate::TlsConfig;
     }
 
     /// A single delete operation for use with :meth:`Client.batch`.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "BatchDeleteOp",
-        module = "_aerospike_async_native",
+        module = "_native",
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -2238,10 +2238,10 @@ use crate::TlsConfig;
     }
 
     /// A single UDF-apply operation for use with :meth:`Client.batch`.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object,
         name = "BatchUDFOp",
-        module = "_aerospike_async_native",
+        module = "_native",
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -2284,17 +2284,17 @@ use crate::TlsConfig;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "ClientPolicy",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Clone)]
     pub struct ClientPolicy {
         pub(crate) _as: aerospike_core::ClientPolicy,
-        /// PAC-specific (not in aerospike_core): when set, every async op
+        /// PNC-specific (not in aerospike_core): when set, every async op
         /// on this Client runs on a dedicated Tokio runtime with this many
         /// worker threads instead of the shared global runtime. Eliminates
         /// cross-loop scheduler contention under AsyncPool. `None` or
@@ -2310,17 +2310,17 @@ use crate::TlsConfig;
             // Tuned for the primary async use case: a single Tokio runtime
             // (or per-Client runtime in AsyncPool) serializes pool access
             // through one or two workers, so contention is naturally low
-            // even at high task concurrency. Sync wrappers that drive PAC
+            // even at high task concurrency. Sync wrappers that drive PNC
             // from many caller threads (e.g. PSDK's SyncClient) should
             // override this on the policy before construction; 8 is a good
             // value for ~32-thread sync workloads.
             let res = ClientPolicy {
                 _as: aerospike_core::ClientPolicy {
                     conn_pools_per_node: 4,
-                    // Identify this client on the wire (user-agent) so bare-PAC
+                    // Identify this client on the wire (user-agent) so bare-PNC
                     // usage is distinguishable from the bare Rust core. A higher
                     // wrapper layer overrides this with its own identifier.
-                    custom_client_id: Some(format!("python-async-{}", env!("CARGO_PKG_VERSION"))),
+                    custom_client_id: Some(format!("python-native-{}", env!("CARGO_PKG_VERSION"))),
                     ..Default::default()
                 },
                 per_client_runtime_workers: None,

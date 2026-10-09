@@ -16,10 +16,10 @@
 import pytest
 import pytest_asyncio
 
-from aerospike_async import SortedMap  # noqa: F401  (dict subclass, Python layer)
-from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, MapOperation,
+from aerospike_native import SortedMap  # noqa: F401  (dict subclass, Python layer)
+from aerospike_native import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, MapOperation,
                              MapPolicy, MapOrder, MapWriteMode, MapWriteFlags, MapReturnType, ResultCode, CTX, Operation)
-from aerospike_async.exceptions import ServerError, RecordNotFound
+from aerospike_native.exceptions import ServerError, RecordNotFound
 
 
 @pytest_asyncio.fixture

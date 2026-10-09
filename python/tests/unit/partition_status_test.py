@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import PartitionStatus
+from aerospike_native import PartitionStatus
 
 
 class TestPartitionStatus:

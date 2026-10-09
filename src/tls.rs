@@ -25,10 +25,10 @@ use crate::IoError;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     #[cfg(feature = "tls")]
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "TlsConfig",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 100))]

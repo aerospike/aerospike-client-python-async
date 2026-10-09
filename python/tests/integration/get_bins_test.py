@@ -16,7 +16,7 @@
 import os
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     new_client,
     ClientPolicy,
     WritePolicy,

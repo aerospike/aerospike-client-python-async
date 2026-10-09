@@ -17,7 +17,7 @@ import os
 import pytest
 import pytest_asyncio
 
-from aerospike_async import ClientPolicy, new_client, ReadPolicy, WritePolicy, Key, FilterExpression as fe
+from aerospike_native import ClientPolicy, new_client, ReadPolicy, WritePolicy, Key, FilterExpression as fe
 
 
 @pytest_asyncio.fixture

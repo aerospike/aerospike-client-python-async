@@ -34,10 +34,10 @@ import pytest_asyncio
 
 # Fixtures here are session-loop-scoped (clients live longer than one test);
 # tests must run on the same session loop or the per-Client owning-loop guard
-# in PAC's completion bridge fires.
+# in PNC's completion bridge fires.
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-from aerospike_async import (  # noqa: E402
+from aerospike_native import (  # noqa: E402
     ClientPolicy,
     CollectionIndexType,
     ExpOperation,
@@ -56,7 +56,7 @@ from aerospike_async import (  # noqa: E402
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import ResultCode, ValueError as PacValueError  # noqa: E402
+from aerospike_native.exceptions import ResultCode, ValueError as PacValueError  # noqa: E402
 from fixtures import wait_for_scan_visible  # noqa: E402
 
 
@@ -623,7 +623,7 @@ class TestQueryOpsRejects:
         await task.wait_till_complete()
 
         # Verify each touched record now has the marker bin.
-        from aerospike_async import ReadPolicy
+        from aerospike_native import ReadPolicy
         rp = ReadPolicy()
         for i in range(begin, end + 1):
             key = Key(_NAMESPACE, _SET, f"{_KEY_PREFIX}{i}")

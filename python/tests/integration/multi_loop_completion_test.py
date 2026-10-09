@@ -32,7 +32,7 @@ import threading
 
 import pytest
 
-from aerospike_async import ClientPolicy, Key, ReadPolicy, WritePolicy, new_client
+from aerospike_native import ClientPolicy, Key, ReadPolicy, WritePolicy, new_client
 
 
 def _run_loop_in_thread():

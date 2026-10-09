@@ -3,8 +3,8 @@ requires = ["maturin>=1.9.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "aerospike_async"
-description = "Aerospike Python Async Client — async I/O over the Aerospike Rust client core (PyO3)"
+name = "aerospike_native"
+description = "Aerospike Python Native Client — the Rust-core (PyO3) layer under the Aerospike Python SDK"
 readme = "README.md"
 dynamic = ["version"]
 requires-python = ">=3.11"
@@ -16,7 +16,7 @@ requires-python = ">=3.11"
 # the first release with cp315 wheels, so the python_version bound that kept
 # 3.15 off uvloop's sdist build is no longer needed.
 dependencies = ["uvloop>=0.23; sys_platform != 'win32'"]
-python-packages = ["aerospike_async"]
+python-packages = ["aerospike_native"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -24,13 +24,13 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/aerospike/aerospike-client-python-async"
-Issues = "https://github.com/aerospike/aerospike-client-python-async/issues"
-Changelog = "https://github.com/aerospike/aerospike-client-python-async/releases"
+Repository = "https://github.com/aerospike/aerospike-client-python-native"
+Issues = "https://github.com/aerospike/aerospike-client-python-native/issues"
+Changelog = "https://github.com/aerospike/aerospike-client-python-native/releases"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "aerospike_async._aerospike_async_native"
+module-name = "aerospike_native._native"
 python-source = "python"
 
 [tool.ruff]

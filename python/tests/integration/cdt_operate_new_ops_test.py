@@ -34,10 +34,10 @@ import pytest_asyncio
 
 # Fixtures here are session-loop-scoped (clients live longer than one test);
 # tests must run on the same session loop or the per-Client owning-loop guard
-# in PAC's completion bridge fires.
+# in PNC's completion bridge fires.
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
-from aerospike_async import (  # noqa: E402
+from aerospike_native import (  # noqa: E402
     CTX,
     CdtOperation,
     ClientPolicy,

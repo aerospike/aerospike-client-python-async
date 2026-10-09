@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import Statement, Filter
+from aerospike_native import Statement, Filter
 
 
 class TestStatement:

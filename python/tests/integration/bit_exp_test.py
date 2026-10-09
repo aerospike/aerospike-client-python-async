@@ -18,11 +18,11 @@
 import base64
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     BitPolicy, BitwiseResizeFlags, BitwiseOverflowActions, BitWriteFlags,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
+from aerospike_native.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureConnection
 
 

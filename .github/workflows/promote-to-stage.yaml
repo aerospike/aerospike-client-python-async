@@ -53,7 +53,7 @@ jobs:
           BUNDLE_VERSION: ${{ needs.extract-version.outputs.version }}
         run: |
           echo "DRY-RUN: would promote release bundle"
-          echo "  bundle-name: aerospike-client-python-async"
+          echo "  bundle-name: aerospike-client-python-native"
           echo "  version:     $BUNDLE_VERSION"
           echo "  environment: STAGE"
           echo "  jf-project:  ${{ vars.JFROG_PROJECT }}"
@@ -62,7 +62,7 @@ jobs:
         if: env.DRY_RUN != 'true'
         uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
         with:
-          bundle-name: aerospike-client-python-async
+          bundle-name: aerospike-client-python-native
           version: ${{ needs.extract-version.outputs.version }}
           environment: STAGE
           jf-project: ${{ vars.JFROG_PROJECT }}

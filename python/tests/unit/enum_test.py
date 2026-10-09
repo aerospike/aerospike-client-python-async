@@ -18,7 +18,7 @@
 import subprocess
 import sys
 
-from aerospike_async import (
+from aerospike_native import (
     BitwiseOverflowActions,
     BitwiseResizeFlags,
     BitWriteFlags,
@@ -304,7 +304,7 @@ class TestResultCodeCatalog:
     }
 
     def test_every_core_client_code_is_exposed(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         for name, value in self.CORE_CLIENT_CODES.items():
             rc = getattr(ResultCode, name)
@@ -315,7 +315,7 @@ class TestResultCodeCatalog:
             assert repr(rc) == f"<ResultCode.{name}: {value}>"
 
     def test_client_code_behaves_like_its_int(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         rc = ResultCode.TXN_FAILED
         assert rc == -17 and rc != -1 and rc != ResultCode.CLIENT_ERROR
@@ -328,14 +328,14 @@ class TestResultCodeCatalog:
         assert hash(ResultCode.CLIENT_ERROR) == hash(-1)
 
     def test_client_and_server_codes_never_collide(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         assert ResultCode.TIMEOUT == 9 and ResultCode.TIMEOUT.value > 0
         assert ResultCode.CLIENT_ERROR != ResultCode.OK
         assert ResultCode.SERVER_NOT_AVAILABLE != ResultCode.SERVER_ERROR
 
     def test_every_core_server_code_is_exposed(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         exposed = {
             n for n in dir(ResultCode) if isinstance(getattr(ResultCode, n), ResultCode)
@@ -344,7 +344,7 @@ class TestResultCodeCatalog:
         assert not missing, f"core server codes missing from ResultCode: {missing}"
 
     def test_members_behave_like_int_enum_members(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         rc = ResultCode.KEY_EXISTS_ERROR
         assert repr(rc) == "<ResultCode.KEY_EXISTS_ERROR: 5>"
@@ -357,7 +357,7 @@ class TestResultCodeCatalog:
         assert repr(ResultCode.OK) == "<ResultCode.OK: 0>"
 
     def test_members_compare_and_hash_like_their_int(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         rc = ResultCode.KEY_EXISTS_ERROR
         assert rc == 5 and 5 == rc
@@ -370,7 +370,7 @@ class TestResultCodeCatalog:
         assert (rc == 5.0) is False
 
     def test_every_constant_reports_its_own_name(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         for name in self.CORE_SERVER_CODES:
             rc = getattr(ResultCode, name)
@@ -378,7 +378,7 @@ class TestResultCodeCatalog:
             assert repr(rc) == f"<ResultCode.{name}: {int(rc)}>"
 
     def test_catalog_is_complete_against_this_pin(self):
-        from aerospike_async import ResultCode
+        from aerospike_native import ResultCode
 
         exposed = {
             n for n in dir(ResultCode) if isinstance(getattr(ResultCode, n), ResultCode)
@@ -405,7 +405,7 @@ class TestTypeSlots:
         # hand-written __int__ or __repr__ on a #[pyclass] enum does, since
         # PyO3 already generates both. Under -W error the import fails.
         result = subprocess.run(
-            [sys.executable, "-W", "error::DeprecationWarning", "-c", "import aerospike_async"],
+            [sys.executable, "-W", "error::DeprecationWarning", "-c", "import aerospike_native"],
             capture_output=True,
             text=True,
         )

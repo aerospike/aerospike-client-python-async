@@ -16,12 +16,12 @@
 """Tests for list write/remove FilterExpression methods."""
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     ExpOperation,
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     ListPolicy, ListOrderType, ListWriteFlags, ListReturnType, CTX,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
+from aerospike_native.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureConnection
 
 

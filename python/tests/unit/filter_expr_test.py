@@ -13,8 +13,8 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import ExpType
-from aerospike_async import FilterExpression as fe
+from aerospike_native import ExpType
+from aerospike_native import FilterExpression as fe
 
 
 class TestFilterExprCreate:
@@ -274,7 +274,7 @@ class TestFilterExprBase64:
 
     def test_server_compiled_ael_empty_source_rejected(self):
         import pytest
-        from aerospike_async.exceptions import ResultCode, ValueError
+        from aerospike_native.exceptions import ResultCode, ValueError
 
         with pytest.raises(ValueError) as exc_info:
             fe.from_server_compiled_ael("")
@@ -282,7 +282,7 @@ class TestFilterExprBase64:
 
     def test_from_base64_invalid_raises(self):
         import pytest
-        from aerospike_async.exceptions import BadResponse
+        from aerospike_native.exceptions import BadResponse
 
         with pytest.raises(BadResponse):
             fe.from_base64("not-valid-base64!!!")

@@ -20,7 +20,7 @@ contact: these tests pin the wire format of the new ExpOps and CTX
 helpers so that future edits can't silently shift the encoding.
 """
 
-from aerospike_async import CTX, CdtOperation, ExpType, FilterExpression as fe
+from aerospike_native import CTX, CdtOperation, ExpType, FilterExpression as fe
 
 
 class TestNativeExpOps:

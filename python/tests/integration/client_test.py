@@ -17,8 +17,8 @@ import os
 
 import pytest
 
-from aerospike_async import new_client, ClientPolicy
-from aerospike_async.exceptions import ConnectionError, ResultCode
+from aerospike_native import new_client, ClientPolicy
+from aerospike_native.exceptions import ConnectionError, ResultCode
 
 async def test_connect():
     """Test basic client connection."""

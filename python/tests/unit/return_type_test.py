@@ -21,7 +21,7 @@ These types support combining with INVERTED flag for CDT operations:
     - MapReturnType.VALUE | MapReturnType.INVERTED
 """
 
-from aerospike_async import ListReturnType, MapReturnType
+from aerospike_native import ListReturnType, MapReturnType
 
 
 class TestListReturnType:
@@ -228,7 +228,7 @@ class TestReturnTypeUsageInExpressions:
 
     def test_list_return_type_in_expression(self):
         """Test ListReturnType can be passed to FilterExpression methods."""
-        from aerospike_async import FilterExpression, ExpType
+        from aerospike_native import FilterExpression, ExpType
 
         # This should not raise - basic return type
         expr = FilterExpression.list_get_by_index(
@@ -242,7 +242,7 @@ class TestReturnTypeUsageInExpressions:
 
     def test_list_return_type_inverted_in_expression(self):
         """Test combined ListReturnType can be passed to FilterExpression methods."""
-        from aerospike_async import FilterExpression, ExpType
+        from aerospike_native import FilterExpression, ExpType
 
         # This should not raise - combined return type with INVERTED
         combined = ListReturnType.VALUE | ListReturnType.INVERTED
@@ -257,7 +257,7 @@ class TestReturnTypeUsageInExpressions:
 
     def test_map_return_type_in_expression(self):
         """Test MapReturnType can be passed to FilterExpression methods."""
-        from aerospike_async import FilterExpression, ExpType
+        from aerospike_native import FilterExpression, ExpType
 
         # This should not raise - basic return type
         expr = FilterExpression.map_get_by_key(
@@ -271,7 +271,7 @@ class TestReturnTypeUsageInExpressions:
 
     def test_map_return_type_inverted_in_expression(self):
         """Test combined MapReturnType can be passed to FilterExpression methods."""
-        from aerospike_async import FilterExpression, ExpType
+        from aerospike_native import FilterExpression, ExpType
 
         # This should not raise - combined return type with INVERTED
         combined = MapReturnType.VALUE | MapReturnType.INVERTED

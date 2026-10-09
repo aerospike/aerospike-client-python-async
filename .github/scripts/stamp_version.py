@@ -30,14 +30,14 @@ def stamp(version: str) -> None:
         text = cargo_lock.read_text()
         # Only this package's own entry; dependency versions stay locked.
         new_text, n = re.subn(
-            r'(name = "aerospike_async"\nversion = )".*"',
+            r'(name = "aerospike_native"\nversion = )".*"',
             rf'\1"{version}"',
             text,
             count=1,
         )
         if n != 1:
             raise SystemExit(
-                "could not find the aerospike_async entry in Cargo.lock"
+                "could not find the aerospike_native entry in Cargo.lock"
             )
         cargo_lock.write_text(new_text)
 

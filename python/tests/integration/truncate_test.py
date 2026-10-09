@@ -14,7 +14,7 @@
 # the License.
 
 import time
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest
+from aerospike_native.exceptions import ServerError, ResultCode, InvalidRequest
 from fixtures import TestFixtureInsertRecord
 
 

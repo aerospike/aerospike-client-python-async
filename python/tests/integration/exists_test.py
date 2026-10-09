@@ -14,8 +14,8 @@
 # the License.
 
 import pytest
-from aerospike_async import ReadPolicy
-from aerospike_async.exceptions import InvalidNamespaceError
+from aerospike_native import ReadPolicy
+from aerospike_native.exceptions import InvalidNamespaceError
 from fixtures import TestFixtureInsertRecord
 
 

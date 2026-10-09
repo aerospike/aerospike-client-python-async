@@ -19,8 +19,8 @@ Tests different write behaviors based on record existence.
 """
 
 import pytest
-from aerospike_async import Key, WritePolicy, ReadPolicy, RecordExistsAction
-from aerospike_async.exceptions import ResultCode, RecordNotFound, RecordExistsError
+from aerospike_native import Key, WritePolicy, ReadPolicy, RecordExistsAction
+from aerospike_native.exceptions import ResultCode, RecordNotFound, RecordExistsError
 from fixtures import TestFixtureConnection
 
 

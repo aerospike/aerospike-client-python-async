@@ -47,11 +47,11 @@ def wait_for_index():
 def pytest_runtest_logreport(report):
     """Record each failed test's time span for CI's server-log window.
 
-    Active only when PAC_FAILURE_TIMES names a file (CI sets it); the job's
+    Active only when PNC_FAILURE_TIMES names a file (CI sets it); the job's
     failure step then prints the server log around each failure instead of
     only its tail.
     """
-    path = os.environ.get("PAC_FAILURE_TIMES")
+    path = os.environ.get("PNC_FAILURE_TIMES")
     if not path or not report.failed:
         return
     end = time.time()

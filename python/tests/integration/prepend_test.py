@@ -14,8 +14,8 @@
 # the License.
 
 import pytest
-from aerospike_async import WritePolicy, ReadPolicy
-from aerospike_async.exceptions import ResultCode, BinTypeError
+from aerospike_native import WritePolicy, ReadPolicy
+from aerospike_native.exceptions import ResultCode, BinTypeError
 from fixtures import TestFixtureInsertRecord
 
 

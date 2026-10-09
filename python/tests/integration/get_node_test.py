@@ -16,8 +16,8 @@
 """Tests for get_node, nodes(), and Node.info functionality."""
 
 import pytest
-from aerospike_async import Node
-from aerospike_async.exceptions import InvalidNodeError
+from aerospike_native import Node
+from aerospike_native.exceptions import InvalidNodeError
 from fixtures import TestFixtureConnection
 
 

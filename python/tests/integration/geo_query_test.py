@@ -14,7 +14,7 @@
 # the License.
 
 import asyncio
-from aerospike_async import (
+from aerospike_native import (
     Key,
     GeoJSON,
     Statement,
@@ -25,7 +25,7 @@ from aerospike_async import (
     CollectionIndexType,
     IndexType,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, IndexFoundError
+from aerospike_native.exceptions import ServerError, ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 

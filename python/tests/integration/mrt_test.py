@@ -39,7 +39,7 @@ import uuid
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     AbortStatus,
     AuthMode,
     BatchPolicy,
@@ -54,7 +54,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import CommitFailedError
+from aerospike_native.exceptions import CommitFailedError
 
 
 _AUTH_MODES = {
@@ -149,7 +149,7 @@ async def sc_client(sc_namespace):
 @pytest.fixture
 def sc_key(sc_namespace):
     """Fresh, unique key per test so parallel/retry runs don't collide."""
-    return Key(sc_namespace, "mrt", f"pac-mrt-{uuid.uuid4().hex[:12]}")
+    return Key(sc_namespace, "mrt", f"pnc-mrt-{uuid.uuid4().hex[:12]}")
 
 
 async def _get_bin(client: "any", key: Key, bin_name: str):
@@ -243,7 +243,7 @@ async def test_committed_txn_rejects_subsequent_writes(sc_client, sc_key):
 # ---------------------------------------------------------------------------
 async def test_txn_batch_commit(sc_client, sc_namespace):
     keys = [
-        Key(sc_namespace, "mrt", f"pac-mrt-batch-{uuid.uuid4().hex[:12]}-{i}")
+        Key(sc_namespace, "mrt", f"pnc-mrt-batch-{uuid.uuid4().hex[:12]}-{i}")
         for i in range(5)
     ]
     for k in keys:

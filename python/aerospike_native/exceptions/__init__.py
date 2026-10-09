@@ -1,11 +1,11 @@
 # Exceptions are created by PyO3 in this submodule
-# via create_exception!(aerospike_async.exceptions, ...) and add_submodule
-# Users can import: from aerospike_async.exceptions import AerospikeError
+# via create_exception!(aerospike_native.exceptions, ...) and add_submodule
+# Users can import: from aerospike_native.exceptions import AerospikeError
 
-from .. import _aerospike_async_native
+from .. import _native
 
 # Access the exceptions submodule created by PyO3
-_exceptions = getattr(_aerospike_async_native, "exceptions", None)
+_exceptions = getattr(_native, "exceptions", None)
 if _exceptions is None:
     raise ImportError("Exceptions submodule not found in native module")
 
@@ -33,7 +33,7 @@ InvalidRustClientArgs = _exceptions.InvalidRustClientArgs
 ClientError = _exceptions.ClientError
 MaxErrorRate = _exceptions.MaxErrorRate
 # ResultCode is in the main native module, not in exceptions submodule
-ResultCode = _aerospike_async_native.ResultCode
+ResultCode = _native.ResultCode
 
 # The result code lives on the base so every error answers it: the
 # native layer sets the instance attribute on each failure it raises,

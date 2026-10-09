@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Print the package version from Cargo.toml.
 #
-# Cargo.toml is the single source of truth for PAC's version. maturin reads
+# Cargo.toml is the single source of truth for PNC's version. maturin reads
 # it directly when building wheels; pyproject.toml does not duplicate it.
 #
 # Output: bare version string with no trailing newline manipulation.

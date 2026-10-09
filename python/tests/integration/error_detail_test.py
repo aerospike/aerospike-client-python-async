@@ -29,7 +29,7 @@ stable contract paired with its result code; the names track the core catalog.
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     BatchPolicy,
     BatchReadPolicy,
     ClientPolicy,

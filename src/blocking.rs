@@ -116,7 +116,7 @@ where
 /// the ``_blocking`` method variants — calling an async method on a client
 /// built this way raises ``RuntimeError`` because the completion bridge
 /// (which captures an asyncio loop at construction time) is not initialized.
-#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+#[gen_stub_pyfunction(module = "_native")]
 #[pyfunction]
 pub(crate) fn new_client_blocking(
     py: Python<'_>,
@@ -127,12 +127,12 @@ pub(crate) fn new_client_blocking(
     let as_seeds = seeds.clone();
     let cluster_name = as_policy.cluster_name.clone();
     let raw = run_blocking(py, async move {
-        log::debug!(target: "aerospike_async", "connecting (blocking) to {}", as_seeds);
+        log::debug!(target: "aerospike_native", "connecting (blocking) to {}", as_seeds);
         aerospike_core::Client::new(&as_policy, &as_seeds)
             .await
             .map_err(|e| PyErr::from(RustClientError(e)))
     })?;
-    log::debug!(target: "aerospike_async", "connected (blocking) to {}", seeds);
+    log::debug!(target: "aerospike_native", "connected (blocking) to {}", seeds);
     Ok(Client {
         _as: Arc::new(raw),
         seeds,

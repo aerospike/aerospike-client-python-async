@@ -16,7 +16,7 @@
 """Unit tests for multi-record transaction types: Txn, TxnState, CommitStatus, AbortStatus."""
 
 import pytest
-from aerospike_async import Txn, TxnState, CommitStatus, AbortStatus, CommitErrorType
+from aerospike_native import Txn, TxnState, CommitStatus, AbortStatus, CommitErrorType
 
 
 class TestTxn:
@@ -96,7 +96,7 @@ class TestTxn:
         """Mutating ``Txn.timeout`` after the txn has been cloned into a
         policy raises ``ValueError``. This pins the set-before-use semantic
         documented on the setter."""
-        from aerospike_async import WritePolicy
+        from aerospike_native import WritePolicy
 
         txn = Txn()
         policy = WritePolicy()

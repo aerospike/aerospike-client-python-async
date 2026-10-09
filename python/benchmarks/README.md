@@ -1,6 +1,6 @@
 # Aerospike Async Python Benchmarks
 
-This directory contains performance benchmarking scripts for the `aerospike_async` Python library.
+This directory contains performance benchmarking scripts for the `aerospike_native` Python library.
 
 ## Available Benchmarks
 

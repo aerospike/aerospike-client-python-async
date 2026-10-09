@@ -87,7 +87,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target[0] }}
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
           manylinux: auto
         env:
           # Force aws-lc-sys to use pre-generated bindings instead of bindgen/CMake
@@ -127,14 +127,14 @@ jobs:
 
       - name: Install wheel
         run: ${{ matrix.python }} -m pip install *.whl
-        working-directory: aerospike_async
+        working-directory: aerospike_native
       - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
 
       - name: Debug module contents
         run: |
-          ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
-          ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+          ${{ matrix.python }} -c "import aerospike_native; print('Module imported successfully')"
+          ${{ matrix.python }} -c "import aerospike_native; print('Available functions:', [x for x in dir(aerospike_native) if not x.startswith('_')])"
       - name: Run tests
         env:
           AEROSPIKE_HOST: localhost:3000
@@ -142,14 +142,14 @@ jobs:
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
           # Keep the exceptions/ directory as it's needed by the tests
-          rm -f python/aerospike_async/__init__.py
+          rm -f python/aerospike_native/__init__.py
           # Remove .env file so tests use default localhost:3000 (matches our server)
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
-          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
+          export PNC_FAILURE_TIMES="$RUNNER_TEMP/pnc-failure-times.txt"
           ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
+            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PNC_FAILURE_TIMES"
             exit 1
           fi
 
@@ -157,7 +157,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.python }}-${{ matrix.target[0] }}
-          path: aerospike_async
+          path: aerospike_native
 
   # Native ARM64 Linux build (no cross-compilation needed)
   linux-arm:
@@ -187,7 +187,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
           manylinux: auto
         env:
           AWS_LC_SYS_CMAKE_BUILDER: "0"
@@ -221,28 +221,28 @@ jobs:
 
       - name: Install wheel
         run: ${{ matrix.python }} -m pip install *.whl
-        working-directory: aerospike_async
+        working-directory: aerospike_native
       - name: Install pytest
         run: ${{ matrix.python }} -m pip install pytest pytest-asyncio
 
       - name: Debug module contents
         run: |
-          ${{ matrix.python }} -c "import aerospike_async; print('Module imported successfully')"
-          ${{ matrix.python }} -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+          ${{ matrix.python }} -c "import aerospike_native; print('Module imported successfully')"
+          ${{ matrix.python }} -c "import aerospike_native; print('Available functions:', [x for x in dir(aerospike_native) if not x.startswith('_')])"
       - name: Run tests
         env:
           AEROSPIKE_HOST: localhost:3000
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
-          rm -f python/aerospike_async/__init__.py
+          rm -f python/aerospike_native/__init__.py
           # Remove .env file so tests use default localhost:3000
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
-          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
+          export PNC_FAILURE_TIMES="$RUNNER_TEMP/pnc-failure-times.txt"
           ${{ matrix.python }} -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
+            ${{ matrix.python }} .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PNC_FAILURE_TIMES"
             exit 1
           fi
 
@@ -250,7 +250,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-arm64-${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
   windows:
     runs-on: windows-2022
@@ -318,7 +318,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out aerospike_async --interpreter ${{ steps.setup-python.outputs.python-path }}
+          args: --release --out aerospike_native --interpreter ${{ steps.setup-python.outputs.python-path }}
         env:
           # Force aws-lc-sys to use pre-generated bindings if available
           AWS_LC_SYS_CMAKE_BUILDER: "0"
@@ -330,19 +330,19 @@ jobs:
       # the paired remote Docker host.
       - name: Import smoke test
         run: |
-          $whl = (Get-ChildItem aerospike_async\*.whl | Select-Object -First 1).FullName
+          $whl = (Get-ChildItem aerospike_native\*.whl | Select-Object -First 1).FullName
           if (-not $whl) { throw "no wheel produced" }
           Write-Host "smoke testing $whl"
           & "${{ steps.setup-python.outputs.python-path }}" -m pip install --quiet $whl
           if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
-          & "${{ steps.setup-python.outputs.python-path }}" -c "import aerospike_async"
+          & "${{ steps.setup-python.outputs.python-path }}" -c "import aerospike_native"
           if ($LASTEXITCODE -ne 0) { throw "import failed" }
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.target }}-py${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
   # Integration tests for the win_amd64 wheel, on the self-hosted GCP Windows
   # fleet. Each Windows runner VM is paired with a Linux VM in the same VPC
@@ -399,7 +399,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wheels-windows-x64-py${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
       - uses: actions/setup-python@v6
         with:
@@ -429,7 +429,7 @@ jobs:
         # stable across merges, so a plain install is a no-op against
         # whatever build a previous run left behind.
         run: python -m pip install --force-reinstall *.whl
-        working-directory: aerospike_async
+        working-directory: aerospike_native
       - name: Install pytest
         run: python -m pip install pytest pytest-asyncio
 
@@ -437,24 +437,24 @@ jobs:
         run: |
           python - <<'EOF'
           import hashlib, pathlib, zipfile
-          import aerospike_async
-          installed_init = pathlib.Path(aerospike_async.__file__).resolve()
-          [wheel] = pathlib.Path("aerospike_async").glob("*.whl")
+          import aerospike_native
+          installed_init = pathlib.Path(aerospike_native.__file__).resolve()
+          [wheel] = pathlib.Path("aerospike_native").glob("*.whl")
           with zipfile.ZipFile(wheel) as zf:
-              wheel_init = zf.read("aerospike_async/__init__.py")
+              wheel_init = zf.read("aerospike_native/__init__.py")
           digest = lambda b: hashlib.sha256(b).hexdigest()
           installed, expected = digest(installed_init.read_bytes()), digest(wheel_init)
           assert installed == expected, (
               f"{installed_init} ({installed[:12]}) is not from {wheel.name} "
               f"({expected[:12]}) — a stale install is shadowing the wheel under test"
           )
-          print(f"aerospike_async at {installed_init} matches {wheel.name} ({expected[:12]})")
+          print(f"aerospike_native at {installed_init} matches {wheel.name} ({expected[:12]})")
           EOF
 
       - name: Debug module contents
         run: |
-          python -c "import aerospike_async; print('Module imported successfully')"
-          python -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+          python -c "import aerospike_native; print('Module imported successfully')"
+          python -c "import aerospike_native; print('Available functions:', [x for x in dir(aerospike_native) if not x.startswith('_')])"
 
       - name: Run tests
         id: itest
@@ -467,14 +467,14 @@ jobs:
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
-          rm -f python/aerospike_async/__init__.py
+          rm -f python/aerospike_native/__init__.py
           # Remove .env file so tests use the AEROSPIKE_HOST set above
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
-          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
+          export PNC_FAILURE_TIMES="$RUNNER_TEMP/pnc-failure-times.txt"
           python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
+            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PNC_FAILURE_TIMES"
             exit 1
           fi
       # GitHub has no "warn" job conclusion, so a soft-failed job would
@@ -540,18 +540,18 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
       # Zero-container smoke: verify the freshly built wheel installs and imports
       # on macOS (catches link/ABI/symbol breakage the build step alone can miss).
       - name: Import smoke test
         run: |
-          ${{ matrix.python }} -m pip install aerospike_async/*.whl
-          ${{ matrix.python }} -c "import aerospike_async; print('import OK:', [x for x in dir(aerospike_async) if not x.startswith('_')][:5])"
+          ${{ matrix.python }} -m pip install aerospike_native/*.whl
+          ${{ matrix.python }} -c "import aerospike_native; print('import OK:', [x for x in dir(aerospike_native) if not x.startswith('_')][:5])"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-x86-${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
   # Build + import smoke on GitHub-hosted macos-latest (no Docker/vfkit).
   # Integration tests run on self-hosted macOS ARM64 in macos-arm-integration.
@@ -598,18 +598,18 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
       # Zero-container smoke: verify the freshly built wheel installs and imports
       # on macOS (catches link/ABI/symbol breakage the build step alone can miss).
       - name: Import smoke test
         run: |
-          ${{ matrix.python }} -m pip install aerospike_async/*.whl
-          ${{ matrix.python }} -c "import aerospike_async; print('import OK:', [x for x in dir(aerospike_async) if not x.startswith('_')][:5])"
+          ${{ matrix.python }} -m pip install aerospike_native/*.whl
+          ${{ matrix.python }} -c "import aerospike_native; print('import OK:', [x for x in dir(aerospike_native) if not x.startswith('_')][:5])"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-arm64-${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
   macos-arm-integration:
     needs: macos-arm
@@ -644,7 +644,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wheels-macos-arm64-python${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
       - uses: actions/setup-python@v6
         with:
@@ -672,7 +672,7 @@ jobs:
         # string is stable across merges, so a plain install is a no-op
         # against whatever build a previous run left behind.
         run: python3 -m pip install --force-reinstall *.whl
-        working-directory: aerospike_async
+        working-directory: aerospike_native
       - name: Install pytest
         run: python3 -m pip install pytest pytest-asyncio
 
@@ -680,24 +680,24 @@ jobs:
         run: |
           python3 - <<'EOF'
           import hashlib, pathlib, zipfile
-          import aerospike_async
-          installed_init = pathlib.Path(aerospike_async.__file__).resolve()
-          [wheel] = pathlib.Path("aerospike_async").glob("*.whl")
+          import aerospike_native
+          installed_init = pathlib.Path(aerospike_native.__file__).resolve()
+          [wheel] = pathlib.Path("aerospike_native").glob("*.whl")
           with zipfile.ZipFile(wheel) as zf:
-              wheel_init = zf.read("aerospike_async/__init__.py")
+              wheel_init = zf.read("aerospike_native/__init__.py")
           digest = lambda b: hashlib.sha256(b).hexdigest()
           installed, expected = digest(installed_init.read_bytes()), digest(wheel_init)
           assert installed == expected, (
               f"{installed_init} ({installed[:12]}) is not from {wheel.name} "
               f"({expected[:12]}) — a stale install is shadowing the wheel under test"
           )
-          print(f"aerospike_async at {installed_init} matches {wheel.name} ({expected[:12]})")
+          print(f"aerospike_native at {installed_init} matches {wheel.name} ({expected[:12]})")
           EOF
 
       - name: Debug module contents
         run: |
-          python3 -c "import aerospike_async; print('Module imported successfully')"
-          python3 -c "import aerospike_async; print('Available functions:', [x for x in dir(aerospike_async) if not x.startswith('_')])"
+          python3 -c "import aerospike_native; print('Module imported successfully')"
+          python3 -c "import aerospike_native; print('Available functions:', [x for x in dir(aerospike_native) if not x.startswith('_')])"
 
       - name: Run tests
         id: itest
@@ -707,14 +707,14 @@ jobs:
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
           # Remove only the __init__.py file to prevent import conflicts with installed package
-          rm -f python/aerospike_async/__init__.py
+          rm -f python/aerospike_native/__init__.py
           # Remove .env file so tests use default localhost:3000
           rm -f aerospike.env
           # Run all tests (excluding slow tests in CI)
-          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
+          export PNC_FAILURE_TIMES="$RUNNER_TEMP/pnc-failure-times.txt"
           python3 -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            python3 .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
+            python3 .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PNC_FAILURE_TIMES"
             exit 1
           fi
       # GitHub has no "warn" job conclusion, so a soft-failed job would
@@ -767,18 +767,18 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
       # macOS GitHub runners can't run the Linux AS-server container, so this is
       # a build + import/GIL smoke only (no integration), like the GIL macos-arm job.
       - name: Import smoke + verify GIL stays disabled
         run: |
-          python -m pip install aerospike_async/*.whl
-          python -c "import sys; before=sys._is_gil_enabled(); import aerospike_async; after=sys._is_gil_enabled(); print(f'GIL before={before} after={after}'); assert before is False and after is False, 'gil_used=false not honored'"
+          python -m pip install aerospike_native/*.whl
+          python -c "import sys; before=sys._is_gil_enabled(); import aerospike_native; after=sys._is_gil_enabled(); print(f'GIL before={before} after={after}'); assert before is False and after is False, 'gil_used=false not honored'"
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-arm64-${{ matrix.python }}
-          path: aerospike_async
+          path: aerospike_native
 
   sdist:
     runs-on: ubuntu-latest
@@ -793,12 +793,12 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out aerospike_async
+          args: --out aerospike_native
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels
-          path: aerospike_async
+          path: aerospike_native
 
   # Free-threaded (PEP 703) Python builds.  Catches no-GIL regressions that
   # would otherwise land silently: anything that relies on the GIL for
@@ -841,7 +841,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out aerospike_async --interpreter ${{ matrix.python }}
+          args: --release --out aerospike_native --interpreter ${{ matrix.python }}
           # Build against the host Python installed by setup-python above.
           # The container `manylinux: auto` selects (manylinux2014) has no
           # free-threaded CPython builds, so spinning one up causes maturin
@@ -871,30 +871,30 @@ jobs:
           EXPECTED_BUILD: ${{ env.AEROSPIKE_SERVER_TAG }}
         run: python3 .github/assert-server.py
       - name: Install wheel
-        run: python -m pip install aerospike_async/*.whl
+        run: python -m pip install aerospike_native/*.whl
       - name: Install pytest
         run: python -m pip install pytest pytest-asyncio
       - name: Verify GIL stays disabled after import
         run: |
-          python -c "import sys; before = sys._is_gil_enabled(); import aerospike_async; after = sys._is_gil_enabled(); print(f'GIL before={before} after={after}'); assert before is False and after is False, 'gil_used = false flag is not being honored'"
+          python -c "import sys; before = sys._is_gil_enabled(); import aerospike_native; after = sys._is_gil_enabled(); print(f'GIL before={before} after={after}'); assert before is False and after is False, 'gil_used = false flag is not being honored'"
       - name: Run tests
         env:
           AEROSPIKE_HOST: localhost:3000
           AEROSPIKE_USE_SERVICES_ALTERNATE: "true"
         run: |
-          rm -f python/aerospike_async/__init__.py
+          rm -f python/aerospike_native/__init__.py
           rm -f aerospike.env
-          export PAC_FAILURE_TIMES="$RUNNER_TEMP/pac-failure-times.txt"
+          export PNC_FAILURE_TIMES="$RUNNER_TEMP/pnc-failure-times.txt"
           python -m pytest python/tests -v -s -m "not slow" || TEST_FAILED=true
           if [ "$TEST_FAILED" = "true" ]; then
-            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PAC_FAILURE_TIMES"
+            python .github/scripts/server_log_window.py "${{ steps.aerospike.outputs.container-names }}" "$PNC_FAILURE_TIMES"
             exit 1
           fi
       - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.python }}-${{ matrix.target }}
-          path: aerospike_async
+          path: aerospike_native
 
   lint:
     # Ruff and Clippy are pinned so a new release can't fail unchanged code.
@@ -935,4 +935,4 @@ jobs:
       - name: Regenerate stubs
         run: make stubs
       - name: Stubs are current
-        run: git diff --exit-code -- python/aerospike_async
+        run: git diff --exit-code -- python/aerospike_native

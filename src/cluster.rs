@@ -34,8 +34,8 @@ use crate::policies::AdminPolicy;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Privilege code for access control.
-    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[gen_stub_pyclass_enum(module = "_native")]
+    #[pyclass(from_py_object, module = "_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum PrivilegeCode {
         /// User can edit/remove other users.  Global scope only.
@@ -98,7 +98,7 @@ use crate::policies::AdminPolicy;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, subclass)]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
@@ -178,7 +178,7 @@ use crate::policies::AdminPolicy;
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, subclass)]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
@@ -351,8 +351,8 @@ use crate::policies::AdminPolicy;
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(from_py_object, subclass, module = "_native")]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct User {
@@ -415,8 +415,8 @@ use crate::policies::AdminPolicy;
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, subclass, module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(from_py_object, subclass, module = "_native")]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
     pub struct Role {
@@ -467,10 +467,10 @@ use crate::policies::AdminPolicy;
      *
      **********************************************************************************/
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object,
         name = "Privilege",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]

@@ -15,7 +15,7 @@
 
 //! Process-global Tokio runtime configuration for `pyo3-async-runtimes`.
 //!
-//! All async PAC operations dispatch through the runtime returned by
+//! All async PNC operations dispatch through the runtime returned by
 //! `pyo3_async_runtimes::tokio::get_runtime()`.  By default that's a Tokio
 //! `Builder::new_multi_thread()` runtime with `enable_all()` and a worker
 //! count equal to `available_parallelism()` (CPU count on most systems).
@@ -27,7 +27,7 @@
 //!    handling (Ctrl-C delivery in particular) on the affected process.
 //!    We only need I/O + timers, so opt in narrowly.
 //!
-//! 2. **Worker-count knob via `AEROSPIKE_PAC_RUNTIME_WORKERS` env var.**
+//! 2. **Worker-count knob via `AEROSPIKE_PNC_RUNTIME_WORKERS` env var.**
 //!    On free-threaded multi-loop deployments (an `AsyncPool` with N event
 //!    loops on N OS threads) the process already runs N pool threads doing
 //!    Python work.  pyo3-async-runtimes' default of `cpu_count` Tokio
@@ -43,14 +43,14 @@
 //!
 //! [`init`] must be called from the module init function *before* any code
 //! path that calls `future_into_py` / `batched_future_into_py` (i.e. before
-//! the first `await` on a PAC awaitable).  pyo3-async-runtimes builds the
+//! the first `await` on a PNC awaitable).  pyo3-async-runtimes builds the
 //! runtime lazily on the first `get_runtime()` call, so as long as `init`
 //! runs at module import time the override sticks.
 
 use log::{info, warn};
 use tokio::runtime::Builder;
 
-const ENV_VAR: &str = "AEROSPIKE_PAC_RUNTIME_WORKERS";
+const ENV_VAR: &str = "AEROSPIKE_PNC_RUNTIME_WORKERS";
 const MAX_WORKERS: usize = 32;
 
 /// Read the configured worker count from the env var, or `None` if unset /

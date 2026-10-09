@@ -26,8 +26,8 @@ import os
 
 import pytest
 
-from aerospike_async import ClientPolicy, Key, new_client
-from aerospike_async.exceptions import RecordNotFound
+from aerospike_native import ClientPolicy, Key, new_client
+from aerospike_native.exceptions import RecordNotFound
 
 NS, SET = "test", "coalesced_read_test"
 

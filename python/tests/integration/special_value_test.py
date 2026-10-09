@@ -16,14 +16,14 @@
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     new_client, ClientPolicy, WritePolicy, Key,
     MapOperation, MapPolicy, MapReturnType,
     ListOperation, ListPolicy, ListReturnType,
     SpecialValue,
 )
-from aerospike_async import exceptions as ax_exc
-from aerospike_async.exceptions import ResultCode, ServerError
+from aerospike_native import exceptions as ax_exc
+from aerospike_native.exceptions import ResultCode, ServerError
 
 
 @pytest_asyncio.fixture
@@ -278,7 +278,7 @@ async def test_put_special_value_as_bin_raises_value_error(client_and_key):
 
     Rejected before the wire — the collection/expression forms above go to the
     server and surface as ``ServerError``, but a bare bin value is caught in the
-    particle encoder, so it raises PAC's client-side ``ValueError`` instead.
+    particle encoder, so it raises PNC's client-side ``ValueError`` instead.
     """
     client, key, wp = client_and_key
     with pytest.raises(ax_exc.ValueError) as exc_info:

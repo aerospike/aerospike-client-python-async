@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     CommandType,
     Key,
@@ -221,7 +221,7 @@ class TestMetricsSnapshot(TestFixtureCleanDB):
 
 def test_local_client_metrics(aerospike_host, use_services_alternate):
     """The metrics surface works on the per-thread local client."""
-    from aerospike_async import _LocalClient
+    from aerospike_native import _LocalClient
 
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate

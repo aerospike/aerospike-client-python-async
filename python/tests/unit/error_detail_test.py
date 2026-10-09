@@ -22,7 +22,7 @@ live cluster is covered in ``tests/integration/error_detail_test.py``.
 
 import pytest
 
-from aerospike_async import (
+from aerospike_native import (
     BatchPolicy,
     ErrorDetailVerbosity,
     QueryPolicy,
@@ -54,19 +54,19 @@ class TestExpressionTrace:
     """The structured expression-trace type exposes phase/lang constants."""
 
     def test_phase_constants(self):
-        from aerospike_async import ExpressionTrace
+        from aerospike_native import ExpressionTrace
 
         assert ExpressionTrace.PHASE_BUILD == 1
         assert ExpressionTrace.PHASE_EVAL == 2
 
     def test_lang_constants(self):
-        from aerospike_async import ExpressionTrace
+        from aerospike_native import ExpressionTrace
 
         assert ExpressionTrace.LANG_MSGPACK == 1
         assert ExpressionTrace.LANG_AEL == 2
 
     def test_fields_exposed(self):
-        from aerospike_async import ExpressionTrace
+        from aerospike_native import ExpressionTrace
 
         for field in (
             "phase", "byte_offset", "op", "depth", "path", "snippet",

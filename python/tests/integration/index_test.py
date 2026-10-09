@@ -16,9 +16,9 @@
 """Tests for index creation and management functionality."""
 
 import pytest
-from aerospike_async import IndexType, CollectionIndexType, TaskStatus
-from aerospike_async.exceptions import ResultCode, IndexFoundError
-from aerospike_async.exceptions import ValueError as PacValueError
+from aerospike_native import IndexType, CollectionIndexType, TaskStatus
+from aerospike_native.exceptions import ResultCode, IndexFoundError
+from aerospike_native.exceptions import ValueError as PacValueError
 from fixtures import TestFixtureConnection
 
 
@@ -121,7 +121,7 @@ class TestSetIndex(TestFixtureConnection):
     """A set index is created with nothing but the set and a name."""
 
     async def test_create_set_index_round_trip(self, client):
-        index_name = "pac_set_idx"
+        index_name = "pnc_set_idx"
         try:
             task = await client.drop_index("test", "test", index_name)
             await task.wait_till_complete()
@@ -140,7 +140,7 @@ class TestSetIndex(TestFixtureConnection):
         # Rejected before anything is sent: a set index with no set has no
         # records to cover.
         with pytest.raises(PacValueError) as exc_info:
-            await client.create_set_index("test", "", "pac_set_idx_noset")
+            await client.create_set_index("test", "", "pnc_set_idx_noset")
         assert exc_info.value.result_code == ResultCode.PARAMETER_ERROR
 
 

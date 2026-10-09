@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import (
+from aerospike_native import (
     ExpOperation, ExpWriteFlags, ExpReadFlags,
     FilterExpression as fe,
 )

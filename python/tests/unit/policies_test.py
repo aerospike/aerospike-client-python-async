@@ -17,7 +17,7 @@
 
 import pytest
 
-from aerospike_async import (
+from aerospike_native import (
     BasePolicy,
     BatchPolicy,
     ClientPolicy,
@@ -131,7 +131,7 @@ class TestCircuitBreaker:
         assert cp.error_rate_window == 4
 
     def test_max_error_rate_exception_class(self):
-        from aerospike_async.exceptions import AerospikeError, MaxErrorRate
+        from aerospike_native.exceptions import AerospikeError, MaxErrorRate
 
         # MaxErrorRate is exposed and is a subclass of AerospikeError so users
         # can catch the broader category if they want.

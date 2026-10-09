@@ -16,7 +16,7 @@
 import pytest
 import pytest_asyncio
 
-from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, Expiration
+from aerospike_native import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, Expiration
 
 
 @pytest_asyncio.fixture

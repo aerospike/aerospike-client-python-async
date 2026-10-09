@@ -95,7 +95,7 @@ use crate::operations::{
      * Client
      *
      **********************************************************************************/
-    #[gen_stub_pyfunction(module = "_aerospike_async_native")]
+    #[gen_stub_pyfunction(module = "_native")]
     #[pyfunction]
     #[gen_stub(override_return_type(type_repr="typing.Awaitable[Client]", imports=("typing")))]
     pub fn new_client(py: Python, policy: ClientPolicy, seeds: String) -> PyResult<Py<PyAny>> {
@@ -132,12 +132,12 @@ use crate::operations::{
         // queuing I/O serially behind the global reactor (~5ms latency).
         let bridge_for_construction = bridge.clone();
         Ok(completion::batched_future_into_py(&bridge_for_construction, py, async move {
-            log::debug!(target: "aerospike_async", "connecting to {}", as_seeds);
+            log::debug!(target: "aerospike_native", "connecting to {}", as_seeds);
             let c = aerospike_core::Client::new(&as_policy, &as_seeds)
                 .await
                 .map_err(|e| PyErr::from(RustClientError(e)))?;
 
-            log::debug!(target: "aerospike_async", "connected to {}", seeds);
+            log::debug!(target: "aerospike_native", "connected to {}", seeds);
             let res = Client {
                 _as: Arc::new(c),
                 seeds: seeds.clone(),
@@ -167,11 +167,11 @@ use crate::operations::{
     ///
     /// Example::
     ///
-    ///     txn = aerospike_async.Txn()
+    ///     txn = aerospike_native.Txn()
     ///     # use txn in put/get policy.txn field
     ///     status = await client.commit(txn)
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(from_py_object, module = "_native")]
     #[derive(Clone)]
     pub struct Txn {
         pub(crate) _as: Arc<aerospike_core::Txn>,
@@ -359,8 +359,8 @@ use crate::operations::{
     /// methodology stays consistent across language layers.
     ///
     /// Not thread-safe — construct one per worker thread / task.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(module = "_native")]
     pub struct FastRng {
         inner: rand::rngs::SmallRng,
     }
@@ -420,8 +420,8 @@ use crate::operations::{
     /// Default users should stick with [`Client`]. Underscore-prefixed name
     /// signals private / unstable status; opt in via PSDK's
     /// `SyncClient(current_thread_runtime=True)`.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(unsendable, module = "_aerospike_async_native", name = "_LocalClient")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(unsendable, module = "_native", name = "_LocalClient")]
     pub struct LocalClient {
         rt: tokio::runtime::Runtime,
         client: Arc<aerospike_core::Client>,
@@ -714,7 +714,7 @@ use crate::operations::{
         }
     }
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, subclass)]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1))]
     #[derive(Clone)]
@@ -827,10 +827,10 @@ use crate::operations::{
     /// (`Client.batch_stream_blocking`) has no bridge and rejects
     /// `__anext__` with a clear error: use sync iteration on those, or
     /// recreate the stream via `batch_stream` in an async context.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(
         name = "BatchRecordStream",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     pub struct BatchRecordStream {
@@ -855,7 +855,7 @@ use crate::operations::{
 
         #[gen_stub(override_return_type(
             type_repr="typing.Awaitable[typing.Tuple[builtins.int, BatchRecord]]",
-            imports=("typing", "aerospike_async"),
+            imports=("typing", "aerospike_native"),
         ))]
         fn __anext__<'a>(&'a mut self, py: Python<'a>) -> PyResult<Py<PyAny>> {
             // Route through the originating Client's CompletionBridge so
@@ -1161,7 +1161,7 @@ use crate::operations::{
         ///
         /// Example::
         ///
-        ///     from aerospike_async import Client
+        ///     from aerospike_native import Client
         ///     print(Client.client_version())
         ///
         /// Returns:
@@ -1181,7 +1181,7 @@ use crate::operations::{
         ///
         /// Example::
         ///
-        ///     from aerospike_async import Client
+        ///     from aerospike_native import Client
         ///     print(Client.core_version())
         ///
         /// Returns:
@@ -1277,7 +1277,7 @@ use crate::operations::{
 
         /// Synchronously write record bin(s).
         ///
-        /// When `policy_sc` is provided, PAC resolves the key's namespace
+        /// When `policy_sc` is provided, PNC resolves the key's namespace
         /// mode (AP vs SC) at op time via the cluster accessor and picks
         /// the matching base policy. The `txn` override is applied after
         /// the mode pick on a cloned policy so the caller's cached policies
@@ -1317,7 +1317,7 @@ use crate::operations::{
 
         /// Synchronously read a record for the specified key.
         ///
-        /// When `policy_sc` is provided, PAC resolves the namespace mode at
+        /// When `policy_sc` is provided, PNC resolves the namespace mode at
         /// op time and picks AP vs SC. `filter_expression` / `txn` are
         /// applied after the mode pick on a cloned policy so the caller's
         /// cached policies stay untouched.
@@ -1386,7 +1386,7 @@ use crate::operations::{
         ///
         /// Same outcomes as :meth:`commit`: success returns a
         /// :class:`CommitStatus`; an abandoned roll-forward raises
-        /// :exc:`aerospike_async.exceptions.CommitFailedError`. The optional
+        /// :exc:`aerospike_native.exceptions.CommitFailedError`. The optional
         /// ``verify_policy`` / ``roll_policy`` configure the verify and
         /// roll-forward phases; ``None`` applies the default policies.
         #[pyo3(signature = (txn, *, verify_policy=None, roll_policy=None))]
@@ -1544,7 +1544,7 @@ use crate::operations::{
 
         /// Synchronously execute multiple operations atomically on a single record.
         ///
-        /// When `policy_sc` is provided, PAC resolves the namespace mode at
+        /// When `policy_sc` is provided, PNC resolves the namespace mode at
         /// op time and picks AP vs SC. The full override set is applied
         /// after the mode pick on a cloned policy so the caller's cached
         /// policies stay untouched across concurrent ops.
@@ -2704,7 +2704,7 @@ use crate::operations::{
 
         /// Write record bin(s).
         ///
-        /// When `policy_sc` is provided, PAC resolves the key's namespace
+        /// When `policy_sc` is provided, PNC resolves the key's namespace
         /// mode at op time and picks AP vs SC. The `txn` override is applied
         /// after the mode pick on a cloned policy so caller-cached policies
         /// stay untouched across concurrent ops.
@@ -2748,7 +2748,7 @@ use crate::operations::{
 
         /// Read record for the specified key.
         ///
-        /// When `policy_sc` is provided, PAC resolves the namespace mode at
+        /// When `policy_sc` is provided, PNC resolves the namespace mode at
         /// op time and picks AP vs SC. `filter_expression` / `txn` are
         /// applied after the mode pick on a cloned policy.
         #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Any]", imports=("typing")))]
@@ -3110,10 +3110,10 @@ use crate::operations::{
 
         /// Execute multiple operations atomically on a single record.
         ///
-        /// When `policy_sc` is provided, PAC resolves the namespace mode at
+        /// When `policy_sc` is provided, PNC resolves the namespace mode at
         /// op time and picks AP vs SC. The full override set is applied
         /// after the mode pick on a cloned policy.
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Record]", imports=("typing", "aerospike_async")))]
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[Record]", imports=("typing", "aerospike_native")))]
         #[pyo3(signature = (
             key,
             operations,
@@ -3767,7 +3767,7 @@ use crate::operations::{
         /// from ``__anext__``.
         #[gen_stub(override_return_type(
             type_repr="typing.Awaitable[BatchRecordStream]",
-            imports=("typing", "aerospike_async"),
+            imports=("typing", "aerospike_native"),
         ))]
         #[pyo3(signature = (ops, *, batch_policy=None))]
         pub fn batch_stream<'a>(
@@ -4777,7 +4777,7 @@ use crate::operations::{
         /// atomically. Returns a :class:`CommitStatus` indicating the outcome
         /// (``OK``, ``ALREADY_COMMITTED``, or ``CLOSE_ABANDONED``). An
         /// abandoned roll-forward raises
-        /// :exc:`aerospike_async.exceptions.CommitFailedError` with
+        /// :exc:`aerospike_native.exceptions.CommitFailedError` with
         /// ``commit_error_type=ROLL_FORWARD_ABANDONED`` rather than returning
         /// that status: the writes are not yet visible, and returning
         /// normally would present them as committed. The triggering
@@ -5003,7 +5003,7 @@ use crate::operations::{
 /// Return a null value for use in Aerospike operations.
 /// This is equivalent to Python None but represents an Aerospike null value.
 #[pyfunction]
-#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+#[gen_stub_pyfunction(module = "_native")]
 pub fn null(py: Python) -> Bound<PyAny> {
     py.None().into_bound(py)
 }
@@ -5019,7 +5019,7 @@ pub fn null(py: Python) -> Bound<PyAny> {
 /// must land as `BatchOperation::read_ops`, not `BatchOperation::write`,
 /// or the server rejects the per-node group.
 #[pyfunction]
-#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+#[gen_stub_pyfunction(module = "_native")]
 pub fn has_any_write_op(py: Python<'_>, operations: Vec<Py<PyAny>>) -> PyResult<bool> {
     let owcs = extract_py_ops_with_ctx(py, &operations)?;
     let (_core_ops, has_write) = convert_ops_with_ctx_to_core(&owcs, false)?;
@@ -5036,7 +5036,7 @@ static JSON_LOADS: pyo3::sync::PyOnceLock<Py<PyAny>> = pyo3::sync::PyOnceLock::n
 /// - GeoJSON JSON string: '{"type": "Point", "coordinates": [-122.0, 37.0]}'
 /// - Coordinate pair string: "-122.0, 37.5" (longitude, latitude)
 #[pyfunction]
-#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+#[gen_stub_pyfunction(module = "_native")]
 pub fn geojson<'a>(py: Python<'a>, geo_str: &str) -> PyResult<GeoJSON> {
     // First, try to parse as GeoJSON JSON string
     // Check if it looks like JSON (starts with '{' and contains "type")
@@ -5116,7 +5116,7 @@ static LOG_RESET_HANDLE: std::sync::OnceLock<pyo3_log::ResetHandle> = std::sync:
 /// already-cached loggers until this function is called to drop the cache.
 /// Cheap; safe to call from any thread.
 #[pyfunction]
-#[gen_stub_pyfunction(module = "_aerospike_async_native")]
+#[gen_stub_pyfunction(module = "_native")]
 pub fn refresh_log_levels() {
     if let Some(handle) = LOG_RESET_HANDLE.get() {
         handle.reset();
@@ -5124,7 +5124,7 @@ pub fn refresh_log_levels() {
 }
 
 #[pymodule(gil_used = false)]
-fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Filter the noisy default panic-hook output for a specific class of
     // shutdown-race panic: Tokio worker threads call `Python::attach` while
     // the interpreter is finalizing (typically because a user-code exception
@@ -5160,7 +5160,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     // future_into_py / batched_future_into_py call — pyo3-async-runtimes
     // builds the runtime lazily on first get_runtime(), so as long as we
     // install our builder before user code runs, the override applies.
-    // Reads AEROSPIKE_PAC_RUNTIME_WORKERS for an optional worker-count
+    // Reads AEROSPIKE_PNC_RUNTIME_WORKERS for an optional worker-count
     // override; defaults to Tokio's available_parallelism otherwise.
     runtime::init();
 
@@ -5173,7 +5173,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     let logger = ResilientPyLogger { inner };
     log::set_max_level(log::LevelFilter::Debug);
     let _ = log::set_logger(Box::leak(Box::new(logger)));
-    log::debug!(target: "aerospike_async", "pyo3-log bridge active");
+    log::debug!(target: "aerospike_native", "pyo3-log bridge active");
 
     // Add all main classes to the top level for easy importing
     m.add_class::<Client>()?;
@@ -5309,7 +5309,7 @@ fn _aerospike_async_native(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add_class::<completion::CompletionDrainer>()?;
 
     // Create and register the exceptions submodule
-    // Exceptions are only available via aerospike_async.exceptions submodule
+    // Exceptions are only available via aerospike_native.exceptions submodule
     // They are not exposed at the top level to avoid namespace pollution
     let exceptions_module = PyModule::new(py, "exceptions")?;
     exceptions_module.add("AerospikeError", py.get_type::<AerospikeError>())?;

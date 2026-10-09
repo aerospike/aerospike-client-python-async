@@ -21,7 +21,7 @@ Exclude slow tests with: pytest -m "not slow"
 
 import asyncio
 import pytest
-from aerospike_async import ExpOperation, Expiration, FilterExpression, Key, ReadPolicy, WritePolicy
+from aerospike_native import ExpOperation, Expiration, FilterExpression, Key, ReadPolicy, WritePolicy
 from fixtures import TestFixtureConnection
 
 

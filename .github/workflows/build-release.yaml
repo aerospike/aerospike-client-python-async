@@ -88,11 +88,11 @@ jobs:
       gh-workflows-ref: 49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
       runs-on: ${{ matrix.runs-on }}
       jf-project: ${{ vars.JFROG_PROJECT }}
-      jf-build-name: aerospike-client-python-async
+      jf-build-name: aerospike-client-python-native
       jf-build-id: ${{ github.run_number }}-buildinfo-${{ matrix.name }}
       gh-checkout-path: shared-workflows
-      gh-source-path: aerospike-client-python-async
-      working-directory: aerospike-client-python-async
+      gh-source-path: aerospike-client-python-native
+      working-directory: aerospike-client-python-native
       setup-python: true
       python-version: ${{ matrix.python-version }}
       job-name: ${{ matrix.name }}
@@ -235,7 +235,7 @@ jobs:
       gh-workflows-ref: 49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
       runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
       jf-project: ${{ vars.JFROG_PROJECT }}
-      jf-build-name: aerospike-client-python-async
+      jf-build-name: aerospike-client-python-native
       jf-metadata-build-id: ${{ github.run_number }}-buildinfo
       jf-build-id: ${{ github.run_number }}
       gh-artifact-name: build-artifacts
@@ -254,8 +254,8 @@ jobs:
       gh-workflows-ref: 49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
       runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION || 'ubuntu-22.04' }}
       jf-project: ${{ vars.JFROG_PROJECT }}
-      jf-build-names: aerospike-client-python-async:${{ github.run_number }}
-      jf-bundle-name: aerospike-client-python-async
+      jf-build-names: aerospike-client-python-native:${{ github.run_number }}
+      jf-bundle-name: aerospike-client-python-native
       version: ${{ needs.extract-version.outputs.version }}
       oidc-provider-name: ${{ vars.OIDC_PROVIDER_NAME || 'gh-aerospike' }}
       oidc-audience: ${{ vars.OIDC_AUDIENCE || 'aerospike' }}
@@ -277,7 +277,7 @@ jobs:
       - name: Promote release bundle to DEV
         uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
         with:
-          bundle-name: aerospike-client-python-async
+          bundle-name: aerospike-client-python-native
           version: ${{ needs.extract-version.outputs.version }}
           environment: DEV
           jf-project: ${{ vars.JFROG_PROJECT }}
@@ -285,7 +285,7 @@ jobs:
         if: ${{ inputs.promote-to-test }}
         uses: aerospike/shared-workflows/.github/actions/promote-release-bundle@49381314f7afd64afb580b77bab8ac263040c27e # PyPI metadata SIGPIPE fix (post-v5.0.0)
         with:
-          bundle-name: aerospike-client-python-async
+          bundle-name: aerospike-client-python-native
           version: ${{ needs.extract-version.outputs.version }}
           environment: TEST
           jf-project: ${{ vars.JFROG_PROJECT }}

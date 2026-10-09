@@ -12,7 +12,7 @@
 
 """Unit tests for server query selection bindings."""
 
-from aerospike_async import (
+from aerospike_native import (
     Client,
     FilterExpression,
     QueryPlan,

@@ -30,11 +30,11 @@ from pathlib import Path
 
 import pytest
 
-import aerospike_async
+import aerospike_native
 
 POLICY_CLASSES = ["ReadPolicy", "WritePolicy", "QueryPolicy", "BatchPolicy"]
 
-_STUB = Path(aerospike_async.__file__).with_name("_aerospike_async_native.pyi")
+_STUB = Path(aerospike_native.__file__).with_name("_native.pyi")
 
 
 def _stubbed_properties(class_name: str) -> set[str]:
@@ -54,7 +54,7 @@ def _runtime_properties(class_name: str) -> set[str]:
     checking for the latter silently yields an empty set, which makes a
     comparison against it pass no matter what.
     """
-    cls = getattr(aerospike_async, class_name)
+    cls = getattr(aerospike_native, class_name)
     return {
         name
         for name, attr in vars(cls).items()
@@ -111,7 +111,7 @@ def _stubbed_from_fields_kwargs(class_name: str) -> list[str]:
 
 def _real_from_fields_kwargs(class_name: str) -> list[str]:
     """The constructor's true keywords, from the signature the extension exposes."""
-    sig = inspect.signature(getattr(aerospike_async, class_name).from_fields)
+    sig = inspect.signature(getattr(aerospike_native, class_name).from_fields)
     return [n for n, p in sig.parameters.items()
             if p.kind is inspect.Parameter.KEYWORD_ONLY]
 

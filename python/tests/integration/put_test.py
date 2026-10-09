@@ -17,8 +17,8 @@ import os
 import pytest
 import pytest_asyncio
 
-from aerospike_async import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
-from aerospike_async.exceptions import ResultCode, InvalidRequest
+from aerospike_native import new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Blob, List, GeoJSON, geojson, null
+from aerospike_native.exceptions import ResultCode, InvalidRequest
 
 
 @pytest_asyncio.fixture
@@ -302,7 +302,7 @@ async def test_put_bin_name_int_negative(client_and_key):
 
 async def test_put_get_with_integer_key(client_and_key):
     """Test PUT and GET operations with integer keys."""
-    from aerospike_async import Key
+    from aerospike_native import Key
     client, rp, wp = client_and_key[0], client_and_key[1], WritePolicy()
     
     # Create a key with integer value

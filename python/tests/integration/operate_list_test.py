@@ -16,9 +16,9 @@
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
+from aerospike_native import (new_client, ClientPolicy, WritePolicy, ReadPolicy, Key, Operation, ListOperation,
                              ListPolicy, ListOrderType, ListWriteFlags, ListReturnType, ListSortFlags, CTX)
-from aerospike_async.exceptions import BinTypeError, ResultCode, ServerError
+from aerospike_native.exceptions import BinTypeError, ResultCode, ServerError
 
 
 @pytest_asyncio.fixture

@@ -27,12 +27,12 @@ use aerospike_core::ResultCode as CoreResultCode;
 use crate::enums::ResultCode;
 use crate::server_error::ExpressionTrace;
 
-create_exception!(aerospike_async.exceptions, AerospikeError, pyo3::exceptions::PyException);
+create_exception!(aerospike_native.exceptions, AerospikeError, pyo3::exceptions::PyException);
 
 // Server-related exceptions
 // ServerError is a custom exception with a result_code property
 // Note: It extends PyException directly, but Python-side it should be treated as an AerospikeError subclass
-#[gen_stub_pyclass(module = "_aerospike_async_native")]
+#[gen_stub_pyclass(module = "_native")]
 #[pyclass(extends = PyException, subclass)]
 pub struct ServerError {
     result_code: CoreResultCode,
@@ -161,7 +161,7 @@ impl ServerError {
     }
 }
 
-// `aerospike_async.exceptions._get_server_error_class`, resolved once per
+// `aerospike_native.exceptions._get_server_error_class`, resolved once per
 // process: this runs on every server error, and a per-call `py.import`
 // convoys free-threaded builds on the import mutex under an error storm.
 static GET_SERVER_ERROR_CLASS: pyo3::sync::PyOnceLock<Py<PyAny>> =
@@ -171,7 +171,7 @@ static GET_SERVER_ERROR_CLASS: pyo3::sync::PyOnceLock<Py<PyAny>> =
 fn resolve_server_error_class(py: Python<'_>, result_code: CoreResultCode) -> PyResult<pyo3::Bound<'_, pyo3::types::PyAny>> {
     let func = GET_SERVER_ERROR_CLASS.get_or_try_init(py, || {
         Ok::<_, PyErr>(
-            py.import("aerospike_async.exceptions")?
+            py.import("aerospike_native.exceptions")?
                 .getattr("_get_server_error_class")?
                 .unbind(),
         )
@@ -606,47 +606,47 @@ pub(crate) fn panic_to_pyerr(panic: Box<dyn std::any::Any + Send>) -> PyErr {
     pyo3::exceptions::PyRuntimeError::new_err(msg)
 }
 
-create_exception!(aerospike_async.exceptions, UDFBadResponse, AerospikeError);
-create_exception!(aerospike_async.exceptions, TimeoutError, AerospikeError);
-create_exception!(aerospike_async.exceptions, BadResponse, AerospikeError);
+create_exception!(aerospike_native.exceptions, UDFBadResponse, AerospikeError);
+create_exception!(aerospike_native.exceptions, TimeoutError, AerospikeError);
+create_exception!(aerospike_native.exceptions, BadResponse, AerospikeError);
 
 // Connection-related exceptions
-create_exception!(aerospike_async.exceptions, ConnectionError, AerospikeError);
-create_exception!(aerospike_async.exceptions, InvalidNodeError, AerospikeError);
-create_exception!(aerospike_async.exceptions, InvalidNamespaceError, AerospikeError);
-create_exception!(aerospike_async.exceptions, NoMoreConnections, AerospikeError);
-create_exception!(aerospike_async.exceptions, RecvError, AerospikeError);
+create_exception!(aerospike_native.exceptions, ConnectionError, AerospikeError);
+create_exception!(aerospike_native.exceptions, InvalidNodeError, AerospikeError);
+create_exception!(aerospike_native.exceptions, InvalidNamespaceError, AerospikeError);
+create_exception!(aerospike_native.exceptions, NoMoreConnections, AerospikeError);
+create_exception!(aerospike_native.exceptions, RecvError, AerospikeError);
 
 // Data parsing/validation exceptions
-create_exception!(aerospike_async.exceptions, Base64DecodeError, AerospikeError);
-create_exception!(aerospike_async.exceptions, InvalidUTF8, AerospikeError);
-create_exception!(aerospike_async.exceptions, ParseAddressError, AerospikeError);
-create_exception!(aerospike_async.exceptions, ParseIntError, AerospikeError);
-create_exception!(aerospike_async.exceptions, ValueError, AerospikeError);
+create_exception!(aerospike_native.exceptions, Base64DecodeError, AerospikeError);
+create_exception!(aerospike_native.exceptions, InvalidUTF8, AerospikeError);
+create_exception!(aerospike_native.exceptions, ParseAddressError, AerospikeError);
+create_exception!(aerospike_native.exceptions, ParseIntError, AerospikeError);
+create_exception!(aerospike_native.exceptions, ValueError, AerospikeError);
 
 // System/IO exceptions
-create_exception!(aerospike_async.exceptions, IoError, AerospikeError);
-create_exception!(aerospike_async.exceptions, PasswordHashError, AerospikeError);
+create_exception!(aerospike_native.exceptions, IoError, AerospikeError);
+create_exception!(aerospike_native.exceptions, PasswordHashError, AerospikeError);
 
 // Client configuration exceptions
-create_exception!(aerospike_async.exceptions, InvalidRustClientArgs, AerospikeError);
+create_exception!(aerospike_native.exceptions, InvalidRustClientArgs, AerospikeError);
 
 // Client-side errors
-create_exception!(aerospike_async.exceptions, ClientError, AerospikeError);
-create_exception!(aerospike_async.exceptions, CommitFailedError, AerospikeError);
+create_exception!(aerospike_native.exceptions, ClientError, AerospikeError);
+create_exception!(aerospike_native.exceptions, CommitFailedError, AerospikeError);
 
 // A batch command failed as a whole. Subclasses ClientError so existing
 // `except ClientError` handlers keep matching. Carries `records`: the
 // per-key `BatchRecord` outcomes core attached to the failure — rows the
 // server answered keep their result, unanswered rows carry the stamped
 // result code (TIMEOUT on client timeouts) and per-row in-doubt flag.
-create_exception!(aerospike_async.exceptions, BatchFailedError, ClientError);
+create_exception!(aerospike_native.exceptions, BatchFailedError, ClientError);
 
 // Per-node circuit breaker tripped (client-side, not sent to server). Carries
 // the offending node identifier in the exception message. Raised when a node
 // exceeds the policy's `max_error_rate` over `error_rate_window` ticks, so the
 // client backs off rather than forwarding more commands to that node.
-create_exception!(aerospike_async.exceptions, MaxErrorRate, AerospikeError);
+create_exception!(aerospike_native.exceptions, MaxErrorRate, AerospikeError);
 
 
 // Must define a wrapper type because of the orphan rule
