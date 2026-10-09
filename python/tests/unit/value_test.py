@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import GeoJSON, List, Blob, HLL, Map, geojson, null
+from aerospike_native import GeoJSON, List, Blob, HLL, Map, geojson, null
 
 # Common test data
 TEST_BLOB_DATA_1 = [1, 7, 8, 4, 1]
@@ -486,7 +486,7 @@ def test_none_converts_to_nil():
     """Test that Python None converts to PythonValue::Nil."""
     # This test verifies that None is handled correctly in value conversion
     # None in a list should be preserved as None
-    from aerospike_async import List as ASList
+    from aerospike_native import List as ASList
     test_list = ASList([1, None, 3])
     # None should be preserved when converting back
     assert test_list[1] is None
@@ -498,7 +498,7 @@ def test_u64_large_integer():
     Note: Since Value::UInt was removed from the Rust core, values > i64::MAX
     will overflow when converted to i64. This test verifies the overflow behavior.
     """
-    from aerospike_async import List as ASList, Map as ASMap
+    from aerospike_native import List as ASList, Map as ASMap
     
     # i64::MAX is 9223372036854775807
     # Test with a value larger than i64::MAX - it will overflow to negative
@@ -521,7 +521,7 @@ def test_u64_boundary_values():
     Note: Since Value::UInt was removed from the Rust core, i64::MAX + 1
     will overflow to i64::MIN when converted to i64.
     """
-    from aerospike_async import List as ASList
+    from aerospike_native import List as ASList
     
     i64_max = 2**63 - 1  # 9223372036854775807
     i64_max_plus_one = 2**63  # 9223372036854775808
@@ -534,7 +534,7 @@ def test_u64_boundary_values():
 
 def test_special_value_enum_distinct():
     """CDT boundary markers are distinct enum members."""
-    from aerospike_async import SpecialValue
+    from aerospike_native import SpecialValue
 
     assert SpecialValue.NULL != SpecialValue.INFINITY
     assert SpecialValue.INFINITY != SpecialValue.WILDCARD
@@ -543,7 +543,7 @@ def test_special_value_enum_distinct():
 
 def test_map_operation_accepts_special_value_range_endpoints():
     """Map get_by_key_range accepts SpecialValue for open-ended CDT ranges."""
-    from aerospike_async import MapOperation, MapReturnType, SpecialValue
+    from aerospike_native import MapOperation, MapReturnType, SpecialValue
 
     op = MapOperation.get_by_key_range(
         "m", SpecialValue.NULL, SpecialValue.INFINITY, MapReturnType.KEY,
@@ -552,7 +552,7 @@ def test_map_operation_accepts_special_value_range_endpoints():
 
 
 def test_list_operation_accepts_special_value_range_endpoints():
-    from aerospike_async import ListOperation, ListReturnType, SpecialValue
+    from aerospike_native import ListOperation, ListReturnType, SpecialValue
 
     op = ListOperation.get_by_value_range(
         "lst", 1, SpecialValue.INFINITY, ListReturnType.VALUE,

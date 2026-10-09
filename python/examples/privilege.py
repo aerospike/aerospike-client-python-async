@@ -15,13 +15,13 @@
 # the License.
 
 """
-Examples demonstrating PrivilegeCode and Privilege functionality in aerospike_async.
+Examples demonstrating PrivilegeCode and Privilege functionality in aerospike_native.
 
 NOTE: No server connection is needed for these examples to run.
 These examples work with privilege objects locally without connecting to an Aerospike server.
 """
 
-from aerospike_async import PrivilegeCode, Privilege
+from aerospike_native import PrivilegeCode, Privilege
 
 
 def privilege():

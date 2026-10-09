@@ -20,10 +20,10 @@ HLL (HyperLogLog) operation tests.
 import pytest
 import math
 from fixtures import TestFixtureConnection
-from aerospike_async import (
+from aerospike_native import (
     Key, WritePolicy, HllOperation, HLLWriteFlags, Operation
 )
-from aerospike_async.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
+from aerospike_native.exceptions import ServerError, ResultCode, InvalidRequest, OpNotApplicable, BinNotFound
 
 
 async def safe_delete(client, key):

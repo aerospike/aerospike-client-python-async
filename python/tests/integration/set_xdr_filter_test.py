@@ -16,7 +16,7 @@
 """Tests for set_xdr_filter functionality."""
 
 import pytest
-from aerospike_async import FilterExpression
+from aerospike_native import FilterExpression
 from fixtures import TestFixtureConnection
 
 

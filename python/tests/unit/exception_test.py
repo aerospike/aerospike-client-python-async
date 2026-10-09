@@ -19,7 +19,7 @@ import sys
 
 import pytest
 
-from aerospike_async.exceptions import (
+from aerospike_native.exceptions import (
     AerospikeError,
     ServerError,
     RecvError,
@@ -119,14 +119,14 @@ class TestClientSideInDoubt:
         """A bare package import loads the wrapper module and applies class defaults.
 
         Runs in a fresh interpreter: any in-process import of
-        aerospike_async.exceptions rebinds the package attribute to the wrapper
+        aerospike_native.exceptions rebinds the package attribute to the wrapper
         as an import side effect, which would mask a missing package-level
         import.
         """
         code = (
-            "import aerospike_async; "
-            "assert aerospike_async.exceptions.TimeoutError('x').in_doubt is False; "
-            "assert hasattr(aerospike_async.exceptions, 'RecordNotFound')"
+            "import aerospike_native; "
+            "assert aerospike_native.exceptions.TimeoutError('x').in_doubt is False; "
+            "assert hasattr(aerospike_native.exceptions, 'RecordNotFound')"
         )
         subprocess.run([sys.executable, "-c", code], check=True)
 
@@ -360,14 +360,14 @@ class TestSubsystemFamilyDispatch:
     """Result-code dispatch for the subsystem family classes."""
 
     def test_family_classes_subclass_server_error(self):
-        from aerospike_async.exceptions import (
+        from aerospike_native.exceptions import (
             BatchError, QueryError, QuotaError, UdfError,
         )
         for cls in (QueryError, BatchError, QuotaError, UdfError):
             assert issubclass(cls, ServerError)
 
     def test_dispatch_by_result_code(self):
-        from aerospike_async.exceptions import (
+        from aerospike_native.exceptions import (
             BatchError, QueryError, QuotaError, UdfError,
             _get_server_error_class,
         )

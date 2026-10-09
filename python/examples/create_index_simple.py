@@ -15,12 +15,12 @@
 # the License.
 
 """
-Simple example of using create_index function from aerospike_async.
+Simple example of using create_index function from aerospike_native.
 """
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy, IndexType, CollectionIndexType
+from aerospike_native import new_client, ClientPolicy, IndexType, CollectionIndexType
 
 
 async def simple_create_index_example():
@@ -103,7 +103,7 @@ def quick_examples():
 
     print("\n4. List Index (for tags, features, etc.):")
     print("""
-    from aerospike_async import CollectionIndexType
+    from aerospike_native import CollectionIndexType
 
     await client.create_index(
         namespace="test",

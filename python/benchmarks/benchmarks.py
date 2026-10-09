@@ -19,7 +19,7 @@ import asyncio
 import os
 import pyperf
 
-from aerospike_async import new_client, ClientPolicy, Key, ReadPolicy, WritePolicy
+from aerospike_native import new_client, ClientPolicy, Key, ReadPolicy, WritePolicy
 
 client = None
 key = Key("test", "test", 0)

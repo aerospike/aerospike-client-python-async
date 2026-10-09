@@ -25,11 +25,11 @@ pass, the asymmetry has changed and the From-impl audit needs re-running.
 """
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     ListReturnType,
 )
-from aerospike_async.exceptions import ServerError, FilteredOut
+from aerospike_native.exceptions import ServerError, FilteredOut
 from fixtures import TestFixtureConnection
 
 

@@ -23,13 +23,13 @@ such as:
 - Invalid operation combinations
 - Client-side validation failures
 
-Note: Currently, batch operations are not available in the Python async client,
+Note: Currently, batch operations are not available in the PNC,
 so we can't easily trigger ClientError through normal operations. This test
 verifies that the exception exists and can be caught properly.
 """
 
 import pytest
-from aerospike_async.exceptions import ClientError, AerospikeError
+from aerospike_native.exceptions import ClientError, AerospikeError
 
 
 class TestClientError:
@@ -131,7 +131,7 @@ class TestClientError:
 
     def test_client_error_vs_other_errors(self):
         """Test that ClientError is distinct from other error types."""
-        from aerospike_async.exceptions import (
+        from aerospike_native.exceptions import (
             ServerError, ConnectionError, ValueError, TimeoutError, ResultCode
         )
         
@@ -181,7 +181,7 @@ class TestBatchFailedError:
     """BatchFailedError shape: ClientError subclass carrying per-key records."""
 
     def test_subclasses_client_error(self):
-        from aerospike_async.exceptions import BatchFailedError
+        from aerospike_native.exceptions import BatchFailedError
 
         err = BatchFailedError("Batch failed (2 records)")
         assert isinstance(err, ClientError)
@@ -190,12 +190,12 @@ class TestBatchFailedError:
     def test_records_defaults_to_none(self):
         # The native layer attaches the list on real failures; a bare
         # instance answers None rather than raising.
-        from aerospike_async.exceptions import BatchFailedError
+        from aerospike_native.exceptions import BatchFailedError
 
         assert BatchFailedError("x").records is None
 
     def test_caught_as_client_error(self):
-        from aerospike_async.exceptions import BatchFailedError
+        from aerospike_native.exceptions import BatchFailedError
 
         with pytest.raises(ClientError):
             raise BatchFailedError("Batch failed")

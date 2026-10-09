@@ -25,8 +25,8 @@ import pytest_asyncio
 import os
 import time
 import uuid
-from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
-from aerospike_async.exceptions import ServerError, ResultCode, SecurityNotEnabled
+from aerospike_native import new_client, ClientPolicy, PrivilegeCode, Privilege
+from aerospike_native.exceptions import ServerError, ResultCode, SecurityNotEnabled
 
 PROPAGATION_RETRIES = 10
 PROPAGATION_DELAY = 0.5
@@ -506,7 +506,7 @@ class TestSecurityFeatures:
 
     async def test_admin_policy_timeout(self, client):
         """Test AdminPolicy with custom timeout."""
-        from aerospike_async import AdminPolicy
+        from aerospike_native import AdminPolicy
 
         default_policy = AdminPolicy()
         assert isinstance(default_policy.timeout, int)

@@ -27,7 +27,7 @@ import os
 
 import pytest
 
-from aerospike_async import ClientPolicy, Key, new_client
+from aerospike_native import ClientPolicy, Key, new_client
 
 NS, SET = "test", "coalesced_write_test"
 

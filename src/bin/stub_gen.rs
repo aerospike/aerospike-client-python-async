@@ -20,13 +20,13 @@ use std::fs;
 /// The full dotted module path that pyproject.toml declares as
 /// `tool.maturin.module-name`. pyo3-stub-gen 0.22 validates that every
 /// registered module key matches this prefix; the `#[gen_stub_pyclass]`
-/// annotations use the bare `_aerospike_async_native`, so we remap
+/// annotations use the bare `_native`, so we remap
 /// the key here before calling `generate()`.
-const FULL_MODULE: &str = "aerospike_async._aerospike_async_native";
-const BARE_MODULE: &str = "_aerospike_async_native";
+const FULL_MODULE: &str = "aerospike_native._native";
+const BARE_MODULE: &str = "_native";
 
 fn main() -> Result<()> {
-    let stub = _aerospike_async_native::stub_info()?;
+    let stub = _native::stub_info()?;
 
     let output_path = if let Ok(output_dir) = std::env::var("STUB_OUTPUT_DIR") {
         PathBuf::from(output_dir)
@@ -47,15 +47,15 @@ fn main() -> Result<()> {
 
     custom_stub.generate()?;
 
-    // generate() writes to python_root/aerospike_async/_aerospike_async_native/__init__.pyi
-    // but we want python_root/aerospike_async/_aerospike_async_native.pyi (flat file).
+    // generate() writes to python_root/aerospike_native/_native/__init__.pyi
+    // but we want python_root/aerospike_native/_native.pyi (flat file).
     let init_stub = output_path
-        .join("aerospike_async")
-        .join("_aerospike_async_native")
+        .join("aerospike_native")
+        .join("_native")
         .join("__init__.pyi");
     let package_stub = output_path
-        .join("aerospike_async")
-        .join("_aerospike_async_native.pyi");
+        .join("aerospike_native")
+        .join("_native.pyi");
 
     if init_stub.exists() {
         fs::rename(&init_stub, &package_stub)?;

@@ -21,7 +21,7 @@ Requires Aerospike Server version >= 8.1.1.
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     CdtOperation,
     ClientPolicy,
     CTX,
@@ -304,7 +304,7 @@ class TestSelectByPath:
         ]
         await client.put(key, {"data": {"book": books}}, policy=wp)
 
-        from aerospike_async import MapReturnType, ExpType
+        from aerospike_native import MapReturnType, ExpType
         price_exp = fe.map_get_by_key(
             MapReturnType.VALUE,
             ExpType.FLOAT,
@@ -366,7 +366,7 @@ class TestSelectByPath:
         ]
         await client.put(key, {"data": {"book": books}}, policy=wp)
 
-        from aerospike_async import MapReturnType, ExpType
+        from aerospike_native import MapReturnType, ExpType
         price_exp = fe.map_get_by_key(
             MapReturnType.VALUE,
             ExpType.FLOAT,
@@ -406,7 +406,7 @@ class TestSelectByPath:
         ]
         await client.put(key, {"data": {"users": users}}, policy=wp)
 
-        from aerospike_async import MapReturnType, ExpType
+        from aerospike_native import MapReturnType, ExpType
         active_exp = fe.map_get_by_key(
             MapReturnType.VALUE,
             ExpType.BOOL,

@@ -25,7 +25,7 @@ from typing import Optional
 
 import pytest
 import pytest_asyncio
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     CollectionIndexType,
     ErrorDetailVerbosity,
@@ -41,7 +41,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import (
+from aerospike_native.exceptions import (
     FilteredOut,
     IndexFoundError,
     IndexNotFound,
@@ -76,7 +76,7 @@ class ExplainHint:
 
 
 def explain_where_flags(hint: Optional[ExplainHint]) -> Optional[int]:
-    """Map :class:`ExplainHint` to PAC ``explain_where_flags`` (field ``44``)."""
+    """Map :class:`ExplainHint` to PNC ``explain_where_flags`` (field ``44``)."""
     if hint is None:
         return None
     flags = QueryWhereFlags.EXPLAIN

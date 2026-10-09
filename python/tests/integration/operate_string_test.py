@@ -30,7 +30,7 @@ version spread via a server matrix.
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     CTX,
     ErrorDetailVerbosity,
@@ -44,7 +44,7 @@ from aerospike_async import (
     SubCode,
     WritePolicy,
 )
-from aerospike_async.exceptions import ServerError
+from aerospike_native.exceptions import ServerError
 
 
 # Module-level loop scope keeps the shared ``string_client_820`` fixture
@@ -200,7 +200,7 @@ class TestStringReads:
     async def test_contains_starts_with_ends_with_decode_as_bool(self, string_client_820):
         """Spec §2.4 boolean accessor: these sub-ops return native msgpack bool.
 
-        ``getLong`` would fail to decode; the PAC stream surfaces a Python
+        ``getLong`` would fail to decode; the PNC stream surfaces a Python
         ``bool``, NOT an ``int``. Pinned here for parity-test reuse.
         """
         key = _key("predicates")
@@ -216,7 +216,7 @@ class TestStringReads:
             policy=WritePolicy(),
         )
         assert rec is not None
-        # PAC returns each op result keyed by the bin name; multi-op-same-bin
+        # PNC returns each op result keyed by the bin name; multi-op-same-bin
         # is rolled into a list in declaration order.
         results = rec.bins.get("s")
         assert isinstance(results, list)

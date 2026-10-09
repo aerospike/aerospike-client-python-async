@@ -1,4 +1,4 @@
-name: PAC Build & Release
+name: PNC Build & Release
 
 on:
   workflow_dispatch:

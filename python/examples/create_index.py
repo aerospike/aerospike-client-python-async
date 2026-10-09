@@ -15,7 +15,7 @@
 # the License.
 
 """
-Example of how to use the create_index function from aerospike_async.
+Example of how to use the create_index function from aerospike_native.
 
 This example demonstrates:
 1. Creating different types of indexes using direct parameters
@@ -26,7 +26,7 @@ This example demonstrates:
 
 import asyncio
 import os
-from aerospike_async import (
+from aerospike_native import (
     new_client, ClientPolicy,
     IndexType, CollectionIndexType
 )

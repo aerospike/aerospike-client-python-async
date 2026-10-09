@@ -46,7 +46,7 @@ def _repro_script(host: str) -> str:
     panic on a build without the fix."""
     return textwrap.dedent(f"""\
         import asyncio
-        from aerospike_async import ClientPolicy, ReadPolicy, Key, new_client
+        from aerospike_native import ClientPolicy, ReadPolicy, Key, new_client
 
         HOST = {host!r}
         NS = "test"

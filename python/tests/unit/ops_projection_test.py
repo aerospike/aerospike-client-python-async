@@ -17,7 +17,7 @@
 
 import pytest
 
-from aerospike_async import CTX, CdtOperation, Operation, Statement
+from aerospike_native import CTX, CdtOperation, Operation, Statement
 
 
 class TestStatementSetOperations:
@@ -34,7 +34,7 @@ class TestStatementSetOperations:
     def test_cdt_read_op_projection(self):
         # CDT path read projection (server >= 8.1.2). Constructing the
         # statement does not contact the server, so this only verifies the
-        # PAC plumbing carries the op into core.
+        # PNC plumbing carries the op into core.
         stmt = Statement("test", "users")
         stmt.set_operations([CdtOperation.select_values("inventory", [CTX.map_key("books")])])
 
@@ -44,7 +44,7 @@ class TestStatementSetOperations:
             stmt.set_operations(["not an op"])
 
     def test_empty_projection_clears(self):
-        # Empty list is allowed at the PAC layer; the core treats it the same
+        # Empty list is allowed at the PNC layer; the core treats it the same
         # as no projection. (The server would reject zero-length operate
         # payloads via CLIENT-4685, but that's a separate code path.)
         stmt = Statement("test", "users")

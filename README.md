@@ -1,7 +1,9 @@
-# Aerospike Python Async Client
+# Aerospike Python Native Client
 
-Ultra-high performance Python bindings for the Aerospike Rust client core
-— async and blocking surfaces in one client, with first-class free-threaded
+The Python Native Client (PNC) underneath the
+[Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/): ultra-high
+performance Python bindings for the Aerospike Rust client core — async and
+blocking surfaces in one client, with first-class free-threaded
 Python support for parallel-thread throughput well past what GIL-bound
 clients can sustain. Built with [PyO3](https://pyo3.rs/); ships pre-built
 wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
@@ -9,7 +11,7 @@ wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
 `cp315t`) on Linux and macOS arm64.
 
 > **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
-> via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-async/issues).
+> via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-native/issues).
 
 > **Not officially supported as a standalone client; APIs at this layer are
 > undocumented and may change between releases without notice.** This package
@@ -18,24 +20,27 @@ wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
 > reference sections below exist for SDK users who need to drop down to
 > low-level configuration (TLS, multi-record transactions, strong-consistency
 > read modes, wire compression) and for client contributors.
+>
+> Not to be confused with the `aerospike` package, the separate C-based Python
+> client. Earlier alphas were published as `aerospike-async`.
 
 ## Resources
 
-- **PyPI:** https://pypi.org/project/aerospike-async/
-- **Source:** https://github.com/aerospike/aerospike-client-python-async
-- **Issues:** https://github.com/aerospike/aerospike-client-python-async/issues
-- **Releases:** https://github.com/aerospike/aerospike-client-python-async/releases
+- **PyPI:** https://pypi.org/project/aerospike-native/
+- **Source:** https://github.com/aerospike/aerospike-client-python-native
+- **Issues:** https://github.com/aerospike/aerospike-client-python-native/issues
+- **Releases:** https://github.com/aerospike/aerospike-client-python-native/releases
 
 ## Installation
 
 ```bash
-pip install aerospike-async
+pip install aerospike-native
 ```
 
 Pin to a specific release if you need reproducible builds:
 
 ```bash
-pip install aerospike-async==0.6.0a6
+pip install aerospike-native==<version>
 ```
 
 Pre-built wheels are published for every supported platform/Python combination
@@ -51,7 +56,7 @@ Requires Aerospike Server 8.2.0+ (older servers may work but are not guaranteed)
 ```python
 import asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     Key,
     ReadPolicy,
@@ -94,7 +99,7 @@ Python, where multiple OS threads can drive blocking calls in parallel
 without the GIL serializing them.
 
 ```python
-from aerospike_async import ClientPolicy, Key, new_client_blocking
+from aerospike_native import ClientPolicy, Key, new_client_blocking
 
 client = new_client_blocking(ClientPolicy(), "localhost:3000")
 
@@ -131,7 +136,7 @@ authentication.
 ### Basic TLS
 
 ```python
-from aerospike_async import ClientPolicy, TlsConfig, new_client
+from aerospike_native import ClientPolicy, TlsConfig, new_client
 
 policy = ClientPolicy()
 policy.tls_config = TlsConfig("path/to/ca-certificate.pem")
@@ -156,7 +161,7 @@ PKI mode uses client certificates for authentication (no username/password
 required):
 
 ```python
-from aerospike_async import AuthMode
+from aerospike_native import AuthMode
 
 policy = ClientPolicy()
 policy.tls_config = TlsConfig.with_client_auth("ca.pem", "client.pem", "client.key")
@@ -185,7 +190,7 @@ The client supports multiple authentication modes via `AuthMode`:
 - `AuthMode.PKI` — certificate-based authentication (requires TLS + client cert)
 
 ```python
-from aerospike_async import AuthMode
+from aerospike_native import AuthMode
 
 policy = ClientPolicy()
 policy.set_auth_mode(AuthMode.INTERNAL, user="admin", password="secret")
@@ -200,8 +205,8 @@ Multi-record transactions require a strong-consistency namespace on the server
 attaching a `Txn` to each policy, then `commit` or `abort`:
 
 ```python
-from aerospike_async import CommitStatus, Txn
-from aerospike_async.exceptions import CommitFailedError
+from aerospike_native import CommitStatus, Txn
+from aerospike_native.exceptions import CommitFailedError
 
 txn = Txn()
 
@@ -229,7 +234,7 @@ Every read-capable policy exposes `read_mode_ap` and `read_mode_sc` for tuning
 consistency on AP and SC namespaces respectively:
 
 ```python
-from aerospike_async import ReadModeAP, ReadModeSC
+from aerospike_native import ReadModeAP, ReadModeSC
 
 policy = ReadPolicy()
 policy.read_mode_ap = ReadModeAP.ONE          # AP namespace
@@ -248,7 +253,7 @@ policy.use_compression = True
 
 ## Versioning
 
-PAC follows [SemVer](https://semver.org/). Pre-releases use the
+The PNC follows [SemVer](https://semver.org/). Pre-releases use the
 `MAJOR.MINOR.PATCH-{alpha,beta,rc}.N` form (e.g. `0.4.0-alpha.1`). PyPI
 normalizes these on upload to the equivalent PEP 440 spelling (`0.4.0a1`).
 
@@ -268,7 +273,7 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 ## Development / Contributing
 
 The sections below are for client *contributors*. Downstream users do **not**
-need any of this — `pip install aerospike-async` is sufficient to use the
+need any of this — `pip install aerospike-native` is sufficient to use the
 package.
 
 ### Prerequisites
@@ -364,7 +369,7 @@ Bumps are manual and happen in PRs against `stage`. Promotion workflows
 ```bash
 # 1. Edit Cargo.toml [package] version field, then refresh Cargo.lock:
 #    e.g. 0.6.0-alpha.1  →  0.6.0-alpha.2
-cargo check    # or: cargo update -p aerospike_async --precise 0.6.0-alpha.2
+cargo check    # or: cargo update -p aerospike_native --precise 0.6.0-alpha.2
 
 # 2. Confirm:
 bin/get-version    # prints 0.6.0-alpha.2

@@ -15,7 +15,7 @@
 
 """Pipe-wake wake transport: forced-on delivery + clean teardown.
 
-Exercises PAC's alternate cross-thread wake path (``AEROSPIKE_PIPE_WAKE=1``,
+Exercises PNC's alternate cross-thread wake path (``AEROSPIKE_PIPE_WAKE=1``,
 which forces the transport on regardless of loop implementation) end to end: a
 concurrent burst delivers through the self-pipe reader, ``close()`` tears the
 reader down, and a fresh client on the same loop still works afterward (proving
@@ -25,8 +25,8 @@ teardown left the loop healthy — no dangling reader, no leak-induced wedge).
 import asyncio
 import os
 
-from aerospike_async import ClientPolicy, Key, new_client
-from aerospike_async.exceptions import AerospikeError
+from aerospike_native import ClientPolicy, Key, new_client
+from aerospike_native.exceptions import AerospikeError
 
 NS, SET = "test", "pipe_wake_test"
 

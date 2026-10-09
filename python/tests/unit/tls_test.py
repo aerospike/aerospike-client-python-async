@@ -16,7 +16,7 @@
 """Unit tests for TLS config and auth mode types."""
 
 import pytest
-from aerospike_async import ClientPolicy, TlsConfig, AuthMode
+from aerospike_native import ClientPolicy, TlsConfig, AuthMode
 
 
 class TestTlsConfig:

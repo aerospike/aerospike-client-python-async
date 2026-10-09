@@ -14,8 +14,8 @@
 # the License.
 
 import pytest
-from aerospike_async import WritePolicy, Expiration
-from aerospike_async.exceptions import InvalidNamespaceError, ResultCode
+from aerospike_native import WritePolicy, Expiration
+from aerospike_native.exceptions import InvalidNamespaceError, ResultCode
 from fixtures import TestFixtureInsertRecord
 
 

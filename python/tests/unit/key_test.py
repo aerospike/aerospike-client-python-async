@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import Key
+from aerospike_native import Key
 
 
 def test_key_eq():

@@ -16,7 +16,7 @@
 import uuid
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     ReadPolicy,
     Record,
     Key,
@@ -27,7 +27,7 @@ from aerospike_async import (
     RegexFlag,
     FilterExpression as fe,
 )
-from aerospike_async.exceptions import ResultCode, FilteredOut, InvalidRequest
+from aerospike_native.exceptions import ResultCode, FilteredOut, InvalidRequest
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection
 
 
@@ -145,7 +145,7 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         test_list = [1, -1, 3, 5]
 
         # Put the list in a bin
-        from aerospike_async import WritePolicy
+        from aerospike_native import WritePolicy
         wp = WritePolicy()
         await client.put(key, {"listbin": test_list}, policy=wp)
 
@@ -163,7 +163,7 @@ class TestFilterExprListVal(TestFixtureInsertRecord):
         test_list = [1, 2, 3]
         different_list = [4, 5, 6]
 
-        from aerospike_async import WritePolicy
+        from aerospike_native import WritePolicy
         wp = WritePolicy()
         await client.put(key, {"listbin": test_list}, policy=wp)
 
@@ -194,7 +194,7 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         }
 
         # Put the map in a bin with KEY_ORDERED policy to ensure deterministic ordering
-        from aerospike_async import WritePolicy, MapPolicy, MapOrder, MapOperation
+        from aerospike_native import WritePolicy, MapPolicy, MapOrder, MapOperation
         wp = WritePolicy()
         map_policy = MapPolicy(MapOrder.KEY_ORDERED, None)
         # Use put_items to store the entire map with KEY_ORDERED policy
@@ -222,7 +222,7 @@ class TestFilterExprMapVal(TestFixtureInsertRecord):
         test_map = {"a": 1, "b": 2}
         different_map = {"c": 3, "d": 4}
 
-        from aerospike_async import WritePolicy
+        from aerospike_native import WritePolicy
         wp = WritePolicy()
         await client.put(key, {"mapbin": test_map}, policy=wp)
 

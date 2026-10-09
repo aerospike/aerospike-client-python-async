@@ -15,7 +15,7 @@
 
 import asyncio
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     Statement,
     Recordset,
     Record,
@@ -29,7 +29,7 @@ from aerospike_async import (
     Key,
     WritePolicy,
 )
-from aerospike_async.exceptions import AerospikeError, InvalidNamespaceError
+from aerospike_native.exceptions import AerospikeError, InvalidNamespaceError
 from fixtures import TestFixtureInsertRecord, TestFixtureConnection, wait_for_scan_visible
 
 
@@ -141,7 +141,7 @@ class TestQueryEmptySet(TestFixtureConnection):
 class TestQueryEqualByIndex(TestFixtureInsertRecord):
     """Query using a filter that names the secondary index (not Statement.index_name)."""
 
-    idx = "pac_it_query_equal_by_index"
+    idx = "pnc_it_query_equal_by_index"
 
     async def cleanup_index(self, client):
         try:
@@ -181,7 +181,7 @@ class TestQueryBlobIndex(TestFixtureConnection):
     """Query a bytes bin through a blob secondary index (server 7.0+)."""
 
     set_name = "blob_idx_set"
-    idx_name = "pac_it_query_blob_equal"
+    idx_name = "pnc_it_query_blob_equal"
     bin_name = "payload"
 
     async def cleanup(self, client):
@@ -243,7 +243,7 @@ class TestQueryFilterContext(TestFixtureConnection):
     """Query with Filter.context for a secondary index on a nested list element."""
 
     set_name = "flt_ctx_set"
-    idx_name = "pac_it_nested_list_elem"
+    idx_name = "pnc_it_nested_list_elem"
     bin_name = "nested"
 
     async def cleanup(self, client):
@@ -301,7 +301,7 @@ class TestQueryFilterContext(TestFixtureConnection):
 class TestQueryFilterExpressionAttach(TestFixtureInsertRecord):
     """Query using Filter.expression to select an expression-based secondary index."""
 
-    idx = "pac_it_flt_expr_attach"
+    idx = "pnc_it_flt_expr_attach"
 
     async def cleanup_index(self, client):
         try:

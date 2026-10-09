@@ -15,7 +15,7 @@
 
 import pytest
 
-from aerospike_async import (
+from aerospike_native import (
     Operation,
     ListOperation,
     MapOperation,

@@ -16,8 +16,8 @@
 """Tests for execute_udf functionality."""
 import os
 import pytest
-from aerospike_async import WritePolicy, ReadPolicy, Key, UDFLang
-from aerospike_async.exceptions import UDFBadResponse
+from aerospike_native import WritePolicy, ReadPolicy, Key, UDFLang
+from aerospike_native.exceptions import UDFBadResponse
 from fixtures import TestFixtureConnection
 
 
@@ -246,7 +246,7 @@ class TestExecuteUDF(TestFixtureConnection):
 
     async def test_udf_timeout_handling(self, client_with_sleep_udf):
         """Test that total_timeout handles UDF timeouts (may be server-side UDFBadResponse or client-side TimeoutError)."""
-        from aerospike_async.exceptions import TimeoutError, UDFBadResponse
+        from aerospike_native.exceptions import TimeoutError, UDFBadResponse
 
         key = Key("test", "test", "timeout_test_key")
         wp = WritePolicy()
@@ -269,7 +269,7 @@ class TestExecuteUDF(TestFixtureConnection):
 
     async def test_udf_client_timeout_marks_in_doubt(self, client_with_sleep_udf):
         """A client socket timeout on a write that reached the server marks the error in-doubt."""
-        from aerospike_async.exceptions import TimeoutError
+        from aerospike_native.exceptions import TimeoutError
 
         key = Key("test", "test", "in_doubt_test_key")
         wp = WritePolicy()
@@ -324,7 +324,7 @@ class TestExecuteUDF(TestFixtureConnection):
         racing a longer server-side UDF sleep, no server deadline), with
         retries enabled so the context has more than one attempt to record.
         """
-        from aerospike_async.exceptions import TimeoutError
+        from aerospike_native.exceptions import TimeoutError
 
         key = Key("test", "test", "retry_ctx_test_key")
         wp = WritePolicy()

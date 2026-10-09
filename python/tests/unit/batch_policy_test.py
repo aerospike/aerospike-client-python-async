@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import (
+from aerospike_native import (
     AdminPolicy,
     BatchDeleteOp,
     BatchDeletePolicy,
@@ -127,12 +127,12 @@ class TestBatchReadPolicy:
 
     def test_read_touch_ttl_invalid_raises(self):
         import pytest
-        from aerospike_async.exceptions import AerospikeError
-        from aerospike_async.exceptions import ValueError as AsValueError
+        from aerospike_native.exceptions import AerospikeError
+        from aerospike_native.exceptions import ValueError as AsValueError
 
         p = BatchReadPolicy()
         # Out-of-range values are rejected client-side. The error is an
-        # aerospike_async.exceptions.ValueError (an AerospikeError subclass),
+        # aerospike_native.exceptions.ValueError (an AerospikeError subclass),
         # NOT Python's built-in ValueError, so `except AerospikeError` catches it.
         for bad in (-2, 101, 3600):
             with pytest.raises(AsValueError) as exc_info:

@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     BitPolicy,
     BitWriteFlags,
     ListPolicy,
@@ -206,9 +206,9 @@ class TestHLLPolicy:
 
     @pytest.fixture(autouse=True)
     def _import_hll(self):
-        hll_mod = pytest.importorskip("aerospike_async", reason="HLLPolicy not importable")
+        hll_mod = pytest.importorskip("aerospike_native", reason="HLLPolicy not importable")
         if not hasattr(hll_mod, "HLLPolicy"):
-            pytest.skip("HLLPolicy not exported by aerospike_async")
+            pytest.skip("HLLPolicy not exported by aerospike_native")
         self.HLLPolicy = hll_mod.HLLPolicy
         self.HLLWriteFlags = hll_mod.HLLWriteFlags
 

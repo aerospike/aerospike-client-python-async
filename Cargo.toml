@@ -1,11 +1,11 @@
 [package]
-name = "aerospike_async"
+name = "aerospike_native"
 version = "0.6.0-alpha.6"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "_aerospike_async_native"
+name = "_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

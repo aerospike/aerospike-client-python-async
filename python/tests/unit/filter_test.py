@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import Filter, CollectionIndexType, CTX, FilterExpression
+from aerospike_native import Filter, CollectionIndexType, CTX, FilterExpression
 
 
 class TestFilter:

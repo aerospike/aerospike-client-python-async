@@ -20,7 +20,7 @@ User Management Examples - Demonstrates user creation, role management, and priv
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy
+from aerospike_native import new_client, ClientPolicy
 
 
 async def user_management_examples():

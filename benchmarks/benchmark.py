@@ -3,9 +3,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 
-"""Standalone benchmark for the Python Async Client (PAC).
+"""Standalone benchmark for the Python Native Client (PNC).
 
-Drives the raw PAC ``get`` / ``operate`` API without any SDK overhead,
+Drives the raw PNC ``get`` / ``operate`` API without any SDK overhead,
 giving a floor measurement of achievable throughput and latency.
 
 Usage::
@@ -34,7 +34,7 @@ if str(_ROOT) not in sys.path:
 
 import benchmarks._env  # noqa: E402, F401
 
-from aerospike_async import (  # noqa: E402
+from aerospike_native import (  # noqa: E402
     BatchPolicy,
     BatchReadPolicy,
     BatchWritePolicy,
@@ -280,7 +280,7 @@ async def _worker(
 
 async def async_main() -> int:
     p = argparse.ArgumentParser(
-        description="PAC benchmark — raw async client, no SDK layer.",
+        description="PNC benchmark — raw async client, no SDK layer.",
     )
     p.add_argument("-H", "--hosts", default=default_host(),
                    help="Cluster seed (default: %(default)s from aerospike.env).")
@@ -342,10 +342,10 @@ async def async_main() -> int:
 
     # Connect
     policy = default_client_policy()
-    from aerospike_async import new_client
+    from aerospike_native import new_client
     client = await new_client(policy, args.hosts)
 
-    print(f"Connected to {args.hosts}. Starting PAC benchmark ...")
+    print(f"Connected to {args.hosts}. Starting PNC benchmark ...")
 
     rp = ReadPolicy()
     wp = WritePolicy()

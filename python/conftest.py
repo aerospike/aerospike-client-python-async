@@ -59,7 +59,7 @@ def pytest_configure(config):
     #
     # When AEROSPIKE_LOG_FILE is set we attach a dedicated file handler with a
     # timestamped format. When it is unset we only set the level on the
-    # aerospike_core / aerospike_async loggers and let records propagate to
+    # aerospike_core / aerospike_native loggers and let records propagate to
     # the root — pytest's own `log_cli` handler (see pyproject.toml) prints
     # them to stderr in the standard pytest format. Attaching a stderr
     # handler here as well would duplicate every warning on the console.
@@ -78,7 +78,7 @@ def pytest_configure(config):
                 ))
             # ``query`` is the Rust ``log`` target for server query-plan debug
             # lines (``query_explain`` / two-phase selection), forwarded by pyo3-log.
-            for prefix in ("aerospike_core", "aerospike_async", "query"):
+            for prefix in ("aerospike_core", "aerospike_native", "query"):
                 logger = logging.getLogger(prefix)
                 logger.setLevel(numeric)
                 if file_handler is not None:
@@ -175,8 +175,8 @@ async def _probe_all_nodes_version_capability(
     capability_fn,
 ) -> bool:
     """``True`` when every connected node reports *capability_fn* on ``Version``."""
-    from aerospike_async import ClientPolicy, new_client
-    from aerospike_async.exceptions import ConnectionError
+    from aerospike_native import ClientPolicy, new_client
+    from aerospike_native.exceptions import ConnectionError
 
     if not aerospike_host:
         return False
@@ -201,8 +201,8 @@ def _probe_all_nodes_version_capability_blocking(
     capability_fn,
 ) -> bool:
     """``True`` when every connected node reports *capability_fn* on ``Version``."""
-    from aerospike_async import ClientPolicy, new_client_blocking
-    from aerospike_async.exceptions import ConnectionError
+    from aerospike_native import ClientPolicy, new_client_blocking
+    from aerospike_native.exceptions import ConnectionError
 
     if not aerospike_host:
         return False
@@ -296,7 +296,7 @@ async def server_version(aerospike_host, use_services_alternate):
     short-circuit on ``None`` (e.g. ``pytest.skip`` or fall through to
     server-side enforcement).
     """
-    from aerospike_async import ClientPolicy, new_client
+    from aerospike_native import ClientPolicy, new_client
 
     if not aerospike_host:
         return None
@@ -359,7 +359,7 @@ async def enterprise(aerospike_host, use_services_alternate):
     and ``pytest.skip`` when it's ``False``, rather than relying on a
     ``ServerError(EnterpriseOnly)`` to bubble up.
     """
-    from aerospike_async import ClientPolicy, new_client
+    from aerospike_native import ClientPolicy, new_client
 
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate

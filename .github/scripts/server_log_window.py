@@ -19,7 +19,7 @@
 Usage: server_log_window.py <container> <failure-times-file>
 
 The integration conftest appends one "<start> <end> <nodeid>" line per failed
-test (epoch seconds) when PAC_FAILURE_TIMES names a file. Each failure gets the
+test (epoch seconds) when PNC_FAILURE_TIMES names a file. Each failure gets the
 server log from 30 seconds before the test started to a few seconds after it
 ended; overlapping windows are merged so a cascade prints once.
 """

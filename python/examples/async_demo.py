@@ -17,7 +17,7 @@
 """
 Async Aerospike Client Demo
 
-This example demonstrates how to use the Aerospike async client with asyncio.
+This example demonstrates how to use the Aerospike Python Native Client with asyncio.
 It creates its own event loop and performs various operations:
 - Store data (put)
 - Update data (add, append, prepend)
@@ -33,7 +33,7 @@ import asyncio
 import os
 from typing import List
 
-from aerospike_async import (
+from aerospike_native import (
     new_client,
     Client,
     ClientPolicy,
@@ -307,7 +307,7 @@ async def main():
 if __name__ == "__main__":
     # Create and run the event loop
     print("=" * 60)
-    print("Aerospike Async Client Demo")
+    print("Aerospike Python Native Client demo")
     print("=" * 60)
     print()
 

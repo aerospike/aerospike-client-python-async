@@ -19,8 +19,8 @@ Security-related tests are in security_test.py
 """
 
 import pytest
-from aerospike_async import PrivilegeCode, Privilege
-from aerospike_async.exceptions import ValueError as AerospikeValueError
+from aerospike_native import PrivilegeCode, Privilege
+from aerospike_native.exceptions import ValueError as AerospikeValueError
 
 
 class TestPrivilegeObjects:

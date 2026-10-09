@@ -21,7 +21,7 @@ ExecuteTask.wait_till_complete and query_status.
 
 import asyncio
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     CTX,
     HllOperation,
     ListOperation,
@@ -38,7 +38,7 @@ from aerospike_async import (
     PartitionFilter,
     IndexType,
 )
-from aerospike_async.exceptions import ResultCode, ServerError
+from aerospike_native.exceptions import ResultCode, ServerError
 from fixtures import TestFixtureConnection
 
 

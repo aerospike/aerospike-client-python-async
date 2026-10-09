@@ -15,11 +15,11 @@
 
 import pytest
 
-from aerospike_async import (
+from aerospike_native import (
     new_client, ClientPolicy, Key, QueryPolicy, ReadPolicy, Statement,
     WritePolicy, PartitionFilter,
 )
-from aerospike_async.exceptions import ClientError, TimeoutError
+from aerospike_native.exceptions import ClientError, TimeoutError
 
 
 class TestSocketTimeout:

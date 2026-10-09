@@ -41,8 +41,8 @@ use crate::record::{Key, PythonValue, Record};
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "PartitionStatus", module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(name = "PartitionStatus", module = "_native")]
     #[derive(Debug)]
     pub struct PartitionStatus {
         pub(crate) _as: aerospike_core::query::PartitionStatus,
@@ -191,10 +191,10 @@ use crate::record::{Key, PythonValue, Record};
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "PartitionFilter",
-        module = "_aerospike_async_native",
+        module = "_native",
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
     #[derive(Debug, Clone)]
@@ -366,10 +366,10 @@ use crate::record::{Key, PythonValue, Record};
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Query statement parameters.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "Statement",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -478,10 +478,10 @@ use crate::record::{Key, PythonValue, Record};
     ///
     /// Use instance methods `context` and `expression` to attach a CDT path or expression-based index
     /// to a filter (for example `Filter.equal("bin", 1).context([CTX.list_index(0)])`).
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "Filter",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -792,10 +792,10 @@ use crate::record::{Key, PythonValue, Record};
     /// multiple threads will retrieve records from the server nodes and put these records on an
     /// internal queue managed by the recordset. The single user thread consumes these records from the
     /// queue.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "Recordset",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -837,7 +837,7 @@ use crate::record::{Key, PythonValue, Record};
             self._as.is_active()
         }
 
-        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[PartitionFilter]]", imports=("typing", "aerospike_async")))]
+        #[gen_stub(override_return_type(type_repr="typing.Awaitable[typing.Optional[PartitionFilter]]", imports=("typing", "aerospike_native")))]
         pub fn partition_filter<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
             let bridge = self.bridge.as_ref().ok_or_else(|| {
                 pyo3::exceptions::PyRuntimeError::new_err(

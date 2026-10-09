@@ -15,7 +15,7 @@
 
 """Tests for remove_udf functionality."""
 import os
-from aerospike_async import AdminPolicy, UDFLang, TaskStatus
+from aerospike_native import AdminPolicy, UDFLang, TaskStatus
 from fixtures import TestFixtureConnection
 
 

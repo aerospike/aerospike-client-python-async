@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import Client, ClientPolicy
+from aerospike_native import Client, ClientPolicy
 
 
 def test_client_policy_properties():
@@ -110,4 +110,4 @@ def test_default_custom_client_id_identifies_this_client():
     """
     cp = ClientPolicy()
     assert cp.custom_client_id is not None
-    assert cp.custom_client_id.startswith("python-async-")
+    assert cp.custom_client_id.startswith("python-native-")

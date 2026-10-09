@@ -13,11 +13,11 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""TLS and PKI authentication examples for Aerospike async client."""
+"""TLS and PKI authentication examples for the Aerospike Python Native Client."""
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy, TlsConfig, AuthMode, WritePolicy, Key
+from aerospike_native import new_client, ClientPolicy, TlsConfig, AuthMode, WritePolicy, Key
 
 
 async def example_basic_tls(host: str, tls_name: str, ca_file: str):

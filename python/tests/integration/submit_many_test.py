@@ -23,8 +23,8 @@ post-processing a failure-free window without scanning it.
 
 import os
 
-from aerospike_async import ClientPolicy, Key, new_client
-from aerospike_async.exceptions import RecordNotFound
+from aerospike_native import ClientPolicy, Key, new_client
+from aerospike_native.exceptions import RecordNotFound
 
 
 def _host() -> str:

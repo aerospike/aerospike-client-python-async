@@ -15,7 +15,7 @@
 
 import asyncio
 import os
-from aerospike_async import (
+from aerospike_native import (
     new_client, ClientPolicy, Key, WritePolicy, ReadPolicy,
     PartitionFilter, QueryPolicy, Statement,
     Filter, IndexType, CollectionIndexType

@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import PartitionFilter, PartitionStatus, Key
+from aerospike_native import PartitionFilter, PartitionStatus, Key
 
 
 class TestPartitionFilter:

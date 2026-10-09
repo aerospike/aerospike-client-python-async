@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""Integration tests for `_blocking` entry points in PAC.
+"""Integration tests for `_blocking` entry points in PNC.
 
 These tests are intentionally synchronous (`def`, not `async def`).
 `new_client_blocking()` does not require a running asyncio event loop, and
@@ -38,7 +38,7 @@ import time
 
 import pytest
 
-from aerospike_async import (
+from aerospike_native import (
     _LocalClient,
     BatchDeleteOp,
     BatchPolicy,
@@ -68,7 +68,7 @@ from aerospike_async import (
     Statement,
     WritePolicy,
 )
-from aerospike_async.exceptions import IndexFoundError, IndexNotFound, ServerError
+from aerospike_native.exceptions import IndexFoundError, IndexNotFound, ServerError
 
 QSEL_NAMESPACE = "test"
 QSEL_SET_NAME = "qsel_blk"
@@ -331,7 +331,7 @@ def test_blocking_batch_stream(aerospike_host, use_services_alternate):
     """`batch_stream_blocking` yields each input op's BatchRecord on a sync
     iterator. Items arrive in completion order; we assert set-equality on
     indices and per-key result codes."""
-    from aerospike_async.exceptions import ResultCode
+    from aerospike_native.exceptions import ResultCode
 
     client = _connect_blocking(aerospike_host, use_services_alternate)
     try:
@@ -616,7 +616,7 @@ def test_blocking_execute_returns_matching_records(qsel_blocking_fixture):
 
 
 def test_blocking_execute_statement_with_filters_raises(qsel_blocking_fixture):
-    from aerospike_async.exceptions import ValueError
+    from aerospike_native.exceptions import ValueError
 
     client = qsel_blocking_fixture["client"]
     set_name = qsel_blocking_fixture["set_name"]
@@ -638,7 +638,7 @@ def test_blocking_execute_statement_with_filters_raises(qsel_blocking_fixture):
 
 
 def test_blocking_execute_mismatched_plan_set_raises(qsel_blocking_fixture):
-    from aerospike_async.exceptions import ValueError
+    from aerospike_native.exceptions import ValueError
 
     client = qsel_blocking_fixture["client"]
     set_name = qsel_blocking_fixture["set_name"]
@@ -774,7 +774,7 @@ def test_blocking_create_set_index(aerospike_host, use_services_alternate):
     cp = ClientPolicy()
     cp.use_services_alternate = use_services_alternate
     client = new_client_blocking(cp, aerospike_host)
-    index_name = "pac_set_idx_blk"
+    index_name = "pnc_set_idx_blk"
     try:
         try:
             client.drop_index_blocking("test", "test", index_name).wait_till_complete_blocking()

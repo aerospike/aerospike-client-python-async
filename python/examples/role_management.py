@@ -20,7 +20,7 @@ Role Management Examples - Demonstrates role creation, privilege assignment, and
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy, PrivilegeCode, Privilege
+from aerospike_native import new_client, ClientPolicy, PrivilegeCode, Privilege
 
 
 async def role_management_examples():
@@ -201,7 +201,7 @@ def show_role_management_usage():
 
     print("\n1. Role Creation:")
     print("""
-    from aerospike_async import Privilege, PrivilegeCode
+    from aerospike_native import Privilege, PrivilegeCode
 
     # Create a role with privileges
     privileges = [

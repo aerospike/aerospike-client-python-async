@@ -34,8 +34,8 @@ use crate::string_ops::StringNumericType;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Expression Data Types for usage in some `FilterExpressions`
-    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, module = "_aerospike_async_native")]
+    #[gen_stub_pyclass_enum(module = "_native")]
+    #[pyclass(from_py_object, module = "_native")]
     #[derive(Debug, Clone, Copy)]
     pub enum ExpType {
         #[pyo3(name = "NIL")]
@@ -87,8 +87,8 @@ use crate::string_ops::StringNumericType;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Expression write flags for expression operations.
-    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, name = "ExpWriteFlags", module = "_aerospike_async_native")]
+    #[gen_stub_pyclass_enum(module = "_native")]
+    #[pyclass(from_py_object, name = "ExpWriteFlags", module = "_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpWriteFlags {
@@ -225,8 +225,8 @@ use crate::string_ops::StringNumericType;
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Expression read flags for expression operations.
-    #[gen_stub_pyclass_enum(module = "_aerospike_async_native")]
-    #[pyclass(from_py_object, name = "ExpReadFlags", module = "_aerospike_async_native")]
+    #[gen_stub_pyclass_enum(module = "_native")]
+    #[pyclass(from_py_object, name = "ExpReadFlags", module = "_native")]
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ExpReadFlags {
@@ -364,8 +364,8 @@ use crate::string_ops::StringNumericType;
     /// ``RegexFlag`` constant (or combination). These are not interchangeable
     /// with ``StringRegexFlags``, which apply to the ICU-syntax string
     /// expression ``string_regex_compare_with_flags``.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
-    #[pyclass(name = "RegexFlag", module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
+    #[pyclass(name = "RegexFlag", module = "_native")]
     pub struct RegexFlag;
 
     #[gen_stub_pymethods]
@@ -395,10 +395,10 @@ use crate::string_ops::StringNumericType;
 
     /// Filter expression, which can be applied to most commands, to control which records are
     /// affected by the command.
-    #[gen_stub_pyclass(module = "_aerospike_async_native")]
+    #[gen_stub_pyclass(module = "_native")]
     #[pyclass(from_py_object, 
         name = "FilterExpression",
-        module = "_aerospike_async_native",
+        module = "_native",
         subclass,
     )]
     #[cfg_attr(not(Py_GIL_DISABLED), pyo3(freelist = 1000))]
@@ -3882,7 +3882,7 @@ use crate::string_ops::StringNumericType;
         ///
         /// Note: rust-core's signature includes `_policy` for API symmetry; the
         /// wire payload has no write-flags slot (the server rejects messages
-        /// that pack one). PAC passes the default policy and surfaces only
+        /// that pack one). PNC passes the default policy and surfaces only
         /// `regex_flags` here.
         pub fn string_regex_replace(pattern: FilterExpression, replacement: FilterExpression, regex_flags: u8, src: FilterExpression) -> Self {
             use aerospike_core::expressions::string as str_exp;

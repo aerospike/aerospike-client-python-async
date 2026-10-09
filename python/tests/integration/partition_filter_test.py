@@ -14,7 +14,7 @@
 # the License.
 
 import pytest
-from aerospike_async import PartitionFilter, Key, QueryPolicy, Statement, PartitionStatus, Recordset, WritePolicy
+from aerospike_native import PartitionFilter, Key, QueryPolicy, Statement, PartitionStatus, Recordset, WritePolicy
 
 from fixtures import TestFixtureInsertRecord
 

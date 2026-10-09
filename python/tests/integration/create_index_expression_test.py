@@ -16,13 +16,13 @@
 """Tests for create_index_using_expression and IndexTask functionality."""
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     IndexType,
     CollectionIndexType,
     FilterExpression,
     TaskStatus,
 )
-from aerospike_async.exceptions import ResultCode, IndexFoundError
+from aerospike_native.exceptions import ResultCode, IndexFoundError
 from fixtures import TestFixtureConnection
 
 

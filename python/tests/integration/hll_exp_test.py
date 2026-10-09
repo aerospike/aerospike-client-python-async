@@ -16,11 +16,11 @@
 """Tests for HLL FilterExpression methods."""
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     ExpType, FilterExpression as fe, WritePolicy, ReadPolicy, Key,
     HllOperation, HLLPolicy, ListReturnType,
 )
-from aerospike_async.exceptions import ServerError, ResultCode, FilteredOut
+from aerospike_native.exceptions import ServerError, ResultCode, FilteredOut
 from fixtures import TestFixtureConnection
 
 

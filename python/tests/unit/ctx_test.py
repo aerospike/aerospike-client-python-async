@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-from aerospike_async import CTX, ListOrderType, MapOrder
+from aerospike_native import CTX, ListOrderType, MapOrder
 
 
 class TestCTXListMethods:
@@ -128,7 +128,7 @@ class TestCTXBase64:
         # A restored expression is held as its packed bytes rather than the
         # tree it was built from, so ``==`` is false even when nothing was
         # lost; the re-encoding is the proof.
-        from aerospike_async import FilterExpression as fe, LoopVarPart
+        from aerospike_native import FilterExpression as fe, LoopVarPart
 
         value_filter = fe.gt(fe.map_loop_var(LoopVarPart.VALUE), fe.int_val(10))
         key_filter = fe.eq(fe.map_loop_var(LoopVarPart.MAP_KEY), fe.string_val("k1"))
@@ -145,7 +145,7 @@ class TestCTXBase64:
 
     def test_invalid_base64_raises(self):
         import pytest
-        from aerospike_async.exceptions import AerospikeError
+        from aerospike_native.exceptions import AerospikeError
 
         with pytest.raises(AerospikeError):
             CTX.from_base64("[map_key(<string#4>), list_index(0)]")

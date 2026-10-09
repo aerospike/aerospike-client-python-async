@@ -17,8 +17,8 @@
 
 import os
 import pytest
-from aerospike_async import new_client, ClientPolicy, TlsConfig, AuthMode, Key
-from aerospike_async.exceptions import ConnectionError as AerospikeConnectionError
+from aerospike_native import new_client, ClientPolicy, TlsConfig, AuthMode, Key
+from aerospike_native.exceptions import ConnectionError as AerospikeConnectionError
 
 
 def _tls_host_env():

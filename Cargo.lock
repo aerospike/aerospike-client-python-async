@@ -55,7 +55,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "aerospike_async"
+name = "aerospike_native"
 version = "0.6.0-alpha.6"
 dependencies = [
  "aerospike-core",

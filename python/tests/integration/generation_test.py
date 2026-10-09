@@ -19,8 +19,8 @@ Tests that generation policies work correctly for concurrent update scenarios.
 """
 
 import pytest
-from aerospike_async import Key, WritePolicy, ReadPolicy, GenerationPolicy
-from aerospike_async.exceptions import ResultCode, GenerationError
+from aerospike_native import Key, WritePolicy, ReadPolicy, GenerationPolicy
+from aerospike_native.exceptions import ResultCode, GenerationError
 from fixtures import TestFixtureConnection
 
 

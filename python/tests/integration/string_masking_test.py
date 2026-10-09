@@ -49,14 +49,14 @@ import os
 import pytest
 import pytest_asyncio
 
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     Key,
     StringOperation,
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import ResultCode, ServerError, SecurityNotEnabled
+from aerospike_native.exceptions import ResultCode, ServerError, SecurityNotEnabled
 
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -344,7 +344,7 @@ def _key():
 def _is_role_violation(exc) -> bool:
     """Check if exception is a ROLE_VIOLATION (server result code 81).
 
-    PAC's ``ResultCode`` enum doesn't expose ``ROLE_VIOLATION`` as a
+    PNC's ``ResultCode`` enum doesn't expose ``ROLE_VIOLATION`` as a
     named attribute (only ``FAIL_FORBIDDEN``, ``ALWAYS_FORBIDDEN``, etc.
     are surfaced; the protocol's code 81 maps to one of those without a
     dedicated alias). The exception's ``result_code`` repr is the

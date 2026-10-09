@@ -23,11 +23,11 @@ Client-side reduction must be performed to get final aggregated values.
 import asyncio
 import os
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     Statement, Filter, QueryPolicy,
     PartitionFilter, IndexType, WritePolicy, Key, UDFLang
 )
-from aerospike_async.exceptions import ResultCode, ServerError
+from aerospike_native.exceptions import ResultCode, ServerError
 from fixtures import TestFixtureConnection
 
 

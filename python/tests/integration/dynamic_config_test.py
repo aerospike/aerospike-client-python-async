@@ -28,7 +28,7 @@ import os
 
 import pytest
 
-from aerospike_async import ClientPolicy, Key, WritePolicy, new_client
+from aerospike_native import ClientPolicy, Key, WritePolicy, new_client
 
 _GOOD = 'version: "1.0.0"\ndynamic:\n  read:\n    max_retries: 7\n'
 _BAD_VALUE = 'version: "1.0.0"\ndynamic:\n  read:\n    max_retries: not_a_number\n'

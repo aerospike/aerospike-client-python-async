@@ -15,7 +15,7 @@
 
 //! Per-`Client` Tokio runtime.
 //!
-//! The default PAC topology is one global multi-thread Tokio runtime feeding
+//! The default PNC topology is one global multi-thread Tokio runtime feeding
 //! all Clients via `pyo3_async_runtimes::tokio::get_runtime()`. Under
 //! AsyncPool with N event loops, all N loops contend on that shared runtime's
 //! scheduler — work stealing across loops, completions on any worker dispatch
@@ -39,7 +39,7 @@ use tokio::runtime::{Builder, Handle, Runtime};
 /// Built with `worker_threads(N)` — N dedicated Tokio worker threads are
 /// auto-spawned when the runtime is constructed, and torn down when it's
 /// dropped. Using multi-thread mode (rather than current-thread) keeps the
-/// I/O driver pattern PAC already relies on and avoids the asyncio-thread-
+/// I/O driver pattern PNC already relies on and avoids the asyncio-thread-
 /// ownership obstacle (asyncio's `epoll_wait` owns its thread; a
 /// current-thread Tokio runtime can't share it).
 pub(crate) struct ClientRuntime {
@@ -59,7 +59,7 @@ impl ClientRuntime {
         let rt = Builder::new_multi_thread()
             .worker_threads(workers)
             .enable_all()
-            .thread_name("pac-client-rt")
+            .thread_name("pnc-client-rt")
             .build()?;
         let handle = rt.handle().clone();
         Ok(ClientRuntime { handle, _rt: Some(rt) })
@@ -78,7 +78,7 @@ impl Drop for ClientRuntime {
         // during another test's `asyncio.run()`. `shutdown_background()`
         // schedules the cleanup on a separate thread so dropping from any
         // context is safe. In-flight tasks are abandoned rather than awaited;
-        // PAC's request lifecycle doesn't depend on graceful per-task
+        // PNC's request lifecycle doesn't depend on graceful per-task
         // shutdown (each op's PyFuture has already resolved by the time the
         // Client is dropped).
         if let Some(rt) = self._rt.take() {

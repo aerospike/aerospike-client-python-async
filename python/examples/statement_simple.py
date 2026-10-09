@@ -15,12 +15,12 @@
 # the License.
 
 """
-Simple example of using Statement for queries with aerospike_async.
+Simple example of using Statement for queries with aerospike_native.
 """
 
 import asyncio
 import os
-from aerospike_async import new_client, ClientPolicy, QueryPolicy, PartitionFilter, Statement, Filter, CollectionIndexType
+from aerospike_native import new_client, ClientPolicy, QueryPolicy, PartitionFilter, Statement, Filter, CollectionIndexType
 
 
 async def simple_statement_example():

@@ -3,14 +3,14 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 
-"""Environment helpers for PAC benchmark scripts."""
+"""Environment helpers for PNC benchmark scripts."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-from aerospike_async import ClientPolicy
+from aerospike_native import ClientPolicy
 
 
 def _load_env_file(path: Path, *, override: bool = False) -> None:

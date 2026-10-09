@@ -32,7 +32,7 @@ git-cargo:
 
 stubs:
 	# Generate type stubs and organize them as a Python package
-	# stub_gen.rs will automatically move _aerospike_async_native.pyi to the correct location
+	# stub_gen.rs will automatically move _native.pyi to the correct location
 	# Suppress warnings from dependencies (aerospike-core) to keep output clean
 	# Uses --no-default-features + --features tls so TlsConfig stubs are generated
 	# (extension-module is excluded; only tls is needed for complete stubs)
@@ -43,13 +43,13 @@ stubs:
 		|| { cat stub_gen.log; rm -f stub_gen.log; exit 1; }; \
 	grep -v "warning:.*aerospike-core" stub_gen.log || true; rm -f stub_gen.log
 	# Post-process stubs to fix issues pyo3_stub_gen can't handle automatically
-	@if [ -f python/aerospike_async/__init__.pyi ]; then \
-		python python/postprocess_stubs.py python/aerospike_async/__init__.pyi; \
+	@if [ -f python/aerospike_native/__init__.pyi ]; then \
+		python python/postprocess_stubs.py python/aerospike_native/__init__.pyi; \
 	fi
-	@if [ -f python/aerospike_async/_aerospike_async_native.pyi ]; then \
-		python python/postprocess_stubs.py python/aerospike_async/_aerospike_async_native.pyi; \
+	@if [ -f python/aerospike_native/_native.pyi ]; then \
+		python python/postprocess_stubs.py python/aerospike_native/_native.pyi; \
 	fi
-	@echo "Generated stubs in python/aerospike_async/"
+	@echo "Generated stubs in python/aerospike_native/"
 
 lint:
 	ruff check python/

@@ -17,7 +17,7 @@ import asyncio
 import time
 
 import pytest
-from aerospike_async import (
+from aerospike_native import (
     ClientPolicy,
     GeoJSON,
     Key,
@@ -28,7 +28,7 @@ from aerospike_async import (
     WritePolicy,
     new_client,
 )
-from aerospike_async.exceptions import ServerError
+from aerospike_native.exceptions import ServerError
 
 
 async def wait_for_index_ready(
