@@ -10,11 +10,8 @@ wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
 (x86_64) on Python 3.11–3.15, plus free-threaded 3.14 and 3.15 (`cp314t`,
 `cp315t`) on Linux and macOS arm64.
 
-> **Status:** Public preview (alpha). Not yet production-ready; feedback welcome
-> via [GitHub Issues](https://github.com/aerospike/aerospike-client-python-native/issues).
-
 > **Not officially supported as a standalone client; APIs at this layer are
-> undocumented and may change between releases without notice.** This package
+> undocumented.** This package
 > is the low-level primitive layer underneath the
 > [Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/). The
 > reference sections below exist for SDK users who need to drop down to
