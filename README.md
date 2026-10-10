@@ -1,25 +1,29 @@
 # Aerospike Python Native Client
 
-The Python Native Client (PNC) underneath the
-[Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/): ultra-high
-performance Python bindings for the Aerospike Rust client core — async and
-blocking surfaces in one client, with first-class free-threaded
-Python support for parallel-thread throughput well past what GIL-bound
-clients can sustain. Built with [PyO3](https://pyo3.rs/); ships pre-built
-wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
+The Python Native Client (PNC) is the ultra-high performance [PyO3](https://pyo3.rs/) layer underlying the
+[Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/). The PNC provides Python bindings for the Aerospike Rust client core. Both async and
+blocking surfaces are made available in one client, with first-class free-threaded
+Python support providing TPS and latency profiles previously unachievable in Python.
+
+The PNC ships pre-built wheels for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows
 (x86_64) on Python 3.11–3.15, plus free-threaded 3.14 and 3.15 (`cp314t`,
 `cp315t`) on Linux and macOS arm64.
 
-> **Not officially supported as a standalone client; APIs at this layer are
-> undocumented.** This package
+> ### Important:
+>
+> **The PNC is not officially supported as a standalone client**;
+> the APIs at this layer are undocumented.
+> This package
 > is the low-level primitive layer underneath the
 > [Aerospike Python SDK](https://pypi.org/project/aerospike-sdk/). The
 > reference sections below exist for SDK users who need to drop down to
 > low-level configuration (TLS, multi-record transactions, strong-consistency
 > read modes, wire compression) and for client contributors.
 >
-> Not to be confused with the `aerospike` package, the separate C-based Python
+> Not to be confused with the legacy `aerospike` package, the separate C-based Python
 > client. Earlier alphas were published as `aerospike-async`.
+>
+> Requires Aerospike Server 8.2.0+ (older servers may work but are not guaranteed).
 
 ## Resources
 
@@ -46,20 +50,12 @@ free-threaded build** (`cp314t`, `cp315t`, Linux and macOS arm64), so no Rust to
 is required for ordinary use. If pip resolves to an sdist on your platform, see
 [Building from source](#building-from-source) below.
 
-Requires Aerospike Server 8.2.0+ (older servers may work but are not guaranteed).
-
 ## Quick start
 
 ```python
 import asyncio
 
-from aerospike_native import (
-    ClientPolicy,
-    Key,
-    ReadPolicy,
-    WritePolicy,
-    new_client,
-)
+from aerospike_native import ClientPolicy, Key, new_client
 
 
 async def main():
@@ -202,15 +198,13 @@ Multi-record transactions require a strong-consistency namespace on the server
 attaching a `Txn` to each policy, then `commit` or `abort`:
 
 ```python
-from aerospike_native import CommitStatus, Txn
+from aerospike_native import CommitStatus, Txn, WritePolicy
 from aerospike_native.exceptions import CommitFailedError
 
 txn = Txn()
 
 write = WritePolicy()
 write.txn = txn
-read = ReadPolicy()
-read.txn = txn
 
 try:
     await client.put(key_a, {"balance": 100}, policy=write)
@@ -240,7 +234,8 @@ policy.read_mode_sc = ReadModeSC.LINEARIZE    # SC namespace
 
 ## Wire-protocol compression
 
-Every policy exposes a `use_compression` flag (off by default) to enable
+Every command policy (`ReadPolicy`, `WritePolicy`, `BatchPolicy`,
+`QueryPolicy`) exposes a `use_compression` flag (off by default) to enable
 compression of request/response payloads on the wire:
 
 ```python
@@ -251,8 +246,8 @@ policy.use_compression = True
 ## Versioning
 
 The PNC follows [SemVer](https://semver.org/). Pre-releases use the
-`MAJOR.MINOR.PATCH-{alpha,beta,rc}.N` form (e.g. `0.4.0-alpha.1`). PyPI
-normalizes these on upload to the equivalent PEP 440 spelling (`0.4.0a1`).
+`MAJOR.MINOR.PATCH-{alpha,beta,rc}.N` form (e.g. `1.1.0-rc.1`). PyPI
+normalizes these on upload to the equivalent PEP 440 spelling (`1.1.0rc1`).
 
 `Cargo.toml` is the single source of truth; `pyproject.toml` does **not**
 duplicate the version. maturin reads it from `Cargo.toml` when it builds the
@@ -331,7 +326,7 @@ Copy `aerospike.env.example` to `aerospike.env` (gitignored) and edit it to
 match your Aerospike database node configuration:
 
 ```bash
-export AEROSPIKE_HOST=localhost:3000
+export AEROSPIKE_HOST=127.0.0.1:3100
 ```
 
 `make test` and `make test-int` source `aerospike.env`, falling back to
@@ -365,11 +360,11 @@ Bumps are manual and happen in PRs against `stage`. Promotion workflows
 
 ```bash
 # 1. Edit Cargo.toml [package] version field, then refresh Cargo.lock:
-#    e.g. 0.6.0-alpha.1  →  0.6.0-alpha.2
-cargo check    # or: cargo update -p aerospike_native --precise 0.6.0-alpha.2
+#    e.g. 1.0.0  →  1.0.1
+cargo check    # or: cargo update -p aerospike_native --precise 1.0.1
 
 # 2. Confirm:
-bin/get-version    # prints 0.6.0-alpha.2
+bin/get-version    # prints 1.0.1
 
 # 3. Open a PR against stage with just this change.
 ```
@@ -379,7 +374,7 @@ bin/get-version    # prints 0.6.0-alpha.2
 Anywhere a build script, CI step, or release tool needs the version:
 
 ```bash
-bin/get-version    # → 0.6.0-alpha.1
+bin/get-version    # → 1.0.0
 ```
 
 The script parses the first `version` field inside the `[package]` table of
