@@ -10,8 +10,9 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "aerospike-core"
-version = "3.0.0-alpha.2"
-source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#f390f3686b02c07bfd75f0bb3cf2da0dc97d0c90"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b902ab303a25e4df94d84089d40fb0e4590eba57546831a7a63c98b68fcedb8"
 dependencies = [
  "aerospike-macro",
  "aerospike-rt",
@@ -38,8 +39,9 @@ dependencies = [
 
 [[package]]
 name = "aerospike-macro"
-version = "3.0.0-alpha.2"
-source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#f390f3686b02c07bfd75f0bb3cf2da0dc97d0c90"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f949bc72ae7e37122740c02bf5f33f9e1e1512b3dcf2859de2d8dd6e5433376e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -48,8 +50,9 @@ dependencies = [
 
 [[package]]
 name = "aerospike-rt"
-version = "3.0.0-alpha.2"
-source = "git+https://github.com/aerospike/aerospike-client-rust?branch=v3#f390f3686b02c07bfd75f0bb3cf2da0dc97d0c90"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "150a667e7595c8d0d0845045771e97fcb089c60521f091d4b3dd33982283bcb1"
 dependencies = [
  "tokio",
 ]
@@ -1493,9 +1496,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.53.1"
+version = "1.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+checksum = "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044"
 dependencies = [
  "bytes",
  "libc",
@@ -1519,9 +1522,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.26.5"
+version = "0.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c85f2c3ef0b1cd58b36682f4b17aaa995f0e5db534d85692b4903abce21f67"
+checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
 dependencies = [
  "rustls",
  "tokio",
